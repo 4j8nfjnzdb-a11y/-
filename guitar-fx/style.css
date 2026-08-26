@@ -147,6 +147,12 @@ button:disabled {
 
 button:not(:disabled):hover { border-color: rgba(234, 230, 223, 0.7); }
 
+.warn {
+  font-size: 0.75rem;
+  color: #ffb454;
+  margin: 0 0 1rem;
+}
+
 .status {
   font-size: 0.75rem;
   color: var(--ink-dim);

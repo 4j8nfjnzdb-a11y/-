@@ -21,7 +21,6 @@
   // ---- DOM refs ------------------------------------------------------
 
   const deviceSelect = document.getElementById("deviceSelect");
-  const refreshDevicesBtn = document.getElementById("refreshDevices");
   const startBtn = document.getElementById("startBtn");
   const stopBtn = document.getElementById("stopBtn");
   const statusEl = document.getElementById("status");
@@ -613,15 +612,14 @@
 
   // ---- input device handling ----------------------------------------------
   //
-  // Device *labels* (and, in some browsers, the device list itself) are only
-  // populated by enumerateDevices() after the page has been granted mic
-  // permission at least once. getUserMedia() also silently rejects (some
-  // browsers won't even show a prompt) unless it's called from inside a
-  // real user gesture — so priming permission is NEVER done automatically
-  // on load here; it only happens from the "①" button click, which is a
-  // genuine user gesture in every browser. Everything is logged to the
-  // on-page diagnostics panel because a bare "it didn't work" is otherwise
-  // undebuggable without devtools.
+  // This mirrors the proven flow from an earlier working app (glitchbox):
+  // ONE button both requests mic permission and starts, in a single real
+  // user gesture (satisfies every browser's activation requirement, unlike
+  // a separate priming step). The device list only gets populated *after*
+  // that first connection succeeds (that's the only point real labels are
+  // unlocked), and picking a different device from the dropdown afterward
+  // hot-swaps the input live via its own getUserMedia call. Every step is
+  // also written to the on-page diagnostics log.
 
   log(`secure context: ${window.isSecureContext ? "yes" : "no"}, protocol: ${location.protocol}`);
   const mediaDevicesAvailable = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
@@ -631,7 +629,6 @@
     secureWarning.hidden = false;
     statusEl.textContent = "マイクAPIが利用できません (file://で開いていませんか?)";
     startBtn.disabled = true;
-    refreshDevicesBtn.disabled = true;
     deviceSelect.innerHTML = '<option value="">(利用不可)</option>';
   } else if (navigator.permissions && navigator.permissions.query) {
     navigator.permissions.query({ name: "microphone" }).then(
@@ -645,93 +642,82 @@
     );
   }
 
-  async function refreshDeviceList() {
+  // deviceId "" means "browser default" — no exact constraint
+  function openStream(deviceId) {
+    const constraints = {
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+      channelCount: { ideal: 2 },
+    };
+    if (deviceId) constraints.deviceId = { exact: deviceId };
+    return getUserMediaWithTimeout({ audio: constraints });
+  }
+
+  async function refreshDeviceList(selectedDeviceId) {
     if (!mediaDevicesAvailable) return;
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       const inputs = devices.filter((d) => d.kind === "audioinput");
       log(`enumerateDevices: ${inputs.length}件の入力デバイス`);
-      const prev = deviceSelect.value;
       deviceSelect.innerHTML = "";
-      if (inputs.length === 0) {
-        deviceSelect.innerHTML = '<option value="">(入力デバイスが見つかりません — ①を押してください)</option>';
-        return;
-      }
+      const defOpt = document.createElement("option");
+      defOpt.value = "";
+      defOpt.textContent = "既定の入力";
+      deviceSelect.appendChild(defOpt);
       inputs.forEach((d, i) => {
         const opt = document.createElement("option");
         opt.value = d.deviceId;
-        opt.textContent = d.label || `入力 ${i + 1} (権限待ち)`;
+        opt.textContent = d.label || `入力デバイス ${i + 1}`;
         deviceSelect.appendChild(opt);
       });
-      if (inputs.some((d) => d.deviceId === prev)) deviceSelect.value = prev;
+      deviceSelect.value = selectedDeviceId || "";
+      deviceSelect.disabled = false;
     } catch (err) {
       log(`enumerateDevices失敗: ${err.name}: ${err.message}`, "err");
-      statusEl.textContent = "デバイス取得エラー: " + err.message;
     }
   }
 
-  async function primeAndListDevices() {
-    if (!mediaDevicesAvailable) return;
-    refreshDevicesBtn.disabled = true;
-    log("getUserMedia({audio:true}) をリクエスト中 (ブラウザの許可ダイアログを確認してください)…");
+  async function switchDevice(deviceId) {
+    if (!mediaStream) return; // not running yet — nothing to switch
+    deviceSelect.disabled = true;
+    statusEl.textContent = "入力デバイスを切り替えています…";
+    log(`デバイス切り替え: ${deviceSelect.selectedOptions[0]?.textContent || deviceId || "既定"} をリクエスト中…`);
     try {
-      // a throwaway getUserMedia call is the only way to unlock real
-      // device labels/ids before the user has picked one and hit start
-      const primer = await getUserMediaWithTimeout({ audio: true });
-      primer.getTracks().forEach((t) => t.stop());
-      log("マイク権限: 許可されました", "ok");
-      statusEl.textContent = "マイク権限OK — デバイスを選んで起動してください";
+      const newStream = await openStream(deviceId);
+      mediaStream.getTracks().forEach((t) => t.stop());
+      if (sourceNode) sourceNode.disconnect();
+      mediaStream = newStream;
+      sourceNode = audioCtx.createMediaStreamSource(mediaStream);
+      sourceNode.connect(inputTrim);
+      const track = mediaStream.getAudioTracks()[0];
+      log(`切り替え成功: ${track ? track.label : "既定の入力"}`, "ok");
+      await refreshDeviceList(deviceId);
+      statusEl.textContent = "入力中: " + (track ? track.label || "既定の入力" : "既定の入力");
     } catch (err) {
-      log(`マイク権限エラー: ${err.name}: ${err.message}`, "err");
-      statusEl.textContent = explainError(err);
+      log(`切り替え失敗: ${err.name}: ${err.message}`, "err");
+      statusEl.textContent = "デバイスを切り替えられませんでした: " + explainError(err);
+    } finally {
+      deviceSelect.disabled = false;
     }
-    refreshDevicesBtn.disabled = false;
-    await refreshDeviceList();
   }
 
-  refreshDevicesBtn.addEventListener("click", primeAndListDevices);
+  deviceSelect.addEventListener("change", () => switchDevice(deviceSelect.value));
   if (mediaDevicesAvailable && navigator.mediaDevices.addEventListener) {
     navigator.mediaDevices.addEventListener("devicechange", () => {
       log("devicechangeイベント検出");
-      refreshDeviceList();
+      if (mediaStream) refreshDeviceList(deviceSelect.value);
     });
   }
-  // best-effort only: no permission request here, just whatever
-  // enumerateDevices() will hand back without prompting (may be an empty
-  // list in some browsers) so the dropdown isn't blank before ① is pressed
-  refreshDeviceList();
 
   // ---- start / stop --------------------------------------------------------
 
-  function buildConstraints(deviceId) {
-    return {
-      audio: {
-        deviceId: deviceId ? { exact: deviceId } : undefined,
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: false,
-        channelCount: { ideal: 2 },
-      },
-    };
-  }
-
   startBtn.addEventListener("click", async () => {
     startBtn.disabled = true;
-    const deviceId = deviceSelect.value;
-    statusEl.textContent = "マイク権限を確認中…";
-    log(`起動: ${deviceId ? "選択デバイス (" + (deviceSelect.selectedOptions[0]?.textContent || deviceId) + ")" : "既定デバイス"} でgetUserMediaをリクエスト中…`);
+    statusEl.textContent = "マイクへのアクセスを許可してください…";
+    log("起動: getUserMediaをリクエスト中(ブラウザの許可ダイアログを確認してください)…");
     try {
-      try {
-        mediaStream = await getUserMediaWithTimeout(buildConstraints(deviceId));
-      } catch (err) {
-        if (deviceId && (err.name === "OverconstrainedError" || err.name === "NotFoundError")) {
-          log(`選択デバイスで失敗 (${err.name})。既定デバイスで再試行します…`, "err");
-          mediaStream = await getUserMediaWithTimeout(buildConstraints(""));
-        } else {
-          throw err;
-        }
-      }
-
+      mediaStream = await openStream(deviceSelect.value);
       const track = mediaStream.getAudioTracks()[0];
       log(`getUserMedia成功: ${track ? track.label : "(no label)"}`, "ok");
 
@@ -742,13 +728,14 @@
       sourceNode = audioCtx.createMediaStreamSource(mediaStream);
       sourceNode.connect(inputTrim);
 
-      statusEl.textContent = "入力中";
+      statusEl.textContent = "入力中: " + (track ? track.label || "既定の入力" : "既定の入力");
       stopBtn.disabled = false;
       recordBtn.disabled = false;
-      await refreshDeviceList();
+      await refreshDeviceList(track ? track.getSettings().deviceId : "");
     } catch (err) {
       log(`起動失敗: ${err.name}: ${err.message}`, "err");
-      statusEl.textContent = "エラー: " + explainError(err);
+      statusEl.textContent = "マイクに接続できませんでした: " + explainError(err);
+    } finally {
       startBtn.disabled = false;
     }
   });
@@ -760,6 +747,8 @@
     statusEl.textContent = "停止中";
     startBtn.disabled = false;
     stopBtn.disabled = true;
+    deviceSelect.disabled = true;
+    deviceSelect.innerHTML = '<option value="">接続すると一覧が表示されます</option>';
   });
 
   // ---- recording -------------------------------------------------------

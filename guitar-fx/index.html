@@ -28,19 +28,17 @@
     <!-- ================= SETUP / INPUT ================= -->
     <section class="panel setup">
       <h2>1. 入力設定</h2>
+      <p class="warn">⚠ ハウリング防止のため、スピーカーではなくヘッドホンでの使用を推奨します。</p>
       <div class="row">
-        <button id="refreshDevices" class="primaryBtn">① マイクを許可してデバイス一覧を取得</button>
+        <button id="startBtn" class="primaryBtn">マイク接続 &amp; 起動</button>
+        <button id="stopBtn" class="ghostBtn" disabled>停止</button>
+        <span id="status" class="status">停止中</span>
       </div>
       <div class="row">
         <label class="field">
-          <span>② オーディオ入力デバイス</span>
-          <select id="deviceSelect"><option value="">(①を先に押してください)</option></select>
+          <span>オーディオ入力デバイス</span>
+          <select id="deviceSelect" disabled><option value="">接続すると一覧が表示されます</option></select>
         </label>
-      </div>
-      <div class="row">
-        <button id="startBtn" class="primaryBtn">③ 起動 (選択したデバイスで開始)</button>
-        <button id="stopBtn" class="ghostBtn" disabled>停止</button>
-        <span id="status" class="status">停止中</span>
       </div>
       <div class="row">
         <label class="fader">
@@ -50,11 +48,13 @@
         <div class="meter"><canvas id="meterCanvas" width="220" height="14"></canvas></div>
       </div>
       <p class="hint">
-        macOS: サウンド設定の入力をFirefaceに、ブラウザは必ずローカルサーバ経由
-        (file://ではなく http://localhost) で開いてください。入力側のエコー
-        キャンセル/自動音量補正はコード側で無効化しています。①のボタンを押すと
-        ブラウザがマイクの使用許可を聞いてきます。「許可」を選んでください
-        (以前「ブロック」を選んでいた場合は下の診断ログを参照)。
+        「マイク接続 &amp; 起動」を押すとブラウザがマイクの使用許可を聞いてくるので
+        「許可」を選んでください。最初は既定の入力で始まりますが、起動後に
+        上のプルダウンでFireface等の別の入力デバイスへその場で切り替えられます。
+        macOS: サウンド設定の入力をFirefaceにしておくと既定入力から選びやすい
+        です。ブラウザは必ずローカルサーバ経由(file://ではなく
+        http://localhost)で開いてください。入力側のエコーキャンセル/自動音量
+        補正はコード側で無効化しています。
       </p>
       <div class="diag">
         <div class="diag-head">診断ログ <button id="clearLog" class="ghostBtn tiny">クリア</button></div>
