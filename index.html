@@ -2,40 +2,82 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>kizashi — generative ambient</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#0b0d10" />
+<title>glitchmix — ランダムグリッチ動画</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%230b0d10'/%3E%3Ctext x='50' y='68' font-size='60' text-anchor='middle'%3E%F0%9F%93%BC%3C/text%3E%3C/svg%3E" />
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <canvas id="bg"></canvas>
-
-  <main class="ui">
+  <main class="app">
     <header>
-      <h1>kizashi <span class="sub">きざし</span></h1>
-      <p class="tagline">反復に見せかけて、予測の像を結ぶ寸前でかわし続けるアンビエント。</p>
+      <h1>glitchmix <span class="sub">グリッチ動画メーカー</span></h1>
+      <p class="tagline">写真や動画（iPhoneの .MOV もOK）を放り込むと、拡大・縮小・スライスずれ・色ズレ・走査線などをランダムに組み合わせ、複数素材を混ぜながら二度と同じにならないグリッチ映像を作り続けます。</p>
     </header>
 
-    <div class="transport">
-      <button id="playBtn" class="playBtn">再生</button>
-      <button id="paletteBtn" class="ghostBtn">配色を変える</button>
-    </div>
+    <section class="dropzone" id="dropzone">
+      <input id="fileInput" type="file" accept="video/*,image/*,.mov,.heic,.heif" multiple hidden />
+      <button id="pickBtn" class="pickBtn" type="button">写真・動画を選ぶ</button>
+      <p class="dropHint">またはここにドラッグ＆ドロップ / 複数素材を追加するとランダムに切り替わりミックスされます</p>
+      <ul id="mediaList" class="mediaList" aria-live="polite"></ul>
+    </section>
 
-    <div class="controls">
-      <label class="slider">
-        <span>密度 <em>density</em></span>
-        <input id="density" type="range" min="0" max="100" value="42" />
-      </label>
-      <label class="slider">
-        <span>明暗 <em>tone</em></span>
-        <input id="tone" type="range" min="0" max="100" value="50" />
-      </label>
-      <label class="slider">
-        <span>揺らぎ <em>swerve</em></span>
-        <input id="swerve" type="range" min="0" max="100" value="55" />
-      </label>
-    </div>
+    <section class="stageWrap" id="stageWrap">
+      <canvas id="stage"></canvas>
+      <p id="stageHint" class="stageHint">素材を選ぶとここにプレビューが表示されます</p>
+    </section>
 
-    <p class="hint">音は毎回、一度きりのものです。同じ配列は二度と戻ってきません。</p>
+    <section class="transport">
+      <button id="playBtn" class="playBtn" disabled>再生</button>
+      <button id="shuffleBtn" class="ghostBtn" disabled>今すぐシャッフル</button>
+      <label class="toggle">
+        <input id="audioToggle" type="checkbox" />
+        <span>音声</span>
+      </label>
+    </section>
+
+    <section class="controls">
+      <label class="slider">
+        <span>強度 <em>intensity</em></span>
+        <input id="intensity" type="range" min="0" max="100" value="55" />
+      </label>
+      <label class="slider">
+        <span>変化速度 <em>chaos speed</em></span>
+        <input id="speed" type="range" min="0" max="100" value="50" />
+      </label>
+    </section>
+
+    <fieldset class="effects" id="effectFieldset">
+      <legend>使用する効果</legend>
+      <label><input type="checkbox" data-fx="sliceDisplace" checked /> スライスずれ</label>
+      <label><input type="checkbox" data-fx="channelShift" checked /> 色収差</label>
+      <label><input type="checkbox" data-fx="blockNoise" checked /> ノイズブロック</label>
+      <label><input type="checkbox" data-fx="zoomPunch" checked /> 拡大縮小パンチ</label>
+      <label><input type="checkbox" data-fx="scanlines" checked /> 走査線／VHS</label>
+      <label><input type="checkbox" data-fx="mirrorGlitch" checked /> ミラー反転</label>
+      <label><input type="checkbox" data-fx="invertFlicker" checked /> 反転フリッカー</label>
+      <label><input type="checkbox" data-fx="freezeSmear" checked /> フリーズ残像</label>
+      <label><input type="checkbox" data-fx="ghostBlend" checked /> 素材ミックス</label>
+      <label><input type="checkbox" data-fx="pixelSort" checked /> ピクセルソート</label>
+    </fieldset>
+
+    <section class="record">
+      <label class="durationPick">
+        <span>録画時間</span>
+        <select id="durationSelect">
+          <option value="5">5秒</option>
+          <option value="10" selected>10秒</option>
+          <option value="15">15秒</option>
+          <option value="30">30秒</option>
+          <option value="0">手動停止</option>
+        </select>
+      </label>
+      <button id="recordBtn" class="recordBtn" disabled>録画開始</button>
+      <span id="recordStatus" class="recordStatus" aria-live="polite"></span>
+      <a id="downloadLink" class="downloadLink" hidden download>書き出した動画をダウンロード</a>
+    </section>
+
+    <p class="hint">素材はすべてこの端末内で処理されます。どこにもアップロードされません。</p>
   </main>
 
   <script src="app.js"></script>
