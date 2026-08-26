@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>drift rack — realtime guitar fx</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="top">
+    <h1>drift rack <span class="sub">リアルタイム・ギターエフェクト</span></h1>
+    <p class="tagline">
+      オーディオインターフェース(Fireface等)からギターを入力し、GRM Tools的な
+      複数のエフェクトを個別にオン/オフ・ミックスしながら、パラメータごとに
+      ランダムウォークをかけられるリアルタイム処理ラック。
+    </p>
+  </header>
+
+  <main class="rack">
+
+    <!-- ================= SETUP / INPUT ================= -->
+    <section class="panel setup">
+      <h2>1. 入力設定</h2>
+      <div class="row">
+        <label class="field">
+          <span>オーディオ入力デバイス</span>
+          <select id="deviceSelect"><option value="">(未検出 — 起動してください)</option></select>
+        </label>
+        <button id="refreshDevices" class="ghostBtn" title="デバイス一覧を再取得">再検出</button>
+      </div>
+      <div class="row">
+        <button id="startBtn" class="primaryBtn">起動 (マイク権限を許可)</button>
+        <button id="stopBtn" class="ghostBtn" disabled>停止</button>
+        <span id="status" class="status">停止中</span>
+      </div>
+      <div class="row">
+        <label class="fader">
+          <span>Input Trim <em id="inputTrimVal">100%</em></span>
+          <input id="inputTrim" type="range" min="0" max="200" value="100" />
+        </label>
+        <div class="meter"><canvas id="meterCanvas" width="220" height="14"></canvas></div>
+      </div>
+      <p class="hint">
+        macOS: サウンド設定の入力をFirefaceに、ブラウザは必ずローカルサーバ経由
+        (file://ではなく http://localhost) で開いてください。入力側のエコー
+        キャンセル/自動音量補正はコード側で無効化しています。
+      </p>
+    </section>
+
+    <!-- ================= MASTER ================= -->
+    <section class="panel master">
+      <h2>2. マスター / ランダム</h2>
+      <div class="row">
+        <label class="fader">
+          <span>Dry / Wet <em id="masterMixVal">50</em></span>
+          <input id="masterMix" type="range" min="0" max="100" value="50" />
+        </label>
+        <label class="fader">
+          <span>Master Volume <em id="masterVolVal">85%</em></span>
+          <input id="masterVol" type="range" min="0" max="150" value="85" />
+        </label>
+        <label class="fader">
+          <span>Random Speed <em id="randomSpeedVal">50</em></span>
+          <input id="randomSpeed" type="range" min="0" max="100" value="50" />
+        </label>
+      </div>
+      <div class="row">
+        <button id="randomizeNowBtn" class="ghostBtn">🎲 全ランダムを再抽選</button>
+        <button id="recordBtn" class="primaryBtn" disabled>● 録音開始</button>
+      </div>
+      <div id="takes" class="takes"></div>
+    </section>
+
+    <!-- ================= EFFECTS GRID ================= -->
+    <section class="grid">
+
+      <!-- Looper / Time Machine -->
+      <article class="panel fx" data-fx="looper" style="--accent:#7fd6ff">
+        <header class="fxhead">
+          <label class="enable"><input type="checkbox" class="fx-enable" checked /><span class="led"></span></label>
+          <h3>タイムマシン・ルーパー</h3>
+        </header>
+        <p class="fxdesc">数秒〜30秒前の演奏を呼び戻すディレイ/ルーパー。フリーズで無限ループ。</p>
+        <div class="param" data-param="time">
+          <div class="param-label"><span>Time</span><label class="rnd"><input type="checkbox" class="rnd-toggle" /><span>R</span></label></div>
+          <input type="range" class="param-slider" min="0" max="100" value="30" />
+          <span class="param-value">—</span>
+        </div>
+        <div class="param" data-param="feedback">
+          <div class="param-label"><span>Feedback</span><label class="rnd"><input type="checkbox" class="rnd-toggle" /><span>R</span></label></div>
+          <input type="range" class="param-slider" min="0" max="100" value="25" />
+          <span class="param-value">—</span>
+        </div>
+        <div class="param" data-param="mix">
+          <div class="param-label"><span>Mix</span></div>
+          <input type="range" class="param-slider" min="0" max="100" value="60" />
+          <span class="param-value">—</span>
+        </div>
+        <div class="row buttons">
+          <button class="ghostBtn small fx-freeze">❄ フリーズ</button>
+          <button class="ghostBtn small fx-jump">⤳ ランダムジャンプ</button>
+        </div>
+      </article>
+
+      <!-- EHX-inspired 16 Second Delay -->
+      <article class="panel fx" data-fx="delay16" style="--accent:#ffb454">
+        <header class="fxhead">
+          <label class="enable"><input type="checkbox" class="fx-enable" checked /><span class="led"></span></label>
+          <h3>16秒ディレイ (進化版)</h3>
+        </header>
+        <p class="fxdesc">Electro-Harmonix 16 Second Digital Delayを参考に、時間を動かすほどピッチも
+          揺らぐBBD的挙動をランダムウォークで再現。何が出るか分からない。</p>
+        <div class="param" data-param="time">
+          <div class="param-label"><span>Time</span><label class="rnd"><input type="checkbox" class="rnd-toggle" /><span>R</span></label></div>
+          <input type="range" class="param-slider" min="0" max="100" value="25" />
+          <span class="param-value">—</span>
+        </div>
+        <div class="param" data-param="feedback">
+          <div class="param-label"><span>Feedback</span><label class="rnd"><input type="checkbox" class="rnd-toggle" /><span>R</span></label></div>
+          <input type="range" class="param-slider" min="0" max="100" value="35" />
+          <span class="param-value">—</span>
+        </div>
+        <div class="param" data-param="wobble">
+          <div class="param-label"><span>Wobble</span><label class="rnd"><input type="checkbox" class="rnd-toggle" /><span>R</span></label></div>
+          <input type="range" class="param-slider" min="0" max="100" value="20" />
+          <span class="param-value">—</span>
+        </div>
+        <div class="param" data-param="mix">
+          <div class="param-label"><span>Mix</span></div>
+          <input type="range" class="param-slider" min="0" max="100" value="45" />
+          <span class="param-value">—</span>
+        </div>
+      </article>
+
+      <!-- GRM style delay -->
+      <article class="panel fx" data-fx="grmdelay" style="--accent:#c792ea">
+        <header class="fxhead">
+          <label class="enable"><input type="checkbox" class="fx-enable" /><span class="led"></span></label>
+          <h3>GRMディレイ</h3>
+        </header>
+        <p class="fxdesc">GRM Toolsのディレイ系を参考に、Attack/Sustainで反復音の立ち上がりと
+          尾を彫刻するエンベロープ・ディレイ。</p>
+        <div class="param" data-param="attack">
+          <div class="param-label"><span>Attack</span><label class="rnd"><input type="checkbox" class="rnd-toggle" /><span>R</span></label></div>
+          <input type="range" class="param-slider" min="0" max="100" value="30" />
+          <span class="param-value">—</span>
+        </div>
+        <div class="param" data-param="sustain">
+          <div class="param-label"><span>Sustain</span><label class="rnd"><input type="checkbox" class="rnd-toggle" /><span>R</span></label></div>
+          <input type="range" class="param-slider" min="0" max="100" value="55" />
+          <span class="param-value">—</span>
+        </div>
+        <div class="param" data-param="tone">
+          <div class="param-label"><span>Tone</span><label class="rnd"><input type="checkbox" class="rnd-toggle" /><span>R</span></label></div>
+          <input type="range" class="param-slider" min="0" max="100" value="50" />
+          <span class="param-value">—</span>
+        </div>
+        <div class="param" data-param="mix">
+          <div class="param-label"><span>Mix</span></div>
+          <input type="range" class="param-slider" min="0" max="100" value="40" />
+          <span class="param-value">—</span>
+        </div>
+      </article>
+
+      <!-- Random switch / chaos gate -->
+      <article class="panel fx" data-fx="chaos" style="--accent:#ff6b81">
+        <header class="fxhead">
+          <label class="enable"><input type="checkbox" class="fx-enable" /><span class="led"></span></label>
+          <h3>ランダムスイッチ</h3>
+        </header>
+        <p class="fxdesc">不規則な間隔で信号をオン/オフ・断片化するカオス・ゲート。それ自体がランダム発生器。</p>
+        <div class="param" data-param="rate">
+          <div class="param-label"><span>Rate</span></div>
+          <input type="range" class="param-slider" min="0" max="100" value="40" />
+          <span class="param-value">—</span>
+        </div>
+        <div class="param" data-param="density">
+          <div class="param-label"><span>Density</span></div>
+          <input type="range" class="param-slider" min="0" max="100" value="50" />
+          <span class="param-value">—</span>
+        </div>
+        <div class="param" data-param="crush">
+          <div class="param-label"><span>Crush</span><label class="rnd"><input type="checkbox" class="rnd-toggle" /><span>R</span></label></div>
+          <input type="range" class="param-slider" min="0" max="100" value="30" />
+          <span class="param-value">—</span>
+        </div>
+        <div class="param" data-param="mix">
+          <div class="param-label"><span>Mix</span></div>
+          <input type="range" class="param-slider" min="0" max="100" value="70" />
+          <span class="param-value">—</span>
+        </div>
+        <div class="row buttons">
+          <button class="ghostBtn small fx-trigger">⚡ 手動トリガー</button>
+        </div>
+      </article>
+
+      <!-- Vibrato drift -->
+      <article class="panel fx" data-fx="vibrato" style="--accent:#8bffb0">
+        <header class="fxhead">
+          <label class="enable"><input type="checkbox" class="fx-enable" /><span class="led"></span></label>
+          <h3>ドリフト・ビブラート</h3>
+        </header>
+        <p class="fxdesc">ピッチのビブラート幅とレートが、演奏中にじわじわ動き続けるモジュレーション。</p>
+        <div class="param" data-param="rate">
+          <div class="param-label"><span>Rate</span><label class="rnd"><input type="checkbox" class="rnd-toggle" /><span>R</span></label></div>
+          <input type="range" class="param-slider" min="0" max="100" value="35" />
+          <span class="param-value">—</span>
+        </div>
+        <div class="param" data-param="depth">
+          <div class="param-label"><span>Depth</span><label class="rnd"><input type="checkbox" class="rnd-toggle" /><span>R</span></label></div>
+          <input type="range" class="param-slider" min="0" max="100" value="30" />
+          <span class="param-value">—</span>
+        </div>
+        <div class="param" data-param="mix">
+          <div class="param-label"><span>Mix</span></div>
+          <input type="range" class="param-slider" min="0" max="100" value="50" />
+          <span class="param-value">—</span>
+        </div>
+      </article>
+
+    </section>
+  </main>
+
+  <footer class="foot">
+    <p>各エフェクトの「R」はそのパラメータだけをランダムウォークさせるスイッチです。
+    1つだけRを入れて他は手動、あるいは複数のRを組み合わせて同時に動かす、といった使い方ができます。</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
