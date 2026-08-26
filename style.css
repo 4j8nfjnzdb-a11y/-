@@ -131,9 +131,18 @@ button {
 }
 
 .groupLabel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
   font-size: 0.72rem;
   letter-spacing: 0.06em;
   color: var(--ink-dim);
+}
+
+.inlineToggle {
+  font-size: 0.68rem;
+  gap: 0.35rem;
 }
 
 .periodButtons {

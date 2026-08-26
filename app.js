@@ -19,6 +19,9 @@
   const uiEl = document.querySelector(".ui");
   const lastGlitchEl = document.getElementById("lastGlitch");
   const deviceSelect = document.getElementById("deviceSelect");
+  const pitchEnabledBox = document.getElementById("pitchEnabled");
+  const pitchDepthSlider = document.getElementById("pitchDepth");
+  const pitchRateSlider = document.getElementById("pitchRate");
 
   const PERIOD_PRESETS = {
     frequent: [2.5, 7],
@@ -55,6 +58,8 @@
   let stream = null;
   let source = null;
   let workletNode = null;
+  let pitchNode = null;
+  let pitchParam = null;
   let outputGain = null;
   let running = false;
 
@@ -62,6 +67,7 @@
   let autoRangeKey = "normal";
   let schedulerTimer = null;
   let autoDriftTimer = null;
+  let pitchTimer = null;
 
   // ---- irregular interval scheduling --------------------------------
 
@@ -105,6 +111,46 @@
       autoRangeKey = pickAutoRange(autoRangeKey);
       scheduleAutoDrift();
     }, waitMs);
+  }
+
+  // ---- continuous pitch drift ----------------------------------------
+  // Always running once enabled: picks a new random target pitch and
+  // glides the AudioParam to it smoothly over the whole interval, then
+  // immediately picks the next target — an unhurried, never-resting
+  // wander up and down rather than discrete events.
+
+  function pitchLoop() {
+    if (!running || !pitchNode) return;
+    if (!pitchEnabledBox.checked) {
+      pitchTimer = null;
+      return;
+    }
+    const rateVal = +pitchRateSlider.value;
+    const legSeconds = 60 - rateVal * 0.55; // 100 -> 5s, 0 -> 60s
+    const depthVal = +pitchDepthSlider.value;
+    const maxCents = (depthVal / 100) * 1000; // up to ~+/-8.3 semitones
+
+    const now = audioCtx.currentTime;
+    const target = maxCents === 0 ? 0 : (Math.random() * 2 - 1) * maxCents;
+    pitchParam.cancelScheduledValues(now);
+    pitchParam.setValueAtTime(pitchParam.value, now);
+    pitchParam.linearRampToValueAtTime(target, now + legSeconds);
+
+    pitchTimer = setTimeout(pitchLoop, legSeconds * 1000);
+  }
+
+  function setPitchEnabled(enabled) {
+    if (!pitchNode) return;
+    clearTimeout(pitchTimer);
+    pitchTimer = null;
+    if (enabled) {
+      pitchLoop();
+    } else {
+      const now = audioCtx.currentTime;
+      pitchParam.cancelScheduledValues(now);
+      pitchParam.setValueAtTime(pitchParam.value, now);
+      pitchParam.linearRampToValueAtTime(0, now + 2);
+    }
   }
 
   // ---- firing a glitch -------------------------------------------------
@@ -227,7 +273,10 @@
       audioCtx = new (window.AudioContext || window.webkitAudioContext)({
         latencyHint: "interactive",
       });
-      await audioCtx.audioWorklet.addModule("glitch-processor.js");
+      await Promise.all([
+        audioCtx.audioWorklet.addModule("glitch-processor.js"),
+        audioCtx.audioWorklet.addModule("pitch-drift-processor.js"),
+      ]);
 
       stream = await openStream(deviceSelect.value);
 
@@ -237,14 +286,21 @@
         numberOfOutputs: 1,
         outputChannelCount: [2],
       });
+      pitchNode = new AudioWorkletNode(audioCtx, "pitch-drift-processor", {
+        numberOfInputs: 1,
+        numberOfOutputs: 1,
+        outputChannelCount: [2],
+      });
+      pitchParam = pitchNode.parameters.get("cents");
       outputGain = audioCtx.createGain();
       outputGain.gain.value = +volumeSlider.value / 100;
 
-      source.connect(workletNode).connect(outputGain).connect(audioCtx.destination);
+      source.connect(workletNode).connect(pitchNode).connect(outputGain).connect(audioCtx.destination);
 
       running = true;
       scheduleNext();
       scheduleAutoDrift();
+      if (pitchEnabledBox.checked) pitchLoop();
 
       startBtn.textContent = "停止";
       startBtn.classList.add("running");
@@ -263,8 +319,11 @@
     running = false;
     clearTimeout(schedulerTimer);
     clearTimeout(autoDriftTimer);
+    clearTimeout(pitchTimer);
+    pitchTimer = null;
     if (stream) stream.getTracks().forEach((t) => t.stop());
     if (workletNode) workletNode.disconnect();
+    if (pitchNode) pitchNode.disconnect();
     if (source) source.disconnect();
     if (outputGain) outputGain.disconnect();
     if (audioCtx) audioCtx.close();
@@ -272,6 +331,8 @@
     stream = null;
     source = null;
     workletNode = null;
+    pitchNode = null;
+    pitchParam = null;
     outputGain = null;
 
     startBtn.textContent = "マイク接続 & 開始";
@@ -283,6 +344,10 @@
   startBtn.addEventListener("click", () => {
     if (running) stop();
     else start();
+  });
+
+  pitchEnabledBox.addEventListener("change", () => {
+    setPitchEnabled(pitchEnabledBox.checked);
   });
 
   deviceSelect.addEventListener("change", () => {

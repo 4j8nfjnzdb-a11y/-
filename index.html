@@ -60,7 +60,29 @@
 
     <div id="lastGlitch" class="lastGlitch" aria-live="polite"></div>
 
-    <p class="hint">同じ周期は二度と繰り返さない。バーストで連発することもあれば、長く何も起きないこともある。</p>
+    <hr class="rule" />
+
+    <div class="periodGroup">
+      <span class="groupLabel">
+        ピッチドリフト
+        <label class="toggle inlineToggle">
+          <input id="pitchEnabled" type="checkbox" checked />
+          <span>有効</span>
+        </label>
+      </span>
+      <div class="controls">
+        <label class="slider">
+          <span>深さ <em>depth</em></span>
+          <input id="pitchDepth" type="range" min="0" max="100" value="35" />
+        </label>
+        <label class="slider">
+          <span>速さ <em>rate</em></span>
+          <input id="pitchRate" type="range" min="0" max="100" value="20" />
+        </label>
+      </div>
+    </div>
+
+    <p class="hint">同じ周期は二度と繰り返さない。バーストで連発することもあれば、長く何も起きないこともある。ピッチドリフトは常時かかり続け、数十秒かけて上下にゆっくり滑るように動く。</p>
   </main>
 
   <script src="app.js"></script>
