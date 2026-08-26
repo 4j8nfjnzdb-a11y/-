@@ -28,6 +28,22 @@
   const chaosSlider = document.getElementById("chaos");
   const palettesEl = document.getElementById("palettes");
 
+  // ---- status toast --------------------------------------------------
+  // Every load/save action reports success or failure here — silent
+  // failures are how "it just doesn't work" bugs hide.
+
+  function toast(msg) {
+    const el = document.createElement("div");
+    el.className = "toast";
+    el.textContent = msg;
+    document.body.appendChild(el);
+    requestAnimationFrame(() => el.classList.add("show"));
+    setTimeout(() => {
+      el.classList.remove("show");
+      setTimeout(() => el.remove(), 400);
+    }, 2600);
+  }
+
   // ---- seeded randomness -------------------------------------------
 
   function mulberry32(a) {
@@ -98,6 +114,11 @@
       media.push(entry);
       addThumb(entry, url);
       claimEmptyCellsFor(entry);
+      toast(`追加: ${file.name}`);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      toast(`読み込めませんでした: ${file.name}`);
     };
     img.src = url;
   }
@@ -120,6 +141,11 @@
         addThumb(entry, url, true);
       }
       claimEmptyCellsFor(entry);
+      toast(`追加: ${file.name}`);
+    }, { once: true });
+    v.addEventListener("error", () => {
+      URL.revokeObjectURL(url);
+      toast(`読み込めませんでした: ${file.name}(非対応の形式の可能性)`);
     }, { once: true });
     v.play().catch(() => {});
   }
@@ -274,9 +300,11 @@
   fileInput.addEventListener("change", (e) => { handleFiles(e.target.files); fileInput.value = ""; });
 
   function handleFiles(fileList) {
+    if (!fileList || !fileList.length) return;
     [...fileList].forEach((f) => {
       if (f.type.startsWith("image/")) addImageFile(f);
       else if (f.type.startsWith("video/")) addVideoFile(f);
+      else toast(`非対応のファイル形式: ${f.name}`);
     });
   }
 
@@ -289,6 +317,69 @@
   window.addEventListener("drop", (e) => { if (e.dataTransfer?.files?.length) handleFiles(e.dataTransfer.files); });
 
   // ---- recording -----------------------------------------------------
+  // Safari only accepts a narrower set of MediaRecorder codecs than
+  // Chrome — hardcoding vp9 fails silently there. Probe for whatever
+  // this browser actually supports instead of assuming one.
+
+  function pickRecorderMime() {
+    if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return null;
+    const candidates = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm", "video/mp4"];
+    return candidates.find((m) => MediaRecorder.isTypeSupported(m)) || null;
+  }
+
+  // Saving the recorded file also can't assume a plain <a download>
+  // click works everywhere — inside the Claude Artifact viewer it's
+  // inert by design, so that path has to go through the platform's
+  // own downloads bridge first. Elsewhere (this file served plainly,
+  // or opened directly) window.claude doesn't exist and this is a
+  // fast no-op, falling through to the native share sheet, then a
+  // normal download link, then a plain new tab as a last resort.
+  async function saveViaDownloadsCapability(blob, filename) {
+    try {
+      if (!window.claude || !window.claude.use) return false;
+      const downloads = await window.claude.use("downloads");
+      if (!downloads) return false;
+      await downloads.save({ filename, data: blob });
+      toast(`保存しました: ${filename}`);
+      return true;
+    } catch (e) {
+      if (e && e.code === "declined") { toast("保存をキャンセルしました"); return true; }
+      if (e && e.code === "too_large") { toast("録画データが大きすぎます(16MB以内)。短く録り直してください"); return true; }
+      return false;
+    }
+  }
+
+  async function saveBlob(blob, filename) {
+    if (await saveViaDownloadsCapability(blob, filename)) return;
+
+    try {
+      const file = new File([blob], filename, { type: blob.type });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: filename });
+        toast("共有シートを開きました");
+        return;
+      }
+    } catch (e) { /* user cancelled share, or unsupported — fall through */ }
+
+    try {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      toast(`保存しました: ${filename}`);
+    } catch (e) {
+      try {
+        const url = URL.createObjectURL(blob);
+        window.open(url, "_blank");
+        toast("新しいタブで開きました。長押しで保存してください");
+      } catch (e2) {
+        toast("書き出しに失敗しました");
+      }
+    }
+  }
 
   let recorder = null, chunks = [];
   recBtn.addEventListener("click", () => {
@@ -296,21 +387,44 @@
       recorder.stop();
       return;
     }
-    const stream = canvas.captureStream(30);
-    recorder = new MediaRecorder(stream, { mimeType: "video/webm;codecs=vp9" });
+    if (!window.MediaRecorder || !canvas.captureStream) {
+      toast("この端末はREC(録画)に対応していません");
+      return;
+    }
+    const mime = pickRecorderMime();
+    if (!mime) {
+      toast("対応する録画形式が見つかりませんでした");
+      return;
+    }
+    let stream;
+    try {
+      stream = canvas.captureStream(30);
+      recorder = new MediaRecorder(stream, { mimeType: mime });
+    } catch (e) {
+      toast("REC開始に失敗しました");
+      return;
+    }
     chunks = [];
-    recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+    let recordedBytes = 0;
+    const MAX_BYTES = 14 * 1024 * 1024; // stay under the 16MB save limit
+    recorder.ondataavailable = (e) => {
+      if (!e.data.size) return;
+      chunks.push(e.data);
+      recordedBytes += e.data.size;
+      if (recordedBytes > MAX_BYTES && recorder.state === "recording") {
+        toast("上限に近づいたため自動停止しました");
+        recorder.stop();
+      }
+    };
     recorder.onstop = () => {
       recBtn.classList.remove("active");
-      const blob = new Blob(chunks, { type: "video/webm" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `cutup-${seed}-${Date.now()}.webm`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      const blob = new Blob(chunks, { type: mime.split(";")[0] });
+      const ext = mime.includes("mp4") ? "mp4" : "webm";
+      saveBlob(blob, `cutup-${seed}-${Date.now()}.${ext}`);
     };
-    recorder.start();
+    recorder.start(1000);
     recBtn.classList.add("active");
+    toast("REC開始");
   });
 
   // ---- canvas sizing --------------------------------------------------

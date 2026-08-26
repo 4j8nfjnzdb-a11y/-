@@ -271,6 +271,36 @@ input[type="range"]::-moz-range-thumb {
   line-height: 1.6;
 }
 
+.toast {
+  position: fixed;
+  left: 50%;
+  top: 1.2rem;
+  transform: translate(-50%, -14px);
+  z-index: 5;
+  background: rgba(12, 8, 20, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(234, 230, 223, 0.2);
+  border-radius: 999px;
+  padding: 0.5rem 1.1rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  color: var(--ink);
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  pointer-events: none;
+  max-width: calc(100% - 2rem);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
 .dragging::after {
   content: "ドロップして読み込む";
   position: fixed;
