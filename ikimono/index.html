@@ -3,13 +3,18 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ikimono — polymetric sample life</title>
+<title>ikimono</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;500;600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <main class="wrap">
-    <header>
-      <h1>いきもの <span class="sub">ikimono</span></h1>
+    <header class="hero">
+      <div class="hero-glow" aria-hidden="true"></div>
+      <p class="eyebrow">generative sample organism</p>
+      <h1>いきもの<span class="sub">ikimono</span></h1>
       <p class="tagline">
         一つのサンプルを、3拍子・5拍子・7拍子・9拍子・11拍子…複数の生き物が同時に食べる。
         それぞれが違う場所を齧り、少しずつ変異しながら、終わらないDJミックスを生成し続ける。
@@ -17,9 +22,12 @@
     </header>
 
     <section class="panel loader">
-      <h2>1. サンプルを入れる</h2>
+      <div class="station-head">
+        <span class="station-num">壱</span>
+        <h2>サンプルを入れる<span class="en">01 · culture</span></h2>
+      </div>
       <div id="dropzone" class="dropzone">
-        <p>ここに音声ファイルをドラッグ&ドロップ<br /><span class="or">または</span></p>
+        <p>ここに音声ファイルをドラッグ&ドロップ<span class="or">または</span></p>
         <label class="fileBtn">
           ファイルを選ぶ
           <input id="fileInput" type="file" accept="audio/*" multiple hidden />
@@ -28,10 +36,14 @@
       </div>
       <p id="loaderStatus" class="status"></p>
       <div id="sampleList" class="sampleList"></div>
+      <p class="privacy-note">ファイルはブラウザ内で処理されるだけで、どこにも送信されません。</p>
     </section>
 
     <section class="panel transport">
-      <h2>2. テンポと生成をコントロール</h2>
+      <div class="station-head">
+        <span class="station-num">弐</span>
+        <h2>テンポと生成をコントロール<span class="en">02 · tempo &amp; mutation</span></h2>
+      </div>
       <div class="transportRow">
         <button id="playBtn" class="playBtn">再生</button>
         <button id="evolveBtn" class="ghostBtn" title="今すぐ全レイヤーを変異させる">変異させる</button>
@@ -70,7 +82,10 @@
     </section>
 
     <section class="panel layersSection">
-      <h2>3. 拍子レイヤー(生き物たち)</h2>
+      <div class="station-head">
+        <span class="station-num">参</span>
+        <h2>拍子レイヤー(生き物たち)<span class="en">03 · organisms</span></h2>
+      </div>
       <div class="addLayerRow">
         <label>
           新しい拍子を追加:

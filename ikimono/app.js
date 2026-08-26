@@ -75,12 +75,12 @@
   const randRange = (a, b) => a + Math.random() * (b - a);
 
   function hueForMeter(n) {
-    const known = { 3: 178, 5: 322, 7: 40, 9: 148, 11: 265 };
+    const known = { 3: 168, 5: 346, 7: 24, 9: 274, 11: 92 };
     if (known[n] !== undefined) return known[n];
     return (n * 47) % 360;
   }
   function colorForLayer(layer) {
-    return `hsl(${layer.hue} 70% 62%)`;
+    return `hsl(${layer.hue} 62% 54%)`;
   }
 
   function setStatus(msg, isError) {
@@ -218,7 +218,7 @@
       const canvas = document.createElement("canvas");
       canvas.width = 220;
       canvas.height = 28;
-      drawWave(canvas, s.peaks, null, "rgba(234,230,223,0.5)");
+      drawWave(canvas, s.peaks, null, "rgba(241,232,214,0.55)");
 
       chip.appendChild(row);
       chip.appendChild(meta);
@@ -473,7 +473,7 @@
       }
       ctx.stroke();
     } else {
-      ctx.fillStyle = "rgba(234,230,223,0.35)";
+      ctx.fillStyle = "rgba(241,232,214,0.4)";
       ctx.font = "11px sans-serif";
       ctx.fillText("サンプル未選択", 8, h / 2 + 4);
     }
@@ -489,7 +489,7 @@
     const span = layer.meter * Math.abs(layer.scanStep || beatDur());
     const x0 = clamp(layer.regionStart / s.duration, 0, 1);
     const x1 = clamp((layer.regionStart + span * Math.sign(layer.scanStep || 1)) / s.duration, 0, 1);
-    drawWave(layer.canvas, s.peaks, { x0: Math.min(x0, x1), x1: Math.max(x0, x1), color: colorForLayer(layer) }, "rgba(234,230,223,0.55)");
+    drawWave(layer.canvas, s.peaks, { x0: Math.min(x0, x1), x1: Math.max(x0, x1), color: colorForLayer(layer) }, "rgba(241,232,214,0.6)");
   }
 
   function flashLayer(layer) {
