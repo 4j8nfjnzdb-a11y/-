@@ -260,6 +260,8 @@
       scanStep: 0, // seconds advanced per grain; set once BPM known
       volume: 0.85,
       pan: randRange(-0.4, 0.4),
+      pitchSemitones: 0,
+      locked: false, // when true, this layer stops drifting/advancing and keeps its current spot
       nextCycleTime: 0,
       gainNode: null,
       pannerNode: null,
@@ -283,6 +285,10 @@
 
   function beatDur() {
     return 60 / bpm;
+  }
+
+  function pitchRate(layer) {
+    return Math.pow(2, layer.pitchSemitones / 12);
   }
 
   function randomizeRegion(layer, resetScan) {
@@ -329,6 +335,30 @@
 
   // ---- layer card UI ----
 
+  function makeMiniSlider(labelText, min, max, step, value, format, onChange) {
+    const wrap = document.createElement("label");
+    wrap.className = "miniSlider";
+    const span = document.createElement("span");
+    span.textContent = labelText + " ";
+    const em = document.createElement("em");
+    em.textContent = format(value);
+    span.appendChild(em);
+    const input = document.createElement("input");
+    input.type = "range";
+    input.min = String(min);
+    input.max = String(max);
+    input.step = String(step);
+    input.value = String(value);
+    input.addEventListener("input", () => {
+      const v = +input.value;
+      em.textContent = format(v);
+      onChange(v);
+    });
+    wrap.appendChild(span);
+    wrap.appendChild(input);
+    return wrap;
+  }
+
   function renderLayerCard(layer) {
     let card = layer.cardEl;
     const fresh = !card;
@@ -340,6 +370,7 @@
     }
     card.style.setProperty("--layer-color", colorForLayer(layer));
     card.classList.toggle("enabled", layer.enabled);
+    card.classList.toggle("locked", layer.locked);
     card.innerHTML = "";
 
     const top = document.createElement("div");
@@ -357,12 +388,23 @@
       layer.enabled = !layer.enabled;
       renderLayerCard(layer);
     });
+    const lockBtn = document.createElement("button");
+    lockBtn.className = "lockBtn";
+    lockBtn.textContent = layer.locked ? "解除" : "固定";
+    lockBtn.title = layer.locked
+      ? "固定を解除して、また移動・変異するようにする"
+      : "今の場所でキープして、動かないようにする";
+    lockBtn.addEventListener("click", () => {
+      layer.locked = !layer.locked;
+      renderLayerCard(layer);
+    });
     const rmBtn = document.createElement("button");
     rmBtn.className = "rmBtn";
     rmBtn.textContent = "×";
     rmBtn.title = "レイヤーを削除";
     rmBtn.addEventListener("click", () => removeLayer(layer));
     topBtns.appendChild(toggle);
+    topBtns.appendChild(lockBtn);
     topBtns.appendChild(rmBtn);
     top.appendChild(label);
     top.appendChild(topBtns);
@@ -394,36 +436,33 @@
     const miniRow = document.createElement("div");
     miniRow.className = "miniRow";
 
-    const volLabel = document.createElement("label");
-    volLabel.className = "miniSlider";
-    volLabel.innerHTML = "音量";
-    const volInput = document.createElement("input");
-    volInput.type = "range";
-    volInput.min = "0";
-    volInput.max = "100";
-    volInput.value = String(Math.round(layer.volume * 100));
-    volInput.addEventListener("input", () => {
-      layer.volume = +volInput.value / 100;
-      if (layer.gainNode) layer.gainNode.gain.setTargetAtTime(layer.volume, audioCtx.currentTime, 0.02);
-    });
-    volLabel.appendChild(volInput);
+    const volSlider = makeMiniSlider(
+      "音量", 0, 100, 1, Math.round(layer.volume * 100),
+      (v) => `${v}%`,
+      (v) => {
+        layer.volume = v / 100;
+        if (layer.gainNode) layer.gainNode.gain.setTargetAtTime(layer.volume, audioCtx.currentTime, 0.02);
+      }
+    );
 
-    const panLabel = document.createElement("label");
-    panLabel.className = "miniSlider";
-    panLabel.innerHTML = "定位";
-    const panInput = document.createElement("input");
-    panInput.type = "range";
-    panInput.min = "-100";
-    panInput.max = "100";
-    panInput.value = String(Math.round(layer.pan * 100));
-    panInput.addEventListener("input", () => {
-      layer.pan = +panInput.value / 100;
-      if (layer.pannerNode) layer.pannerNode.pan.setTargetAtTime(layer.pan, audioCtx.currentTime, 0.02);
-    });
-    panLabel.appendChild(panInput);
+    const panSlider = makeMiniSlider(
+      "定位", -100, 100, 1, Math.round(layer.pan * 100),
+      (v) => (v === 0 ? "C" : (v > 0 ? "R" : "L") + Math.abs(v)),
+      (v) => {
+        layer.pan = v / 100;
+        if (layer.pannerNode) layer.pannerNode.pan.setTargetAtTime(layer.pan, audioCtx.currentTime, 0.02);
+      }
+    );
 
-    miniRow.appendChild(volLabel);
-    miniRow.appendChild(panLabel);
+    const pitchSlider = makeMiniSlider(
+      "ピッチ", -12, 12, 1, layer.pitchSemitones,
+      (v) => (v > 0 ? "+" : "") + v + "st",
+      (v) => { layer.pitchSemitones = v; }
+    );
+
+    miniRow.appendChild(volSlider);
+    miniRow.appendChild(panSlider);
+    miniRow.appendChild(pitchSlider);
 
     const stateLine = document.createElement("div");
     stateLine.className = "stateLine";
@@ -443,7 +482,8 @@
     if (!layer.stateLineEl) return;
     const dir = layer.scanStep >= 0 ? "→" : "←";
     const speed = beatDur() > 0 ? Math.abs(layer.scanStep) / beatDur() : 1;
-    layer.stateLineEl.textContent = `開始 ${layer.regionStart.toFixed(2)}s ${dir} 速度×${speed.toFixed(2)}`;
+    const lockTag = layer.locked ? "固定 ・ " : "";
+    layer.stateLineEl.textContent = `${lockTag}開始 ${layer.regionStart.toFixed(2)}s ${dir} 速度×${speed.toFixed(2)}`;
   }
 
   function drawWave(canvas, peaks, regionInfo, color) {
@@ -545,22 +585,25 @@
       layer.nextCycleTime = cycleStart + layer.meter * beatDur();
       return;
     }
-    maybeAutoDrift(layer);
+    if (!layer.locked) maybeAutoDrift(layer);
 
     const bd = beatDur();
     const N = layer.meter;
+    const pitch = pitchRate(layer);
     for (let i = 0; i < N; i++) {
       const t = cycleStart + i * bd;
       const off = wrap(layer.regionStart + i * layer.scanStep, s.duration);
       const dur = bd * 0.9;
-      const rateVar = 1 + (Math.random() * 2 - 1) * 0.012;
+      const rateVar = pitch * (1 + (Math.random() * 2 - 1) * 0.012);
       const panJ = layer.pan + (Math.random() * 2 - 1) * 0.1;
       playGrain(layer, s.buffer, off, dur, t, rateVar, panJ);
 
       const delayMs = (t - audioCtx.currentTime) * 1000;
       setTimeout(() => flashLayer(layer), Math.max(0, delayMs));
     }
-    layer.regionStart = wrap(layer.regionStart + N * layer.scanStep, s.duration);
+    if (!layer.locked) {
+      layer.regionStart = wrap(layer.regionStart + N * layer.scanStep, s.duration);
+    }
     layer.nextCycleTime = cycleStart + N * bd;
 
     drawLayerWave(layer);
@@ -615,6 +658,7 @@
     generation++;
     genCountEl.textContent = String(generation);
     layers.forEach((layer) => {
+      if (layer.locked) return;
       const s = samples[layer.sampleIndex];
       const dur = s ? s.duration : 4;
       layer.regionStart = wrap(layer.regionStart + (Math.random() * 2 - 1) * amt * dur * 0.6, dur);
@@ -631,6 +675,7 @@
     generation++;
     genCountEl.textContent = String(generation);
     layers.forEach((layer) => {
+      if (layer.locked) return;
       randomizeRegion(layer, true);
       drawLayerWave(layer);
       updateStateLine(layer);
