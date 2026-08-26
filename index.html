@@ -2,42 +2,50 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>kizashi — generative ambient</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>glitch cam — 映像と音のランダム同期グリッチ</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <canvas id="bg"></canvas>
-
-  <main class="ui">
+  <main class="wrap">
     <header>
-      <h1>kizashi <span class="sub">きざし</span></h1>
-      <p class="tagline">反復に見せかけて、予測の像を結ぶ寸前でかわし続けるアンビエント。</p>
+      <h1>glitch cam <span class="sub">グリッチ・カメラ</span></h1>
+      <p class="tagline">カメラ映像がランダムな周期で勝手に壊れ、音声も同じ瞬間に連動して壊れる。</p>
     </header>
 
+    <div class="stage-frame">
+      <video id="camera" playsinline muted></video>
+      <canvas id="stage"></canvas>
+      <p id="placeholder" class="placeholder">「カメラを開始」を押すと、映像と音声の使用許可を求めます</p>
+    </div>
+
+    <p id="status" class="status" role="status"></p>
+
     <div class="transport">
-      <button id="playBtn" class="playBtn">再生</button>
-      <button id="paletteBtn" class="ghostBtn">配色を変える</button>
+      <button id="startBtn" class="primaryBtn">カメラを開始</button>
+      <button id="switchBtn" class="ghostBtn" disabled>前後カメラ切替</button>
+      <button id="recordBtn" class="ghostBtn" disabled>録画開始</button>
     </div>
 
     <div class="controls">
       <label class="slider">
-        <span>密度 <em>density</em></span>
-        <input id="density" type="range" min="0" max="100" value="42" />
+        <span>頻度 <em>frequency</em></span>
+        <input id="frequency" type="range" min="1" max="40" value="12" />
       </label>
       <label class="slider">
-        <span>明暗 <em>tone</em></span>
-        <input id="tone" type="range" min="0" max="100" value="50" />
+        <span>強さ <em>intensity</em></span>
+        <input id="intensity" type="range" min="0" max="100" value="55" />
       </label>
-      <label class="slider">
-        <span>揺らぎ <em>swerve</em></span>
-        <input id="swerve" type="range" min="0" max="100" value="55" />
+      <label class="toggle">
+        <input id="monitorAudio" type="checkbox" />
+        <span>音声をモニター再生する<em>（ヘッドホン推奨・ハウリング注意）</em></span>
       </label>
     </div>
 
-    <p class="hint">音は毎回、一度きりのものです。同じ配列は二度と戻ってきません。</p>
-  </main>
+    <a id="downloadLink" class="downloadLink" hidden></a>
 
-  <script src="app.js"></script>
+    <p class="hint">壊れ方も、壊れる周期も、毎回ランダム。同じグリッチは二度と戻ってきません。</p>
+  </main>
 </body>
+<script src="app.js"></script>
 </html>
