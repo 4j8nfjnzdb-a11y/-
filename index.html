@@ -190,7 +190,8 @@ html, body {
 }
 
 .field.wide { grid-column: 1 / -1; margin-bottom: 1.2rem; }
-.field-label small {
+.field-label small,
+.field > small {
   display: block;
   font-size: 0.64rem;
   opacity: 0.75;
@@ -360,6 +361,9 @@ input[type="range"]::-moz-range-thumb {
 }
 .result-actions button:hover { text-decoration: underline; }
 
+.result-card.kept { border-top-color: #b8860b; }
+.keepBtn.kept { color: #b8860b; font-weight: 700; }
+
 .result-text {
   font-size: 1.05rem;
   line-height: 2.1;
@@ -423,10 +427,12 @@ input[type="range"]::-moz-range-thumb {
           <span class="field-label">分割の単位</span>
           <select id="unit">
             <option value="char">文字</option>
-            <option value="word" selected>単語</option>
+            <option value="word" selected>単語（スペース区切り・英文向け）</option>
+            <option value="bunsetsu">文節（助詞の切れ目・日本語向け）</option>
             <option value="line">行</option>
             <option value="sentence">文（。！？区切り）</option>
           </select>
+          <small>日本語は分かち書きしないため「単語」では切れません。日本語文には「文節」か「文字」を。</small>
         </label>
 
         <label class="field">
@@ -481,7 +487,7 @@ input[type="range"]::-moz-range-thumb {
       </div>
 
       <button id="cutBtn" class="cutBtn">✂ カットアップする</button>
-      <p class="hint">カオス写像（ロジスティック写像）で初期値鋭敏性のある乱数を毎回生成し直すので、同じ設定でも押すたびに違う並びになります。</p>
+      <p class="hint">カオス写像（ロジスティック写像）で初期値鋭敏性のある乱数を毎回生成し直すので、同じ設定でも押すたびに違う並びになります。★で気に入った結果を残せます（次に切り直しても消えません）。</p>
     </section>
 
     <section class="results" id="results"></section>
@@ -532,8 +538,8 @@ input[type="range"]::-moz-range-thumb {
 
   const PRESETS = {
     light:  { unit: "sentence", min: 1, max: 2, randomness: 20, cutMethod: "standard" },
-    medium: { unit: "word", min: 2, max: 5, randomness: 50, cutMethod: "standard" },
-    heavy:  { unit: "word", min: 1, max: 3, randomness: 80, cutMethod: "grid" },
+    medium: { unit: "bunsetsu", min: 2, max: 5, randomness: 50, cutMethod: "standard" },
+    heavy:  { unit: "bunsetsu", min: 1, max: 2, randomness: 80, cutMethod: "grid" },
     chaos:  { unit: "char", min: 1, max: 6, randomness: 100, cutMethod: "permutation" },
   };
 
@@ -668,6 +674,63 @@ input[type="range"]::-moz-range-thumb {
     return matches.map((s) => s.trim()).filter((s) => s.length > 0);
   }
 
+  // ---- bunsetsu (文節) splitting -------------------------------------------
+  //
+  // Japanese has no whitespace between words, so "単語" (space-split) mode
+  // silently fails on it — a whole unspaced Japanese sentence comes back as
+  // one giant token. The natural cut point in Japanese is the 文節
+  // (bunsetsu): the smallest chunk that still sounds complete on its own,
+  // which almost always ends right where a particle (助詞) or a
+  // conjugated verb/adjective ending closes it off. We don't have a real
+  // morphological analyzer here, so this approximates bunsetsu boundaries
+  // by matching the longest known particle/auxiliary at each position and
+  // cutting immediately after it — imperfect, but a real improvement over
+  // not splitting Japanese at all.
+
+  const BUNSETSU_PARTICLES = [
+    "というものの", "といったら", "といっても", "といえば", "とはいえ",
+    "にとって", "について", "にたいして", "によって", "にわたって", "をめぐって",
+    "からこそ", "でさえ", "さえも", "ばかりか", "のみならず", "というのは", "という",
+    "ては", "では", "には", "とは", "へは", "からは", "までは", "よりは",
+    "でも", "にも", "からも", "とも", "へも",
+    "たり", "ながら", "つつ", "ものの", "ものを", "けれども", "けれど", "けど",
+    "のに", "ので", "から", "まで", "より", "ほど", "くらい", "ぐらい",
+    "ばかり", "だけ", "のみ", "こそ", "さえ", "しか", "なんて", "など", "という",
+    "は", "が", "を", "に", "で", "と", "へ", "の", "や", "も",
+    "な", "よ", "ね", "わ", "さ", "ぞ", "ぜ", "か", "し", "ば",
+  ].sort((a, b) => b.length - a.length);
+
+  function splitBunsetsu(text) {
+    const bunsetsu = [];
+    let current = "";
+    let i = 0;
+    while (i < text.length) {
+      const ch = text[i];
+      current += ch;
+      i++;
+
+      if (/[。、！？.!?\n]/.test(ch)) {
+        bunsetsu.push(current);
+        current = "";
+        continue;
+      }
+
+      const rest = text.slice(i);
+      let hit = null;
+      for (const p of BUNSETSU_PARTICLES) {
+        if (rest.startsWith(p)) { hit = p; break; }
+      }
+      if (hit) {
+        current += hit;
+        i += hit.length;
+        bunsetsu.push(current);
+        current = "";
+      }
+    }
+    if (current.trim().length > 0) bunsetsu.push(current);
+    return bunsetsu.map((s) => s.trim()).filter((s) => s.length > 0);
+  }
+
   function groupTokens(tokens, min, max, joinStr, rand) {
     const chunks = [];
     let i = 0;
@@ -694,6 +757,7 @@ input[type="range"]::-moz-range-thumb {
   function tokenize(text, unit, min, max, rand) {
     switch (unit) {
       case "char": return tokenizeChars(text, min, max, rand);
+      case "bunsetsu": return groupTokens(splitBunsetsu(text), min, max, "", rand);
       case "line": return groupTokens(splitLines(text), min, max, "\n", rand);
       case "sentence": return groupTokens(splitSentences(text), min, max, " ", rand);
       case "word":
@@ -951,7 +1015,7 @@ input[type="range"]::-moz-range-thumb {
   }
 
   function chunksToHtml(chunks, unit, multiSource) {
-    const sep = { char: "", word: " ", sentence: " ", line: "\n" }[unit] ?? " ";
+    const sep = { char: "", bunsetsu: "", word: " ", sentence: " ", line: "\n" }[unit] ?? " ";
     let html = "";
     chunks.forEach((c, i) => {
       const seam = multiSource && i > 0 && c.sourceIndex !== chunks[i - 1].sourceIndex;
@@ -962,7 +1026,7 @@ input[type="range"]::-moz-range-thumb {
   }
 
   function chunksToPlainText(chunks, unit) {
-    const sep = { char: "", word: " ", sentence: " ", line: "\n" }[unit] ?? " ";
+    const sep = { char: "", bunsetsu: "", word: " ", sentence: " ", line: "\n" }[unit] ?? " ";
     return chunks.map((c) => c.text).join(sep);
   }
 
@@ -989,6 +1053,7 @@ input[type="range"]::-moz-range-thumb {
       <div class="result-head">
         <span>CUT #${String(index + 1).padStart(2, "0")}</span>
         <span class="result-actions">
+          <button type="button" class="keepBtn" title="気に入った結果を残す（次の切り直しで消えません）">★ 残す</button>
           <button type="button" class="regenBtn">切り直す</button>
           <button type="button" class="copyBtn">コピー</button>
         </span>
@@ -996,7 +1061,14 @@ input[type="range"]::-moz-range-thumb {
       <div class="result-text"></div>
     `;
 
+    card.querySelector(".keepBtn").addEventListener("click", () => {
+      card.classList.toggle("kept");
+      card.querySelector(".keepBtn").classList.toggle("kept");
+    });
+
     card.querySelector(".regenBtn").addEventListener("click", () => {
+      card.classList.remove("kept");
+      card.querySelector(".keepBtn").classList.remove("kept");
       card.style.animation = "none";
       void card.offsetWidth;
       card.style.animation = "";
@@ -1029,9 +1101,15 @@ input[type="range"]::-moz-range-thumb {
     const options = readOptions();
     const count = +outputCountEl.value;
 
-    resultsEl.innerHTML = "";
+    // ★で残した結果は切り直しても消さない — ドクター・バロウズが体現した
+    // 「ソフトは候補を大量に出すだけ、選ぶのは人間の目」という思想を反映。
+    [...resultsEl.querySelectorAll(".result-card")].forEach((card) => {
+      if (!card.classList.contains("kept")) card.remove();
+    });
+    const startIndex = resultsEl.querySelectorAll(".result-card").length;
+
     for (let i = 0; i < count; i++) {
-      resultsEl.appendChild(renderCard(i, sourceTexts, options));
+      resultsEl.appendChild(renderCard(startIndex + i, sourceTexts, options));
     }
   }
 
