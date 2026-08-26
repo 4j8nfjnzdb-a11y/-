@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>dappi — generative single-image molt engine</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <canvas id="stage"></canvas>
+
+  <div class="dock" id="dock">
+    <button class="collapseBtn" id="collapseBtn" aria-label="パネルの開閉">▾</button>
+
+    <header class="dockHeader">
+      <h1>dappi <span class="sub">脱皮</span></h1>
+      <p class="tagline">一枚の絵が脱皮するように、破片をまき散らしながら形を変え続ける生成エンジン。</p>
+    </header>
+
+    <div class="dockBody">
+      <section class="row mediaRow">
+        <button id="addBtn" class="ghostBtn">＋ 画像・動画を選ぶ</button>
+        <input id="fileInput" type="file" accept="image/*,video/*" hidden />
+        <div id="thumbs" class="thumbs"></div>
+      </section>
+
+      <section class="row transport">
+        <button id="playBtn" class="playBtn">停止</button>
+        <button id="recutBtn" class="ghostBtn">揺さぶる</button>
+        <button id="recBtn" class="ghostBtn recBtn">
+          <span class="recDot"></span>REC
+        </button>
+        <div class="seedBox">
+          <span class="seedLabel">seed</span>
+          <span id="seedVal" class="seedVal">—</span>
+          <button id="reseedBtn" class="iconBtn" aria-label="新しいシード">🔀</button>
+        </div>
+      </section>
+
+      <section class="row sliders">
+        <label class="slider">
+          <span>密度 <em>density</em></span>
+          <input id="density" type="range" min="0" max="100" value="45" />
+        </label>
+        <label class="slider">
+          <span>速度 <em>speed</em></span>
+          <input id="speed" type="range" min="0" max="100" value="45" />
+        </label>
+        <label class="slider">
+          <span>変異 <em>chaos</em></span>
+          <input id="chaos" type="range" min="0" max="100" value="40" />
+        </label>
+      </section>
+
+      <section class="row chips" id="chips"></section>
+
+      <section class="row palettes" id="palettes"></section>
+
+      <p class="hint">画像・動画を1つ選んでください。伸びて、滲んで、剥がれ落ちて、また元に戻ります。</p>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
