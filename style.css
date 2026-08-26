@@ -2,6 +2,7 @@
   --ink: #eae6df;
   --ink-dim: rgba(234, 230, 223, 0.55);
   --bg: #0b0d10;
+  --accent: #8fb8c9;
 }
 
 * { box-sizing: border-box; }
@@ -17,12 +18,15 @@ html, body {
   overflow: hidden;
 }
 
-#bg {
+#scope {
   position: fixed;
-  inset: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   width: 100%;
-  height: 100%;
+  height: 34vh;
   display: block;
+  opacity: 0.85;
 }
 
 .ui {
@@ -32,10 +36,11 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 2.25rem;
-  padding: 2rem;
+  justify-content: flex-start;
+  gap: 1.5rem;
+  padding: 2.5rem 2rem 1rem;
   text-align: center;
+  overflow-y: auto;
 }
 
 header h1 {
@@ -46,7 +51,7 @@ header h1 {
 }
 
 header h1 .sub {
-  font-size: 1.1rem;
+  font-size: 1rem;
   color: var(--ink-dim);
   margin-left: 0.6em;
   font-weight: 300;
@@ -55,14 +60,42 @@ header h1 .sub {
 .tagline {
   margin: 0.9rem 0 0;
   color: var(--ink-dim);
-  font-size: 0.9rem;
-  max-width: 32em;
-  line-height: 1.8;
+  font-size: 0.85rem;
+  max-width: 34em;
+  line-height: 1.85;
+}
+
+.dropzone {
+  width: min(30rem, 90vw);
+  border: 1px dashed rgba(234, 230, 223, 0.35);
+  border-radius: 1rem;
+  padding: 1.5rem 1rem;
+  cursor: pointer;
+  transition: border-color 0.3s ease, background 0.3s ease;
+}
+
+.dropzone:hover,
+.dropzone.dragover {
+  border-color: var(--accent);
+  background: rgba(143, 184, 201, 0.06);
+}
+
+.dropzone p {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--ink-dim);
+}
+
+.dropzone .filename {
+  margin-top: 0.5rem;
+  color: var(--ink);
+  font-size: 0.78rem;
+  min-height: 1em;
 }
 
 .transport {
   display: flex;
-  gap: 1rem;
+  gap: 1.4rem;
   align-items: center;
 }
 
@@ -79,17 +112,31 @@ button {
   transition: background 0.4s ease, border-color 0.4s ease, opacity 0.4s ease;
 }
 
+button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 .playBtn {
   background: rgba(234, 230, 223, 0.12);
 }
 
-.playBtn:hover, .ghostBtn:hover {
+.playBtn:hover:not(:disabled) {
   border-color: rgba(234, 230, 223, 0.7);
 }
 
 .playBtn.playing {
   background: rgba(234, 230, 223, 0.04);
   opacity: 0.75;
+}
+
+.loopToggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--ink-dim);
+  cursor: pointer;
 }
 
 .controls {
@@ -106,13 +153,14 @@ button {
   font-size: 0.72rem;
   letter-spacing: 0.06em;
   color: var(--ink-dim);
-  width: 9rem;
+  width: 10rem;
 }
 
 .slider em {
   font-style: normal;
-  opacity: 0.6;
+  opacity: 0.75;
   margin-left: 0.4em;
+  color: var(--accent);
 }
 
 input[type="range"] {
@@ -148,14 +196,16 @@ input[type="range"]::-moz-range-thumb {
 
 .hint {
   color: var(--ink-dim);
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   letter-spacing: 0.04em;
   opacity: 0.6;
   max-width: 26em;
+  margin: 0 0 0.5rem;
 }
 
 @media (max-width: 480px) {
   header h1 { font-size: 1.5rem; }
   .controls { gap: 1.4rem; }
-  .slider { width: 7.5rem; }
+  .slider { width: 8rem; }
+  #scope { height: 26vh; }
 }

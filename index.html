@@ -3,39 +3,56 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>kizashi — generative ambient</title>
+<title>たゆたう — pitch drift player</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <canvas id="bg"></canvas>
+  <canvas id="scope"></canvas>
 
   <main class="ui">
     <header>
-      <h1>kizashi <span class="sub">きざし</span></h1>
-      <p class="tagline">反復に見せかけて、予測の像を結ぶ寸前でかわし続けるアンビエント。</p>
+      <h1>たゆたう <span class="sub">pitch drift player</span></h1>
+      <p class="tagline">
+        入力した音を基準に、ピッチをものすごくゆっくりと上げ下げし続けます。
+        上がるか下がるか、どのくらいの時間をかけるかは、そのつどランダムに、
+        でも常に滑らかに。極端には振れません。残響も同じ音から生まれるので、
+        一緒にゆっくり揺れていきます。
+      </p>
     </header>
 
+    <div class="dropzone" id="dropzone">
+      <input type="file" id="fileInput" accept="audio/*" hidden />
+      <p id="dropLabel">音声ファイルをドラッグ、またはクリックして選択</p>
+      <p class="filename" id="filename"></p>
+    </div>
+
     <div class="transport">
-      <button id="playBtn" class="playBtn">再生</button>
-      <button id="paletteBtn" class="ghostBtn">配色を変える</button>
+      <button id="playBtn" class="playBtn" disabled>再生</button>
+      <label class="loopToggle">
+        <input type="checkbox" id="loopToggle" checked />
+        <span>ループ</span>
+      </label>
     </div>
 
     <div class="controls">
       <label class="slider">
-        <span>密度 <em>density</em></span>
-        <input id="density" type="range" min="0" max="100" value="42" />
+        <span>揺れ幅 <em id="widthValue">±1.5半音</em></span>
+        <input id="width" type="range" min="0.2" max="4" step="0.1" value="1.5" />
       </label>
       <label class="slider">
-        <span>明暗 <em>tone</em></span>
-        <input id="tone" type="range" min="0" max="100" value="50" />
+        <span>ゆっくりさ <em id="slownessValue">約60秒</em></span>
+        <input id="slowness" type="range" min="15" max="240" step="1" value="60" />
       </label>
       <label class="slider">
-        <span>揺らぎ <em>swerve</em></span>
-        <input id="swerve" type="range" min="0" max="100" value="55" />
+        <span>残響の満ち引き <em id="reverbValue">中</em></span>
+        <input id="reverb" type="range" min="0" max="100" step="1" value="45" />
       </label>
     </div>
 
-    <p class="hint">音は毎回、一度きりのものです。同じ配列は二度と戻ってきません。</p>
+    <p class="hint">
+      画面下のグラフは、直近数分間のピッチの動きを可視化したものです
+      （耳では追いにくいほど遅いので）。
+    </p>
   </main>
 
   <script src="app.js"></script>
