@@ -38,6 +38,53 @@
   const recordBtn = document.getElementById("recordBtn");
   const takesEl = document.getElementById("takes");
   const secureWarning = document.getElementById("secureWarning");
+  const diagLog = document.getElementById("diagLog");
+  const clearLogBtn = document.getElementById("clearLog");
+
+  // ---- on-page diagnostics log ------------------------------------------
+  // Real-world failures here are almost always browser permission/security
+  // behavior that never shows up in devtools unless someone thinks to look,
+  // so every meaningful step is logged directly on the page.
+
+  function log(msg, cls) {
+    const line = document.createElement("div");
+    if (cls) line.className = cls;
+    const t = new Date().toLocaleTimeString("ja-JP");
+    line.textContent = `[${t}] ${msg}`;
+    diagLog.appendChild(line);
+    diagLog.scrollTop = diagLog.scrollHeight;
+  }
+  clearLogBtn.addEventListener("click", () => { diagLog.innerHTML = ""; });
+
+  function explainError(err) {
+    const hints = {
+      NotAllowedError:
+        "マイクの権限が拒否されています。アドレスバー左のサイト情報アイコン(鍵/ⓘ)→「マイク」を「許可」に変更してからページを再読み込みしてください。",
+      PermissionDeniedError:
+        "マイクの権限が拒否されています。ブラウザのサイト設定でマイクを許可してからページを再読み込みしてください。",
+      NotFoundError: "使用できるマイク/オーディオ入力デバイスが見つかりません。",
+      DevicesNotFoundError: "使用できるマイク/オーディオ入力デバイスが見つかりません。",
+      NotReadableError:
+        "デバイスが他のアプリ(TotalMix、他のブラウザタブ、他のアプリ等)に排他利用されている可能性があります。それらを閉じて再試行してください。",
+      TrackStartError:
+        "デバイスが他のアプリ(TotalMix、他のブラウザタブ、他のアプリ等)に排他利用されている可能性があります。それらを閉じて再試行してください。",
+      OverconstrainedError: "選択したデバイスがその設定に対応していません。",
+      SecurityError: "セキュリティコンテキストの制約でマイクを利用できません(file://で開いていませんか?)。",
+      TimeoutError:
+        "マイクの許可ダイアログが一定時間たっても応答しませんでした。macOSの「システム設定→プライバシーとセキュリティ→マイク」でブラウザ(Chrome/Firefox本体)自体に許可が出ているか確認し、出ていなければON にしてブラウザを再起動してから再試行してください。",
+    };
+    return hints[err.name] || `${err.name || "Error"}: ${err.message}`;
+  }
+
+  const GUM_TIMEOUT_MS = 12000;
+  function getUserMediaWithTimeout(constraints) {
+    return Promise.race([
+      navigator.mediaDevices.getUserMedia(constraints),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(Object.assign(new Error("timed out"), { name: "TimeoutError" })), GUM_TIMEOUT_MS)
+      ),
+    ]);
+  }
 
   // ---- audio graph state ----------------------------------------------
 
@@ -568,13 +615,17 @@
   //
   // Device *labels* (and, in some browsers, the device list itself) are only
   // populated by enumerateDevices() after the page has been granted mic
-  // permission at least once. So "can't select a device" is almost always
-  // one of: (a) no permission has been granted yet, or (b) the page is
-  // running from file:// where mediaDevices isn't exposed at all. We guard
-  // for (b) up front and solve (a) by priming permission (grab the mic
-  // briefly with default constraints, then stop it) before listing.
+  // permission at least once. getUserMedia() also silently rejects (some
+  // browsers won't even show a prompt) unless it's called from inside a
+  // real user gesture — so priming permission is NEVER done automatically
+  // on load here; it only happens from the "①" button click, which is a
+  // genuine user gesture in every browser. Everything is logged to the
+  // on-page diagnostics panel because a bare "it didn't work" is otherwise
+  // undebuggable without devtools.
 
+  log(`secure context: ${window.isSecureContext ? "yes" : "no"}, protocol: ${location.protocol}`);
   const mediaDevicesAvailable = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  log(`mediaDevices API: ${mediaDevicesAvailable ? "available" : "NOT available"}`);
 
   if (!mediaDevicesAvailable) {
     secureWarning.hidden = false;
@@ -582,6 +633,16 @@
     startBtn.disabled = true;
     refreshDevicesBtn.disabled = true;
     deviceSelect.innerHTML = '<option value="">(利用不可)</option>';
+  } else if (navigator.permissions && navigator.permissions.query) {
+    navigator.permissions.query({ name: "microphone" }).then(
+      (status) => {
+        log(`microphone permission state: ${status.state}`);
+        if (status.state === "denied") {
+          log("以前マイクがブロックされています。ブラウザのサイト設定から許可に変更してください。", "err");
+        }
+      },
+      () => log("permissions API: microphoneクエリ非対応 (Safari等)")
+    );
   }
 
   async function refreshDeviceList() {
@@ -589,10 +650,11 @@
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       const inputs = devices.filter((d) => d.kind === "audioinput");
+      log(`enumerateDevices: ${inputs.length}件の入力デバイス`);
       const prev = deviceSelect.value;
       deviceSelect.innerHTML = "";
       if (inputs.length === 0) {
-        deviceSelect.innerHTML = '<option value="">(入力デバイスが見つかりません)</option>';
+        deviceSelect.innerHTML = '<option value="">(入力デバイスが見つかりません — ①を押してください)</option>';
         return;
       }
       inputs.forEach((d, i) => {
@@ -603,53 +665,79 @@
       });
       if (inputs.some((d) => d.deviceId === prev)) deviceSelect.value = prev;
     } catch (err) {
+      log(`enumerateDevices失敗: ${err.name}: ${err.message}`, "err");
       statusEl.textContent = "デバイス取得エラー: " + err.message;
     }
   }
 
   async function primeAndListDevices() {
     if (!mediaDevicesAvailable) return;
+    refreshDevicesBtn.disabled = true;
+    log("getUserMedia({audio:true}) をリクエスト中 (ブラウザの許可ダイアログを確認してください)…");
     try {
       // a throwaway getUserMedia call is the only way to unlock real
       // device labels/ids before the user has picked one and hit start
-      const primer = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const primer = await getUserMediaWithTimeout({ audio: true });
       primer.getTracks().forEach((t) => t.stop());
+      log("マイク権限: 許可されました", "ok");
       statusEl.textContent = "マイク権限OK — デバイスを選んで起動してください";
     } catch (err) {
-      statusEl.textContent = "マイク権限エラー: " + err.message;
+      log(`マイク権限エラー: ${err.name}: ${err.message}`, "err");
+      statusEl.textContent = explainError(err);
     }
+    refreshDevicesBtn.disabled = false;
     await refreshDeviceList();
   }
 
   refreshDevicesBtn.addEventListener("click", primeAndListDevices);
   if (mediaDevicesAvailable && navigator.mediaDevices.addEventListener) {
-    navigator.mediaDevices.addEventListener("devicechange", refreshDeviceList);
+    navigator.mediaDevices.addEventListener("devicechange", () => {
+      log("devicechangeイベント検出");
+      refreshDeviceList();
+    });
   }
-  // best-effort on load: if permission was already granted on a previous
-  // visit this fills in real labels immediately; if not, it either prompts
-  // right away or fails silently and the user falls back to the button
-  primeAndListDevices();
+  // best-effort only: no permission request here, just whatever
+  // enumerateDevices() will hand back without prompting (may be an empty
+  // list in some browsers) so the dropdown isn't blank before ① is pressed
+  refreshDeviceList();
 
   // ---- start / stop --------------------------------------------------------
 
+  function buildConstraints(deviceId) {
+    return {
+      audio: {
+        deviceId: deviceId ? { exact: deviceId } : undefined,
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+        channelCount: { ideal: 2 },
+      },
+    };
+  }
+
   startBtn.addEventListener("click", async () => {
+    startBtn.disabled = true;
+    const deviceId = deviceSelect.value;
+    statusEl.textContent = "マイク権限を確認中…";
+    log(`起動: ${deviceId ? "選択デバイス (" + (deviceSelect.selectedOptions[0]?.textContent || deviceId) + ")" : "既定デバイス"} でgetUserMediaをリクエスト中…`);
     try {
-      startBtn.disabled = true;
-      statusEl.textContent = "マイク権限を確認中…";
-      const deviceId = deviceSelect.value;
-      const constraints = {
-        audio: {
-          deviceId: deviceId ? { exact: deviceId } : undefined,
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-          channelCount: { ideal: 2 },
-        },
-      };
-      mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+      try {
+        mediaStream = await getUserMediaWithTimeout(buildConstraints(deviceId));
+      } catch (err) {
+        if (deviceId && (err.name === "OverconstrainedError" || err.name === "NotFoundError")) {
+          log(`選択デバイスで失敗 (${err.name})。既定デバイスで再試行します…`, "err");
+          mediaStream = await getUserMediaWithTimeout(buildConstraints(""));
+        } else {
+          throw err;
+        }
+      }
+
+      const track = mediaStream.getAudioTracks()[0];
+      log(`getUserMedia成功: ${track ? track.label : "(no label)"}`, "ok");
 
       if (!audioCtx) buildGraphOnce();
       if (audioCtx.state === "suspended") await audioCtx.resume();
+      log(`AudioContext state: ${audioCtx.state}, sampleRate: ${audioCtx.sampleRate}`);
 
       sourceNode = audioCtx.createMediaStreamSource(mediaStream);
       sourceNode.connect(inputTrim);
@@ -659,7 +747,8 @@
       recordBtn.disabled = false;
       await refreshDeviceList();
     } catch (err) {
-      statusEl.textContent = "エラー: " + err.message;
+      log(`起動失敗: ${err.name}: ${err.message}`, "err");
+      statusEl.textContent = "エラー: " + explainError(err);
       startBtn.disabled = false;
     }
   });
@@ -667,6 +756,7 @@
   stopBtn.addEventListener("click", () => {
     if (sourceNode) { try { sourceNode.disconnect(); } catch (e) {} sourceNode = null; }
     if (mediaStream) { mediaStream.getTracks().forEach((t) => t.stop()); mediaStream = null; }
+    log("停止しました");
     statusEl.textContent = "停止中";
     startBtn.disabled = false;
     stopBtn.disabled = true;

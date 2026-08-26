@@ -161,6 +161,43 @@ button:not(:disabled):hover { border-color: rgba(234, 230, 223, 0.7); }
   opacity: 0.8;
 }
 
+.diag {
+  margin-top: 0.9rem;
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.diag-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+  padding: 0.4rem 0.7rem;
+  background: rgba(234, 230, 223, 0.04);
+}
+
+button.ghostBtn.tiny {
+  padding: 0.15rem 0.5rem;
+  font-size: 0.65rem;
+}
+
+.diag-log {
+  max-height: 8rem;
+  overflow-y: auto;
+  padding: 0.5rem 0.7rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.68rem;
+  line-height: 1.6;
+  color: var(--ink-dim);
+}
+
+.diag-log .err { color: #ff8a8a; }
+.diag-log .ok { color: #8bffb0; }
+
 .meter {
   padding-bottom: 0.55rem;
 }
