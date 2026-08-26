@@ -481,8 +481,19 @@ select:disabled, input:disabled, textarea:disabled { opacity: 0.35; cursor: not-
 を = 1
 に = 1
 へ = 1
-という = 2
-なんつって = 2</textarea>
+で = 1
+と = 1
+から = 1
+まで = 1
+より = 1
+は = 2
+が = 2
+も = 2
+という = 3
+って = 3
+なんつって = 3
+とかの = 3
+の = 4</textarea>
       </div>
 
       <div class="grid">
@@ -562,7 +573,7 @@ select:disabled, input:disabled, textarea:disabled { opacity: 0.35; cursor: not-
   const cutBtn = document.getElementById("cutBtn");
   const resultsEl = document.getElementById("results");
 
-  const DEFAULT_SCISSORS_DICT = "空白 = 0\n。 = 0\n？ = 0\n！ = 0\n、 = 0\nを = 1\nに = 1\nへ = 1\nという = 2\nなんつって = 2";
+  const DEFAULT_SCISSORS_DICT = "空白 = 0\n。 = 0\n？ = 0\n！ = 0\n、 = 0\nを = 1\nに = 1\nへ = 1\nで = 1\nと = 1\nから = 1\nまで = 1\nより = 1\nは = 2\nが = 2\nも = 2\nという = 3\nって = 3\nなんつって = 3\nとかの = 3\nの = 4";
 
   const PLACEHOLDERS = [
     "ここにテクストを貼り付けてください(複数行OK・目安30行程度)。",
