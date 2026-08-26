@@ -37,6 +37,7 @@
   const randomizeNowBtn = document.getElementById("randomizeNowBtn");
   const recordBtn = document.getElementById("recordBtn");
   const takesEl = document.getElementById("takes");
+  const secureWarning = document.getElementById("secureWarning");
 
   // ---- audio graph state ----------------------------------------------
 
@@ -564,8 +565,27 @@
   }, 70);
 
   // ---- input device handling ----------------------------------------------
+  //
+  // Device *labels* (and, in some browsers, the device list itself) are only
+  // populated by enumerateDevices() after the page has been granted mic
+  // permission at least once. So "can't select a device" is almost always
+  // one of: (a) no permission has been granted yet, or (b) the page is
+  // running from file:// where mediaDevices isn't exposed at all. We guard
+  // for (b) up front and solve (a) by priming permission (grab the mic
+  // briefly with default constraints, then stop it) before listing.
+
+  const mediaDevicesAvailable = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+
+  if (!mediaDevicesAvailable) {
+    secureWarning.hidden = false;
+    statusEl.textContent = "マイクAPIが利用できません (file://で開いていませんか?)";
+    startBtn.disabled = true;
+    refreshDevicesBtn.disabled = true;
+    deviceSelect.innerHTML = '<option value="">(利用不可)</option>';
+  }
 
   async function refreshDeviceList() {
+    if (!mediaDevicesAvailable) return;
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       const inputs = devices.filter((d) => d.kind === "audioinput");
@@ -578,7 +598,7 @@
       inputs.forEach((d, i) => {
         const opt = document.createElement("option");
         opt.value = d.deviceId;
-        opt.textContent = d.label || `入力 ${i + 1}`;
+        opt.textContent = d.label || `入力 ${i + 1} (権限待ち)`;
         deviceSelect.appendChild(opt);
       });
       if (inputs.some((d) => d.deviceId === prev)) deviceSelect.value = prev;
@@ -586,8 +606,29 @@
       statusEl.textContent = "デバイス取得エラー: " + err.message;
     }
   }
-  refreshDevicesBtn.addEventListener("click", refreshDeviceList);
-  refreshDeviceList();
+
+  async function primeAndListDevices() {
+    if (!mediaDevicesAvailable) return;
+    try {
+      // a throwaway getUserMedia call is the only way to unlock real
+      // device labels/ids before the user has picked one and hit start
+      const primer = await navigator.mediaDevices.getUserMedia({ audio: true });
+      primer.getTracks().forEach((t) => t.stop());
+      statusEl.textContent = "マイク権限OK — デバイスを選んで起動してください";
+    } catch (err) {
+      statusEl.textContent = "マイク権限エラー: " + err.message;
+    }
+    await refreshDeviceList();
+  }
+
+  refreshDevicesBtn.addEventListener("click", primeAndListDevices);
+  if (mediaDevicesAvailable && navigator.mediaDevices.addEventListener) {
+    navigator.mediaDevices.addEventListener("devicechange", refreshDeviceList);
+  }
+  // best-effort on load: if permission was already granted on a previous
+  // visit this fills in real labels immediately; if not, it either prompts
+  // right away or fails silently and the user falls back to the button
+  primeAndListDevices();
 
   // ---- start / stop --------------------------------------------------------
 

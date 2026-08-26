@@ -16,6 +16,13 @@
     </p>
   </header>
 
+  <div id="secureWarning" class="warning" hidden>
+    ⚠ このページは <code>file://</code> で開かれているため、ブラウザがマイクへの
+    アクセスを許可しません。ターミナルで <code>cd guitar-fx &amp;&amp; python3 -m
+    http.server 8000</code> を実行し、<code>http://localhost:8000</code> を
+    開き直してください。
+  </div>
+
   <main class="rack">
 
     <!-- ================= SETUP / INPUT ================= -->
@@ -24,12 +31,14 @@
       <div class="row">
         <label class="field">
           <span>オーディオ入力デバイス</span>
-          <select id="deviceSelect"><option value="">(未検出 — 起動してください)</option></select>
+          <select id="deviceSelect"><option value="">(権限を許可すると一覧が出ます)</option></select>
         </label>
-        <button id="refreshDevices" class="ghostBtn" title="デバイス一覧を再取得">再検出</button>
+        <button id="refreshDevices" class="ghostBtn" title="マイク権限を確認してデバイス一覧を取得">
+          デバイス一覧を取得
+        </button>
       </div>
       <div class="row">
-        <button id="startBtn" class="primaryBtn">起動 (マイク権限を許可)</button>
+        <button id="startBtn" class="primaryBtn">起動 (選択したデバイスで開始)</button>
         <button id="stopBtn" class="ghostBtn" disabled>停止</button>
         <span id="status" class="status">停止中</span>
       </div>
