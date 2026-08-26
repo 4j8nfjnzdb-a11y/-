@@ -3,39 +3,57 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>kizashi — generative ambient</title>
+<title>glitchbox — リアルタイム・ギター・グリッチ</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <canvas id="bg"></canvas>
+  <div id="glitchOverlay" aria-hidden="true"></div>
 
   <main class="ui">
     <header>
-      <h1>kizashi <span class="sub">きざし</span></h1>
-      <p class="tagline">反復に見せかけて、予測の像を結ぶ寸前でかわし続けるアンビエント。</p>
+      <h1>glitchbox</h1>
+      <p class="tagline">
+        ギターの音をそのまま通しながら、不規則な周期でふっとバグを起こす。
+        いつ来るかは分からない — でも完全なランダムでもない。
+      </p>
     </header>
 
+    <p class="warn">⚠ ハウリング防止のため、ヘッドホンでの使用を推奨します。</p>
+
     <div class="transport">
-      <button id="playBtn" class="playBtn">再生</button>
-      <button id="paletteBtn" class="ghostBtn">配色を変える</button>
+      <button id="startBtn" class="playBtn">マイク接続 &amp; 開始</button>
+      <label class="toggle">
+        <input id="glitchEnabled" type="checkbox" checked />
+        <span>グリッチ有効</span>
+      </label>
+    </div>
+
+    <p id="status" class="status">停止中</p>
+
+    <div class="periodGroup">
+      <span class="groupLabel">発生周期</span>
+      <div class="periodButtons" role="group">
+        <button data-period="frequent" class="periodBtn">頻繁</button>
+        <button data-period="normal" class="periodBtn active">普通</button>
+        <button data-period="rare" class="periodBtn">稀</button>
+        <button data-period="auto" class="periodBtn">自動で変化</button>
+      </div>
     </div>
 
     <div class="controls">
       <label class="slider">
-        <span>密度 <em>density</em></span>
-        <input id="density" type="range" min="0" max="100" value="42" />
+        <span>強度 <em>intensity</em></span>
+        <input id="intensity" type="range" min="0" max="100" value="55" />
       </label>
       <label class="slider">
-        <span>明暗 <em>tone</em></span>
-        <input id="tone" type="range" min="0" max="100" value="50" />
-      </label>
-      <label class="slider">
-        <span>揺らぎ <em>swerve</em></span>
-        <input id="swerve" type="range" min="0" max="100" value="55" />
+        <span>出力音量 <em>volume</em></span>
+        <input id="volume" type="range" min="0" max="100" value="80" />
       </label>
     </div>
 
-    <p class="hint">音は毎回、一度きりのものです。同じ配列は二度と戻ってきません。</p>
+    <div id="lastGlitch" class="lastGlitch" aria-live="polite"></div>
+
+    <p class="hint">同じ周期は二度と繰り返さない。バーストで連発することもあれば、長く何も起きないこともある。</p>
   </main>
 
   <script src="app.js"></script>

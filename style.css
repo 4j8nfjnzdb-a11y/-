@@ -2,6 +2,8 @@
   --ink: #eae6df;
   --ink-dim: rgba(234, 230, 223, 0.55);
   --bg: #0b0d10;
+  --accent: #ff2ecb;
+  --glitch-color: #35f0ff;
 }
 
 * { box-sizing: border-box; }
@@ -17,14 +19,6 @@ html, body {
   overflow: hidden;
 }
 
-#bg {
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
 .ui {
   position: relative;
   z-index: 1;
@@ -33,37 +27,38 @@ html, body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2.25rem;
+  gap: 1.4rem;
   padding: 2rem;
   text-align: center;
 }
 
 header h1 {
-  font-weight: 300;
-  font-size: 2rem;
-  letter-spacing: 0.08em;
+  font-weight: 600;
+  font-size: 2.1rem;
+  letter-spacing: 0.02em;
   margin: 0;
 }
 
-header h1 .sub {
-  font-size: 1.1rem;
-  color: var(--ink-dim);
-  margin-left: 0.6em;
-  font-weight: 300;
-}
-
 .tagline {
-  margin: 0.9rem 0 0;
+  margin: 0.7rem 0 0;
   color: var(--ink-dim);
   font-size: 0.9rem;
   max-width: 32em;
   line-height: 1.8;
 }
 
+.warn {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #ffb45c;
+}
+
 .transport {
   display: flex;
-  gap: 1rem;
+  gap: 1.2rem;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 button {
@@ -76,20 +71,64 @@ button {
   background: transparent;
   color: var(--ink);
   cursor: pointer;
-  transition: background 0.4s ease, border-color 0.4s ease, opacity 0.4s ease;
+  transition: background 0.3s ease, border-color 0.3s ease, opacity 0.3s ease;
 }
 
 .playBtn {
   background: rgba(234, 230, 223, 0.12);
 }
 
-.playBtn:hover, .ghostBtn:hover {
-  border-color: rgba(234, 230, 223, 0.7);
+.playBtn:hover { border-color: rgba(234, 230, 223, 0.7); }
+
+.playBtn.running {
+  background: rgba(53, 240, 255, 0.15);
+  border-color: rgba(53, 240, 255, 0.6);
 }
 
-.playBtn.playing {
-  background: rgba(234, 230, 223, 0.04);
-  opacity: 0.75;
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+
+.status {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--ink-dim);
+  min-height: 1.2em;
+}
+
+.periodGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.groupLabel {
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  color: var(--ink-dim);
+}
+
+.periodButtons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.periodBtn {
+  padding: 0.5rem 1rem;
+  font-size: 0.78rem;
+}
+
+.periodBtn.active {
+  background: rgba(255, 46, 203, 0.18);
+  border-color: rgba(255, 46, 203, 0.7);
 }
 
 .controls {
@@ -146,12 +185,74 @@ input[type="range"]::-moz-range-thumb {
   box-shadow: 0 0 12px rgba(234, 230, 223, 0.6);
 }
 
+.lastGlitch {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  color: var(--glitch-color);
+  min-height: 1.2em;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.lastGlitch.show {
+  opacity: 0.9;
+  transition: opacity 0.02s ease;
+}
+
 .hint {
   color: var(--ink-dim);
   font-size: 0.72rem;
-  letter-spacing: 0.04em;
-  opacity: 0.6;
+  letter-spacing: 0.03em;
+  opacity: 0.55;
   max-width: 26em;
+}
+
+/* ---- glitch visual feedback ---- */
+
+#glitchOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  opacity: 0;
+  mix-blend-mode: screen;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      var(--glitch-color) 0px,
+      transparent 2px,
+      transparent 4px
+    ),
+    linear-gradient(90deg, var(--glitch-color), transparent 40%, var(--accent) 90%);
+}
+
+#glitchOverlay.flash {
+  animation: glitchOverlayFlash 240ms steps(3, end);
+}
+
+@keyframes glitchOverlayFlash {
+  0% { opacity: 0; transform: translateX(0); }
+  10% { opacity: 0.5; transform: translateX(-1.2%); }
+  20% { opacity: 0.05; transform: translateX(0.8%); }
+  35% { opacity: 0.35; transform: translateX(-0.6%); }
+  45% { opacity: 0; transform: translateX(0); }
+  60% { opacity: 0.28; transform: translateX(1%); }
+  70% { opacity: 0; }
+  100% { opacity: 0; transform: translateX(0); }
+}
+
+.ui.shake {
+  animation: glitchShake 240ms linear;
+}
+
+@keyframes glitchShake {
+  0% { transform: translate(0, 0) skew(0deg); }
+  15% { transform: translate(-8px, 3px) skew(-1.5deg); }
+  30% { transform: translate(6px, -4px) skew(1deg); }
+  45% { transform: translate(-5px, 4px) skew(-0.5deg); }
+  60% { transform: translate(4px, -2px) skew(0.8deg); }
+  80% { transform: translate(-2px, 1px); }
+  100% { transform: translate(0, 0) skew(0deg); }
 }
 
 @media (max-width: 480px) {
