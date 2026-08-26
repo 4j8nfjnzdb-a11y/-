@@ -120,6 +120,7 @@
     if (slot.el && slot.el.tagName === "VIDEO") {
       slot.el.pause();
       slot.el.src = "";
+      slot.el.remove();
     }
 
     const url = URL.createObjectURL(file);
@@ -131,16 +132,35 @@
       el.loop = true;
       el.playsInline = true;
       el.preload = "auto";
+      // kept attached (but invisible) rather than display:none — some
+      // browsers throttle or stall decoding of detached/hidden video
+      el.style.cssText = "position:fixed; left:0; top:0; width:2px; height:2px; opacity:0; pointer-events:none;";
+      document.body.appendChild(el);
       el.src = url;
+
       el.addEventListener("loadedmetadata", () => {
         slot.duration = el.duration;
-        const t = el.duration ? Math.min(0.15, el.duration / 2) : 0;
-        el.currentTime = t;
       });
-      el.addEventListener("seeked", () => {
+      // "ready" is decided by loadeddata (guaranteed once a frame is
+      // decoded) rather than "seeked" — setting currentTime to a value
+      // the video is already at may never fire seeked, which left the
+      // slot stuck in "loading" forever with no error shown
+      el.addEventListener("loadeddata", () => {
         slot.ready = true;
         makeThumb(slot);
         checkReadyState();
+        if (el.duration && isFinite(el.duration) && el.duration > 0.3) {
+          const onSeeked = () => {
+            makeThumb(slot);
+            el.removeEventListener("seeked", onSeeked);
+          };
+          el.addEventListener("seeked", onSeeked);
+          el.currentTime = Math.min(0.15, el.duration / 2);
+        }
+      }, { once: true });
+      el.addEventListener("error", () => {
+        alert(`「${file.name}」を読み込めませんでした。対応していない形式の可能性があります。`);
+        clearSlot(index);
       }, { once: true });
     } else {
       el = new Image();
@@ -148,6 +168,10 @@
         slot.ready = true;
         makeThumb(slot);
         checkReadyState();
+      };
+      el.onerror = () => {
+        alert(`「${file.name}」を読み込めませんでした。対応していない形式の可能性があります。`);
+        clearSlot(index);
       };
       el.src = url;
     }
@@ -171,6 +195,7 @@
       slot.el.pause();
       slot.el.src = "";
       slot.el.load();
+      slot.el.remove();
     }
     if (slot.url) URL.revokeObjectURL(slot.url);
     Object.assign(slot, {
