@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>kizashi — generative ambient</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <canvas id="bg"></canvas>
+
+  <main class="ui">
+    <header>
+      <h1>kizashi <span class="sub">きざし</span></h1>
+      <p class="tagline">反復に見せかけて、予測の像を結ぶ寸前でかわし続けるアンビエント。</p>
+    </header>
+
+    <div class="transport">
+      <button id="playBtn" class="playBtn">再生</button>
+      <button id="paletteBtn" class="ghostBtn">配色を変える</button>
+    </div>
+
+    <div class="controls">
+      <label class="slider">
+        <span>密度 <em>density</em></span>
+        <input id="density" type="range" min="0" max="100" value="42" />
+      </label>
+      <label class="slider">
+        <span>明暗 <em>tone</em></span>
+        <input id="tone" type="range" min="0" max="100" value="50" />
+      </label>
+      <label class="slider">
+        <span>揺らぎ <em>swerve</em></span>
+        <input id="swerve" type="range" min="0" max="100" value="55" />
+      </label>
+    </div>
+
+    <p class="hint">音は毎回、一度きりのものです。同じ配列は二度と戻ってきません。</p>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
