@@ -27,27 +27,28 @@
   };
   const AUTO_KEYS = ["frequent", "normal", "rare"];
 
-  const GLITCH_KINDS = ["bitcrush", "stutter", "dropout", "warble", "crackle"];
+  // weighted pool: stutter/chop (rearrangements of the real signal) show
+  // up more often than the harsher bitcrush/dropout
+  const GLITCH_KIND_POOL = [
+    "stutter", "stutter", "chop", "chop", "bitcrush", "dropout",
+  ];
   const KIND_LABEL = {
     bitcrush: "ビットクラッシュ",
     stutter: "スタッター",
+    chop: "チョップ",
     dropout: "ドロップアウト",
-    warble: "ワウ",
-    crackle: "クラックル",
   };
   const KIND_DURATION = {
-    bitcrush: [0.15, 0.6],
-    stutter: [0.1, 0.45],
-    dropout: [0.05, 0.3],
-    warble: [0.3, 1.1],
-    crackle: [0.1, 0.4],
+    bitcrush: [0.12, 0.4],
+    stutter: [0.08, 0.35],
+    chop: [0.15, 0.5],
+    dropout: [0.04, 0.18],
   };
   const KIND_COLOR = {
     bitcrush: "#35f0ff",
     stutter: "#ff2ecb",
+    chop: "#ffb23f",
     dropout: "#ff5c5c",
-    warble: "#b98cff",
-    crackle: "#ffd23f",
   };
 
   let audioCtx = null;
@@ -113,7 +114,7 @@
     if (!glitchEnabledBox.checked) return;
 
     const intensity = +intensitySlider.value / 100;
-    const kind = forceKind || GLITCH_KINDS[Math.floor(Math.random() * GLITCH_KINDS.length)];
+    const kind = forceKind || GLITCH_KIND_POOL[Math.floor(Math.random() * GLITCH_KIND_POOL.length)];
     const [dmin, dmax] = KIND_DURATION[kind];
     const durationSec = dmin + Math.random() * (dmax - dmin);
 
@@ -129,7 +130,7 @@
     // rare overlapping second glitch, more likely at high intensity —
     // the "everything at once" moment
     if (Math.random() < 0.12 * intensity) {
-      const kind2 = GLITCH_KINDS[Math.floor(Math.random() * GLITCH_KINDS.length)];
+      const kind2 = GLITCH_KIND_POOL[Math.floor(Math.random() * GLITCH_KIND_POOL.length)];
       setTimeout(() => fireGlitch(kind2), 40 + Math.random() * 140);
     }
   }

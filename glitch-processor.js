@@ -30,7 +30,6 @@ class GlitchProcessor extends AudioWorkletProcessor {
       intensity,
       crushCounter: 0,
       crushHold: [0, 0],
-      warblePhase: Math.random() * Math.PI * 2,
       readPos: 0,
     };
 
@@ -43,48 +42,49 @@ class GlitchProcessor extends AudioWorkletProcessor {
     this.active = a;
   }
 
+  // pick a fresh short grain from recently recorded (real, played) audio
+  rerollChopGrain(a) {
+    const lenSec = 0.008 + Math.random() * 0.045 * (0.3 + a.intensity);
+    a.chopLen = Math.max(4, Math.floor(lenSec * sampleRate));
+    const back = 120 + Math.floor(Math.random() * (this.ringLen - 400));
+    a.chopStart = (this.writeIdx - back + this.ringLen * 4) % this.ringLen;
+    a.chopReadPos = 0;
+  }
+
   applyGlitch(xs) {
     const a = this.active;
     switch (a.kind) {
       case "bitcrush": {
-        const holdEvery = 2 + Math.floor(a.intensity * 18);
+        // sample-and-hold + bit reduction — crushed but still recognizably
+        // the input, not full static
+        const holdEvery = 2 + Math.floor(a.intensity * 9);
         a.crushCounter++;
         if (a.crushCounter >= holdEvery) {
           a.crushCounter = 0;
           a.crushHold = xs.slice();
         }
-        const bits = Math.max(2, 8 - Math.floor(a.intensity * 6));
+        const bits = Math.max(3, 8 - Math.floor(a.intensity * 4));
         const levels = Math.pow(2, bits);
         return a.crushHold.map((v) => Math.round(v * levels) / levels);
       }
       case "stutter": {
+        // loops one fixed short grain of real audio for the whole event
         const len = a.stutterLen;
         const idx = (a.stutterStart + (a.readPos % len) + this.ringLen) % this.ringLen;
         a.readPos++;
         return [this.ring[0][idx], this.ring[1][idx]];
       }
+      case "chop": {
+        // re-picks a new short grain of real audio every few ms — a
+        // stumbling, chattering rearrangement of what was just played
+        if (!a.chopLen || a.chopReadPos >= a.chopLen) this.rerollChopGrain(a);
+        const idx = (a.chopStart + a.chopReadPos + this.ringLen) % this.ringLen;
+        a.chopReadPos++;
+        return [this.ring[0][idx], this.ring[1][idx]];
+      }
       case "dropout": {
-        const click = Math.random() < 0.025 ? (Math.random() * 2 - 1) * 0.25 : 0;
-        return [click, click];
-      }
-      case "warble": {
-        const rate = 3 + a.intensity * 9;
-        a.warblePhase += (2 * Math.PI * rate) / sampleRate;
-        const depthSamples = 30 + a.intensity * 220;
-        const delay = 140 + Math.sin(a.warblePhase) * depthSamples;
-        const idx = Math.floor((this.writeIdx - delay + this.ringLen * 4) % this.ringLen);
-        const idxNext = (idx + 1) % this.ringLen;
-        const frac = delay - Math.floor(delay);
-        return [0, 1].map((ch) => {
-          const buf = this.ring[ch];
-          return buf[idx] * (1 - frac) + buf[idxNext] * frac;
-        });
-      }
-      case "crackle": {
-        const prob = 0.04 + a.intensity * 0.22;
-        return xs.map((v) =>
-          Math.random() < prob ? (Math.random() * 2 - 1) * (0.35 + a.intensity * 0.55) : v
-        );
+        // the signal briefly cuts out entirely
+        return [0, 0];
       }
       default:
         return xs;
