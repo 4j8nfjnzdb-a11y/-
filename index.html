@@ -189,6 +189,16 @@ html, body {
   color: var(--ink);
 }
 
+.field.wide { grid-column: 1 / -1; margin-bottom: 1.2rem; }
+.field-label small {
+  display: block;
+  font-size: 0.64rem;
+  opacity: 0.75;
+  font-style: italic;
+  letter-spacing: 0.02em;
+  margin-top: 0.1rem;
+}
+
 .slider {
   display: flex;
   flex-direction: column;
@@ -430,6 +440,15 @@ input[type="range"]::-moz-range-thumb {
         </label>
       </div>
 
+      <label class="field wide">
+        <span class="field-label">切り方の方式 <small>実際のバロウズ&amp;ギシンの手法を参考にした4種類</small></span>
+        <select id="cutMethod">
+          <option value="standard" selected>標準カットアップ — 断片を無作為にシャッフル</option>
+          <option value="grid">グリッド法 — Gysinのグリッド・カットアップ（行/列/対角/スネーク/完全無作為の読み順）</option>
+          <option value="permutation">パーミュテーション — 総当たり的な入れ替え（強度が高いと重複・欠落も発生）</option>
+        </select>
+      </label>
+
       <div class="grid">
         <label class="slider">
           <span>断片の長さ：最小 <em id="chunkMinVal">1</em></span>
@@ -449,7 +468,7 @@ input[type="range"]::-moz-range-thumb {
       <div class="grid toggles">
         <label class="toggle">
           <input type="checkbox" id="foldIn" />
-          <span>フォールドイン（複数素材を交互に織り込む）</span>
+          <span>フォールドイン（バロウズの折り込み法：素材を半分に折り、次の素材の半分と継ぎ合わせる）</span>
         </label>
         <label class="toggle">
           <input type="checkbox" id="keepPunct" checked />
@@ -462,13 +481,14 @@ input[type="range"]::-moz-range-thumb {
       </div>
 
       <button id="cutBtn" class="cutBtn">✂ カットアップする</button>
-      <p class="hint">同じ設定でも、結果は毎回変わります。何度でも切り直せます。</p>
+      <p class="hint">カオス写像（ロジスティック写像）で初期値鋭敏性のある乱数を毎回生成し直すので、同じ設定でも押すたびに違う並びになります。</p>
     </section>
 
     <section class="results" id="results"></section>
 
     <footer class="footnote">
       <p>“Cut-ups are for everyone.” — B. Gysin</p>
+      <p>カットアップ法／フォールドイン法／グリッド・カットアップ／パーミュテーション詩 — バロウズとギシンが実際に用いた手法を土台にしています。</p>
     </footer>
   </div>
 
@@ -497,6 +517,7 @@ input[type="range"]::-moz-range-thumb {
   const chunkMaxVal = document.getElementById("chunkMaxVal");
   const randomnessEl = document.getElementById("randomness");
   const randomnessVal = document.getElementById("randomnessVal");
+  const cutMethodEl = document.getElementById("cutMethod");
   const foldInEl = document.getElementById("foldIn");
   const keepPunctEl = document.getElementById("keepPunct");
   const capRandomEl = document.getElementById("capRandom");
@@ -510,10 +531,10 @@ input[type="range"]::-moz-range-thumb {
   ];
 
   const PRESETS = {
-    light:  { unit: "sentence", min: 1, max: 2, randomness: 20 },
-    medium: { unit: "word", min: 2, max: 5, randomness: 50 },
-    heavy:  { unit: "word", min: 1, max: 3, randomness: 80 },
-    chaos:  { unit: "char", min: 1, max: 6, randomness: 100 },
+    light:  { unit: "sentence", min: 1, max: 2, randomness: 20, cutMethod: "standard" },
+    medium: { unit: "word", min: 2, max: 5, randomness: 50, cutMethod: "standard" },
+    heavy:  { unit: "word", min: 1, max: 3, randomness: 80, cutMethod: "grid" },
+    chaos:  { unit: "char", min: 1, max: 6, randomness: 100, cutMethod: "permutation" },
   };
 
   let sourceSeq = 0;
@@ -577,6 +598,7 @@ input[type="range"]::-moz-range-thumb {
     chunkMinEl.value = p.min;
     chunkMaxEl.value = p.max;
     randomnessEl.value = p.randomness;
+    cutMethodEl.value = p.cutMethod;
     syncLabels();
     [...presetsEl.children].forEach((b) => b.classList.toggle("active", b.dataset.preset === name));
   }
@@ -587,7 +609,7 @@ input[type="range"]::-moz-range-thumb {
     applyPreset(btn.dataset.preset);
   });
 
-  [unitEl, chunkMinEl, chunkMaxEl, randomnessEl, foldInEl, keepPunctEl, capRandomEl].forEach((el) => {
+  [unitEl, chunkMinEl, chunkMaxEl, randomnessEl, cutMethodEl, foldInEl, keepPunctEl, capRandomEl].forEach((el) => {
     el.addEventListener("input", () => {
       [...presetsEl.children].forEach((b) => b.classList.remove("active"));
     });
@@ -611,6 +633,26 @@ input[type="range"]::-moz-range-thumb {
   syncLabels();
   applyPreset("medium");
 
+  // ---- chaos PRNG -----------------------------------------------------------
+  //
+  // A fresh logistic-map generator is seeded on every single cut, so each
+  // press starts from a new initial condition. The logistic map
+  // x -> r*x*(1-x) with r in [3.9, 3.999] is the textbook chaotic regime:
+  // two runs that start a hair's-breadth apart diverge completely within a
+  // few iterations (sensitive dependence on initial conditions), which is
+  // exactly the "never the same twice" behavior a cut-up should have.
+
+  function makeChaosRandom() {
+    let x = Math.random() * 0.8 + 0.1;
+    const r = 3.9 + Math.random() * 0.099;
+    for (let i = 0; i < 30; i++) x = r * x * (1 - x); // discard transient
+    return function chaosRandom() {
+      x = r * x * (1 - x);
+      if (!(x > 0.0001 && x < 0.9999)) x = Math.random(); // escape rare fixed points
+      return x;
+    };
+  }
+
   // ---- tokenizers --------------------------------------------------------
 
   function splitWords(text) {
@@ -626,69 +668,207 @@ input[type="range"]::-moz-range-thumb {
     return matches.map((s) => s.trim()).filter((s) => s.length > 0);
   }
 
-  function groupTokens(tokens, min, max, joinStr) {
+  function groupTokens(tokens, min, max, joinStr, rand) {
     const chunks = [];
     let i = 0;
     while (i < tokens.length) {
-      const size = min === max ? min : min + Math.floor(Math.random() * (max - min + 1));
+      const size = min === max ? min : min + Math.floor(rand() * (max - min + 1));
       chunks.push(tokens.slice(i, i + size).join(joinStr));
       i += size;
     }
     return chunks;
   }
 
-  function tokenizeChars(text, min, max) {
+  function tokenizeChars(text, min, max, rand) {
     const chars = [...text].filter((c) => c.length > 0);
     const chunks = [];
     let i = 0;
     while (i < chars.length) {
-      const size = min === max ? min : min + Math.floor(Math.random() * (max - min + 1));
+      const size = min === max ? min : min + Math.floor(rand() * (max - min + 1));
       chunks.push(chars.slice(i, i + size).join(""));
       i += size;
     }
     return chunks.filter((c) => c.trim().length > 0);
   }
 
-  function tokenize(text, unit, min, max) {
+  function tokenize(text, unit, min, max, rand) {
     switch (unit) {
-      case "char": return tokenizeChars(text, min, max);
-      case "line": return groupTokens(splitLines(text), min, max, "\n");
-      case "sentence": return groupTokens(splitSentences(text), min, max, " ");
+      case "char": return tokenizeChars(text, min, max, rand);
+      case "line": return groupTokens(splitLines(text), min, max, "\n", rand);
+      case "sentence": return groupTokens(splitSentences(text), min, max, " ", rand);
       case "word":
-      default: return groupTokens(splitWords(text), min, max, " ");
+      default: return groupTokens(splitWords(text), min, max, " ", rand);
     }
   }
 
-  // ---- reordering ---------------------------------------------------------
+  // ---- reordering: standard cut-up (guaranteed-visible shuffle) ------------
+  //
+  // Reshuffling by picking N random pairs and swapping them (the previous
+  // approach) is weak: a swap can undo an earlier swap, so at low-to-medium
+  // strength the result often collapses back toward the original order.
+  // Instead we pick a random *subset* of positions sized to the randomness
+  // slider and fully derange just that subset — monotonic in strength, and
+  // guaranteed to differ from the input whenever randomness > 0.
 
-  function applyShuffle(arr, randomness) {
+  function sameOrder(a, b) {
+    return a.length === b.length && a.every((v, i) => v.text === b[i].text && v.sourceIndex === b[i].sourceIndex);
+  }
+
+  function subsetShuffle(arr, randomness, rand) {
     const copy = arr.slice();
     const n = copy.length;
     if (randomness <= 0 || n < 2) return copy;
-    if (randomness >= 95) {
-      for (let i = n - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [copy[i], copy[j]] = [copy[j], copy[i]];
+
+    let k = Math.max(2, Math.round((randomness / 100) * n));
+    k = Math.min(k, n);
+
+    const order = [...Array(n).keys()];
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    const chosen = order.slice(0, k);
+    const values = chosen.map((i) => copy[i]);
+
+    let attempts = 0;
+    do {
+      for (let i = values.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        [values[i], values[j]] = [values[j], values[i]];
       }
-      return copy;
-    }
-    const swaps = Math.round(n * (randomness / 100) * 1.3);
-    for (let i = 0; i < swaps; i++) {
-      const a = Math.floor(Math.random() * n);
-      const b = Math.floor(Math.random() * n);
-      [copy[a], copy[b]] = [copy[b], copy[a]];
-    }
+      attempts++;
+    } while (attempts < 6 && values.every((v, i) => v === copy[chosen[i]]));
+
+    chosen.forEach((idx, i) => { copy[idx] = values[i]; });
     return copy;
   }
 
-  function foldInMerge(chunkArrays) {
-    const pools = chunkArrays.map((a) => a.slice());
+  // ---- reordering: Gysin's grid cut-up --------------------------------------
+  //
+  // Brion Gysin's grid method lays fragments into a grid and reads them out
+  // along a different axis than they were written. We build the grid in
+  // original order, then read it row-wise / column-wise / diagonally /
+  // snake-wise / or in fully randomized cell order, picking a fresh pattern
+  // every generation.
+
+  function gridReorder(chunks, randomness, rand) {
+    const n = chunks.length;
+    if (n < 4) return subsetShuffle(chunks, randomness, rand);
+
+    const cols = Math.min(6, Math.max(2, Math.round(Math.sqrt(n))));
+    const rows = Math.ceil(n / cols);
+    const grid = [];
+    let k = 0;
+    for (let r = 0; r < rows; r++) {
+      const row = [];
+      for (let c = 0; c < cols; c++) { row.push(k < n ? chunks[k] : null); k++; }
+      grid.push(row);
+    }
+
+    const patterns = ["row", "col", "diagonal", "snake"];
+    if (randomness > 55) patterns.push("random", "random");
+    const pattern = patterns[Math.floor(rand() * patterns.length)];
+
+    let out = [];
+    if (pattern === "row") {
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) if (grid[r][c]) out.push(grid[r][c]);
+    } else if (pattern === "col") {
+      for (let c = 0; c < cols; c++) for (let r = 0; r < rows; r++) if (grid[r][c]) out.push(grid[r][c]);
+    } else if (pattern === "diagonal") {
+      for (let d = 0; d < rows + cols - 1; d++) {
+        for (let r = 0; r < rows; r++) {
+          const c = d - r;
+          if (c >= 0 && c < cols && grid[r][c]) out.push(grid[r][c]);
+        }
+      }
+    } else if (pattern === "snake") {
+      for (let r = 0; r < rows; r++) {
+        const cs = r % 2 === 0 ? [...Array(cols).keys()] : [...Array(cols).keys()].reverse();
+        for (const c of cs) if (grid[r][c]) out.push(grid[r][c]);
+      }
+    } else {
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) if (grid[r][c]) out.push(grid[r][c]);
+      for (let i = out.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        [out[i], out[j]] = [out[j], out[i]];
+      }
+    }
+
+    return subsetShuffle(out, Math.min(100, randomness * 0.5 + 15), rand);
+  }
+
+  // ---- reordering: permutation poem -----------------------------------------
+  //
+  // Burroughs and Gysin also worked with straight permutation of a fixed
+  // set of words/phrases ("I AM THAT I AM" and similar pieces). Below a
+  // high randomness this is a guaranteed full derangement; above it, we
+  // switch to sampling *with replacement* — a chance operation where
+  // fragments can repeat or drop out entirely, which is closer to how
+  // those pieces actually behaved at their most aleatory.
+
+  function permutationReorder(chunks, randomness, rand) {
+    const n = chunks.length;
+    if (n < 2) return chunks.slice();
+
+    if (randomness > 70) {
+      const out = [];
+      for (let i = 0; i < n; i++) out.push(chunks[Math.floor(rand() * n)]);
+      return out;
+    }
+
+    const out = chunks.slice();
+    let attempts = 0;
+    do {
+      for (let i = out.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        [out[i], out[j]] = [out[j], out[i]];
+      }
+      attempts++;
+    } while (attempts < 6 && sameOrder(out, chunks));
+    return out;
+  }
+
+  function reorder(chunks, method, randomness, rand) {
+    switch (method) {
+      case "grid": return gridReorder(chunks, randomness, rand);
+      case "permutation": return permutationReorder(chunks, randomness, rand);
+      case "standard":
+      default: return subsetShuffle(chunks, randomness, rand);
+    }
+  }
+
+  // ---- fold-in: Burroughs & Gysin's actual splicing method ------------------
+  //
+  // The real fold-in technique: take a page, fold it vertically down the
+  // middle, and splice one half against the matching half of a different
+  // page, so the reader crosses from one text into another mid-line. With
+  // only one source we fold that source against its own second half —
+  // Burroughs did this too, folding a page back on itself.
+
+  function foldIn(chunkArrays, rand) {
+    let pages = chunkArrays.map((a) => a.slice());
+    if (pages.length === 1) {
+      const a = pages[0];
+      const mid = Math.max(1, Math.floor(a.length / 2));
+      pages = [a.slice(0, mid), a.slice(mid)];
+    }
+
     const result = [];
-    while (pools.some((p) => p.length)) {
-      const nonEmpty = pools.map((p, i) => i).filter((i) => pools[i].length > 0);
-      const pick = nonEmpty[Math.floor(Math.random() * nonEmpty.length)];
-      const takeCount = Math.min(pools[pick].length, Math.random() < 0.35 ? 2 : 1);
-      for (let k = 0; k < takeCount; k++) result.push(pools[pick].shift());
+    let cursor = Math.floor(rand() * pages.length);
+    while (pages.some((p) => p.length)) {
+      let tries = 0;
+      while (!pages[cursor].length && tries < pages.length) {
+        cursor = (cursor + 1) % pages.length;
+        tries++;
+      }
+      if (!pages[cursor].length) break;
+
+      const page = pages[cursor];
+      const fraction = 0.25 + rand() * 0.5; // fold point drifts, not a fixed half
+      const take = Math.max(1, Math.min(page.length, Math.round(page.length * fraction)));
+      for (let i = 0; i < take; i++) result.push(page.shift());
+
+      cursor = (cursor + 1 + Math.floor(rand() * (pages.length - 1 || 1))) % pages.length;
     }
     return result;
   }
@@ -699,8 +879,8 @@ input[type="range"]::-moz-range-thumb {
     return text.replace(/[、。！？「」『』・…,.!?;:'"()（）\[\]{}]/g, "");
   }
 
-  function randomizeCase(text) {
-    return text.replace(/[a-zA-Z]/g, (ch) => (Math.random() < 0.35
+  function randomizeCase(text, rand) {
+    return text.replace(/[a-zA-Z]/g, (ch) => (rand() < 0.35
       ? (ch === ch.toUpperCase() ? ch.toLowerCase() : ch.toUpperCase())
       : ch));
   }
@@ -719,6 +899,7 @@ input[type="range"]::-moz-range-thumb {
       min: +chunkMinEl.value,
       max: +chunkMaxEl.value,
       randomness: +randomnessEl.value,
+      cutMethod: cutMethodEl.value,
       foldIn: foldInEl.checked,
       keepPunct: keepPunctEl.checked,
       capRandom: capRandomEl.checked,
@@ -732,26 +913,37 @@ input[type="range"]::-moz-range-thumb {
   }
 
   function generateOne(sourceTexts, options) {
+    const rand = makeChaosRandom();
+
     const chunkArrays = sourceTexts.map((text, idx) =>
-      tokenize(text, options.unit, options.min, options.max).map((t) => ({ text: t, sourceIndex: idx }))
+      tokenize(text, options.unit, options.min, options.max, rand).map((t) => ({ text: t, sourceIndex: idx }))
     );
 
     const multiSource = sourceTexts.length > 1;
-    let combined;
 
-    if (options.foldIn && multiSource) {
-      combined = foldInMerge(chunkArrays);
-      combined = applyShuffle(combined, options.randomness * 0.6);
-    } else {
-      combined = chunkArrays.flat();
-      combined = applyShuffle(combined, options.randomness);
-    }
+    // fold-in can, on rare draws, reassemble back into plain reading order;
+    // when randomness is on, that outcome is rejected and re-cut rather
+    // than shown as if it were a deliberate result.
+    const identity = options.randomness > 0 ? chunksToPlainText(chunkArrays.flat(), options.unit) : null;
+
+    let combined;
+    let attempts = 0;
+    do {
+      if (options.foldIn) {
+        combined = foldIn(chunkArrays, rand);
+        combined = reorder(combined, options.cutMethod, options.randomness * 0.6, rand);
+      } else {
+        combined = chunkArrays.flat();
+        combined = reorder(combined, options.cutMethod, options.randomness, rand);
+      }
+      attempts++;
+    } while (identity !== null && attempts < 5 && chunksToPlainText(combined, options.unit) === identity);
 
     if (!options.keepPunct) {
       combined = combined.map((c) => ({ ...c, text: stripPunct(c.text) }));
     }
     if (options.capRandom) {
-      combined = combined.map((c) => ({ ...c, text: randomizeCase(c.text) }));
+      combined = combined.map((c) => ({ ...c, text: randomizeCase(c.text, rand) }));
     }
 
     combined = combined.filter((c) => c.text.trim().length > 0 || options.unit === "line");
@@ -780,9 +972,17 @@ input[type="range"]::-moz-range-thumb {
     card.style.setProperty("--delay", `${Math.min(index, 8) * 0.07}s`);
 
     function paint() {
-      const { chunks, multiSource } = generateOne(sourceTexts, options);
+      const prev = card.dataset.plain;
+      let chunks, multiSource, plain;
+      let attempts = 0;
+      do {
+        ({ chunks, multiSource } = generateOne(sourceTexts, options));
+        plain = chunksToPlainText(chunks, options.unit);
+        attempts++;
+      } while (attempts < 4 && options.randomness > 0 && prev !== undefined && plain === prev);
+
       card.querySelector(".result-text").innerHTML = chunksToHtml(chunks, options.unit, multiSource);
-      card.dataset.plain = chunksToPlainText(chunks, options.unit);
+      card.dataset.plain = plain;
     }
 
     card.innerHTML = `
