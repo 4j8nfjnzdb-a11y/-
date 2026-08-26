@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GrainDeck — Multi-Cursor Granular Sampler</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="app">
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-name">GrainDeck</span>
+      <span class="brand-sub">multi-cursor granular sampler</span>
+    </div>
+    <div class="engine-status" id="engineStatus">Web Audio: 未初期化</div>
+  </header>
+
+  <main class="deck">
+    <section class="transport">
+      <button id="btnPlay" class="btn btn-primary" title="再生 (Space)">▶</button>
+      <button id="btnStop" class="btn" title="停止">■</button>
+      <button id="btnScan" class="btn toggle" title="オートスキャン（テープのように位置が自動で進む）">⟲ Scan</button>
+
+      <div class="track-name" id="trackName">(untitled)</div>
+
+      <button id="btnRecord" class="btn btn-record" title="マイクから録音してバッファに取り込む">⏺ REC</button>
+      <button id="btnOpen" class="btn" title="オーディオファイルを開く">📂</button>
+      <button id="btnExport" class="btn" title="出力をWebMファイルに書き出す">💾 Export</button>
+      <input type="file" id="fileInput" accept="audio/*" hidden />
+    </section>
+
+    <section class="waveform-wrap">
+      <button id="btnGrid" class="btn small toggle" title="グリッドスナップ">#</button>
+      <canvas id="waveform" width="1000" height="220"></canvas>
+      <div class="drop-hint" id="dropHint">ファイルをドラッグ＆ドロップ、または REC を押してください</div>
+      <div class="time-readout" id="timeReadout">0:00.000</div>
+    </section>
+
+    <section class="cursor-tools">
+      <button id="btnAddCursor" class="btn small" title="カーソルを追加">＋</button>
+      <button id="btnDelCursor" class="btn small" title="選択中のカーソルを削除">🗑</button>
+      <span class="tools-label">Select cursor</span>
+      <div class="cursor-tabs" id="cursorTabs"></div>
+    </section>
+
+    <section class="params">
+      <div class="param-col">
+        <label class="param">
+          <span class="param-name">Position</span>
+          <input type="range" id="pPosition" min="0" max="1" step="0.001" value="0.5" />
+          <span class="param-val" id="vPosition">50%</span>
+        </label>
+        <label class="param">
+          <span class="param-name">Mix</span>
+          <input type="range" id="pMix" min="0" max="1" step="0.01" value="0.8" />
+          <span class="param-val" id="vMix">80%</span>
+        </label>
+        <label class="param">
+          <span class="param-name">Spread</span>
+          <input type="range" id="pSpread" min="0" max="1" step="0.01" value="0.1" />
+          <span class="param-val" id="vSpread">10%</span>
+        </label>
+        <label class="param">
+          <span class="param-name">Gain</span>
+          <input type="range" id="pGain" min="0" max="1.5" step="0.01" value="1" />
+          <span class="param-val" id="vGain">100%</span>
+        </label>
+        <label class="param">
+          <span class="param-name">Density</span>
+          <input type="range" id="pDensity" min="0" max="1" step="0.01" value="0.6" />
+          <span class="param-val" id="vDensity">60%</span>
+        </label>
+      </div>
+      <div class="param-col">
+        <label class="param">
+          <span class="param-name">Duration</span>
+          <input type="range" id="pDuration" min="5" max="500" step="1" value="80" />
+          <span class="param-val" id="vDuration">80ms</span>
+        </label>
+        <label class="param">
+          <span class="param-name">Fade</span>
+          <input type="range" id="pFade" min="0" max="1" step="0.01" value="0.5" />
+          <span class="param-val" id="vFade">50%</span>
+        </label>
+        <label class="param">
+          <span class="param-name">Slant</span>
+          <input type="range" id="pSlant" min="-1" max="1" step="0.01" value="0" />
+          <span class="param-val" id="vSlant">0</span>
+        </label>
+        <label class="param">
+          <span class="param-name">Ease</span>
+          <input type="range" id="pEase" min="0" max="1" step="0.01" value="0.3" />
+          <span class="param-val" id="vEase">30%</span>
+        </label>
+        <label class="param">
+          <span class="param-name">Declick</span>
+          <input type="range" id="pDeclick" min="0" max="1" step="0.01" value="0.4" />
+          <span class="param-val" id="vDeclick">40%</span>
+        </label>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <span>ドラッグでカーソル位置を移動 / スペースキーで再生・停止</span>
+  </footer>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
