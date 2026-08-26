@@ -3,40 +3,60 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>kizashi — generative ambient</title>
+<title>cutup — generative video/image collage</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <canvas id="bg"></canvas>
+  <canvas id="stage"></canvas>
 
-  <main class="ui">
-    <header>
-      <h1>kizashi <span class="sub">きざし</span></h1>
-      <p class="tagline">反復に見せかけて、予測の像を結ぶ寸前でかわし続けるアンビエント。</p>
+  <div class="dock" id="dock">
+    <button class="collapseBtn" id="collapseBtn" aria-label="パネルの開閉">▾</button>
+
+    <header class="dockHeader">
+      <h1>cutup <span class="sub">カットアップ</span></h1>
+      <p class="tagline">時間と空間をランダムに裁断し、二度と同じ構図を結ばないコラージュ・エンジン。</p>
     </header>
 
-    <div class="transport">
-      <button id="playBtn" class="playBtn">再生</button>
-      <button id="paletteBtn" class="ghostBtn">配色を変える</button>
-    </div>
+    <div class="dockBody">
+      <section class="row mediaRow">
+        <button id="addBtn" class="ghostBtn">＋ 素材を追加</button>
+        <input id="fileInput" type="file" accept="image/*,video/*" multiple hidden />
+        <div id="thumbs" class="thumbs"></div>
+      </section>
 
-    <div class="controls">
-      <label class="slider">
-        <span>密度 <em>density</em></span>
-        <input id="density" type="range" min="0" max="100" value="42" />
-      </label>
-      <label class="slider">
-        <span>明暗 <em>tone</em></span>
-        <input id="tone" type="range" min="0" max="100" value="50" />
-      </label>
-      <label class="slider">
-        <span>揺らぎ <em>swerve</em></span>
-        <input id="swerve" type="range" min="0" max="100" value="55" />
-      </label>
-    </div>
+      <section class="row transport">
+        <button id="playBtn" class="playBtn">停止</button>
+        <button id="recutBtn" class="ghostBtn">切り直す</button>
+        <button id="recBtn" class="ghostBtn recBtn">
+          <span class="recDot"></span>REC
+        </button>
+        <div class="seedBox">
+          <span class="seedLabel">seed</span>
+          <span id="seedVal" class="seedVal">—</span>
+          <button id="reseedBtn" class="iconBtn" aria-label="新しいシード">🔀</button>
+        </div>
+      </section>
 
-    <p class="hint">音は毎回、一度きりのものです。同じ配列は二度と戻ってきません。</p>
-  </main>
+      <section class="row sliders">
+        <label class="slider">
+          <span>密度 <em>density</em></span>
+          <input id="density" type="range" min="0" max="100" value="45" />
+        </label>
+        <label class="slider">
+          <span>時間軸 <em>time-cut</em></span>
+          <input id="timeaxis" type="range" min="0" max="100" value="50" />
+        </label>
+        <label class="slider">
+          <span>変異 <em>chaos</em></span>
+          <input id="chaos" type="range" min="0" max="100" value="40" />
+        </label>
+      </section>
+
+      <section class="row palettes" id="palettes"></section>
+
+      <p class="hint">画像・動画をドラッグ&ドロップ、またはファイルを追加。構図も、再生位置も、色調も、常に裁断され直されます。</p>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>

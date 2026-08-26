@@ -1,418 +1,532 @@
-// kizashi — generative ambient
+// cutup — generative video/image collage
 //
-// The idea: build a texture that reads as "repetition" (steady pulse,
-// familiar scale, cyclic pads) while every layer runs on its own
-// incommensurate clock and a slowly-drifting probability of firing at
-// all. The listener's short-term predictive model never quite locks in
-// — each layer swerves a little before it would become obvious — but
-// nothing is ever pure noise either. That balance is tuned by the
-// "swerve" and "density" sliders.
+// The canvas is repeatedly cut into an irregular set of fragments (a
+// binary space partition, redrawn from scratch every so often). Each
+// fragment owns an independent clock: its crop window drifts smoothly
+// through its source image or video, while its color treatment and,
+// for video, its playback position jump on their own asynchronous
+// schedules. Nothing is choreographed — every fragment is running its
+// own tiny, cheap simulation, the same idea as kizashi's bell layers,
+// just applied to pixels and frames instead of notes.
 
 (() => {
+  const canvas = document.getElementById("stage");
+  const ctx = canvas.getContext("2d");
+
+  const dock = document.getElementById("dock");
+  const collapseBtn = document.getElementById("collapseBtn");
+  const addBtn = document.getElementById("addBtn");
+  const fileInput = document.getElementById("fileInput");
+  const thumbsEl = document.getElementById("thumbs");
   const playBtn = document.getElementById("playBtn");
-  const paletteBtn = document.getElementById("paletteBtn");
+  const recutBtn = document.getElementById("recutBtn");
+  const recBtn = document.getElementById("recBtn");
+  const seedVal = document.getElementById("seedVal");
+  const reseedBtn = document.getElementById("reseedBtn");
   const densitySlider = document.getElementById("density");
-  const toneSlider = document.getElementById("tone");
-  const swerveSlider = document.getElementById("swerve");
-  const canvas = document.getElementById("bg");
-  const ctx2d = canvas.getContext("2d");
+  const timeaxisSlider = document.getElementById("timeaxis");
+  const chaosSlider = document.getElementById("chaos");
+  const palettesEl = document.getElementById("palettes");
 
-  let audioCtx = null;
-  let master, dry, wet, reverbNode, delayA, delayB, delayFeedbackA, delayFeedbackB;
-  let padVoices = [];
-  let bellLayers = [];
-  let running = false;
-  let schedulerTimer = null;
+  // ---- seeded randomness -------------------------------------------
 
-  // ---- musical material -------------------------------------------
-
-  const SCALES = {
-    // semitone offsets from root, chosen to always sound consonant
-    // no matter which degree becomes the melodic center
-    warm: [0, 2, 3, 7, 9, 10],      // dorian-ish, dusky
-    mid: [0, 2, 4, 7, 9, 11],       // major/ionian, open
-    bright: [0, 2, 4, 6, 9, 11],    // lydian-ish, lifted
-  };
-
-  const ROOTS = [48, 50, 53, 55, 57]; // C, D, F, G, A (midi, low register)
-
-  let palette = makePalette();
-
-  function makePalette() {
-    const roots = ROOTS.slice();
-    const root = roots[Math.floor(Math.random() * roots.length)];
-    const hue = Math.random() * 360;
-    return { root, hue };
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6d2b79f5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
   }
 
-  function midiToFreq(m) {
-    return 440 * Math.pow(2, (m - 69) / 12);
-  }
+  let seed = (Math.random() * 1e9) | 0;
+  let rng = mulberry32(seed);
 
-  function scaleForTone(tone) {
-    // tone: 0..100 -> warm..bright
-    if (tone < 33) return SCALES.warm;
-    if (tone < 66) return SCALES.mid;
-    return SCALES.bright;
+  function reseed(newSeed) {
+    seed = newSeed ?? ((Math.random() * 1e9) | 0);
+    rng = mulberry32(seed);
+    seedVal.textContent = seed;
   }
-
-  function pickDegree(layer) {
-    const scale = scaleForTone(+toneSlider.value);
-    const degree = scale[Math.floor(Math.random() * scale.length)];
-    return palette.root + degree + layer.octave * 12;
-  }
-
-  // ---- smoothed randomness (organic "swerve", not white noise) -----
 
   function makeDrift(min, max, start) {
     let value = start ?? (min + max) / 2;
     let target = value;
     return {
       get value() { return value; },
-      tick(rate) {
-        if (Math.random() < 0.08) {
-          target = min + Math.random() * (max - min);
-        }
+      tick(rate, flipProb = 0.05) {
+        if (rng() < flipProb) target = min + rng() * (max - min);
         value += (target - value) * rate;
         return value;
       },
     };
   }
 
-  // ---- audio graph ---------------------------------------------------
+  // ---- palettes (duotone overlays, vaporwave-leaning) ----------------
 
-  function buildImpulseResponse(context, duration, decay) {
-    const rate = context.sampleRate;
-    const length = Math.floor(rate * duration);
-    const impulse = context.createBuffer(2, length, rate);
-    for (let ch = 0; ch < 2; ch++) {
-      const data = impulse.getChannelData(ch);
-      for (let i = 0; i < length; i++) {
-        const t = i / length;
-        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, decay);
+  const PALETTES = [
+    { name: "なし", a: null, b: null },
+    { name: "ネオン", a: "#ff2bd6", b: "#00e5ff" },
+    { name: "サンセット", a: "#ff6a3d", b: "#5b3cff" },
+    { name: "ミント", a: "#00ffa6", b: "#7a5cff" },
+    { name: "モノクロ", a: "#f2f2f2", b: "#101018" },
+  ];
+  let paletteIndex = 1;
+
+  PALETTES.forEach((p, i) => {
+    const b = document.createElement("button");
+    b.className = "swatch" + (i === paletteIndex ? " active" : "");
+    b.style.background = p.a ? `linear-gradient(135deg, ${p.a}, ${p.b})` : "#333";
+    b.title = p.name;
+    b.addEventListener("click", () => {
+      paletteIndex = i;
+      [...palettesEl.children].forEach((c, ci) => c.classList.toggle("active", ci === i));
+    });
+    palettesEl.appendChild(b);
+  });
+
+  // ---- media pool ------------------------------------------------
+
+  const MAX_INSTANCES_PER_VIDEO = 3;
+  let media = []; // { id, type, url, el, w, h, instances:[video,...] }
+  let mediaSeq = 0;
+
+  function addImageFile(file) {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const entry = { id: mediaSeq++, type: "image", url, el: img, w: img.naturalWidth, h: img.naturalHeight, name: file.name };
+      media.push(entry);
+      addThumb(entry, url);
+      claimEmptyCellsFor(entry);
+    };
+    img.src = url;
+  }
+
+  function addVideoFile(file) {
+    const url = URL.createObjectURL(file);
+    const v = document.createElement("video");
+    v.muted = true; v.loop = true; v.playsInline = true; v.src = url;
+    v.addEventListener("loadeddata", () => {
+      const entry = { id: mediaSeq++, type: "video", url, el: v, w: v.videoWidth, h: v.videoHeight, name: file.name, instances: [v] };
+      media.push(entry);
+      const thumbCanvas = document.createElement("canvas");
+      thumbCanvas.width = 64; thumbCanvas.height = 64;
+      const tctx = thumbCanvas.getContext("2d");
+      try {
+        const s = Math.min(v.videoWidth, v.videoHeight);
+        tctx.drawImage(v, (v.videoWidth - s) / 2, (v.videoHeight - s) / 2, s, s, 0, 0, 64, 64);
+        addThumb(entry, thumbCanvas.toDataURL(), true);
+      } catch (e) {
+        addThumb(entry, url, true);
       }
+      claimEmptyCellsFor(entry);
+    }, { once: true });
+    v.play().catch(() => {});
+  }
+
+  function addThumb(entry, imgSrc, isVideo) {
+    const el = document.createElement("div");
+    el.className = "thumb";
+    el.innerHTML = `<img src="${imgSrc}" />${isVideo ? '<span class="kind">▶</span>' : ""}<button class="rm">×</button>`;
+    el.querySelector(".rm").addEventListener("click", () => removeMedia(entry, el));
+    thumbsEl.appendChild(el);
+  }
+
+  function removeMedia(entry, thumbEl) {
+    media = media.filter((m) => m !== entry);
+    thumbEl.remove();
+    if (entry.type === "video") {
+      entry.instances.forEach((v) => { try { v.pause(); v.src = ""; } catch (e) {} });
     }
-    return impulse;
+    URL.revokeObjectURL(entry.url);
+    cells.forEach((c) => { if (c.media === entry) assignSource(c); });
   }
 
-  function initAudio() {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-    master = audioCtx.createGain();
-    master.gain.value = 0.85;
-
-    const compressor = audioCtx.createDynamicsCompressor();
-    compressor.threshold.value = -18;
-    compressor.ratio.value = 3;
-
-    master.connect(compressor).connect(audioCtx.destination);
-
-    dry = audioCtx.createGain();
-    dry.gain.value = 0.55;
-    dry.connect(master);
-
-    wet = audioCtx.createGain();
-    wet.gain.value = 0.9;
-
-    reverbNode = audioCtx.createConvolver();
-    reverbNode.buffer = buildImpulseResponse(audioCtx, 5.5, 3.0);
-    reverbNode.connect(wet);
-    wet.connect(master);
-
-    // two non-multiple delay lines, damped feedback, for a soft
-    // shimmering space that never quite settles into a fixed comb
-    delayA = audioCtx.createDelay(2.0);
-    delayA.delayTime.value = 0.372;
-    delayFeedbackA = audioCtx.createGain();
-    delayFeedbackA.gain.value = 0.38;
-    const dampA = audioCtx.createBiquadFilter();
-    dampA.type = "lowpass";
-    dampA.frequency.value = 2200;
-    delayA.connect(dampA).connect(delayFeedbackA).connect(delayA);
-    delayA.connect(wet);
-
-    delayB = audioCtx.createDelay(2.0);
-    delayB.delayTime.value = 0.551;
-    delayFeedbackB = audioCtx.createGain();
-    delayFeedbackB.gain.value = 0.33;
-    const dampB = audioCtx.createBiquadFilter();
-    dampB.type = "lowpass";
-    dampB.frequency.value = 1800;
-    delayB.connect(dampB).connect(delayFeedbackB).connect(delayB);
-    delayB.connect(wet);
-
-    buildPads();
-    buildBellLayers();
+  function claimEmptyCellsFor(entry) {
+    cells.forEach((c) => { if (!c.media) assignSource(c, entry); });
   }
 
-  function sendToSpace(node, delayAmt, reverbAmt, dryAmt) {
-    const dg = audioCtx.createGain();
-    dg.gain.value = dryAmt;
-    node.connect(dg).connect(dry);
-
-    const rg = audioCtx.createGain();
-    rg.gain.value = reverbAmt;
-    node.connect(rg).connect(reverbNode);
-
-    const dla = audioCtx.createGain();
-    dla.gain.value = delayAmt;
-    node.connect(dla).connect(delayA);
-    node.connect(dla).connect(delayB);
+  function acquireVideoInstance(entry) {
+    const used = new Set(cells.filter((c) => c.media === entry && c.videoEl).map((c) => c.videoEl));
+    let free = entry.instances.find((v) => !used.has(v));
+    if (!free && entry.instances.length < MAX_INSTANCES_PER_VIDEO) {
+      free = document.createElement("video");
+      free.muted = true; free.loop = true; free.playsInline = true; free.src = entry.url;
+      free.play().catch(() => {});
+      entry.instances.push(free);
+    }
+    if (!free) free = entry.instances[(rng() * entry.instances.length) | 0];
+    return free;
   }
 
-  // ---- pad drone layer: slow, cyclic-feeling, never exactly cyclic --
+  // ---- fragment (cell) model ---------------------------------------
 
-  function buildPads() {
-    padVoices.forEach((v) => v.stopAll && v.stopAll());
-    padVoices = [];
+  let cells = [];
 
-    const intervals = [0, 7, 12, 16]; // root, fifth, octave, tenth-ish
-    intervals.forEach((iv, i) => {
-      const osc = audioCtx.createOscillator();
-      osc.type = i % 2 === 0 ? "sine" : "triangle";
-      const detune = (Math.random() * 2 - 1) * 6;
-      osc.detune.value = detune;
-
-      const gain = audioCtx.createGain();
-      gain.gain.value = 0;
-
-      const filter = audioCtx.createBiquadFilter();
-      filter.type = "lowpass";
-      filter.frequency.value = 900;
-      filter.Q.value = 0.4;
-
-      osc.connect(filter).connect(gain);
-      sendToSpace(gain, 0.5, 0.8, 0.25);
-
-      osc.start();
-
-      // each voice's filter LFO period is an irrational-ish multiple
-      // of the others, so the ensemble never repeats a combined shape
-      const lfoPeriod = 17 + i * 6.28 + Math.random() * 4;
-      padVoices.push({
-        osc, gain, filter, interval: iv,
-        lfoPeriod, phase: Math.random() * Math.PI * 2,
-        targetGain: 0.05 + Math.random() * 0.03,
-        stopAll() { try { osc.stop(); } catch (e) {} },
-      });
-    });
-
-    crossfadePadsToPalette(4);
+  function randomCrop(entry) {
+    if (!entry) return { x: 0, y: 0, w: 1, h: 1 };
+    const zoom = 1 + rng() * 1.4;
+    const w = 1 / zoom, h = 1 / zoom;
+    return { x: rng() * (1 - w), y: rng() * (1 - h), w, h };
   }
 
-  function crossfadePadsToPalette(rampSeconds) {
-    const now = audioCtx.currentTime;
-    padVoices.forEach((v) => {
-      const freq = midiToFreq(palette.root + v.interval);
-      v.osc.frequency.cancelScheduledValues(now);
-      v.osc.frequency.setValueAtTime(v.osc.frequency.value || freq, now);
-      v.osc.frequency.linearRampToValueAtTime(freq, now + rampSeconds);
+  function randomEffect() {
+    return {
+      hue: rng() * 360,
+      sat: 0.6 + rng() * 1.8,
+      cont: 0.7 + rng() * 1.1,
+      bri: 0.75 + rng() * 0.7,
+      blur: rng() < 0.12 ? rng() * 3 : 0,
+      invert: rng() < 0.08,
+      gray: rng() < 0.1,
+      flipX: rng() < 0.3,
+      flipY: rng() < 0.1,
+      rot: [0, 0, 0, 90, 180, 270][(rng() * 6) | 0],
+    };
+  }
 
-      v.gain.gain.cancelScheduledValues(now);
-      v.gain.gain.setValueAtTime(v.gain.gain.value, now);
-      v.gain.gain.linearRampToValueAtTime(0, now + rampSeconds * 0.5);
-      v.gain.gain.linearRampToValueAtTime(v.targetGain, now + rampSeconds * 2);
+  function assignSource(cell, forceEntry) {
+    const entry = forceEntry || (media.length ? media[(rng() * media.length) | 0] : null);
+    cell.media = entry;
+    cell.crop = randomCrop(entry);
+    cell.driftX = makeDrift(-0.15, 0.15, 0);
+    cell.driftY = makeDrift(-0.15, 0.15, 0);
+    if (entry && entry.type === "video") {
+      cell.videoEl = acquireVideoInstance(entry);
+      cell.playbackMode = rng() < 0.5 ? "forward" : "jumpy";
+      cell.videoEl.playbackRate = cell.playbackMode === "forward" ? 0.6 + rng() * 1.6 : 1;
+      cell.nextTimeJump = 0;
+    } else {
+      cell.videoEl = null;
+    }
+  }
+
+  function mutateCell(cell) {
+    cell.effect = randomEffect();
+    assignSource(cell, rng() < 0.7 && cell.media ? cell.media : null);
+  }
+
+  function pickWeightedByArea(rects) {
+    const areas = rects.map((r) => r.w * r.h);
+    const total = areas.reduce((s, a) => s + a, 0);
+    let t = rng() * total;
+    for (let i = 0; i < areas.length; i++) { t -= areas[i]; if (t <= 0) return i; }
+    return rects.length - 1;
+  }
+
+  function buildRects(targetCount) {
+    let rects = [{ x: 0, y: 0, w: 1, h: 1 }];
+    while (rects.length < targetCount) {
+      const idx = pickWeightedByArea(rects);
+      const r = rects[idx];
+      const horizontal = r.w > r.h ? rng() < 0.65 : rng() < 0.35;
+      const ratio = 0.28 + rng() * 0.44;
+      let a, b;
+      if (horizontal) {
+        a = { x: r.x, y: r.y, w: r.w * ratio, h: r.h };
+        b = { x: r.x + r.w * ratio, y: r.y, w: r.w * (1 - ratio), h: r.h };
+      } else {
+        a = { x: r.x, y: r.y, w: r.w, h: r.h * ratio };
+        b = { x: r.x, y: r.y + r.h * ratio, w: r.w, h: r.h * (1 - ratio) };
+      }
+      rects.splice(idx, 1, a, b);
+    }
+    return rects;
+  }
+
+  function fragmentCount() {
+    return Math.round(3 + (+densitySlider.value / 100) * 15);
+  }
+
+  function regenerateLayout() {
+    const rects = buildRects(fragmentCount());
+    const now = performance.now() / 1000;
+    cells = rects.map((r, i) => {
+      const cell = { ...r, id: i, nextMutate: now + rng() * 2, phase: rng() * Math.PI * 2 };
+      assignSource(cell);
+      cell.effect = randomEffect();
+      return cell;
     });
   }
 
-  function updatePads(t) {
-    padVoices.forEach((v) => {
-      const lfo = Math.sin((t / v.lfoPeriod) * Math.PI * 2 + v.phase);
-      const tone = +toneSlider.value / 100;
-      const base = 500 + tone * 1400;
-      v.filter.frequency.setTargetAtTime(base + lfo * 260, audioCtx.currentTime, 0.6);
+  // ---- transport ----------------------------------------------------
+
+  let running = true;
+  let lastFullRecut = performance.now() / 1000;
+
+  function setRunning(v) {
+    running = v;
+    playBtn.textContent = running ? "停止" : "再生";
+    playBtn.classList.toggle("stopped", !running);
+    media.forEach((m) => {
+      if (m.type !== "video") return;
+      m.instances.forEach((el) => { if (running) el.play().catch(() => {}); else el.pause(); });
     });
   }
 
-  // ---- sparse melodic "bell" layers ----------------------------------
-  // Each layer keeps its own clock. On every tick it may or may not
-  // fire, governed by a probability that random-walks between a low
-  // and high bound — the swerve control widens or narrows that walk.
+  playBtn.addEventListener("click", () => setRunning(!running));
+  recutBtn.addEventListener("click", () => regenerateLayout());
+  reseedBtn.addEventListener("click", () => { reseed(); regenerateLayout(); });
 
-  function buildBellLayers() {
-    bellLayers = [
-      { octave: 1, baseInterval: 2.6, gain: 0.16, decayMin: 1.8, decayMax: 4.5,
-        prob: makeDrift(0.15, 0.7, 0.4), jitter: makeDrift(-1, 1, 0), nextTime: 0 },
-      { octave: 2, baseInterval: 1.7, gain: 0.11, decayMin: 1.2, decayMax: 3.0,
-        prob: makeDrift(0.1, 0.65, 0.3), jitter: makeDrift(-1, 1, 0), nextTime: 0 },
-      { octave: 3, baseInterval: 4.1, gain: 0.09, decayMin: 2.0, decayMax: 5.5,
-        prob: makeDrift(0.08, 0.5, 0.2), jitter: makeDrift(-1, 1, 0), nextTime: 0 },
-    ];
-    const now = audioCtx.currentTime;
-    bellLayers.forEach((l, i) => { l.nextTime = now + 1 + i * 0.7; });
+  collapseBtn.addEventListener("click", () => dock.classList.toggle("collapsed"));
+
+  addBtn.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", (e) => { handleFiles(e.target.files); fileInput.value = ""; });
+
+  function handleFiles(fileList) {
+    [...fileList].forEach((f) => {
+      if (f.type.startsWith("image/")) addImageFile(f);
+      else if (f.type.startsWith("video/")) addVideoFile(f);
+    });
   }
 
-  function triggerBell(layer, time) {
-    const midi = pickDegree(layer);
-    const freq = midiToFreq(midi);
-    const decay = layer.decayMin + Math.random() * (layer.decayMax - layer.decayMin);
+  ["dragenter", "dragover"].forEach((ev) =>
+    window.addEventListener(ev, (e) => { e.preventDefault(); document.body.classList.add("dragging"); })
+  );
+  ["dragleave", "drop"].forEach((ev) =>
+    window.addEventListener(ev, (e) => { e.preventDefault(); document.body.classList.remove("dragging"); })
+  );
+  window.addEventListener("drop", (e) => { if (e.dataTransfer?.files?.length) handleFiles(e.dataTransfer.files); });
 
-    const osc = audioCtx.createOscillator();
-    osc.type = "sine";
-    osc.frequency.value = freq;
+  // ---- recording -----------------------------------------------------
 
-    const partial = audioCtx.createOscillator();
-    partial.type = "sine";
-    partial.frequency.value = freq * 2.01;
-    const partialGain = audioCtx.createGain();
-    partialGain.gain.value = 0.18;
+  let recorder = null, chunks = [];
+  recBtn.addEventListener("click", () => {
+    if (recorder && recorder.state === "recording") {
+      recorder.stop();
+      return;
+    }
+    const stream = canvas.captureStream(30);
+    recorder = new MediaRecorder(stream, { mimeType: "video/webm;codecs=vp9" });
+    chunks = [];
+    recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+    recorder.onstop = () => {
+      recBtn.classList.remove("active");
+      const blob = new Blob(chunks, { type: "video/webm" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `cutup-${seed}-${Date.now()}.webm`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    };
+    recorder.start();
+    recBtn.classList.add("active");
+  });
 
-    const env = audioCtx.createGain();
-    env.gain.setValueAtTime(0, time);
-    env.gain.linearRampToValueAtTime(layer.gain, time + 0.03);
-    env.gain.exponentialRampToValueAtTime(0.0005, time + decay);
+  // ---- canvas sizing --------------------------------------------------
 
-    const filter = audioCtx.createBiquadFilter();
-    filter.type = "lowpass";
-    const tone = +toneSlider.value / 100;
-    filter.frequency.value = 700 + tone * 3500;
-    filter.Q.value = 0.6;
-
-    const panner = audioCtx.createStereoPanner();
-    panner.pan.value = (Math.random() * 2 - 1) * 0.7;
-
-    osc.connect(filter);
-    partial.connect(partialGain).connect(filter);
-    filter.connect(env).connect(panner);
-
-    sendToSpace(panner, 0.55, 0.7, 0.35);
-
-    osc.start(time);
-    partial.start(time);
-    osc.stop(time + decay + 0.2);
-    partial.stop(time + decay + 0.2);
-
-    spawnParticle(midi, panner.pan.value, decay);
+  let W = 0, H = 0, DPR = 1;
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = W * DPR; canvas.height = H * DPR;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   }
+  window.addEventListener("resize", resize);
+  resize();
 
-  function scheduleBells() {
-    const now = audioCtx.currentTime;
-    const lookahead = 0.25;
-    const density = +densitySlider.value / 100;
-    const swerve = +swerveSlider.value / 100;
+  // ---- noise / grain tile ---------------------------------------------
 
-    bellLayers.forEach((layer) => {
-      while (layer.nextTime < now + lookahead) {
-        const t = layer.nextTime;
+  let grainCanvas = document.createElement("canvas");
+  grainCanvas.width = 128; grainCanvas.height = 128;
+  function regenGrain() {
+    const gctx = grainCanvas.getContext("2d");
+    const id = gctx.createImageData(128, 128);
+    for (let i = 0; i < id.data.length; i += 4) {
+      const v = (rng() * 255) | 0;
+      id.data[i] = id.data[i + 1] = id.data[i + 2] = v;
+      id.data[i + 3] = 255;
+    }
+    gctx.putImageData(id, 0, 0);
+  }
+  regenGrain();
+  let lastGrainAt = 0;
 
-        // probability itself drifts — this is the "dodge the
-        // prediction just before it forms" mechanism
-        const walkRate = 0.05 + swerve * 0.25;
-        const p = layer.prob.tick(walkRate);
-        const effectiveP = Math.min(0.95, p + density * 0.35);
+  // ---- drawing one fragment --------------------------------------------
 
-        if (Math.random() < effectiveP) {
-          triggerBell(layer, t);
+  function drawCell(cell, t) {
+    const px = cell.x * W, py = cell.y * H, pw = cell.w * W, ph = cell.h * H;
+    const gap = Math.min(pw, ph) * 0.02 + 1;
+    const rx = px + gap, ry = py + gap, rw = Math.max(1, pw - gap * 2), rh = Math.max(1, ph - gap * 2);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(rx, ry, rw, rh);
+    ctx.clip();
+
+    const e = cell.effect;
+    ctx.filter = `hue-rotate(${e.hue}deg) saturate(${e.sat}) contrast(${e.cont}) brightness(${e.bri})` +
+      (e.blur ? ` blur(${e.blur}px)` : "") + (e.invert ? " invert(1)" : "") + (e.gray ? " grayscale(1)" : "");
+
+    if (cell.media && cell.media.el) {
+      const src = cell.media.el;
+      const naturalW = cell.media.type === "video" ? (cell.videoEl.videoWidth || cell.media.w) : cell.media.w;
+      const naturalH = cell.media.type === "video" ? (cell.videoEl.videoHeight || cell.media.h) : cell.media.h;
+      const drawEl = cell.media.type === "video" ? cell.videoEl : src;
+
+      const driftX = cell.driftX.tick(0.02) * 0.02;
+      const driftY = cell.driftY.tick(0.02) * 0.02;
+      const cx = Math.min(Math.max(cell.crop.x + driftX, 0), 1 - cell.crop.w);
+      const cy = Math.min(Math.max(cell.crop.y + driftY, 0), 1 - cell.crop.h);
+
+      const sx = cx * naturalW, sy = cy * naturalH, sw = cell.crop.w * naturalW, sh = cell.crop.h * naturalH;
+
+      ctx.translate(rx + rw / 2, ry + rh / 2);
+      ctx.rotate((e.rot * Math.PI) / 180);
+      ctx.scale(e.flipX ? -1 : 1, e.flipY ? -1 : 1);
+      const drawW = (e.rot === 90 || e.rot === 270) ? rh : rw;
+      const drawH = (e.rot === 90 || e.rot === 270) ? rw : rh;
+      try {
+        if (sw > 0 && sh > 0 && naturalW > 0 && naturalH > 0) {
+          ctx.drawImage(drawEl, sx, sy, sw, sh, -drawW / 2, -drawH / 2, drawW, drawH);
         }
+      } catch (err) { /* media not decodable yet this frame */ }
+    } else {
+      // no source loaded yet: a small generative placeholder so the
+      // piece still feels alive before anything is uploaded
+      const hue = (cell.phase * 40 + t * 12) % 360;
+      const grad = ctx.createLinearGradient(rx, ry, rx + rw, ry + rh);
+      grad.addColorStop(0, `hsl(${hue}, 60%, 18%)`);
+      grad.addColorStop(1, `hsl(${(hue + 90) % 360}, 60%, 10%)`);
+      ctx.fillStyle = grad;
+      ctx.fillRect(rx, ry, rw, rh);
+    }
+    ctx.restore();
+  }
 
-        const jitterAmt = layer.jitter.tick(0.15) * (0.15 + swerve * 0.35);
-        const interval = layer.baseInterval * (1 + jitterAmt) / (0.4 + density * 0.9);
-        layer.nextTime = t + Math.max(0.35, interval);
+  // ---- global post effects --------------------------------------------
+
+  const rgbDrift = makeDrift(0, 1, 0);
+  const glitchDrift = makeDrift(0, 1, 0);
+
+  function applyPostEffects(t) {
+    const chaos = +chaosSlider.value / 100;
+
+    // chromatic aberration: tinted screen-blended copies offset in x
+    const rgbAmt = rgbDrift.tick(0.05, 0.1) * chaos;
+    if (rgbAmt > 0.15) {
+      const off = rgbAmt * 6;
+      ctx.save();
+      ctx.globalCompositeOperation = "screen";
+      ctx.globalAlpha = 0.5;
+      ctx.drawImage(canvas, off, 0, W - off, H, 0, 0, W - off, H);
+      ctx.fillStyle = "rgba(255,0,80,0.18)";
+      ctx.fillRect(0, 0, W, H);
+      ctx.drawImage(canvas, -off, 0, W - off, H, off, 0, W - off, H);
+      ctx.fillStyle = "rgba(0,220,255,0.14)";
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+    }
+
+    // block glitch: displace a random horizontal band
+    const glitchAmt = glitchDrift.tick(0.08, 0.12);
+    if (glitchAmt * chaos > 0.55 && rng() < 0.5) {
+      const bandH = 6 + rng() * H * 0.08;
+      const bandY = rng() * (H - bandH);
+      const dx = (rng() - 0.5) * W * 0.25 * chaos;
+      ctx.drawImage(canvas, 0, bandY, W, bandH, dx, bandY, W, bandH);
+    }
+
+    // scanlines
+    ctx.save();
+    ctx.globalAlpha = 0.08;
+    ctx.fillStyle = "#000";
+    for (let y = 0; y < H; y += 3) ctx.fillRect(0, y, W, 1);
+    ctx.restore();
+
+    // grain
+    if (t - lastGrainAt > 0.12) { regenGrain(); lastGrainAt = t; }
+    ctx.save();
+    ctx.globalCompositeOperation = "overlay";
+    ctx.globalAlpha = 0.12 + chaos * 0.18;
+    const pattern = ctx.createPattern(grainCanvas, "repeat");
+    ctx.fillStyle = pattern;
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+
+    // duotone palette
+    const pal = PALETTES[paletteIndex];
+    if (pal.a) {
+      ctx.save();
+      ctx.globalCompositeOperation = "saturation";
+      ctx.fillStyle = "#808080";
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalCompositeOperation = "color";
+      const grad = ctx.createLinearGradient(0, 0, W, H);
+      grad.addColorStop(0, pal.a);
+      grad.addColorStop(1, pal.b);
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+    }
+
+    // vignette
+    ctx.save();
+    const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.75);
+    vg.addColorStop(0, "rgba(0,0,0,0)");
+    vg.addColorStop(1, "rgba(0,0,0,0.45)");
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  }
+
+  // ---- scheduling: mutation + time-axis jump cuts -----------------------
+
+  function scheduleCells(t) {
+    const density = +densitySlider.value / 100;
+    const timeaxis = +timeaxisSlider.value / 100;
+    const chaos = +chaosSlider.value / 100;
+
+    cells.forEach((cell) => {
+      if (t >= cell.nextMutate) {
+        mutateCell(cell);
+        const base = 5 - density * 4; // 5s..1s
+        cell.nextMutate = t + Math.max(0.4, base * (0.6 + rng() * 0.8));
+      }
+      if (cell.media && cell.media.type === "video" && cell.videoEl) {
+        if (t >= (cell.nextTimeJump || 0)) {
+          const interval = 6 - timeaxis * 5.6; // 6s..0.4s
+          cell.nextTimeJump = t + Math.max(0.3, interval * (0.5 + rng()));
+          const dur = cell.videoEl.duration;
+          if (dur && isFinite(dur) && cell.playbackMode === "jumpy" && rng() < 0.5 + timeaxis * 0.4) {
+            try { cell.videoEl.currentTime = rng() * dur; } catch (e) {}
+          }
+          if (rng() < 0.15 + chaos * 0.2) {
+            cell.videoEl.playbackRate = 0.4 + rng() * 2.2;
+          }
+        }
       }
     });
-  }
 
-  // ---- transport -------------------------------------------------
-
-  let lastPadUpdate = 0;
-
-  function schedulerLoop() {
-    if (!running) return;
-    scheduleBells();
-    const t = audioCtx.currentTime;
-    if (t - lastPadUpdate > 0.08) {
-      updatePads(t);
-      lastPadUpdate = t;
+    // full re-layout on its own slow, chaos/density-modulated clock
+    const recutInterval = Math.max(2.5, 14 - density * 8 - chaos * 5);
+    if (t - lastFullRecut > recutInterval) {
+      lastFullRecut = t;
+      regenerateLayout();
     }
-    schedulerTimer = setTimeout(schedulerLoop, 60);
   }
 
-  function start() {
-    if (!audioCtx) initAudio();
-    if (audioCtx.state === "suspended") audioCtx.resume();
-    running = true;
-    schedulerLoop();
-    playBtn.textContent = "停止";
-    playBtn.classList.add("playing");
-  }
+  // ---- main loop --------------------------------------------------------
 
-  function stop() {
-    running = false;
-    clearTimeout(schedulerTimer);
-    if (audioCtx) {
-      const now = audioCtx.currentTime;
-      master.gain.setTargetAtTime(0, now, 0.3);
-      setTimeout(() => {
-        if (!running) master.gain.setTargetAtTime(0.85, audioCtx.currentTime, 0.01);
-      }, 1200);
+  function frame() {
+    const t = performance.now() / 1000;
+
+    if (running) {
+      scheduleCells(t);
+      const chaos = +chaosSlider.value / 100;
+      const clearAlpha = Math.max(0.35, 1 - chaos * 0.5);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = `rgba(5,5,10,${clearAlpha})`;
+      ctx.fillRect(0, 0, W, H);
+
+      cells.forEach((cell) => drawCell(cell, t));
+      applyPostEffects(t);
     }
-    playBtn.textContent = "再生";
-    playBtn.classList.remove("playing");
+
+    requestAnimationFrame(frame);
   }
 
-  playBtn.addEventListener("click", () => {
-    if (running) stop(); else start();
-  });
-
-  paletteBtn.addEventListener("click", () => {
-    palette = makePalette();
-    if (audioCtx) crossfadePadsToPalette(6);
-  });
-
-  // ---- visual: quiet drifting field, loosely tied to note events -----
-
-  let particles = [];
-  let hue = palette.hue;
-
-  function resizeCanvas() {
-    canvas.width = window.innerWidth * devicePixelRatio;
-    canvas.height = window.innerHeight * devicePixelRatio;
-  }
-  window.addEventListener("resize", resizeCanvas);
-  resizeCanvas();
-
-  function spawnParticle(midi, pan, decay) {
-    const w = canvas.width, h = canvas.height;
-    const x = ((midi % 24) / 24) * w * 0.8 + w * 0.1;
-    const y = h * 0.5 - pan * h * 0.32 + (Math.random() - 0.5) * h * 0.15;
-    particles.push({
-      x, y,
-      r: 4 * devicePixelRatio,
-      life: 0,
-      maxLife: Math.max(1.5, decay),
-      vx: (Math.random() - 0.5) * 6,
-      vy: (Math.random() - 0.5) * 6,
-    });
-    if (particles.length > 120) particles.shift();
-  }
-
-  function draw() {
-    const w = canvas.width, h = canvas.height;
-    hue = (hue + 0.01) % 360;
-    const targetHue = palette.hue;
-    hue += (targetHue - hue) * 0.0015;
-
-    ctx2d.fillStyle = `hsla(${hue}, 30%, 4%, 0.18)`;
-    ctx2d.fillRect(0, 0, w, h);
-
-    particles.forEach((p) => {
-      p.life += 1 / 60;
-      p.x += p.vx * 0.016;
-      p.y += p.vy * 0.016;
-      const t = p.life / p.maxLife;
-      const alpha = Math.max(0, 1 - t) * 0.5;
-      const r = p.r * (1 + t * 8);
-      const grad = ctx2d.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
-      grad.addColorStop(0, `hsla(${hue}, 60%, 75%, ${alpha})`);
-      grad.addColorStop(1, `hsla(${hue}, 60%, 75%, 0)`);
-      ctx2d.fillStyle = grad;
-      ctx2d.beginPath();
-      ctx2d.arc(p.x, p.y, r, 0, Math.PI * 2);
-      ctx2d.fill();
-    });
-    particles = particles.filter((p) => p.life < p.maxLife);
-
-    requestAnimationFrame(draw);
-  }
-  requestAnimationFrame(draw);
+  reseed(seed);
+  regenerateLayout();
+  requestAnimationFrame(frame);
 })();
