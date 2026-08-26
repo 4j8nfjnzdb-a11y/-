@@ -128,6 +128,12 @@
 
     if (isVideo) {
       el = document.createElement("video");
+      // set as literal attributes too — some WebKit/iOS versions only
+      // honor playsinline/muted reliably as HTML attributes on elements
+      // created via document.createElement
+      el.setAttribute("muted", "");
+      el.setAttribute("playsinline", "");
+      el.setAttribute("webkit-playsinline", "");
       el.muted = true;
       el.loop = true;
       el.playsInline = true;
@@ -145,7 +151,13 @@
       // decoded) rather than "seeked" — setting currentTime to a value
       // the video is already at may never fire seeked, which left the
       // slot stuck in "loading" forever with no error shown
+      const readyTimeout = setTimeout(() => {
+        if (!slot.ready) {
+          alert(`「${file.name}」の読み込みに時間がかかりすぎています。この動画・この環境では再生できない可能性があります。`);
+        }
+      }, 8000);
       el.addEventListener("loadeddata", () => {
+        clearTimeout(readyTimeout);
         slot.ready = true;
         makeThumb(slot);
         checkReadyState();
@@ -159,6 +171,7 @@
         }
       }, { once: true });
       el.addEventListener("error", () => {
+        clearTimeout(readyTimeout);
         alert(`「${file.name}」を読み込めませんでした。対応していない形式の可能性があります。`);
         clearSlot(index);
       }, { once: true });
