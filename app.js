@@ -1,418 +1,474 @@
-// kizashi — generative ambient
+// kirikizami — random cut collage
 //
-// The idea: build a texture that reads as "repetition" (steady pulse,
-// familiar scale, cyclic pads) while every layer runs on its own
-// incommensurate clock and a slowly-drifting probability of firing at
-// all. The listener's short-term predictive model never quite locks in
-// — each layer swerves a little before it would become obvious — but
-// nothing is ever pure noise either. That balance is tuned by the
-// "swerve" and "density" sliders.
+// Load up to three video/photo materials. On play, the app repeatedly
+// jumps to a random material, and for video seeks to a random point in
+// it (a "chopped" fragment); for photos it picks a random crop/zoom and
+// slowly drifts it (Ken Burns). Density/swerve control how often and
+// how erratically the cuts land; occasional slice-glitch and flash-cut
+// flourishes add texture. The composited canvas can be recorded and
+// downloaded as a webm file.
 
 (() => {
+  const canvas = document.getElementById("stage");
+  const ctx = canvas.getContext("2d");
+  const stageOverlay = document.getElementById("stageOverlay");
+
   const playBtn = document.getElementById("playBtn");
-  const paletteBtn = document.getElementById("paletteBtn");
-  const densitySlider = document.getElementById("density");
-  const toneSlider = document.getElementById("tone");
-  const swerveSlider = document.getElementById("swerve");
-  const canvas = document.getElementById("bg");
-  const ctx2d = canvas.getContext("2d");
+  const cutBtn = document.getElementById("cutBtn");
+  const recBtn = document.getElementById("recBtn");
+  const downloadLink = document.getElementById("downloadLink");
 
-  let audioCtx = null;
-  let master, dry, wet, reverbNode, delayA, delayB, delayFeedbackA, delayFeedbackB;
-  let padVoices = [];
-  let bellLayers = [];
+  const densityEl = document.getElementById("density");
+  const swerveEl = document.getElementById("swerve");
+  const zoomEl = document.getElementById("zoom");
+  const glitchToggle = document.getElementById("glitchToggle");
+
+  const loadHint = document.getElementById("loadHint");
+
+  const SLOT_COUNT = 3;
+  const slots = Array.from({ length: SLOT_COUNT }, (_, i) => ({
+    index: i,
+    type: null,
+    el: null,
+    url: null,
+    name: null,
+    duration: null,
+    ready: false,
+    thumbURL: null,
+    viewFrom: null,
+    viewTo: null,
+    activeStart: 0,
+    activeDuration: 1000,
+  }));
+
+  const slotDoms = Array.from({ length: SLOT_COUNT }, (_, i) => ({
+    root: document.getElementById(`slot${i}`),
+    input: document.getElementById(`slotInput${i}`),
+    drop: document.getElementById(`slotDrop${i}`),
+    thumb: document.getElementById(`slotThumb${i}`),
+    label: document.getElementById(`slotLabel${i}`),
+    clearBtn: document.getElementById(`slotClear${i}`),
+  }));
+
   let running = false;
-  let schedulerTimer = null;
+  let recording = false;
+  let currentIndex = -1;
+  let nextSwitchAt = 0;
+  let flashWindow = null; // { start, end, index }
+  let sliceWindow = null; // { start, end, intensity }
+  let recorder = null;
+  let recordedChunks = [];
+  let lastDownloadUrl = null;
 
-  // ---- musical material -------------------------------------------
+  // ---- helpers ------------------------------------------------------
 
-  const SCALES = {
-    // semitone offsets from root, chosen to always sound consonant
-    // no matter which degree becomes the melodic center
-    warm: [0, 2, 3, 7, 9, 10],      // dorian-ish, dusky
-    mid: [0, 2, 4, 7, 9, 11],       // major/ionian, open
-    bright: [0, 2, 4, 6, 9, 11],    // lydian-ish, lifted
-  };
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const smoothstep = (t) => t * t * (3 - 2 * t);
 
-  const ROOTS = [48, 50, 53, 55, 57]; // C, D, F, G, A (midi, low register)
-
-  let palette = makePalette();
-
-  function makePalette() {
-    const roots = ROOTS.slice();
-    const root = roots[Math.floor(Math.random() * roots.length)];
-    const hue = Math.random() * 360;
-    return { root, hue };
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
   }
 
-  function midiToFreq(m) {
-    return 440 * Math.pow(2, (m - 69) / 12);
+  function readySlots() {
+    return slots.filter((s) => s.ready);
   }
 
-  function scaleForTone(tone) {
-    // tone: 0..100 -> warm..bright
-    if (tone < 33) return SCALES.warm;
-    if (tone < 66) return SCALES.mid;
-    return SCALES.bright;
+  function randomView(zoomAmt) {
+    const scale = 1 + zoomAmt * (0.3 + Math.random() * 1.8);
+    return { scale, cx: Math.random(), cy: Math.random() };
   }
 
-  function pickDegree(layer) {
-    const scale = scaleForTone(+toneSlider.value);
-    const degree = scale[Math.floor(Math.random() * scale.length)];
-    return palette.root + degree + layer.octave * 12;
-  }
-
-  // ---- smoothed randomness (organic "swerve", not white noise) -----
-
-  function makeDrift(min, max, start) {
-    let value = start ?? (min + max) / 2;
-    let target = value;
-    return {
-      get value() { return value; },
-      tick(rate) {
-        if (Math.random() < 0.08) {
-          target = min + Math.random() * (max - min);
-        }
-        value += (target - value) * rate;
-        return value;
-      },
-    };
-  }
-
-  // ---- audio graph ---------------------------------------------------
-
-  function buildImpulseResponse(context, duration, decay) {
-    const rate = context.sampleRate;
-    const length = Math.floor(rate * duration);
-    const impulse = context.createBuffer(2, length, rate);
-    for (let ch = 0; ch < 2; ch++) {
-      const data = impulse.getChannelData(ch);
-      for (let i = 0; i < length; i++) {
-        const t = i / length;
-        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, decay);
-      }
+  // maps a source's natural size + a normalized "view" (scale/cx/cy)
+  // onto a source rect that covers the canvas aspect ratio
+  function computeSourceRect(srcW, srcH, view) {
+    const targetAspect = canvas.width / canvas.height;
+    const srcAspect = srcW / srcH;
+    let coverW, coverH;
+    if (srcAspect > targetAspect) {
+      coverH = srcH;
+      coverW = srcH * targetAspect;
+    } else {
+      coverW = srcW;
+      coverH = srcW / targetAspect;
     }
-    return impulse;
+    const coverX0 = (srcW - coverW) / 2;
+    const coverY0 = (srcH - coverH) / 2;
+    const scale = Math.max(1, view.scale);
+    const w = coverW / scale;
+    const h = coverH / scale;
+    const x = coverX0 + (coverW - w) * view.cx;
+    const y = coverY0 + (coverH - h) * view.cy;
+    return { x, y, w, h };
   }
 
-  function initAudio() {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  // ---- material loading ----------------------------------------------
 
-    master = audioCtx.createGain();
-    master.gain.value = 0.85;
+  function loadFile(index, file) {
+    if (!file) return;
+    const isVideo = file.type.startsWith("video/");
+    const isImage = file.type.startsWith("image/");
+    if (!isVideo && !isImage) {
+      alert("動画か画像ファイルを選んでください");
+      return;
+    }
 
-    const compressor = audioCtx.createDynamicsCompressor();
-    compressor.threshold.value = -18;
-    compressor.ratio.value = 3;
+    const slot = slots[index];
+    if (slot.url) URL.revokeObjectURL(slot.url);
+    if (slot.el && slot.el.tagName === "VIDEO") {
+      slot.el.pause();
+      slot.el.src = "";
+    }
 
-    master.connect(compressor).connect(audioCtx.destination);
+    const url = URL.createObjectURL(file);
+    let el;
 
-    dry = audioCtx.createGain();
-    dry.gain.value = 0.55;
-    dry.connect(master);
-
-    wet = audioCtx.createGain();
-    wet.gain.value = 0.9;
-
-    reverbNode = audioCtx.createConvolver();
-    reverbNode.buffer = buildImpulseResponse(audioCtx, 5.5, 3.0);
-    reverbNode.connect(wet);
-    wet.connect(master);
-
-    // two non-multiple delay lines, damped feedback, for a soft
-    // shimmering space that never quite settles into a fixed comb
-    delayA = audioCtx.createDelay(2.0);
-    delayA.delayTime.value = 0.372;
-    delayFeedbackA = audioCtx.createGain();
-    delayFeedbackA.gain.value = 0.38;
-    const dampA = audioCtx.createBiquadFilter();
-    dampA.type = "lowpass";
-    dampA.frequency.value = 2200;
-    delayA.connect(dampA).connect(delayFeedbackA).connect(delayA);
-    delayA.connect(wet);
-
-    delayB = audioCtx.createDelay(2.0);
-    delayB.delayTime.value = 0.551;
-    delayFeedbackB = audioCtx.createGain();
-    delayFeedbackB.gain.value = 0.33;
-    const dampB = audioCtx.createBiquadFilter();
-    dampB.type = "lowpass";
-    dampB.frequency.value = 1800;
-    delayB.connect(dampB).connect(delayFeedbackB).connect(delayB);
-    delayB.connect(wet);
-
-    buildPads();
-    buildBellLayers();
-  }
-
-  function sendToSpace(node, delayAmt, reverbAmt, dryAmt) {
-    const dg = audioCtx.createGain();
-    dg.gain.value = dryAmt;
-    node.connect(dg).connect(dry);
-
-    const rg = audioCtx.createGain();
-    rg.gain.value = reverbAmt;
-    node.connect(rg).connect(reverbNode);
-
-    const dla = audioCtx.createGain();
-    dla.gain.value = delayAmt;
-    node.connect(dla).connect(delayA);
-    node.connect(dla).connect(delayB);
-  }
-
-  // ---- pad drone layer: slow, cyclic-feeling, never exactly cyclic --
-
-  function buildPads() {
-    padVoices.forEach((v) => v.stopAll && v.stopAll());
-    padVoices = [];
-
-    const intervals = [0, 7, 12, 16]; // root, fifth, octave, tenth-ish
-    intervals.forEach((iv, i) => {
-      const osc = audioCtx.createOscillator();
-      osc.type = i % 2 === 0 ? "sine" : "triangle";
-      const detune = (Math.random() * 2 - 1) * 6;
-      osc.detune.value = detune;
-
-      const gain = audioCtx.createGain();
-      gain.gain.value = 0;
-
-      const filter = audioCtx.createBiquadFilter();
-      filter.type = "lowpass";
-      filter.frequency.value = 900;
-      filter.Q.value = 0.4;
-
-      osc.connect(filter).connect(gain);
-      sendToSpace(gain, 0.5, 0.8, 0.25);
-
-      osc.start();
-
-      // each voice's filter LFO period is an irrational-ish multiple
-      // of the others, so the ensemble never repeats a combined shape
-      const lfoPeriod = 17 + i * 6.28 + Math.random() * 4;
-      padVoices.push({
-        osc, gain, filter, interval: iv,
-        lfoPeriod, phase: Math.random() * Math.PI * 2,
-        targetGain: 0.05 + Math.random() * 0.03,
-        stopAll() { try { osc.stop(); } catch (e) {} },
+    if (isVideo) {
+      el = document.createElement("video");
+      el.muted = true;
+      el.loop = true;
+      el.playsInline = true;
+      el.preload = "auto";
+      el.src = url;
+      el.addEventListener("loadedmetadata", () => {
+        slot.duration = el.duration;
+        const t = el.duration ? Math.min(0.15, el.duration / 2) : 0;
+        el.currentTime = t;
       });
-    });
-
-    crossfadePadsToPalette(4);
-  }
-
-  function crossfadePadsToPalette(rampSeconds) {
-    const now = audioCtx.currentTime;
-    padVoices.forEach((v) => {
-      const freq = midiToFreq(palette.root + v.interval);
-      v.osc.frequency.cancelScheduledValues(now);
-      v.osc.frequency.setValueAtTime(v.osc.frequency.value || freq, now);
-      v.osc.frequency.linearRampToValueAtTime(freq, now + rampSeconds);
-
-      v.gain.gain.cancelScheduledValues(now);
-      v.gain.gain.setValueAtTime(v.gain.gain.value, now);
-      v.gain.gain.linearRampToValueAtTime(0, now + rampSeconds * 0.5);
-      v.gain.gain.linearRampToValueAtTime(v.targetGain, now + rampSeconds * 2);
-    });
-  }
-
-  function updatePads(t) {
-    padVoices.forEach((v) => {
-      const lfo = Math.sin((t / v.lfoPeriod) * Math.PI * 2 + v.phase);
-      const tone = +toneSlider.value / 100;
-      const base = 500 + tone * 1400;
-      v.filter.frequency.setTargetAtTime(base + lfo * 260, audioCtx.currentTime, 0.6);
-    });
-  }
-
-  // ---- sparse melodic "bell" layers ----------------------------------
-  // Each layer keeps its own clock. On every tick it may or may not
-  // fire, governed by a probability that random-walks between a low
-  // and high bound — the swerve control widens or narrows that walk.
-
-  function buildBellLayers() {
-    bellLayers = [
-      { octave: 1, baseInterval: 2.6, gain: 0.16, decayMin: 1.8, decayMax: 4.5,
-        prob: makeDrift(0.15, 0.7, 0.4), jitter: makeDrift(-1, 1, 0), nextTime: 0 },
-      { octave: 2, baseInterval: 1.7, gain: 0.11, decayMin: 1.2, decayMax: 3.0,
-        prob: makeDrift(0.1, 0.65, 0.3), jitter: makeDrift(-1, 1, 0), nextTime: 0 },
-      { octave: 3, baseInterval: 4.1, gain: 0.09, decayMin: 2.0, decayMax: 5.5,
-        prob: makeDrift(0.08, 0.5, 0.2), jitter: makeDrift(-1, 1, 0), nextTime: 0 },
-    ];
-    const now = audioCtx.currentTime;
-    bellLayers.forEach((l, i) => { l.nextTime = now + 1 + i * 0.7; });
-  }
-
-  function triggerBell(layer, time) {
-    const midi = pickDegree(layer);
-    const freq = midiToFreq(midi);
-    const decay = layer.decayMin + Math.random() * (layer.decayMax - layer.decayMin);
-
-    const osc = audioCtx.createOscillator();
-    osc.type = "sine";
-    osc.frequency.value = freq;
-
-    const partial = audioCtx.createOscillator();
-    partial.type = "sine";
-    partial.frequency.value = freq * 2.01;
-    const partialGain = audioCtx.createGain();
-    partialGain.gain.value = 0.18;
-
-    const env = audioCtx.createGain();
-    env.gain.setValueAtTime(0, time);
-    env.gain.linearRampToValueAtTime(layer.gain, time + 0.03);
-    env.gain.exponentialRampToValueAtTime(0.0005, time + decay);
-
-    const filter = audioCtx.createBiquadFilter();
-    filter.type = "lowpass";
-    const tone = +toneSlider.value / 100;
-    filter.frequency.value = 700 + tone * 3500;
-    filter.Q.value = 0.6;
-
-    const panner = audioCtx.createStereoPanner();
-    panner.pan.value = (Math.random() * 2 - 1) * 0.7;
-
-    osc.connect(filter);
-    partial.connect(partialGain).connect(filter);
-    filter.connect(env).connect(panner);
-
-    sendToSpace(panner, 0.55, 0.7, 0.35);
-
-    osc.start(time);
-    partial.start(time);
-    osc.stop(time + decay + 0.2);
-    partial.stop(time + decay + 0.2);
-
-    spawnParticle(midi, panner.pan.value, decay);
-  }
-
-  function scheduleBells() {
-    const now = audioCtx.currentTime;
-    const lookahead = 0.25;
-    const density = +densitySlider.value / 100;
-    const swerve = +swerveSlider.value / 100;
-
-    bellLayers.forEach((layer) => {
-      while (layer.nextTime < now + lookahead) {
-        const t = layer.nextTime;
-
-        // probability itself drifts — this is the "dodge the
-        // prediction just before it forms" mechanism
-        const walkRate = 0.05 + swerve * 0.25;
-        const p = layer.prob.tick(walkRate);
-        const effectiveP = Math.min(0.95, p + density * 0.35);
-
-        if (Math.random() < effectiveP) {
-          triggerBell(layer, t);
-        }
-
-        const jitterAmt = layer.jitter.tick(0.15) * (0.15 + swerve * 0.35);
-        const interval = layer.baseInterval * (1 + jitterAmt) / (0.4 + density * 0.9);
-        layer.nextTime = t + Math.max(0.35, interval);
-      }
-    });
-  }
-
-  // ---- transport -------------------------------------------------
-
-  let lastPadUpdate = 0;
-
-  function schedulerLoop() {
-    if (!running) return;
-    scheduleBells();
-    const t = audioCtx.currentTime;
-    if (t - lastPadUpdate > 0.08) {
-      updatePads(t);
-      lastPadUpdate = t;
+      el.addEventListener("seeked", () => {
+        slot.ready = true;
+        makeThumb(slot);
+        checkReadyState();
+      }, { once: true });
+    } else {
+      el = new Image();
+      el.onload = () => {
+        slot.ready = true;
+        makeThumb(slot);
+        checkReadyState();
+      };
+      el.src = url;
     }
-    schedulerTimer = setTimeout(schedulerLoop, 60);
+
+    slot.type = isVideo ? "video" : "image";
+    slot.el = el;
+    slot.url = url;
+    slot.name = file.name;
+    slot.duration = null;
+    slot.ready = false;
+    slot.viewFrom = null;
+    slot.viewTo = null;
+
+    updateSlotUI(index);
+    checkReadyState();
   }
 
-  function start() {
-    if (!audioCtx) initAudio();
-    if (audioCtx.state === "suspended") audioCtx.resume();
+  function clearSlot(index) {
+    const slot = slots[index];
+    if (slot.type === "video" && slot.el) {
+      slot.el.pause();
+      slot.el.src = "";
+      slot.el.load();
+    }
+    if (slot.url) URL.revokeObjectURL(slot.url);
+    Object.assign(slot, {
+      type: null, el: null, url: null, name: null, duration: null,
+      ready: false, thumbURL: null, viewFrom: null, viewTo: null,
+    });
+    updateSlotUI(index);
+    checkReadyState();
+
+    if (currentIndex === index && running) {
+      const others = readySlots();
+      if (others.length) {
+        activateSlot(others[Math.floor(Math.random() * others.length)].index);
+      } else {
+        stopPlayback();
+      }
+    }
+  }
+
+  function makeThumb(slot) {
+    const srcW = slot.type === "video" ? slot.el.videoWidth : slot.el.naturalWidth;
+    const srcH = slot.type === "video" ? slot.el.videoHeight : slot.el.naturalHeight;
+    if (!srcW || !srcH) return;
+    const tCanvas = document.createElement("canvas");
+    tCanvas.width = 160;
+    tCanvas.height = 90;
+    const tctx = tCanvas.getContext("2d");
+    const r = computeSourceRect(srcW, srcH, { scale: 1, cx: 0.5, cy: 0.5 });
+    tctx.drawImage(slot.el, r.x, r.y, r.w, r.h, 0, 0, 160, 90);
+    slot.thumbURL = tCanvas.toDataURL("image/jpeg", 0.75);
+    updateSlotUI(slot.index);
+  }
+
+  function updateSlotUI(index) {
+    const slot = slots[index];
+    const dom = slotDoms[index];
+    if (slot.ready) {
+      dom.thumb.style.backgroundImage = slot.thumbURL ? `url(${slot.thumbURL})` : "none";
+      dom.label.innerHTML = `${escapeHtml(slot.name)}<br><em>${slot.type === "video" ? "動画" : "写真"}</em>`;
+      dom.clearBtn.style.display = "flex";
+      dom.drop.classList.add("loaded");
+    } else {
+      dom.thumb.style.backgroundImage = "none";
+      dom.label.innerHTML = `素材 ${index + 1}<br><em>クリックまたはドロップ</em>`;
+      dom.clearBtn.style.display = "none";
+      dom.drop.classList.remove("loaded");
+    }
+  }
+
+  function checkReadyState() {
+    const anyReady = readySlots().length > 0;
+    playBtn.disabled = !anyReady;
+    cutBtn.disabled = !running;
+    recBtn.disabled = !running;
+    loadHint.textContent = anyReady
+      ? "準備完了。再生を押すと切り刻みが始まります。"
+      : "写真・動画をあわせて2〜3点、ドラッグ&ドロップか選択して読み込んでください。";
+  }
+
+  slotDoms.forEach((dom, i) => {
+    dom.drop.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dom.drop.classList.add("dragover");
+    });
+    dom.drop.addEventListener("dragleave", () => dom.drop.classList.remove("dragover"));
+    dom.drop.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dom.drop.classList.remove("dragover");
+      const file = e.dataTransfer.files && e.dataTransfer.files[0];
+      if (file) loadFile(i, file);
+    });
+    dom.input.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (file) loadFile(i, file);
+      e.target.value = "";
+    });
+    dom.clearBtn.addEventListener("click", () => clearSlot(i));
+  });
+
+  // ---- scheduling / switching -----------------------------------------
+
+  function activateSlot(index) {
+    const slot = slots[index];
+    if (!slot.ready) return;
+    const now = performance.now();
+    currentIndex = index;
+
+    if (slot.type === "video" && slot.duration) {
+      const minSeg = 0.3;
+      const maxStart = Math.max(0, slot.duration - minSeg);
+      slot.el.currentTime = Math.random() * maxStart;
+      slot.el.play().catch(() => {});
+    }
+    slots.forEach((s, i) => {
+      if (i !== index && s.type === "video" && s.el) s.el.pause();
+    });
+
+    const zoomAmt = +zoomEl.value / 100;
+    slot.viewFrom = randomView(zoomAmt);
+    slot.viewTo = randomView(zoomAmt);
+
+    const density = +densityEl.value / 100;
+    const swerve = +swerveEl.value / 100;
+    const base = 3.4 - density * 2.9; // slow (3.4s) .. rapid (0.5s)
+    const jitterRange = 0.25 + swerve * 0.65;
+    const jitter = 1 + (Math.random() * 2 - 1) * jitterRange;
+    const durSec = Math.max(0.25, base * jitter);
+
+    slot.activeStart = now;
+    slot.activeDuration = durSec * 1000;
+    nextSwitchAt = now + durSec * 1000;
+
+    scheduleFlourishes(now, durSec * 1000, swerve, index);
+  }
+
+  function scheduleFlourishes(startNow, durMs, swerve, activeIndex) {
+    flashWindow = null;
+    sliceWindow = null;
+    if (!glitchToggle.checked) return;
+
+    const others = readySlots().map((s) => s.index).filter((i) => i !== activeIndex);
+    if (others.length && durMs > 400 && Math.random() < 0.18 + swerve * 0.3) {
+      const fi = others[Math.floor(Math.random() * others.length)];
+      const start = startNow + durMs * (0.25 + Math.random() * 0.5);
+      const len = 60 + Math.random() * 140;
+      const flashSlot = slots[fi];
+      if (!flashSlot.viewFrom) {
+        const zoomAmt = +zoomEl.value / 100;
+        flashSlot.viewFrom = randomView(zoomAmt);
+        flashSlot.viewTo = flashSlot.viewFrom;
+        flashSlot.activeStart = start;
+        flashSlot.activeDuration = len;
+      }
+      flashWindow = { start, end: start + len, index: fi };
+    }
+
+    if (Math.random() < 0.3 + swerve * 0.4) {
+      const start = startNow + Math.random() * durMs * 0.8;
+      const len = 70 + Math.random() * 150;
+      sliceWindow = { start, end: start + len, intensity: 0.4 + Math.random() * 0.6 };
+    }
+  }
+
+  function nextRandomIndex(excludeIndex) {
+    const ready = readySlots().map((s) => s.index);
+    if (!ready.length) return -1;
+    const pool = ready.filter((i) => i !== excludeIndex);
+    const candidates = pool.length ? pool : ready;
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  }
+
+  // ---- rendering --------------------------------------------------------
+
+  function drawSlot(slot, now) {
+    if (!slot || !slot.ready) return;
+    const el = slot.el;
+    const srcW = slot.type === "video" ? el.videoWidth : el.naturalWidth;
+    const srcH = slot.type === "video" ? el.videoHeight : el.naturalHeight;
+    if (!srcW || !srcH) return;
+
+    const viewFrom = slot.viewFrom || { scale: 1, cx: 0.5, cy: 0.5 };
+    const viewTo = slot.viewTo || viewFrom;
+    const t = clamp((now - slot.activeStart) / (slot.activeDuration || 1), 0, 1);
+    const eased = smoothstep(t);
+    const view = {
+      scale: lerp(viewFrom.scale, viewTo.scale, eased),
+      cx: lerp(viewFrom.cx, viewTo.cx, eased),
+      cy: lerp(viewFrom.cy, viewTo.cy, eased),
+    };
+    const r = computeSourceRect(srcW, srcH, view);
+    ctx.drawImage(el, r.x, r.y, r.w, r.h, 0, 0, canvas.width, canvas.height);
+  }
+
+  function applySliceGlitch(intensity) {
+    const bands = 2 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < bands; i++) {
+      const bandH = Math.max(2, Math.round(6 + Math.random() * 46));
+      const y = Math.floor(Math.random() * Math.max(1, canvas.height - bandH));
+      const offset = Math.round((Math.random() * 2 - 1) * 44 * intensity);
+      try {
+        const imgData = ctx.getImageData(0, y, canvas.width, bandH);
+        ctx.putImageData(imgData, offset, y);
+      } catch (e) {
+        // ignore
+      }
+    }
+  }
+
+  function frame(now) {
+    requestAnimationFrame(frame);
+    if (!running) return;
+
+    if (now >= nextSwitchAt) {
+      const next = nextRandomIndex(currentIndex);
+      if (next >= 0) activateSlot(next);
+    }
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const drawIndex = flashWindow && now >= flashWindow.start && now <= flashWindow.end
+      ? flashWindow.index
+      : currentIndex;
+    if (drawIndex >= 0) drawSlot(slots[drawIndex], now);
+
+    if (sliceWindow && now >= sliceWindow.start && now <= sliceWindow.end) {
+      applySliceGlitch(sliceWindow.intensity);
+    }
+  }
+  requestAnimationFrame(frame);
+
+  // ---- transport ----------------------------------------------------
+
+  function startPlayback() {
+    const ready = readySlots();
+    if (!ready.length) return;
     running = true;
-    schedulerLoop();
     playBtn.textContent = "停止";
     playBtn.classList.add("playing");
+    stageOverlay.classList.add("hidden");
+    checkReadyState();
+    activateSlot(ready[Math.floor(Math.random() * ready.length)].index);
   }
 
-  function stop() {
+  function stopPlayback() {
     running = false;
-    clearTimeout(schedulerTimer);
-    if (audioCtx) {
-      const now = audioCtx.currentTime;
-      master.gain.setTargetAtTime(0, now, 0.3);
-      setTimeout(() => {
-        if (!running) master.gain.setTargetAtTime(0.85, audioCtx.currentTime, 0.01);
-      }, 1200);
-    }
     playBtn.textContent = "再生";
     playBtn.classList.remove("playing");
+    stageOverlay.classList.remove("hidden");
+    slots.forEach((s) => { if (s.type === "video" && s.el) s.el.pause(); });
+    if (recording) stopRecording();
+    checkReadyState();
   }
 
   playBtn.addEventListener("click", () => {
-    if (running) stop(); else start();
+    if (running) stopPlayback(); else startPlayback();
   });
 
-  paletteBtn.addEventListener("click", () => {
-    palette = makePalette();
-    if (audioCtx) crossfadePadsToPalette(6);
+  cutBtn.addEventListener("click", () => {
+    if (!running) return;
+    const next = nextRandomIndex(currentIndex);
+    if (next >= 0) activateSlot(next);
   });
 
-  // ---- visual: quiet drifting field, loosely tied to note events -----
+  // ---- recording ----------------------------------------------------
 
-  let particles = [];
-  let hue = palette.hue;
+  function startRecording() {
+    if (!running) return;
+    let stream;
+    try {
+      stream = canvas.captureStream(30);
+    } catch (e) {
+      alert("この環境では録画に対応していません");
+      return;
+    }
+    let mime = "video/webm;codecs=vp9";
+    if (!MediaRecorder.isTypeSupported(mime)) mime = "video/webm;codecs=vp8";
+    if (!MediaRecorder.isTypeSupported(mime)) mime = "video/webm";
 
-  function resizeCanvas() {
-    canvas.width = window.innerWidth * devicePixelRatio;
-    canvas.height = window.innerHeight * devicePixelRatio;
+    recordedChunks = [];
+    downloadLink.style.display = "none";
+    if (lastDownloadUrl) {
+      URL.revokeObjectURL(lastDownloadUrl);
+      lastDownloadUrl = null;
+    }
+
+    try {
+      recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 6_000_000 });
+    } catch (e) {
+      alert("録画を開始できませんでした");
+      return;
+    }
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) recordedChunks.push(e.data);
+    };
+    recorder.onstop = () => {
+      const blob = new Blob(recordedChunks, { type: mime });
+      const url = URL.createObjectURL(blob);
+      lastDownloadUrl = url;
+      downloadLink.href = url;
+      downloadLink.download = `kirikizami-${Date.now()}.webm`;
+      downloadLink.style.display = "inline-flex";
+    };
+    recorder.start();
+    recording = true;
+    recBtn.textContent = "録画停止";
+    recBtn.classList.add("recording");
   }
-  window.addEventListener("resize", resizeCanvas);
-  resizeCanvas();
 
-  function spawnParticle(midi, pan, decay) {
-    const w = canvas.width, h = canvas.height;
-    const x = ((midi % 24) / 24) * w * 0.8 + w * 0.1;
-    const y = h * 0.5 - pan * h * 0.32 + (Math.random() - 0.5) * h * 0.15;
-    particles.push({
-      x, y,
-      r: 4 * devicePixelRatio,
-      life: 0,
-      maxLife: Math.max(1.5, decay),
-      vx: (Math.random() - 0.5) * 6,
-      vy: (Math.random() - 0.5) * 6,
-    });
-    if (particles.length > 120) particles.shift();
+  function stopRecording() {
+    if (recorder && recorder.state !== "inactive") recorder.stop();
+    recording = false;
+    recBtn.textContent = "録画開始";
+    recBtn.classList.remove("recording");
   }
 
-  function draw() {
-    const w = canvas.width, h = canvas.height;
-    hue = (hue + 0.01) % 360;
-    const targetHue = palette.hue;
-    hue += (targetHue - hue) * 0.0015;
+  recBtn.addEventListener("click", () => {
+    if (!running) return;
+    if (recording) stopRecording(); else startRecording();
+  });
 
-    ctx2d.fillStyle = `hsla(${hue}, 30%, 4%, 0.18)`;
-    ctx2d.fillRect(0, 0, w, h);
-
-    particles.forEach((p) => {
-      p.life += 1 / 60;
-      p.x += p.vx * 0.016;
-      p.y += p.vy * 0.016;
-      const t = p.life / p.maxLife;
-      const alpha = Math.max(0, 1 - t) * 0.5;
-      const r = p.r * (1 + t * 8);
-      const grad = ctx2d.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
-      grad.addColorStop(0, `hsla(${hue}, 60%, 75%, ${alpha})`);
-      grad.addColorStop(1, `hsla(${hue}, 60%, 75%, 0)`);
-      ctx2d.fillStyle = grad;
-      ctx2d.beginPath();
-      ctx2d.arc(p.x, p.y, r, 0, Math.PI * 2);
-      ctx2d.fill();
-    });
-    particles = particles.filter((p) => p.life < p.maxLife);
-
-    requestAnimationFrame(draw);
-  }
-  requestAnimationFrame(draw);
+  checkReadyState();
 })();

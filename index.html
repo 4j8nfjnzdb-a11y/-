@@ -3,39 +3,78 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>kizashi — generative ambient</title>
+<title>kirikizami — random cut collage</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <canvas id="bg"></canvas>
-
   <main class="ui">
     <header>
-      <h1>kizashi <span class="sub">きざし</span></h1>
-      <p class="tagline">反復に見せかけて、予測の像を結ぶ寸前でかわし続けるアンビエント。</p>
+      <h1>刻切 <span class="sub">kirikizami</span></h1>
+      <p class="tagline">写真と動画の素材を放り込むと、ランダムに切り刻まれた断片が周期的に入れ替わりながら一本の映像に編み上がっていきます。</p>
     </header>
 
+    <div class="stageWrap">
+      <canvas id="stage" width="1280" height="720"></canvas>
+      <div class="stageOverlay" id="stageOverlay">
+        <p>素材を読み込んで再生してください</p>
+      </div>
+    </div>
+
+    <div class="slots" id="slots">
+      <div class="slot" id="slot0">
+        <input type="file" id="slotInput0" class="slotInput" accept="image/*,video/*" hidden />
+        <label for="slotInput0" class="slotDrop" id="slotDrop0">
+          <span class="slotThumb" id="slotThumb0"></span>
+          <span class="slotLabel" id="slotLabel0">素材 1<br><em>クリックまたはドロップ</em></span>
+        </label>
+        <button type="button" class="slotClear" id="slotClear0" aria-label="クリア">✕</button>
+      </div>
+      <div class="slot" id="slot1">
+        <input type="file" id="slotInput1" class="slotInput" accept="image/*,video/*" hidden />
+        <label for="slotInput1" class="slotDrop" id="slotDrop1">
+          <span class="slotThumb" id="slotThumb1"></span>
+          <span class="slotLabel" id="slotLabel1">素材 2<br><em>クリックまたはドロップ</em></span>
+        </label>
+        <button type="button" class="slotClear" id="slotClear1" aria-label="クリア">✕</button>
+      </div>
+      <div class="slot" id="slot2">
+        <input type="file" id="slotInput2" class="slotInput" accept="image/*,video/*" hidden />
+        <label for="slotInput2" class="slotDrop" id="slotDrop2">
+          <span class="slotThumb" id="slotThumb2"></span>
+          <span class="slotLabel" id="slotLabel2">素材 3<br><em>クリックまたはドロップ</em></span>
+        </label>
+        <button type="button" class="slotClear" id="slotClear2" aria-label="クリア">✕</button>
+      </div>
+    </div>
+
     <div class="transport">
-      <button id="playBtn" class="playBtn">再生</button>
-      <button id="paletteBtn" class="ghostBtn">配色を変える</button>
+      <button id="playBtn" class="playBtn" disabled>再生</button>
+      <button id="cutBtn" class="ghostBtn" disabled>今すぐ切替</button>
+      <button id="recBtn" class="ghostBtn" disabled>録画開始</button>
+      <a id="downloadLink" class="ghostBtn downloadLink" style="display:none">書き出しを保存</a>
     </div>
 
     <div class="controls">
       <label class="slider">
         <span>密度 <em>density</em></span>
-        <input id="density" type="range" min="0" max="100" value="42" />
-      </label>
-      <label class="slider">
-        <span>明暗 <em>tone</em></span>
-        <input id="tone" type="range" min="0" max="100" value="50" />
+        <input id="density" type="range" min="0" max="100" value="45" />
       </label>
       <label class="slider">
         <span>揺らぎ <em>swerve</em></span>
         <input id="swerve" type="range" min="0" max="100" value="55" />
       </label>
+      <label class="slider">
+        <span>ズーム <em>zoom</em></span>
+        <input id="zoom" type="range" min="0" max="100" value="40" />
+      </label>
     </div>
 
-    <p class="hint">音は毎回、一度きりのものです。同じ配列は二度と戻ってきません。</p>
+    <div class="toggles">
+      <label class="toggle"><input id="glitchToggle" type="checkbox" checked /> グリッチ演出</label>
+    </div>
+
+    <p class="hint" id="loadHint">写真・動画をあわせて2〜3点、ドラッグ&ドロップか選択して読み込んでください。</p>
+    <p class="hint">録画を使うと、切り刻まれていく映像をwebm動画として書き出せます（音声は含まれません）。</p>
   </main>
 
   <script src="app.js"></script>
