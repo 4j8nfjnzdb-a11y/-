@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ikimono — polymetric sample life</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <h1>いきもの <span class="sub">ikimono</span></h1>
+      <p class="tagline">
+        一つのサンプルを、3拍子・5拍子・7拍子・9拍子・11拍子…複数の生き物が同時に食べる。
+        それぞれが違う場所を齧り、少しずつ変異しながら、終わらないDJミックスを生成し続ける。
+      </p>
+    </header>
+
+    <section class="panel loader">
+      <h2>1. サンプルを入れる</h2>
+      <div id="dropzone" class="dropzone">
+        <p>ここに音声ファイルをドラッグ&ドロップ<br /><span class="or">または</span></p>
+        <label class="fileBtn">
+          ファイルを選ぶ
+          <input id="fileInput" type="file" accept="audio/*" multiple hidden />
+        </label>
+        <p class="hint small">wav / mp3 / m4a / ogg など、複数選択可</p>
+      </div>
+      <p id="loaderStatus" class="status"></p>
+      <div id="sampleList" class="sampleList"></div>
+    </section>
+
+    <section class="panel transport">
+      <h2>2. テンポと生成をコントロール</h2>
+      <div class="transportRow">
+        <button id="playBtn" class="playBtn">再生</button>
+        <button id="evolveBtn" class="ghostBtn" title="今すぐ全レイヤーを変異させる">変異させる</button>
+        <button id="shuffleBtn" class="ghostBtn" title="全レイヤーを新しい世代でリセット">新しい世代</button>
+        <span class="genTag">世代 <span id="genCount">0</span></span>
+      </div>
+
+      <div class="controls">
+        <label class="slider bpm">
+          <span>BPM <em id="bpmVal">100</em></span>
+          <input id="bpm" type="range" min="40" max="200" value="100" />
+        </label>
+        <button id="tapBtn" class="tapBtn">TAP</button>
+
+        <label class="slider">
+          <span>変異量 <em id="mutVal">0.40</em></span>
+          <input id="mutation" type="range" min="0" max="100" value="40" />
+        </label>
+        <label class="slider">
+          <span>自動ゆらぎ <em id="driftVal">0.12</em></span>
+          <input id="drift" type="range" min="0" max="60" value="12" />
+        </label>
+        <label class="slider">
+          <span>マスター音量 <em id="volVal">80</em></span>
+          <input id="masterVol" type="range" min="0" max="100" value="80" />
+        </label>
+        <label class="slider">
+          <span>フィルター <em id="filtVal">18k</em></span>
+          <input id="masterFilter" type="range" min="0" max="100" value="100" />
+        </label>
+        <label class="slider">
+          <span>残響 <em id="verbVal">18</em></span>
+          <input id="reverbSend" type="range" min="0" max="100" value="18" />
+        </label>
+      </div>
+    </section>
+
+    <section class="panel layersSection">
+      <h2>3. 拍子レイヤー(生き物たち)</h2>
+      <div class="addLayerRow">
+        <label>
+          新しい拍子を追加:
+          <input id="newMeter" type="number" min="2" max="19" value="13" />
+        </label>
+        <button id="addLayerBtn" class="ghostBtn">+ レイヤー追加</button>
+      </div>
+      <div id="layers" class="layers"></div>
+    </section>
+
+    <p class="hint footer">
+      各レイヤーは自分の拍子(N拍子)の長さでループしながら、サンプルの中の別々の場所を切り出して再生します。
+      「変異させる」を押すたびに、抜き出す場所・読み進める速さ・向きが少しずつ(あるいは大きく)変わり、
+      同じ配列には二度と戻りません。
+    </p>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
