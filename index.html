@@ -3,40 +3,98 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>kizashi — generative ambient</title>
+<title>CUT-UP MACHINE — カットアップ生成機</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <canvas id="bg"></canvas>
-
-  <main class="ui">
-    <header>
-      <h1>kizashi <span class="sub">きざし</span></h1>
-      <p class="tagline">反復に見せかけて、予測の像を結ぶ寸前でかわし続けるアンビエント。</p>
+  <div class="paper">
+    <header class="masthead">
+      <h1>CUT-UP<span class="dot">.</span>MACHINE</h1>
+      <p class="byline">— after William S. Burroughs &amp; Brion Gysin —</p>
+      <p class="tagline">テクストを切り、並べ替え、まだ誰も読んだことのない一節をつくる。</p>
     </header>
 
-    <div class="transport">
-      <button id="playBtn" class="playBtn">再生</button>
-      <button id="paletteBtn" class="ghostBtn">配色を変える</button>
+    <section class="sources" id="sources">
+      <!-- source blocks injected by app.js -->
+    </section>
+
+    <div class="sources-actions">
+      <button id="addSourceBtn" class="ghostBtn small">＋ 素材を追加する（フォールドイン用）</button>
     </div>
 
-    <div class="controls">
-      <label class="slider">
-        <span>密度 <em>density</em></span>
-        <input id="density" type="range" min="0" max="100" value="42" />
-      </label>
-      <label class="slider">
-        <span>明暗 <em>tone</em></span>
-        <input id="tone" type="range" min="0" max="100" value="50" />
-      </label>
-      <label class="slider">
-        <span>揺らぎ <em>swerve</em></span>
-        <input id="swerve" type="range" min="0" max="100" value="55" />
-      </label>
-    </div>
+    <section class="panel">
+      <h2>切り方の設定</h2>
 
-    <p class="hint">音は毎回、一度きりのものです。同じ配列は二度と戻ってきません。</p>
-  </main>
+      <div class="presets" id="presets">
+        <button class="presetBtn" data-preset="light">ライト</button>
+        <button class="presetBtn" data-preset="medium">ミディアム</button>
+        <button class="presetBtn" data-preset="heavy">ヘビー</button>
+        <button class="presetBtn" data-preset="chaos">カオス</button>
+      </div>
+
+      <div class="grid">
+        <label class="field">
+          <span class="field-label">分割の単位</span>
+          <select id="unit">
+            <option value="char">文字</option>
+            <option value="word" selected>単語</option>
+            <option value="line">行</option>
+            <option value="sentence">文（。！？区切り）</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field-label">出力の数</span>
+          <select id="outputCount">
+            <option value="1">少（1）</option>
+            <option value="3" selected>普通（3）</option>
+            <option value="6">多（6）</option>
+            <option value="12">特盛（12）</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="grid">
+        <label class="slider">
+          <span>断片の長さ：最小 <em id="chunkMinVal">1</em></span>
+          <input id="chunkMin" type="range" min="1" max="20" value="1" />
+        </label>
+        <label class="slider">
+          <span>断片の長さ：最大 <em id="chunkMaxVal">3</em></span>
+          <input id="chunkMax" type="range" min="1" max="20" value="3" />
+        </label>
+      </div>
+
+      <label class="slider wide">
+        <span>ランダムの強さ <em id="randomnessVal">50</em>% <small>(0 = 元の並び／100 = 完全シャッフル)</small></span>
+        <input id="randomness" type="range" min="0" max="100" value="50" />
+      </label>
+
+      <div class="grid toggles">
+        <label class="toggle">
+          <input type="checkbox" id="foldIn" />
+          <span>フォールドイン（複数素材を交互に織り込む）</span>
+        </label>
+        <label class="toggle">
+          <input type="checkbox" id="keepPunct" checked />
+          <span>句読点・記号を保持する</span>
+        </label>
+        <label class="toggle">
+          <input type="checkbox" id="capRandom" />
+          <span>大文字/小文字をランダムに揺らす（英字）</span>
+        </label>
+      </div>
+
+      <button id="cutBtn" class="cutBtn">✂ カットアップする</button>
+      <p class="hint">同じ設定でも、結果は毎回変わります。何度でも切り直せます。</p>
+    </section>
+
+    <section class="results" id="results"></section>
+
+    <footer class="footnote">
+      <p>“Cut-ups are for everyone.” — B. Gysin</p>
+    </footer>
+  </div>
 
   <script src="app.js"></script>
 </body>
