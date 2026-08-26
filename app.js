@@ -1,12 +1,13 @@
-// kirikizami — random cut collage
+// kirikizami — cut-up glitch collage
 //
-// Load up to three video/photo materials. On play, the app repeatedly
-// jumps to a random material, and for video seeks to a random point in
-// it (a "chopped" fragment); for photos it picks a random crop/zoom and
-// slowly drifts it (Ken Burns). Density/swerve control how often and
-// how erratically the cuts land; occasional slice-glitch and flash-cut
-// flourishes add texture. The composited canvas can be recorded and
-// downloaded as a webm file.
+// Load up to three video/photo materials. On play, the app runs a
+// cut-up sequencer: it constantly reassembles very short fragments of
+// the sources — single frozen frames, brief scrubs of motion, and
+// stutter-loops that scratch back and forth over a tiny window of a
+// video — rather than lingering on one continuous clip. Photos get a
+// random crop each cut; density/swerve tune how short and how erratic
+// the cuts get. The composited canvas can be recorded and downloaded
+// as a webm file.
 
 (() => {
   const canvas = document.getElementById("stage");
@@ -39,6 +40,7 @@
     viewTo: null,
     activeStart: 0,
     activeDuration: 1000,
+    stutter: null,
   }));
 
   const slotDoms = Array.from({ length: SLOT_COUNT }, (_, i) => ({
@@ -54,7 +56,6 @@
   let recording = false;
   let currentIndex = -1;
   let nextSwitchAt = 0;
-  let flashWindow = null; // { start, end, index }
   let sliceWindow = null; // { start, end, intensity }
   let recorder = null;
   let recordedChunks = [];
@@ -143,6 +144,15 @@
       el.style.cssText = "position:fixed; left:0; top:0; width:2px; height:2px; opacity:0; pointer-events:none;";
       document.body.appendChild(el);
       el.src = url;
+      el.load();
+      // iOS Safari can ignore preload="auto" (e.g. on cellular data or
+      // Low Power Mode) and simply never start buffering until play()
+      // is actually called — so kick it immediately rather than
+      // waiting for the user to press play, then pause right back
+      const primeKick = el.play();
+      if (primeKick && typeof primeKick.catch === "function") {
+        primeKick.then(() => el.pause()).catch(() => {});
+      }
 
       el.addEventListener("loadedmetadata", () => {
         slot.duration = el.duration;
@@ -289,6 +299,24 @@
   });
 
   // ---- scheduling / switching -----------------------------------------
+  //
+  // A cut-up sequencer, not a slideshow: every cut is short, and each
+  // one is independently assigned a kind —
+  //   flash:    a single frozen frame (video paused mid-seek, or a photo
+  //             crop) — the bulk of the cuts, for a rapid-fire montage
+  //   scrub:    the video actually plays forward for the cut's length
+  //   stutter:  a tiny window of video (~50-200ms) that loops/scratches
+  //             back and forth for the whole cut
+  // "density" shortens the average cut; "swerve" both widens the
+  // duration spread and shifts the kind mix toward stutter/flash chaos.
+
+  function pickCutDuration(density, swerve) {
+    const ceiling = 1.9 - density * 1.4; // 1.9s .. 0.5s
+    const floor = 0.05 + swerve * 0.03;
+    // squaring a uniform random skews short: frequent quick cuts,
+    // occasional longer "breath" cuts
+    return Math.max(0.05, floor + Math.random() * Math.random() * ceiling);
+  }
 
   function activateSlot(index) {
     const slot = slots[index];
@@ -296,11 +324,38 @@
     const now = performance.now();
     currentIndex = index;
 
+    const density = +densityEl.value / 100;
+    const swerve = +swerveEl.value / 100;
+    const durSec = pickCutDuration(density, swerve);
+
+    let kind = "flash";
     if (slot.type === "video" && slot.duration) {
-      const minSeg = 0.3;
+      const roll = Math.random();
+      const stutterProb = durSec > 0.25 ? 0.12 + swerve * 0.28 : 0;
+      const scrubProb = 0.35 - swerve * 0.15;
+      if (roll < stutterProb) kind = "stutter";
+      else if (roll < stutterProb + scrubProb) kind = "scrub";
+      else kind = "flash";
+    }
+
+    if (slot.type === "video" && slot.duration) {
+      const minSeg = 0.15;
       const maxStart = Math.max(0, slot.duration - minSeg);
-      slot.el.currentTime = Math.random() * maxStart;
-      slot.el.play().catch(() => {});
+      const t0 = Math.random() * maxStart;
+      slot.el.currentTime = t0;
+      if (kind === "stutter") {
+        const winLen = Math.min(0.05 + Math.random() * 0.15, Math.max(0.02, slot.duration - t0 - 0.01));
+        slot.stutter = { start: t0, len: winLen };
+        slot.el.play().catch(() => {});
+      } else if (kind === "scrub") {
+        slot.stutter = null;
+        slot.el.play().catch(() => {});
+      } else {
+        slot.stutter = null;
+        slot.el.pause();
+      }
+    } else {
+      slot.stutter = null;
     }
     slots.forEach((s, i) => {
       if (i !== index && s.type === "video" && s.el) s.el.pause();
@@ -308,46 +363,23 @@
 
     const zoomAmt = +zoomEl.value / 100;
     slot.viewFrom = randomView(zoomAmt);
-    slot.viewTo = randomView(zoomAmt);
-
-    const density = +densityEl.value / 100;
-    const swerve = +swerveEl.value / 100;
-    const base = 3.4 - density * 2.9; // slow (3.4s) .. rapid (0.5s)
-    const jitterRange = 0.25 + swerve * 0.65;
-    const jitter = 1 + (Math.random() * 2 - 1) * jitterRange;
-    const durSec = Math.max(0.25, base * jitter);
+    // short cuts have no time to visibly drift — only let the longer
+    // "breath" cuts pan/zoom (Ken Burns)
+    slot.viewTo = durSec > 0.6 ? randomView(zoomAmt) : slot.viewFrom;
 
     slot.activeStart = now;
     slot.activeDuration = durSec * 1000;
     nextSwitchAt = now + durSec * 1000;
 
-    scheduleFlourishes(now, durSec * 1000, swerve, index);
+    scheduleSliceGlitch(now, durSec * 1000, swerve);
   }
 
-  function scheduleFlourishes(startNow, durMs, swerve, activeIndex) {
-    flashWindow = null;
+  function scheduleSliceGlitch(startNow, durMs, swerve) {
     sliceWindow = null;
     if (!glitchToggle.checked) return;
-
-    const others = readySlots().map((s) => s.index).filter((i) => i !== activeIndex);
-    if (others.length && durMs > 400 && Math.random() < 0.18 + swerve * 0.3) {
-      const fi = others[Math.floor(Math.random() * others.length)];
-      const start = startNow + durMs * (0.25 + Math.random() * 0.5);
-      const len = 60 + Math.random() * 140;
-      const flashSlot = slots[fi];
-      if (!flashSlot.viewFrom) {
-        const zoomAmt = +zoomEl.value / 100;
-        flashSlot.viewFrom = randomView(zoomAmt);
-        flashSlot.viewTo = flashSlot.viewFrom;
-        flashSlot.activeStart = start;
-        flashSlot.activeDuration = len;
-      }
-      flashWindow = { start, end: start + len, index: fi };
-    }
-
-    if (Math.random() < 0.3 + swerve * 0.4) {
-      const start = startNow + Math.random() * durMs * 0.8;
-      const len = 70 + Math.random() * 150;
+    if (Math.random() < 0.25 + swerve * 0.35) {
+      const start = startNow + Math.random() * durMs * 0.7;
+      const len = Math.min(durMs * 0.6, 50 + Math.random() * 130);
       sliceWindow = { start, end: start + len, intensity: 0.4 + Math.random() * 0.6 };
     }
   }
@@ -406,11 +438,16 @@
       if (next >= 0) activateSlot(next);
     }
 
+    const active = currentIndex >= 0 ? slots[currentIndex] : null;
+    if (active && active.stutter && active.type === "video" && active.el) {
+      const { start, len } = active.stutter;
+      if (active.el.currentTime >= start + len || active.el.currentTime < start) {
+        active.el.currentTime = start;
+      }
+    }
+
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const drawIndex = flashWindow && now >= flashWindow.start && now <= flashWindow.end
-      ? flashWindow.index
-      : currentIndex;
-    if (drawIndex >= 0) drawSlot(slots[drawIndex], now);
+    if (active) drawSlot(active, now);
 
     if (sliceWindow && now >= sliceWindow.start && now <= sliceWindow.end) {
       applySliceGlitch(sliceWindow.intensity);
