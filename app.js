@@ -18,6 +18,7 @@
   const overlay = document.getElementById("glitchOverlay");
   const uiEl = document.querySelector(".ui");
   const lastGlitchEl = document.getElementById("lastGlitch");
+  const deviceSelect = document.getElementById("deviceSelect");
 
   const PERIOD_PRESETS = {
     frequent: [2.5, 7],
@@ -153,6 +154,71 @@
 
   // ---- transport ------------------------------------------------------
 
+  // deviceId "" means "browser default" — no exact constraint
+  async function openStream(deviceId) {
+    const audioConstraints = {
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+    };
+    if (deviceId) audioConstraints.deviceId = { exact: deviceId };
+    return navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+  }
+
+  async function refreshDeviceList(selectedDeviceId) {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const inputs = devices.filter((d) => d.kind === "audioinput");
+      deviceSelect.innerHTML = "";
+      const defaultOpt = document.createElement("option");
+      defaultOpt.value = "";
+      defaultOpt.textContent = "既定の入力";
+      deviceSelect.appendChild(defaultOpt);
+      inputs.forEach((d, i) => {
+        const opt = document.createElement("option");
+        opt.value = d.deviceId;
+        opt.textContent = d.label || "入力デバイス " + (i + 1);
+        deviceSelect.appendChild(opt);
+      });
+      deviceSelect.value = selectedDeviceId || "";
+      deviceSelect.disabled = false;
+    } catch (e) {}
+  }
+
+  async function switchDevice(deviceId) {
+    if (!running) return;
+    deviceSelect.disabled = true;
+    statusEl.textContent = "入力デバイスを切り替えています…";
+    try {
+      const newStream = await openStream(deviceId);
+      if (stream) stream.getTracks().forEach((t) => t.stop());
+      if (source) source.disconnect();
+      stream = newStream;
+      source = audioCtx.createMediaStreamSource(stream);
+      source.connect(workletNode);
+      await refreshDeviceList(deviceId);
+      const track = stream.getAudioTracks()[0];
+      statusEl.textContent = "入力中: " + (track ? track.label || "既定の入力" : "既定の入力");
+    } catch (err) {
+      statusEl.textContent = "デバイスを切り替えられませんでした: " + err.message;
+    } finally {
+      deviceSelect.disabled = false;
+    }
+  }
+
+  function describeError(err) {
+    if (err.name === "NotAllowedError") {
+      return "マイクの使用が許可されていません(ブラウザのサイト設定、またはOSのマイク権限を確認してください)";
+    }
+    if (err.name === "NotFoundError" || err.name === "OverconstrainedError") {
+      return "指定した入力デバイスが見つかりません。オーディオインターフェースの接続を確認してください";
+    }
+    if (err.name === "NotReadableError") {
+      return "他のアプリがこの入力デバイスを使用中の可能性があります";
+    }
+    return err.message;
+  }
+
   async function start() {
     startBtn.disabled = true;
     statusEl.textContent = "マイクへのアクセスを許可してください…";
@@ -162,13 +228,7 @@
       });
       await audioCtx.audioWorklet.addModule("glitch-processor.js");
 
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-        },
-      });
+      stream = await openStream(deviceSelect.value);
 
       source = audioCtx.createMediaStreamSource(stream);
       workletNode = new AudioWorkletNode(audioCtx, "glitch-processor", {
@@ -187,9 +247,12 @@
 
       startBtn.textContent = "停止";
       startBtn.classList.add("running");
-      statusEl.textContent = "入力中 — いつバグるかは分からない";
+      const track = stream.getAudioTracks()[0];
+      statusEl.textContent = "入力中: " + (track ? track.label || "既定の入力" : "既定の入力");
+
+      await refreshDeviceList(track ? track.getSettings().deviceId : "");
     } catch (err) {
-      statusEl.textContent = "マイクに接続できませんでした: " + err.message;
+      statusEl.textContent = "マイクに接続できませんでした: " + describeError(err);
     } finally {
       startBtn.disabled = false;
     }
@@ -213,12 +276,23 @@
     startBtn.textContent = "マイク接続 & 開始";
     startBtn.classList.remove("running");
     statusEl.textContent = "停止中";
+    deviceSelect.disabled = true;
   }
 
   startBtn.addEventListener("click", () => {
     if (running) stop();
     else start();
   });
+
+  deviceSelect.addEventListener("change", () => {
+    switchDevice(deviceSelect.value);
+  });
+
+  if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+    navigator.mediaDevices.addEventListener("devicechange", () => {
+      if (running) refreshDeviceList(deviceSelect.value);
+    });
+  }
 
   volumeSlider.addEventListener("input", () => {
     if (outputGain) outputGain.gain.value = +volumeSlider.value / 100;

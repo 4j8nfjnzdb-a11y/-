@@ -101,6 +101,28 @@ button {
   min-height: 1.2em;
 }
 
+.deviceGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: center;
+  width: 100%;
+  max-width: 20rem;
+}
+
+.deviceSelect {
+  width: 100%;
+  font-family: inherit;
+  font-size: 0.8rem;
+  color: var(--ink);
+  background: rgba(234, 230, 223, 0.05);
+  border: 1px solid rgba(234, 230, 223, 0.3);
+  border-radius: 6px;
+  padding: 0.55rem 0.6rem;
+  cursor: pointer;
+}
+.deviceSelect:disabled { opacity: 0.5; cursor: default; }
+
 .periodGroup {
   display: flex;
   flex-direction: column;
