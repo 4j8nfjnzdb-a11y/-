@@ -25,6 +25,32 @@
 
   <main class="rack">
 
+    <!-- ================= OUTPUT CHECK (no mic needed) ================= -->
+    <section class="panel setup">
+      <h2>0. 出力(音が聞こえるか)の確認</h2>
+      <div class="row">
+        <button id="testToneBtn" class="primaryBtn">🔊 出力テスト音を鳴らす (440Hz・約1秒)</button>
+      </div>
+      <div class="row">
+        <label class="field">
+          <span>出力デバイス</span>
+          <select id="outputSelect" disabled><option value="">(このブラウザは切替非対応の可能性)</option></select>
+        </label>
+      </div>
+      <p class="hint">
+        マイクを繋ぐ前に、まずこのボタンだけでスピーカー/ヘッドホンから音が
+        聞こえるか確認してください。<strong>これが聞こえない場合、原因は
+        このアプリではなくMac/ブラウザ側の出力ルーティングです。</strong>
+        Firefaceをお使いなら: macOSの「サウンド設定 → 出力」がFirefaceに
+        なっているか、TotalMixでブラウザの音(このタブの出力)がヘッドホン/
+        モニター出力にルーティングされているかを確認してください。「Direct
+        Monitoring」がオンだとギターの生音はハードウェア経由で聞こえても、
+        ブラウザで処理した後の音がFirefaceの出力に届いていないことがあり
+        ます。出力デバイスの切り替えに対応しているブラウザ(Chrome)では
+        上のプルダウンからも直接指定できます。
+      </p>
+    </section>
+
     <!-- ================= SETUP / INPUT ================= -->
     <section class="panel setup">
       <h2>1. 入力設定</h2>

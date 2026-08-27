@@ -21,6 +21,8 @@
   // ---- DOM refs ------------------------------------------------------
 
   const deviceSelect = document.getElementById("deviceSelect");
+  const outputSelect = document.getElementById("outputSelect");
+  const testToneBtn = document.getElementById("testToneBtn");
   const startBtn = document.getElementById("startBtn");
   const stopBtn = document.getElementById("stopBtn");
   const statusEl = document.getElementById("status");
@@ -642,6 +644,88 @@
     );
   }
 
+  // ---- output check (works with no mic at all) --------------------------
+  //
+  // The whole input-permission flow can be 100% correct and the user can
+  // still hear nothing, because Web Audio's destination just plays through
+  // whatever the OS/browser currently considers the default output device
+  // — on a Mac with a Fireface that's a very common mismatch (e.g. system
+  // output set to the Fireface but TotalMix not routing the computer
+  // return to the monitored output, or vice versa with built-in speakers).
+  // This button proves or disproves that in one click, independent of any
+  // mic/getUserMedia code path above.
+
+  const sinkIdSupported =
+    typeof AudioContext !== "undefined" && "setSinkId" in AudioContext.prototype;
+  if (!sinkIdSupported) {
+    log("AudioContext.setSinkId 非対応ブラウザ — 出力デバイスの切り替えはOS/ブラウザ側で行ってください");
+  }
+
+  let testToneCtx = null;
+  testToneBtn.addEventListener("click", async () => {
+    testToneBtn.disabled = true;
+    try {
+      const ctx = audioCtx || (testToneCtx = testToneCtx || new (window.AudioContext || window.webkitAudioContext)());
+      if (ctx.state === "suspended") await ctx.resume();
+      const osc = ctx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.value = 440;
+      const g = ctx.createGain();
+      g.gain.value = 0;
+      osc.connect(g).connect(ctx.destination);
+      const now = ctx.currentTime;
+      g.gain.setValueAtTime(0, now);
+      g.gain.linearRampToValueAtTime(0.25, now + 0.05);
+      g.gain.setValueAtTime(0.25, now + 0.7);
+      g.gain.linearRampToValueAtTime(0, now + 0.9);
+      osc.start(now);
+      osc.stop(now + 1);
+      log(`テスト音再生 (440Hz/1秒) — AudioContext state: ${ctx.state}, sinkId: ${ctx.sinkId ?? "(既定)"}`, "ok");
+      await refreshOutputDeviceList();
+    } catch (err) {
+      log(`テスト音エラー: ${err.name}: ${err.message}`, "err");
+    } finally {
+      setTimeout(() => { testToneBtn.disabled = false; }, 300);
+    }
+  });
+
+  async function refreshOutputDeviceList() {
+    if (!mediaDevicesAvailable) return;
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const outputs = devices.filter((d) => d.kind === "audiooutput");
+      log(`enumerateDevices: ${outputs.length}件の出力デバイス`);
+      if (!sinkIdSupported || outputs.length === 0) return;
+      const prev = outputSelect.value;
+      outputSelect.innerHTML = "";
+      const defOpt = document.createElement("option");
+      defOpt.value = "";
+      defOpt.textContent = "既定の出力";
+      outputSelect.appendChild(defOpt);
+      outputs.forEach((d, i) => {
+        const opt = document.createElement("option");
+        opt.value = d.deviceId;
+        opt.textContent = d.label || `出力デバイス ${i + 1}`;
+        outputSelect.appendChild(opt);
+      });
+      if (outputs.some((d) => d.deviceId === prev)) outputSelect.value = prev;
+      outputSelect.disabled = false;
+    } catch (err) {
+      log(`出力デバイス一覧取得失敗: ${err.name}: ${err.message}`, "err");
+    }
+  }
+
+  outputSelect.addEventListener("change", async () => {
+    const ctx = audioCtx || testToneCtx;
+    if (!ctx || !sinkIdSupported) return;
+    try {
+      await ctx.setSinkId(outputSelect.value);
+      log(`出力デバイスを切り替え: ${outputSelect.selectedOptions[0]?.textContent}`, "ok");
+    } catch (err) {
+      log(`出力切り替え失敗: ${err.name}: ${err.message}`, "err");
+    }
+  });
+
   // deviceId "" means "browser default" — no exact constraint
   function openStream(deviceId) {
     const constraints = {
@@ -673,6 +757,7 @@
       });
       deviceSelect.value = selectedDeviceId || "";
       deviceSelect.disabled = false;
+      await refreshOutputDeviceList();
     } catch (err) {
       log(`enumerateDevices失敗: ${err.name}: ${err.message}`, "err");
     }
