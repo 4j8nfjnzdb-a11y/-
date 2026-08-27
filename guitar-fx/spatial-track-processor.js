@@ -2,7 +2,7 @@
 //
 // One instance = one "track" of the spatial delay bank. It continuously
 // writes the live input into a long ring buffer (always sampling the last
-// ~32 seconds, mirroring how a tape loop always has fresh material under
+// ~18 seconds, mirroring how a tape loop always has fresh material under
 // the head) and separately plays back a *fixed-length window* of that
 // buffer on loop.
 //
@@ -24,7 +24,7 @@ class SpatialTrackProcessor extends AudioWorkletProcessor {
 
   constructor() {
     super();
-    this.maxSeconds = 32;
+    this.maxSeconds = 18; // comfortably above the UI's 14s max loop length
     this.bufferLength = Math.ceil(sampleRate * this.maxSeconds);
     this.ringL = new Float32Array(this.bufferLength);
     this.ringR = new Float32Array(this.bufferLength);
@@ -87,13 +87,18 @@ class SpatialTrackProcessor extends AudioWorkletProcessor {
       }
 
       const rate = rateArr.length > 1 ? rateArr[i] : rateArr[0];
-      const dir = this.reverse ? -1 : 1;
-      const step = rate * dir;
+      const step = this.reverse ? -rate : rate;
 
-      const readIndex = this._wrap(this.loopStartSamples + this.playPos);
-      const i0 = Math.floor(readIndex);
+      // loopStartSamples is in [0, bufferLength) and playPos is always
+      // kept within [0, loopLenSamples), so the sum overshoots bufferLength
+      // by at most loopLenSamples - a single conditional subtraction is
+      // enough to wrap it, avoiding a `%` in the hottest part of the loop
+      let readIndex = this.loopStartSamples + this.playPos;
+      if (readIndex >= this.bufferLength) readIndex -= this.bufferLength;
+      const i0 = readIndex | 0;
       const frac = readIndex - i0;
-      const i1 = (i0 + 1) % this.bufferLength;
+      let i1 = i0 + 1;
+      if (i1 >= this.bufferLength) i1 = 0;
 
       let sL = this.ringL[i0] * (1 - frac) + this.ringL[i1] * frac;
       let sR = this.ringR[i0] * (1 - frac) + this.ringR[i1] * frac;
@@ -115,7 +120,8 @@ class SpatialTrackProcessor extends AudioWorkletProcessor {
         while (this.playPos < 0) this.playPos += this.loopLenSamples;
       }
 
-      this.writeHead = (this.writeHead + 1) % this.bufferLength;
+      this.writeHead++;
+      if (this.writeHead >= this.bufferLength) this.writeHead = 0;
     }
 
     return true;

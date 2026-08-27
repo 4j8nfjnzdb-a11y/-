@@ -197,15 +197,40 @@
     const enableGain = ctx.createGain();
     enableGain.gain.value = 0;
     sum.connect(enableGain);
-    enableGain.connect(wetBusNode);
+    // Deliberately NOT connected to wetBusNode yet. A module with no path
+    // to the destination is skipped entirely by the browser's audio graph
+    // (standard reachability pruning) - so a bypassed module costs
+    // essentially nothing, instead of silently running its full DSP (very
+    // much including the AudioWorklet-based spatial tracks) forever just
+    // to be multiplied by zero downstream.
 
     function setMix(pct, now) {
       const mix = Math.max(0, Math.min(100, pct)) / 100;
       dryGainNode.gain.setTargetAtTime(Math.cos(mix * Math.PI / 2), now, 0.03);
       wetGainNode.gain.setTargetAtTime(Math.sin(mix * Math.PI / 2), now, 0.03);
     }
+
+    let connectedToWetBus = false;
+    let disconnectTimer = null;
     function setEnabled(on, now) {
-      enableGain.gain.setTargetAtTime(on ? 1 : 0, now, 0.05);
+      clearTimeout(disconnectTimer);
+      if (on) {
+        if (!connectedToWetBus) {
+          enableGain.connect(wetBusNode);
+          connectedToWetBus = true;
+        }
+        enableGain.gain.setTargetAtTime(1, now, 0.05);
+      } else {
+        enableGain.gain.setTargetAtTime(0, now, 0.05);
+        // wait for the ramp to actually reach ~silence before pruning the
+        // connection, so bypassing never clicks
+        disconnectTimer = setTimeout(() => {
+          if (connectedToWetBus) {
+            try { enableGain.disconnect(wetBusNode); } catch (e) {}
+            connectedToWetBus = false;
+          }
+        }, 300);
+      }
     }
 
     return { input, wetTap, setMix, setEnabled };
@@ -866,15 +891,13 @@
     if (modules.chaos) modules.chaos.fx.tick(now);
     SPATIAL_TRACKS.forEach((key) => {
       const st = spatialRadarState[key];
-      if (!st) return;
-      if (st.randomEnabled) {
-        st.pan = st.panDrift.tick(0.02 * rateMul);
-        st.depth01 = st.depthDrift.tick(0.02 * rateMul);
-        st.applyPosition();
-      }
+      if (!st || !st.randomEnabled) return; // static position: nothing to update or redraw
+      st.pan = st.panDrift.tick(0.02 * rateMul);
+      st.depth01 = st.depthDrift.tick(0.02 * rateMul);
+      st.applyPosition();
       st.draw();
     });
-  }, 70);
+  }, 90);
 
   // ---- input device handling ----------------------------------------------
   //
