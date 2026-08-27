@@ -3,16 +3,21 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>CUT-UP MACHINE — カットアップ生成機</title>
+<title>継ぎ接ぎ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  --paper: #f2ece0;
-  --paper-dark: #e8e0cf;
-  --ink: #221f1a;
-  --ink-dim: #5b554a;
-  --red: #a8321f;
-  --rule: rgba(34, 31, 26, 0.18);
-  --card-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+  --bg: #f5f3ee;
+  --surface: #f5f3ee;
+  --surface-2: #fffefb;
+  --ink: #211f1c;
+  --ink-soft: #726c62;
+  --ink-faint: #a49d90;
+  --line: rgba(33, 31, 28, 0.16);
+  --line-soft: rgba(33, 31, 28, 0.09);
+  --accent: #3c4a63;
+  --accent-soft: rgba(60, 74, 99, 0.09);
 }
 
 * { box-sizing: border-box; }
@@ -21,51 +26,44 @@ html, body {
   margin: 0;
   padding: 0;
   min-height: 100%;
-  background: #17140f;
+  background: var(--bg);
   color: var(--ink);
-  font-family: "Courier New", "Hiragino Mincho ProN", "Yu Mincho", ui-monospace, monospace;
+  font-family: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-.paper {
-  max-width: 780px;
+.page {
+  max-width: 640px;
   margin: 0 auto;
-  padding: 2.5rem 1.5rem 4rem;
-  background:
-    radial-gradient(ellipse at top left, rgba(255,255,255,0.4), transparent 60%),
-    var(--paper);
-  min-height: 100vh;
-  box-shadow: var(--card-shadow);
+  padding: 4.5rem 1.5rem 6rem;
 }
 
-.masthead {
-  text-align: center;
-  border-bottom: 3px double var(--ink);
-  padding-bottom: 1.4rem;
-  margin-bottom: 2rem;
-}
+.masthead { margin-bottom: 3.2rem; }
 
 .masthead h1 {
-  font-size: 2.1rem;
-  letter-spacing: 0.03em;
+  font-family: "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", serif;
+  font-size: 2.5rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
   margin: 0;
-  font-weight: 700;
+  text-wrap: balance;
 }
 
-.masthead h1 .dot { color: var(--red); }
-
-.byline {
-  margin: 0.5rem 0 0;
-  font-size: 0.8rem;
-  letter-spacing: 0.08em;
-  color: var(--ink-dim);
-  font-style: italic;
+.subtitle {
+  display: block;
+  font-size: 0.66rem;
+  letter-spacing: 0.34em;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  margin-top: 0.7rem;
 }
 
 .tagline {
-  margin: 0.9rem 0 0;
-  font-size: 0.92rem;
-  color: var(--ink-dim);
-  line-height: 1.7;
+  margin: 1.2rem 0 0;
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+  line-height: 1.9;
+  max-width: 32em;
 }
 
 /* ---- source blocks ---- */
@@ -73,27 +71,26 @@ html, body {
 .sources {
   display: flex;
   flex-direction: column;
-  gap: 1.1rem;
-  margin-bottom: 0.8rem;
+  gap: 1px;
+  background: var(--line);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  margin: 2.6rem 0 1.2rem;
 }
 
 .source-block {
-  position: relative;
-  background: #fffdf7;
-  border: 1px solid var(--rule);
-  border-left: 4px solid var(--red);
-  box-shadow: var(--card-shadow);
-  padding: 0.9rem 1rem 1rem;
+  background: var(--bg);
+  padding: 1.1rem 0.1rem 1.2rem;
 }
 
 .source-block .source-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.72rem;
-  letter-spacing: 0.06em;
-  color: var(--ink-dim);
-  margin-bottom: 0.5rem;
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  color: var(--ink-faint);
+  margin-bottom: 0.6rem;
   text-transform: uppercase;
 }
 
@@ -104,117 +101,136 @@ html, body {
   border: none;
   background: transparent;
   font-family: inherit;
-  font-size: 0.95rem;
-  line-height: 1.8;
+  font-size: 0.96rem;
+  line-height: 1.9;
   color: var(--ink);
   outline: none;
 }
 
-.source-block textarea::placeholder { color: #b8b0a0; }
+.source-block textarea::placeholder { color: var(--ink-faint); }
 
 .removeSourceBtn {
   border: none;
   background: transparent;
-  color: var(--red);
-  font-size: 0.72rem;
+  color: var(--ink-faint);
+  font-size: 0.68rem;
   cursor: pointer;
   letter-spacing: 0.04em;
 }
-.removeSourceBtn:hover { text-decoration: underline; }
+.removeSourceBtn:hover { color: var(--accent); }
 
 .sources-actions {
-  text-align: center;
-  margin-bottom: 2.2rem;
+  margin-bottom: 3.2rem;
 }
+
+.ghostBtn {
+  font-family: inherit;
+  font-size: 0.76rem;
+  letter-spacing: 0.03em;
+  padding: 0;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.ghostBtn:hover { color: var(--accent); border-color: var(--accent); }
+.ghostBtn.small { font-size: 0.74rem; }
 
 /* ---- controls panel ---- */
 
 .panel {
-  border-top: 1px solid var(--rule);
-  border-bottom: 1px solid var(--rule);
-  padding: 1.6rem 0 1.8rem;
+  border-top: 1px solid var(--line);
+  padding: 2.2rem 0 0;
 }
 
 .panel h2 {
-  font-size: 0.85rem;
-  letter-spacing: 0.12em;
+  font-size: 0.68rem;
+  letter-spacing: 0.24em;
   text-transform: uppercase;
-  color: var(--ink-dim);
-  margin: 0 0 1rem;
+  color: var(--ink-faint);
+  font-weight: 500;
+  margin: 0 0 1.6rem;
 }
 
 .presets {
   display: flex;
-  gap: 0.5rem;
+  gap: 1.5rem;
   flex-wrap: wrap;
-  margin-bottom: 1.3rem;
+  margin-bottom: 2.1rem;
+  padding-bottom: 1.7rem;
+  border-bottom: 1px solid var(--line-soft);
 }
 
 .presetBtn {
   font-family: inherit;
-  font-size: 0.75rem;
-  letter-spacing: 0.04em;
-  padding: 0.45rem 0.9rem;
-  border: 1px solid var(--ink);
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+  padding: 0 0 0.2rem;
+  border: none;
+  border-bottom: 1px solid transparent;
   background: transparent;
-  color: var(--ink);
+  color: var(--ink-soft);
   cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease;
+  transition: color 0.15s ease, border-color 0.15s ease;
 }
-.presetBtn:hover { background: var(--ink); color: var(--paper); }
-.presetBtn.active { background: var(--red); border-color: var(--red); color: #fff; }
+.presetBtn:hover { color: var(--ink); }
+.presetBtn.active { color: var(--accent); border-color: var(--accent); font-weight: 700; }
 
 .grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1.2rem;
-  margin-bottom: 1.2rem;
+  gap: 1.6rem;
+  margin-bottom: 1.6rem;
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  font-size: 0.78rem;
-  color: var(--ink-dim);
-  letter-spacing: 0.03em;
+  gap: 0.55rem;
+  font-size: 0.76rem;
+  color: var(--ink-soft);
+  letter-spacing: 0.02em;
 }
 
 .field select {
   font-family: inherit;
-  font-size: 0.9rem;
-  padding: 0.4rem 0.5rem;
-  border: 1px solid var(--rule);
-  background: #fffdf7;
+  font-size: 0.88rem;
+  padding: 0.5rem 0;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
   color: var(--ink);
+  border-radius: 0;
 }
+.field select:focus { outline: none; border-color: var(--accent); }
 
-.field.wide { grid-column: 1 / -1; margin-bottom: 1.2rem; }
+.field.wide { grid-column: 1 / -1; margin-bottom: 1.6rem; }
 .field-label small,
 .field > small {
   display: block;
-  font-size: 0.64rem;
-  opacity: 0.75;
-  font-style: italic;
-  letter-spacing: 0.02em;
-  margin-top: 0.1rem;
+  font-size: 0.68rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.01em;
+  line-height: 1.7;
+  margin-top: 0.3rem;
 }
 
 .slider {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  font-size: 0.78rem;
-  color: var(--ink-dim);
-  letter-spacing: 0.03em;
+  gap: 0.6rem;
+  font-size: 0.76rem;
+  color: var(--ink-soft);
+  letter-spacing: 0.02em;
 }
 
-.slider.wide { grid-column: 1 / -1; margin-bottom: 1.2rem; }
-.slider small { display: block; font-size: 0.68rem; opacity: 0.8; margin-top: 0.15rem; }
+.slider.wide { grid-column: 1 / -1; margin-bottom: 1.6rem; }
+.slider small { display: block; font-size: 0.68rem; color: var(--ink-faint); line-height: 1.7; margin-top: 0.25rem; }
 
 .slider em {
   font-style: normal;
-  color: var(--red);
+  color: var(--accent);
   font-weight: 700;
   margin-left: 0.2em;
 }
@@ -223,64 +239,63 @@ input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
-  height: 2px;
-  background: var(--ink);
+  height: 1px;
+  background: var(--line);
   outline: none;
 }
 
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 14px;
-  height: 14px;
-  border-radius: 0;
-  background: var(--red);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
   cursor: pointer;
-  border: 2px solid var(--paper);
-  box-shadow: 0 0 0 1px var(--ink);
 }
 
 input[type="range"]::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  border-radius: 0;
-  background: var(--red);
+  width: 10px;
+  height: 10px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
   cursor: pointer;
-  border: 2px solid var(--paper);
-  box-shadow: 0 0 0 1px var(--ink);
 }
 
 .toggles {
   grid-template-columns: 1fr;
-  gap: 0.6rem;
+  gap: 0.9rem;
 }
 
 .toggle {
   display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  font-size: 0.85rem;
+  align-items: flex-start;
+  gap: 0.7rem;
+  font-size: 0.84rem;
+  color: var(--ink);
   cursor: pointer;
+  line-height: 1.55;
 }
 
-.toggle input { accent-color: var(--red); width: 15px; height: 15px; }
+.toggle input { accent-color: var(--accent); width: 15px; height: 15px; margin-top: 0.15rem; flex-shrink: 0; }
 
 .cutBtn {
   display: block;
   width: 100%;
   font-family: inherit;
-  font-size: 1rem;
-  letter-spacing: 0.06em;
-  padding: 0.9rem;
-  margin-top: 0.4rem;
+  font-size: 0.9rem;
+  letter-spacing: 0.12em;
+  padding: 1rem;
+  margin-top: 1.8rem;
   background: var(--ink);
-  color: var(--paper);
+  color: var(--bg);
   border: none;
   cursor: pointer;
   transition: background 0.2s ease, transform 0.08s ease;
 }
-.cutBtn:hover { background: var(--red); }
-.cutBtn:active { transform: scale(0.98); }
+.cutBtn:hover { background: var(--accent); }
+.cutBtn:active { transform: scale(0.99); }
 .cutBtn.cutting { animation: shear 0.4s ease; }
 
 @keyframes shear {
@@ -290,48 +305,46 @@ input[type="range"]::-moz-range-thumb {
   100% { clip-path: inset(0 0 0 0); }
 }
 
-.ghostBtn {
-  font-family: inherit;
-  font-size: 0.78rem;
-  letter-spacing: 0.03em;
-  padding: 0.5rem 1rem;
-  border: 1px dashed var(--ink-dim);
-  background: transparent;
-  color: var(--ink-dim);
-  cursor: pointer;
-}
-.ghostBtn:hover { color: var(--ink); border-color: var(--ink); }
-.ghostBtn.small { font-size: 0.72rem; }
-
 .hint {
-  text-align: center;
-  font-size: 0.72rem;
-  color: var(--ink-dim);
-  opacity: 0.75;
-  margin: 0.9rem 0 0;
+  font-size: 0.7rem;
+  color: var(--ink-faint);
+  line-height: 1.8;
+  margin: 1rem 0 0;
 }
+
+#scissorsDict {
+  width: 100%;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.8rem;
+  line-height: 1.75;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  resize: vertical;
+}
+#scissorsDict:focus { outline: none; border-color: var(--accent); }
+
+select:disabled, input:disabled, textarea:disabled { opacity: 0.35; cursor: not-allowed; }
 
 /* ---- results ---- */
 
 .results {
   display: flex;
   flex-direction: column;
-  gap: 1.3rem;
-  margin-top: 2rem;
+  margin-top: 3.4rem;
 }
 
 .result-card {
-  position: relative;
-  background: #fffdf7;
-  padding: 1.2rem 1.3rem 1rem;
-  box-shadow: var(--card-shadow);
-  border: 1px solid var(--rule);
-  border-top: 4px solid var(--red);
+  padding: 1.7rem 0;
+  border-top: 1px solid var(--line-soft);
   opacity: 0;
-  transform: translateY(10px);
+  transform: translateY(6px);
   animation: rise 0.5s ease forwards;
   animation-delay: var(--delay, 0s);
 }
+.result-card:first-child { border-top: 1px solid var(--line); }
+.result-card.kept { border-left: 2px solid var(--accent); padding-left: 1.1rem; }
 
 @keyframes rise {
   to { opacity: 1; transform: translateY(0); }
@@ -340,82 +353,59 @@ input[type="range"]::-moz-range-thumb {
 .result-head {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  font-size: 0.68rem;
-  letter-spacing: 0.06em;
-  color: var(--ink-dim);
+  align-items: baseline;
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  color: var(--ink-faint);
   text-transform: uppercase;
-  margin-bottom: 0.6rem;
+  margin-bottom: 0.9rem;
 }
 
-.result-actions { display: flex; gap: 0.6rem; }
+.result-actions { display: flex; gap: 1.1rem; }
 
 .result-actions button {
   font-family: inherit;
-  font-size: 0.68rem;
+  font-size: 0.66rem;
+  letter-spacing: 0.05em;
   border: none;
   background: transparent;
-  color: var(--red);
+  color: var(--ink-faint);
   cursor: pointer;
-  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
-.result-actions button:hover { text-decoration: underline; }
-
-.result-card.kept { border-top-color: #b8860b; }
-.keepBtn.kept { color: #b8860b; font-weight: 700; }
-
-#scissorsDict {
-  width: 100%;
-  font-family: inherit;
-  font-size: 0.85rem;
-  line-height: 1.6;
-  padding: 0.5rem 0.6rem;
-  border: 1px solid var(--rule);
-  background: #fffdf7;
-  color: var(--ink);
-  resize: vertical;
-}
-
-select:disabled, input:disabled, textarea:disabled { opacity: 0.35; cursor: not-allowed; }
+.result-actions button:hover { color: var(--accent); }
+.keepBtn.kept { color: var(--accent); font-weight: 700; }
 
 .result-text {
-  font-size: 1.05rem;
-  line-height: 2.1;
+  font-family: "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", serif;
+  font-size: 1.1rem;
+  line-height: 2.05;
   white-space: pre-wrap;
   word-break: break-word;
+  color: var(--ink);
 }
 
-.result-text .frag {
-  display: inline;
-}
+.result-text .frag { display: inline; }
 .result-text .frag.seam::before {
-  content: "/ ";
-  color: var(--red);
-  opacity: 0.55;
-}
-
-.footnote {
-  text-align: center;
-  margin-top: 3rem;
-  font-size: 0.72rem;
-  color: var(--ink-dim);
-  font-style: italic;
+  content: "·";
+  color: var(--accent);
   opacity: 0.7;
+  margin: 0 0.18em;
 }
 
 @media (max-width: 520px) {
-  .paper { padding: 1.6rem 1rem 3rem; }
-  .masthead h1 { font-size: 1.6rem; }
+  .page { padding: 3rem 1.25rem 4rem; }
+  .masthead h1 { font-size: 1.9rem; }
   .grid { grid-template-columns: 1fr; }
 }
 </style>
 </head>
 <body>
-  <div class="paper">
+  <div class="page">
     <header class="masthead">
-      <h1>CUT-UP<span class="dot">.</span>MACHINE</h1>
-      <p class="byline">— after William S. Burroughs &amp; Brion Gysin —</p>
-      <p class="tagline">テクストを切り、並べ替え、まだ誰も読んだことのない一節をつくる。</p>
+      <h1>継ぎ接ぎ</h1>
+      <span class="subtitle">Text Recomposer</span>
+      <p class="tagline">テクストを切り分け、切れ目をたどってつなぎ直す。まだ読んだことのない一節をつくる。</p>
     </header>
 
     <section class="sources" id="sources">
@@ -430,7 +420,7 @@ select:disabled, input:disabled, textarea:disabled { opacity: 0.35; cursor: not-
       <h2>切り方の設定</h2>
 
       <div class="presets" id="presets">
-        <button class="presetBtn" data-preset="burroughs">Dr.バロウズ</button>
+        <button class="presetBtn" data-preset="burroughs">接続</button>
         <button class="presetBtn" data-preset="light">ライト</button>
         <button class="presetBtn" data-preset="medium">ミディアム</button>
         <button class="presetBtn" data-preset="heavy">ヘビー</button>
@@ -462,12 +452,12 @@ select:disabled, input:disabled, textarea:disabled { opacity: 0.35; cursor: not-
       </div>
 
       <label class="field wide">
-        <span class="field-label">切り方の方式 <small>「接続カットアップ」はDr. Burroughs（細馬宏通氏, 2003-2007）本家の方式。他はバロウズ&amp;ギシンの手法を参考にした3種類</small></span>
+        <span class="field-label">切り方の方式</span>
         <select id="cutMethod">
-          <option value="junction" selected>接続カットアップ — Dr. Burroughsの「鋏と糊」（切れ目の種類が合う断片だけを繋ぐ）</option>
-          <option value="standard">標準カットアップ — 断片を無作為にシャッフル</option>
-          <option value="grid">グリッド法 — Gysinのグリッド・カットアップ（行/列/対角/スネーク/完全無作為の読み順）</option>
-          <option value="permutation">パーミュテーション — 総当たり的な入れ替え（強度が高いと重複・欠落も発生）</option>
+          <option value="junction" selected>接続 — 切れ目の種類が合う断片だけをつなぐ</option>
+          <option value="standard">シャッフル — 断片を無作為に並べ替える</option>
+          <option value="grid">グリッド — 行/列/対角/スネークで読み順を変える</option>
+          <option value="permutation">総当たり — 強度が高いと重複・欠落も発生する入れ替え</option>
         </select>
       </label>
 
@@ -508,14 +498,14 @@ select:disabled, input:disabled, textarea:disabled { opacity: 0.35; cursor: not-
       </div>
 
       <label class="slider wide">
-        <span>ランダムの強さ <em id="randomnessVal">50</em>% <small>他の方式では 0=元の並び／100=完全シャッフル。接続カットアップでは「文法の接続ルールを無視して無理やり飛ぶ確率」</small></span>
+        <span>ランダムの強さ <em id="randomnessVal">50</em>% <small>他の方式では 0=元の並び／100=完全シャッフル。「接続」では、ルールを無視して無理やり飛ぶ確率</small></span>
         <input id="randomness" type="range" min="0" max="100" value="50" />
       </label>
 
       <div class="grid toggles">
         <label class="toggle">
           <input type="checkbox" id="foldIn" />
-          <span>フォールドイン（バロウズの折り込み法：素材を半分に折り、次の素材の半分と継ぎ合わせる）</span>
+          <span>フォールドイン — 素材を半分に折り、次の素材の半分と継ぎ合わせる</span>
         </label>
         <label class="toggle">
           <input type="checkbox" id="keepPunct" checked />
@@ -527,16 +517,11 @@ select:disabled, input:disabled, textarea:disabled { opacity: 0.35; cursor: not-
         </label>
       </div>
 
-      <button id="cutBtn" class="cutBtn">✂ カットアップする</button>
-      <p class="hint">カオス写像（ロジスティック写像）で初期値鋭敏性のある乱数を毎回生成し直すので、同じ設定でも押すたびに違う並びになります。★で気に入った結果を残せます（次に切り直しても消えません）。</p>
+      <button id="cutBtn" class="cutBtn">継ぐ</button>
+      <p class="hint">押すたびに乱数を生成し直すので、同じ設定でも毎回違う並びになります。★で気に入った結果を残せます。</p>
     </section>
 
     <section class="results" id="results"></section>
-
-    <footer class="footnote">
-      <p>“Cut-ups are for everyone.” — B. Gysin</p>
-      <p>接続カットアップは、細馬宏通氏「みんなの工作教室：カットアップソフトを作ろう！」（Dr. Burroughs, 1991-2007／12kai.com）で解説されている、断片の切れ目の種類をマッチングさせて貼り合わせる方式を参考にしています。他はバロウズとギシンが実際に用いたカットアップ法／フォールドイン法／グリッド・カットアップ／パーミュテーション詩が土台です。</p>
-    </footer>
   </div>
 
   <script>
