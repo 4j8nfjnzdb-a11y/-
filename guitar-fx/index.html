@@ -123,7 +123,7 @@
         </header>
         <p class="fxdesc">数秒〜30秒前の演奏を呼び戻すディレイ/ルーパー。フリーズで無限ループ。</p>
         <div class="param" data-param="time">
-          <div class="param-label"><span>Time</span><label class="rnd"><input type="checkbox" class="rnd-toggle" /><span>R</span></label></div>
+          <div class="param-label"><span>Time</span></div>
           <input type="range" class="param-slider" min="0" max="100" value="30" />
           <span class="param-value">—</span>
         </div>
@@ -143,27 +143,69 @@
         </div>
       </article>
 
-      <!-- EHX-inspired 16 Second Delay -->
-      <article class="panel fx" data-fx="delay16" style="--accent:#ffb454">
+      <!-- Spatial delay bank: several independent long-loop tracks, each
+           continuously re-sampling a recent chunk of the input and looping
+           it at its own rate/direction/position. Loop length and delay
+           time are never live-modulated (that's what caused the pitch
+           "funyan" wobble) - only rate/pitch and position drift live. -->
+      <div class="bank-label">
+        <h3>空間ディレイ・バンク</h3>
+        <p>
+          各トラックが「直近の数秒〜十数秒」を独立して再サンプリングし続け、
+          その場でループ再生します。Loop長やタイムは常に固定(揺れの原因に
+          なるため)で、代わりにRate(倍速・ピッチ)・逆再生・空間位置
+          (レーダー)がランダムに動きます。🔄で今すぐ新しい区間を録り直せます。
+        </p>
+      </div>
+
+      <article class="panel fx track" data-fx="spatial1" style="--accent:#ffb454">
         <header class="fxhead">
           <label class="enable"><input type="checkbox" class="fx-enable" checked /><span class="led"></span></label>
-          <h3>16秒ディレイ (進化版)</h3>
+          <h3>Track 1</h3>
         </header>
-        <p class="fxdesc">Electro-Harmonix 16 Second Digital Delayを参考に、時間を動かすほどピッチも
-          揺らぐBBD的挙動をランダムウォークで再現。何が出るか分からない。</p>
-        <div class="param" data-param="time">
-          <div class="param-label"><span>Time</span><label class="rnd"><input type="checkbox" class="rnd-toggle" /><span>R</span></label></div>
+        <div class="radar-row">
+          <canvas class="radar" width="96" height="96"></canvas>
+          <label class="rnd radar-rnd"><input type="checkbox" class="radar-rnd-toggle" /><span>位置 R</span></label>
+        </div>
+        <div class="param" data-param="rate">
+          <div class="param-label"><span>Rate</span><label class="rnd"><input type="checkbox" class="rnd-toggle" /><span>R</span></label></div>
           <input type="range" class="param-slider" min="0" max="100" value="25" />
           <span class="param-value">—</span>
         </div>
-        <div class="param" data-param="feedback">
-          <div class="param-label"><span>Feedback</span><label class="rnd"><input type="checkbox" class="rnd-toggle" /><span>R</span></label></div>
-          <input type="range" class="param-slider" min="0" max="100" value="35" />
+        <div class="param loop-len" data-param="loopLen">
+          <div class="param-label"><span>Loop長</span></div>
+          <input type="range" class="param-slider" min="0" max="100" value="15" />
           <span class="param-value">—</span>
         </div>
-        <div class="param" data-param="wobble">
-          <div class="param-label"><span>Wobble</span><label class="rnd"><input type="checkbox" class="rnd-toggle" /><span>R</span></label></div>
-          <input type="range" class="param-slider" min="0" max="100" value="20" />
+        <div class="param" data-param="mix">
+          <div class="param-label"><span>Mix</span></div>
+          <input type="range" class="param-slider" min="0" max="100" value="55" />
+          <span class="param-value">—</span>
+        </div>
+        <div class="row buttons">
+          <button class="ghostBtn small reverse-btn">◀ 逆再生</button>
+          <button class="ghostBtn small resample-btn">🔄</button>
+        </div>
+        <label class="rnd"><input type="checkbox" class="reverse-rnd-toggle" /><span>逆再生もランダムに混ぜる</span></label>
+      </article>
+
+      <article class="panel fx track" data-fx="spatial2" style="--accent:#ff9a3c">
+        <header class="fxhead">
+          <label class="enable"><input type="checkbox" class="fx-enable" checked /><span class="led"></span></label>
+          <h3>Track 2</h3>
+        </header>
+        <div class="radar-row">
+          <canvas class="radar" width="96" height="96"></canvas>
+          <label class="rnd radar-rnd"><input type="checkbox" class="radar-rnd-toggle" /><span>位置 R</span></label>
+        </div>
+        <div class="param" data-param="rate">
+          <div class="param-label"><span>Rate</span><label class="rnd"><input type="checkbox" class="rnd-toggle" /><span>R</span></label></div>
+          <input type="range" class="param-slider" min="0" max="100" value="25" />
+          <span class="param-value">—</span>
+        </div>
+        <div class="param loop-len" data-param="loopLen">
+          <div class="param-label"><span>Loop長</span></div>
+          <input type="range" class="param-slider" min="0" max="100" value="35" />
           <span class="param-value">—</span>
         </div>
         <div class="param" data-param="mix">
@@ -171,6 +213,73 @@
           <input type="range" class="param-slider" min="0" max="100" value="45" />
           <span class="param-value">—</span>
         </div>
+        <div class="row buttons">
+          <button class="ghostBtn small reverse-btn">◀ 逆再生</button>
+          <button class="ghostBtn small resample-btn">🔄</button>
+        </div>
+        <label class="rnd"><input type="checkbox" class="reverse-rnd-toggle" /><span>逆再生もランダムに混ぜる</span></label>
+      </article>
+
+      <article class="panel fx track" data-fx="spatial3" style="--accent:#ffc369" >
+        <header class="fxhead">
+          <label class="enable"><input type="checkbox" class="fx-enable" /><span class="led"></span></label>
+          <h3>Track 3</h3>
+        </header>
+        <div class="radar-row">
+          <canvas class="radar" width="96" height="96"></canvas>
+          <label class="rnd radar-rnd"><input type="checkbox" class="radar-rnd-toggle" /><span>位置 R</span></label>
+        </div>
+        <div class="param" data-param="rate">
+          <div class="param-label"><span>Rate</span><label class="rnd"><input type="checkbox" class="rnd-toggle" /><span>R</span></label></div>
+          <input type="range" class="param-slider" min="0" max="100" value="25" />
+          <span class="param-value">—</span>
+        </div>
+        <div class="param loop-len" data-param="loopLen">
+          <div class="param-label"><span>Loop長</span></div>
+          <input type="range" class="param-slider" min="0" max="100" value="55" />
+          <span class="param-value">—</span>
+        </div>
+        <div class="param" data-param="mix">
+          <div class="param-label"><span>Mix</span></div>
+          <input type="range" class="param-slider" min="0" max="100" value="40" />
+          <span class="param-value">—</span>
+        </div>
+        <div class="row buttons">
+          <button class="ghostBtn small reverse-btn">◀ 逆再生</button>
+          <button class="ghostBtn small resample-btn">🔄</button>
+        </div>
+        <label class="rnd"><input type="checkbox" class="reverse-rnd-toggle" /><span>逆再生もランダムに混ぜる</span></label>
+      </article>
+
+      <article class="panel fx track" data-fx="spatial4" style="--accent:#ffdd9e">
+        <header class="fxhead">
+          <label class="enable"><input type="checkbox" class="fx-enable" /><span class="led"></span></label>
+          <h3>Track 4</h3>
+        </header>
+        <div class="radar-row">
+          <canvas class="radar" width="96" height="96"></canvas>
+          <label class="rnd radar-rnd"><input type="checkbox" class="radar-rnd-toggle" /><span>位置 R</span></label>
+        </div>
+        <div class="param" data-param="rate">
+          <div class="param-label"><span>Rate</span><label class="rnd"><input type="checkbox" class="rnd-toggle" /><span>R</span></label></div>
+          <input type="range" class="param-slider" min="0" max="100" value="25" />
+          <span class="param-value">—</span>
+        </div>
+        <div class="param loop-len" data-param="loopLen">
+          <div class="param-label"><span>Loop長</span></div>
+          <input type="range" class="param-slider" min="0" max="100" value="80" />
+          <span class="param-value">—</span>
+        </div>
+        <div class="param" data-param="mix">
+          <div class="param-label"><span>Mix</span></div>
+          <input type="range" class="param-slider" min="0" max="100" value="35" />
+          <span class="param-value">—</span>
+        </div>
+        <div class="row buttons">
+          <button class="ghostBtn small reverse-btn">◀ 逆再生</button>
+          <button class="ghostBtn small resample-btn">🔄</button>
+        </div>
+        <label class="rnd"><input type="checkbox" class="reverse-rnd-toggle" /><span>逆再生もランダムに混ぜる</span></label>
       </article>
 
       <!-- GRM style delay -->

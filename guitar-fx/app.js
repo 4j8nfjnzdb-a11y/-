@@ -136,16 +136,18 @@
     return v.toFixed(cfg.decimals ?? 2) + cfg.unit;
   }
 
+  // Every track re-samples a fixed-length window and only ever changes
+  // pitch/speed via `rate` (a deliberate tape-style knob) - loop length and
+  // delay time are never live-modulated, since ramping either is what
+  // caused the pitch "funyan" wobble. min=0.25/max=3.25 puts rate=1x
+  // (no pitch change) exactly at the default 25% slider position.
+  const SPATIAL_TRACKS = ["spatial1", "spatial2", "spatial3", "spatial4"];
+  const SPATIAL_LOOP_LEN_CFG = { min: 0.5, max: 14, exp: 1.4, unit: "s", decimals: 2 };
+
   const FX_PARAM_CONFIGS = {
     looper: {
-      time: { min: 0.05, max: 30, exp: 1.6, unit: "s", decimals: 2, randomRange: [5, 95] },
+      time: { min: 0.05, max: 30, exp: 1.6, unit: "s", decimals: 2 },
       feedback: { min: 0, max: 100, exp: 1, unit: "%", randomRange: [0, 85] },
-      mix: { min: 0, max: 100, exp: 1, unit: "%" },
-    },
-    delay16: {
-      time: { min: 0.05, max: 16, exp: 1.6, unit: "s", decimals: 2, randomRange: [3, 97] },
-      feedback: { min: 0, max: 100, exp: 1, unit: "%", randomRange: [0, 85] },
-      wobble: { min: 0, max: 100, exp: 1, unit: "%", randomRange: [0, 100] },
       mix: { min: 0, max: 100, exp: 1, unit: "%" },
     },
     grmdelay: {
@@ -166,6 +168,12 @@
       mix: { min: 0, max: 100, exp: 1, unit: "%" },
     },
   };
+  SPATIAL_TRACKS.forEach((key) => {
+    FX_PARAM_CONFIGS[key] = {
+      rate: { min: 0.25, max: 3.25, exp: 1, unit: "x", decimals: 2, randomRange: [0.4, 2.6] },
+      mix: { min: 0, max: 100, exp: 1, unit: "%" },
+    };
+  });
 
   // ---- generic per-module dry/wet + bypass shell ------------------------
 
@@ -247,39 +255,68 @@
     return { setTime, setFeedback, toggleFreeze, jump };
   }
 
-  // ---- effect 2: EHX-inspired 16 second delay ---------------------------
+  // ---- effect 2: spatial delay bank track ---------------------------
+  //
+  // A track continuously records into a ring buffer (spatial-track-
+  // processor.js) and loops a fixed-length recent window of it. The loop
+  // boundary only ever changes via an explicit "recapture" (instant cut +
+  // 20ms crossfade in the worklet) - never a live ramp - so nothing about
+  // the loop's timing can ever cause the delay-time pitch wobble. Pitch/
+  // speed change only comes from the `rate` param (deliberate, tape-style),
+  // and position (pan + a distance cue via filtering/gain) drifts
+  // independently per track.
 
-  function buildDelay16(ctx, shell) {
-    const delay = ctx.createDelay(16);
-    delay.delayTime.value = 4;
-    const damp = ctx.createBiquadFilter();
-    damp.type = "lowpass";
-    damp.frequency.value = 5000;
-    const feedback = ctx.createGain();
-    feedback.gain.value = 0.32;
+  function buildSpatialTrack(ctx, shell, index) {
+    const worklet = new AudioWorkletNode(ctx, "spatial-track-processor", {
+      numberOfInputs: 1,
+      numberOfOutputs: 1,
+      outputChannelCount: [2],
+    });
+    shell.input.connect(worklet);
+    const rateParam = worklet.parameters.get("rate");
 
-    // always-on subtle wobble: modulating delay time is exactly what makes
-    // a BBD/tape-style delay pitch-bend as you change its clock — this is
-    // the mechanism the real EHX 16 Second Digital Delay relies on.
-    const wobbleLFO = ctx.createOscillator();
-    wobbleLFO.type = "sine";
-    wobbleLFO.frequency.value = 0.3;
-    const wobbleDepth = ctx.createGain();
-    wobbleDepth.gain.value = 0.003;
-    wobbleLFO.connect(wobbleDepth).connect(delay.delayTime);
-    wobbleLFO.start();
+    const depthFilter = ctx.createBiquadFilter();
+    depthFilter.type = "lowpass";
+    depthFilter.frequency.value = 18000;
+    const depthGain = ctx.createGain();
+    const panner = ctx.createStereoPanner();
+    panner.pan.value = (index - 1.5) * 0.4;
 
-    shell.input.connect(delay);
-    delay.connect(damp);
-    damp.connect(feedback);
-    feedback.connect(delay);
-    damp.connect(shell.wetTap);
+    worklet.connect(depthFilter).connect(depthGain).connect(panner).connect(shell.wetTap);
 
-    function setTime(v, now) { delay.delayTime.setTargetAtTime(v, now, 0.08); }
-    function setFeedback(v, now) { feedback.gain.setTargetAtTime(v / 100 * 0.92, now, 0.05); }
-    function setWobble(v, now) { wobbleDepth.gain.setTargetAtTime(0.0005 + v / 100 * 0.014, now, 0.05); }
+    let manualReverse = false;
+    let reverseRandomEnabled = false;
+    let lastLoopLenSeconds = 2;
+    let autoTimer = null;
 
-    return { setTime, setFeedback, setWobble };
+    function setRate(v, now) { rateParam.setTargetAtTime(v, now, 0.15); }
+
+    function setLoopLenSeconds(sec) { lastLoopLenSeconds = sec; }
+    function setManualReverse(on) { manualReverse = on; }
+    function getManualReverse() { return manualReverse; }
+    function setReverseRandom(on) { reverseRandomEnabled = on; }
+
+    function recapture(forceReverse) {
+      const reverse = forceReverse !== undefined
+        ? forceReverse
+        : (reverseRandomEnabled ? Math.random() < 0.5 : manualReverse);
+      worklet.port.postMessage({ type: "recapture", loopLenSeconds: lastLoopLenSeconds, reverse });
+      scheduleAutoRecapture();
+    }
+    function scheduleAutoRecapture() {
+      clearTimeout(autoTimer);
+      autoTimer = setTimeout(() => recapture(), (4 + Math.random() * 16) * 1000);
+    }
+
+    function setPosition(pan, depth01, now) {
+      panner.pan.setTargetAtTime(pan, now, 0.15);
+      depthFilter.frequency.setTargetAtTime(700 + (1 - depth01) * 17300, now, 0.15);
+      depthGain.gain.setTargetAtTime(1 - depth01 * 0.7, now, 0.15);
+    }
+
+    scheduleAutoRecapture();
+
+    return { setRate, setLoopLenSeconds, setManualReverse, getManualReverse, setReverseRandom, setPosition, recapture };
   }
 
   // ---- effect 3: GRM-style delay with attack / sustain -------------------
@@ -409,8 +446,11 @@
 
   // ---- build the persistent graph (once) ---------------------------------
 
-  function buildGraphOnce() {
+  async function buildGraphOnce() {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    log("spatial-track-processor.js を読み込み中…");
+    await audioCtx.audioWorklet.addModule("spatial-track-processor.js");
+    log("AudioWorklet読み込み成功", "ok");
 
     inputTrim = audioCtx.createGain();
     inputTrim.gain.value = +inputTrimSlider.value / 100;
@@ -448,7 +488,6 @@
 
     const builders = {
       looper: buildLooper,
-      delay16: buildDelay16,
       grmdelay: buildGrmDelay,
       chaos: buildChaos,
       vibrato: buildVibrato,
@@ -457,10 +496,15 @@
       const shell = createModuleShell(audioCtx, preFX, wetBus);
       modules[key] = { shell, fx: builders[key](audioCtx, shell) };
     });
+    SPATIAL_TRACKS.forEach((key, index) => {
+      const shell = createModuleShell(audioCtx, preFX, wetBus);
+      modules[key] = { shell, fx: buildSpatialTrack(audioCtx, shell, index) };
+    });
 
     applyMasterMix();
     applyMasterVolume();
     applyAllParamsFromUI();
+    initSpatialTracksFromUI();
   }
 
   function applyMasterMix() {
@@ -553,10 +597,158 @@
   }
 
   registerFxPanel("looper", ["time", "feedback", "mix"]);
-  registerFxPanel("delay16", ["time", "feedback", "wobble", "mix"]);
   registerFxPanel("grmdelay", ["attack", "sustain", "tone", "mix"]);
   registerFxPanel("chaos", ["rate", "density", "crush", "mix"]);
   registerFxPanel("vibrato", ["rate", "depth", "mix"]);
+  SPATIAL_TRACKS.forEach((key) => registerFxPanel(key, ["rate", "mix"]));
+
+  // ---- spatial track bespoke controls: loop length, reverse, radar -------
+  //
+  // These don't go through the generic bindParam system because they need
+  // different semantics: loop length only takes effect on the *next*
+  // recapture (never a live ramp), and radar position is a 2D pad, not a
+  // fader.
+
+  function wireLoopLenSlider(panelKey) {
+    const panel = document.querySelector(`.panel.fx[data-fx="${panelKey}"]`);
+    const root = panel.querySelector('.param[data-param="loopLen"]');
+    const slider = root.querySelector(".param-slider");
+    const valueEl = root.querySelector(".param-value");
+
+    function display(pct) {
+      const v = toValue(pct, SPATIAL_LOOP_LEN_CFG);
+      valueEl.textContent = formatVal(v, SPATIAL_LOOP_LEN_CFG);
+      return v;
+    }
+    display(+slider.value);
+
+    slider.addEventListener("input", () => display(+slider.value));
+    slider.addEventListener("change", () => {
+      const v = display(+slider.value);
+      if (modules[panelKey]) {
+        modules[panelKey].fx.setLoopLenSeconds(v);
+        modules[panelKey].fx.recapture(); // instant cut+crossfade, not a ramp — no wobble
+      }
+    });
+  }
+
+  function wireReverseControls(panelKey) {
+    const panel = document.querySelector(`.panel.fx[data-fx="${panelKey}"]`);
+    const btn = panel.querySelector(".reverse-btn");
+    const rndToggle = panel.querySelector(".reverse-rnd-toggle");
+    const resampleBtn = panel.querySelector(".resample-btn");
+
+    btn.addEventListener("click", () => {
+      if (!modules[panelKey]) return;
+      const next = !modules[panelKey].fx.getManualReverse();
+      modules[panelKey].fx.setManualReverse(next);
+      btn.classList.toggle("active", next);
+      modules[panelKey].fx.recapture(next);
+    });
+    rndToggle.addEventListener("change", () => {
+      if (modules[panelKey]) modules[panelKey].fx.setReverseRandom(rndToggle.checked);
+      rndToggle.closest(".rnd").classList.toggle("active", rndToggle.checked);
+    });
+    resampleBtn.addEventListener("click", () => {
+      if (modules[panelKey]) modules[panelKey].fx.recapture();
+    });
+  }
+
+  const spatialRadarState = {};
+
+  function setupRadar(panelKey, defaultPan, defaultDepth) {
+    const panel = document.querySelector(`.panel.fx[data-fx="${panelKey}"]`);
+    const canvas = panel.querySelector("canvas.radar");
+    const rndToggle = panel.querySelector(".radar-rnd-toggle");
+    const g = canvas.getContext("2d");
+    const w = canvas.width, h = canvas.height;
+    const cx = w / 2, cy = h / 2, r = Math.min(w, h) / 2 - 4;
+
+    const state = {
+      pan: defaultPan,
+      depth01: defaultDepth,
+      randomEnabled: false,
+      panDrift: makeDrift(-1, 1, defaultPan),
+      depthDrift: makeDrift(0, 1, defaultDepth),
+    };
+    spatialRadarState[panelKey] = state;
+
+    function applyPosition() {
+      const now = audioCtx ? audioCtx.currentTime : 0;
+      if (modules[panelKey]) modules[panelKey].fx.setPosition(state.pan, state.depth01, now);
+    }
+
+    function draw() {
+      g.clearRect(0, 0, w, h);
+      g.strokeStyle = "rgba(234, 230, 223, 0.15)";
+      g.lineWidth = 1;
+      g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.stroke();
+      g.beginPath(); g.arc(cx, cy, r * 0.5, 0, Math.PI * 2); g.stroke();
+      g.beginPath();
+      g.moveTo(4, cy); g.lineTo(w - 4, cy);
+      g.moveTo(cx, 4); g.lineTo(cx, h - 4);
+      g.stroke();
+
+      const px = cx + state.pan * (w / 2 - 8);
+      const py = 8 + state.depth01 * (h - 16);
+      const grad = g.createRadialGradient(px, py, 0, px, py, 9);
+      grad.addColorStop(0, "rgba(255, 180, 84, 0.9)");
+      grad.addColorStop(1, "rgba(255, 180, 84, 0)");
+      g.fillStyle = grad;
+      g.beginPath(); g.arc(px, py, 9, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "#ffb454";
+      g.beginPath(); g.arc(px, py, 3, 0, Math.PI * 2); g.fill();
+    }
+
+    function setFromEvent(e) {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      state.pan = Math.max(-1, Math.min(1, (x / w) * 2 - 1));
+      state.depth01 = Math.max(0, Math.min(1, y / h));
+      applyPosition();
+      draw();
+    }
+
+    let dragging = false;
+    canvas.addEventListener("pointerdown", (e) => {
+      dragging = true;
+      canvas.setPointerCapture(e.pointerId);
+      setFromEvent(e);
+    });
+    canvas.addEventListener("pointermove", (e) => { if (dragging) setFromEvent(e); });
+    canvas.addEventListener("pointerup", () => { dragging = false; });
+
+    rndToggle.addEventListener("change", () => {
+      state.randomEnabled = rndToggle.checked;
+      rndToggle.closest(".rnd").classList.toggle("active", rndToggle.checked);
+    });
+
+    state.draw = draw;
+    state.applyPosition = applyPosition;
+    draw();
+  }
+
+  SPATIAL_TRACKS.forEach((key, index) => {
+    wireLoopLenSlider(key);
+    wireReverseControls(key);
+    setupRadar(key, (index - 1.5) * 0.4, 0.25 + index * 0.12);
+  });
+
+  function initSpatialTracksFromUI() {
+    SPATIAL_TRACKS.forEach((key) => {
+      const mod = modules[key];
+      if (!mod) return;
+      const panel = document.querySelector(`.panel.fx[data-fx="${key}"]`);
+      const loopSlider = panel.querySelector('.param[data-param="loopLen"] .param-slider');
+      mod.fx.setLoopLenSeconds(toValue(+loopSlider.value, SPATIAL_LOOP_LEN_CFG));
+      const reverseBtn = panel.querySelector(".reverse-btn");
+      mod.fx.setManualReverse(reverseBtn.classList.contains("active"));
+      mod.fx.recapture();
+      const st = spatialRadarState[key];
+      if (st) mod.fx.setPosition(st.pan, st.depth01, audioCtx.currentTime);
+    });
+  }
 
   function applyAllParamsFromUI() {
     Object.values(paramIndex).forEach((entry) => entry.apply(+entry.slider.value));
@@ -610,6 +802,16 @@
       }
     });
     if (modules.chaos) modules.chaos.fx.tick(now);
+    SPATIAL_TRACKS.forEach((key) => {
+      const st = spatialRadarState[key];
+      if (!st) return;
+      if (st.randomEnabled) {
+        st.pan = st.panDrift.tick(0.02 * rateMul);
+        st.depth01 = st.depthDrift.tick(0.02 * rateMul);
+        st.applyPosition();
+      }
+      st.draw();
+    });
   }, 70);
 
   // ---- input device handling ----------------------------------------------
@@ -806,7 +1008,7 @@
       const track = mediaStream.getAudioTracks()[0];
       log(`getUserMedia成功: ${track ? track.label : "(no label)"}`, "ok");
 
-      if (!audioCtx) buildGraphOnce();
+      if (!audioCtx) await buildGraphOnce();
       if (audioCtx.state === "suspended") await audioCtx.resume();
       log(`AudioContext state: ${audioCtx.state}, sampleRate: ${audioCtx.sampleRate}`);
 
