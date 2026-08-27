@@ -2,41 +2,97 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>kizashi — generative ambient</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>線音 SenOn — 描いて奏でる非線形DAW</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <canvas id="bg"></canvas>
+  <div class="app">
+    <header class="topbar">
+      <h1>線音 <span class="sub">SenOn</span></h1>
 
-  <main class="ui">
-    <header>
-      <h1>kizashi <span class="sub">きざし</span></h1>
-      <p class="tagline">反復に見せかけて、予測の像を結ぶ寸前でかわし続けるアンビエント。</p>
+      <div class="transport">
+        <button id="playBtn" class="playBtn">再生</button>
+        <button id="clearBtn" class="ghostBtn" title="全て消去">全消去</button>
+        <button id="undoBtn" class="ghostBtn" title="ひとつ戻す">戻す</button>
+      </div>
+
+      <div class="scanControls">
+        <label class="field">
+          <span>スキャン方式</span>
+          <select id="scanMode">
+            <option value="sweep">線形スイープ</option>
+            <option value="path">描いたパス</option>
+            <option value="wander">ゆらぎ（ワンダー）</option>
+          </select>
+        </label>
+
+        <label class="field slider">
+          <span>速度</span>
+          <input id="speed" type="range" min="1" max="100" value="45" />
+        </label>
+
+        <label class="toggle">
+          <input id="loopToggle" type="checkbox" checked />
+          <span>ループ</span>
+        </label>
+
+        <label class="toggle">
+          <input id="reverseToggle" type="checkbox" />
+          <span>逆再生</span>
+        </label>
+      </div>
+
+      <div class="keyControls">
+        <label class="field">
+          <span>キー</span>
+          <select id="keySelect"></select>
+        </label>
+        <label class="field">
+          <span>スケール</span>
+          <select id="scaleSelect"></select>
+        </label>
+      </div>
     </header>
 
-    <div class="transport">
-      <button id="playBtn" class="playBtn">再生</button>
-      <button id="paletteBtn" class="ghostBtn">配色を変える</button>
+    <div class="canvasWrap">
+      <canvas id="stage"></canvas>
+      <div id="hint" class="hint">指かマウスで線を描くとメロディになります</div>
     </div>
 
-    <div class="controls">
-      <label class="slider">
-        <span>密度 <em>density</em></span>
-        <input id="density" type="range" min="0" max="100" value="42" />
-      </label>
-      <label class="slider">
-        <span>明暗 <em>tone</em></span>
-        <input id="tone" type="range" min="0" max="100" value="50" />
-      </label>
-      <label class="slider">
-        <span>揺らぎ <em>swerve</em></span>
-        <input id="swerve" type="range" min="0" max="100" value="55" />
-      </label>
+    <div class="toolbar">
+      <div class="tools">
+        <button id="toolPen" class="toolBtn active" data-tool="pen" title="ペン">✎ ペン</button>
+        <button id="toolPath" class="toolBtn" data-tool="path" title="スキャンパスを描く">〜 パス</button>
+        <button id="toolEraser" class="toolBtn" data-tool="eraser" title="消しゴム">⌫ 消しゴム</button>
+      </div>
+
+      <div class="tracks" id="tracks">
+        <!-- filled by JS -->
+      </div>
+
+      <div class="samplePanel">
+        <div class="sampleRow">
+          <label class="fileBtn ghostBtn">
+            音源を読み込む
+            <input id="sampleFile" type="file" accept="audio/*" hidden />
+          </label>
+          <button id="recordBtn" class="ghostBtn">🎙 録音</button>
+          <span id="sampleStatus" class="sampleStatus">未読み込み</span>
+        </div>
+        <div class="sampleRow">
+          <label class="field slider small">
+            <span>チョップ数 <em id="chopCountLabel">8</em></span>
+            <input id="chopCount" type="range" min="1" max="32" value="8" />
+          </label>
+          <button id="chopBtn" class="ghostBtn" disabled>チョップ実行</button>
+        </div>
+        <canvas id="waveCanvas" class="waveCanvas"></canvas>
+      </div>
     </div>
 
-    <p class="hint">音は毎回、一度きりのものです。同じ配列は二度と戻ってきません。</p>
-  </main>
+    <p class="footHint">色ごとに音色を割り当てられます。パスツールでスキャンの軌道を描くと、非線形に時間が進みます。</p>
+  </div>
 
   <script src="app.js"></script>
 </body>
