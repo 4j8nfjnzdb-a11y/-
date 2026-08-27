@@ -68,7 +68,30 @@ class SpatialTrackProcessor extends AudioWorkletProcessor {
     this.fadeCounter = 0;
   }
 
+  // A browser stops calling process() forever on a node the instant it
+  // throws once - so any transient glitch (an interface renegotiating its
+  // channel count on connect, a driver clock hiccup feeding a NaN/Infinity
+  // sample, anything not anticipated here) would otherwise permanently and
+  // silently kill this track for the rest of the session. Route every call
+  // through this wrapper: on an unexpected error, report it once to the
+  // main thread (so it shows up in the on-page diagnostics log instead of
+  // vanishing) and output silence for that quantum instead of dying, so a
+  // transient cause can recover on its own.
   process(inputs, outputs, parameters) {
+    try {
+      this._process(inputs, outputs, parameters);
+    } catch (err) {
+      if (!this._reportedError) {
+        this._reportedError = true;
+        this.port.postMessage({ type: "error", message: String((err && err.message) || err) });
+      }
+      const output = outputs[0];
+      if (output) for (const channel of output) channel.fill(0);
+    }
+    return true;
+  }
+
+  _process(inputs, outputs, parameters) {
     const input = inputs[0];
     const output = outputs[0];
     const outL = output[0];
@@ -79,8 +102,15 @@ class SpatialTrackProcessor extends AudioWorkletProcessor {
     const n = outL.length;
 
     for (let i = 0; i < n; i++) {
-      this.ringL[this.writeHead] = inL ? inL[i] : 0;
-      this.ringR[this.writeHead] = inR ? inR[i] : 0;
+      // sanitize: a single NaN/Infinity sample written into the ring
+      // buffer would otherwise poison every interpolated read that
+      // touches it for as long as it stays in the loop window
+      let sampleL = inL ? inL[i] : 0;
+      let sampleR = inR ? inR[i] : 0;
+      if (!Number.isFinite(sampleL)) sampleL = 0;
+      if (!Number.isFinite(sampleR)) sampleR = 0;
+      this.ringL[this.writeHead] = sampleL;
+      this.ringR[this.writeHead] = sampleR;
 
       if (this.pendingRecapture && this.fadeCounter === null) {
         this._applyRecapture();
@@ -123,8 +153,6 @@ class SpatialTrackProcessor extends AudioWorkletProcessor {
       this.writeHead++;
       if (this.writeHead >= this.bufferLength) this.writeHead = 0;
     }
-
-    return true;
   }
 }
 

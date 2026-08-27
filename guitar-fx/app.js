@@ -296,8 +296,16 @@
       numberOfInputs: 1,
       numberOfOutputs: 1,
       outputChannelCount: [2],
+      channelCount: 2,
+      channelCountMode: "explicit",
+      channelInterpretation: "speakers",
     });
     shell.input.connect(worklet);
+    worklet.port.onmessage = (e) => {
+      if (e.data && e.data.type === "error") {
+        log(`Track ${index + 1}: 内部エラーから自動復帰しました (${e.data.message})`, "err");
+      }
+    };
     const rateParam = worklet.parameters.get("rate");
 
     const depthFilter = ctx.createBiquadFilter();
@@ -524,6 +532,16 @@
     }
 
     inputTrim = audioCtx.createGain();
+    // A pro interface like Fireface can hand back a track with far more
+    // than 2 channels (its full input bank, not just the pair you picked).
+    // Everything downstream - especially the spatial-bank AudioWorklet,
+    // which only ever reads channel 0/1 - assumes stereo. Forcing it down
+    // to exactly 2 channels right here, at the very first node the input
+    // touches, means nothing later in the graph ever has to deal with
+    // anything else, regardless of which input device is selected.
+    inputTrim.channelCount = 2;
+    inputTrim.channelCountMode = "explicit";
+    inputTrim.channelInterpretation = "speakers";
     inputTrim.gain.value = +inputTrimSlider.value / 100;
     inputHPF = audioCtx.createBiquadFilter();
     inputHPF.type = "highpass";
