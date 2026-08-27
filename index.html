@@ -312,21 +312,6 @@ input[type="range"]::-moz-range-thumb {
   margin: 1rem 0 0;
 }
 
-#scissorsDict {
-  width: 100%;
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  font-size: 0.8rem;
-  line-height: 1.75;
-  padding: 0.7rem 0.8rem;
-  border: 1px solid var(--line);
-  background: var(--surface-2);
-  color: var(--ink);
-  resize: vertical;
-}
-#scissorsDict:focus { outline: none; border-color: var(--accent); }
-
-select:disabled, input:disabled, textarea:disabled { opacity: 0.35; cursor: not-allowed; }
-
 /* ---- results ---- */
 
 .results {
@@ -422,7 +407,6 @@ select:disabled, input:disabled, textarea:disabled { opacity: 0.35; cursor: not-
       <h2>切り方の設定</h2>
 
       <div class="presets" id="presets">
-        <button class="presetBtn" data-preset="burroughs">接続</button>
         <button class="presetBtn" data-preset="light">ライト</button>
         <button class="presetBtn" data-preset="medium">ミディアム</button>
         <button class="presetBtn" data-preset="heavy">ヘビー</button>
@@ -445,8 +429,8 @@ select:disabled, input:disabled, textarea:disabled { opacity: 0.35; cursor: not-
         <label class="field">
           <span class="field-label">出力の数</span>
           <select id="outputCount">
-            <option value="1">少（1）</option>
-            <option value="3" selected>普通（3）</option>
+            <option value="1" selected>少（1）</option>
+            <option value="3">普通（3）</option>
             <option value="6">多（6）</option>
             <option value="12">特盛（12）</option>
           </select>
@@ -456,37 +440,11 @@ select:disabled, input:disabled, textarea:disabled { opacity: 0.35; cursor: not-
       <label class="field wide">
         <span class="field-label">切り方の方式</span>
         <select id="cutMethod">
-          <option value="junction" selected>接続 — 切れ目の種類が合う断片だけをつなぐ</option>
-          <option value="standard">シャッフル — 断片を無作為に並べ替える</option>
+          <option value="standard" selected>シャッフル — 断片を無作為に並べ替える</option>
           <option value="grid">グリッド — 行/列/対角/スネークで読み順を変える</option>
           <option value="permutation">総当たり — 強度が高いと重複・欠落も発生する入れ替え</option>
         </select>
       </label>
-
-      <div class="field wide" id="scissorsDictWrap">
-        <span class="field-label">鋏と糊のカスタマイズ <small>接続カットアップで使う「切れ目」の辞書。1行が「文字列 = グループ番号」。同じグループの切れ目どうしだけがつながります（半角スペースは「空白」と書く）</small></span>
-        <textarea id="scissorsDict" rows="6">空白 = 0
-。 = 0
-？ = 0
-！ = 0
-、 = 0
-を = 1
-に = 1
-へ = 1
-で = 1
-と = 1
-から = 1
-まで = 1
-より = 1
-は = 2
-が = 2
-も = 2
-という = 3
-って = 3
-なんつって = 3
-とかの = 3
-の = 4</textarea>
-      </div>
 
       <div class="grid">
         <label class="slider">
@@ -500,7 +458,7 @@ select:disabled, input:disabled, textarea:disabled { opacity: 0.35; cursor: not-
       </div>
 
       <label class="slider wide">
-        <span>ランダムの強さ <em id="randomnessVal">50</em>% <small>他の方式では 0=元の並び／100=完全シャッフル。「接続」では、ルールを無視して無理やり飛ぶ確率</small></span>
+        <span>ランダムの強さ <em id="randomnessVal">50</em>% <small>0 = 元の並び／100 = 完全シャッフル</small></span>
         <input id="randomness" type="range" min="0" max="100" value="50" />
       </label>
 
@@ -556,8 +514,6 @@ select:disabled, input:disabled, textarea:disabled { opacity: 0.35; cursor: not-
   const randomnessEl = document.getElementById("randomness");
   const randomnessVal = document.getElementById("randomnessVal");
   const cutMethodEl = document.getElementById("cutMethod");
-  const scissorsDictEl = document.getElementById("scissorsDict");
-  const scissorsDictWrap = document.getElementById("scissorsDictWrap");
   const foldInEl = document.getElementById("foldIn");
   const keepPunctEl = document.getElementById("keepPunct");
   const capRandomEl = document.getElementById("capRandom");
@@ -566,19 +522,20 @@ select:disabled, input:disabled, textarea:disabled { opacity: 0.35; cursor: not-
   const evolveRow = document.getElementById("evolveRow");
   const evolveBtn = document.getElementById("evolveBtn");
 
-  const DEFAULT_SCISSORS_DICT = "空白 = 0\n。 = 0\n？ = 0\n！ = 0\n、 = 0\nを = 1\nに = 1\nへ = 1\nで = 1\nと = 1\nから = 1\nまで = 1\nより = 1\nは = 2\nが = 2\nも = 2\nという = 3\nって = 3\nなんつって = 3\nとかの = 3\nの = 4";
-
   const PLACEHOLDERS = [
     "ここにテクストを貼り付けてください(複数行OK・目安30行程度)。",
     "2つ目の素材。ここに別のテクストを入れると、フォールドインで最初の素材と織り交ぜられます。",
     "3つ目の素材。",
   ];
 
+  // Each rung uses a different reordering algorithm, not just a different
+  // randomness number — "shuffle a bit more" reads as the same behavior at
+  // a lower volume, but a different algorithm (shuffle -> grid -> full
+  // permutation) reads as a genuinely different kind of cut.
   const PRESETS = {
-    burroughs: { unit: "bunsetsu", min: 2, max: 4, randomness: 25, cutMethod: "junction" },
-    light:  { unit: "sentence", min: 1, max: 2, randomness: 20, cutMethod: "standard" },
-    medium: { unit: "bunsetsu", min: 2, max: 5, randomness: 50, cutMethod: "standard" },
-    heavy:  { unit: "bunsetsu", min: 1, max: 2, randomness: 80, cutMethod: "grid" },
+    light:  { unit: "sentence", min: 1, max: 2, randomness: 40, cutMethod: "standard" },
+    medium: { unit: "bunsetsu", min: 2, max: 4, randomness: 55, cutMethod: "grid" },
+    heavy:  { unit: "bunsetsu", min: 1, max: 2, randomness: 85, cutMethod: "permutation" },
     chaos:  { unit: "char", min: 1, max: 6, randomness: 100, cutMethod: "permutation" },
   };
 
@@ -645,19 +602,8 @@ select:disabled, input:disabled, textarea:disabled { opacity: 0.35; cursor: not-
     randomnessEl.value = p.randomness;
     cutMethodEl.value = p.cutMethod;
     syncLabels();
-    updateMethodUI();
     [...presetsEl.children].forEach((b) => b.classList.toggle("active", b.dataset.preset === name));
   }
-
-  function updateMethodUI() {
-    const isJunction = cutMethodEl.value === "junction";
-    unitEl.disabled = isJunction;
-    chunkMinEl.disabled = isJunction;
-    chunkMaxEl.disabled = isJunction;
-    foldInEl.disabled = isJunction;
-    scissorsDictWrap.style.opacity = isJunction ? "1" : "0.4";
-  }
-  cutMethodEl.addEventListener("change", updateMethodUI);
 
   presetsEl.addEventListener("click", (e) => {
     const btn = e.target.closest(".presetBtn");
@@ -687,7 +633,7 @@ select:disabled, input:disabled, textarea:disabled { opacity: 0.35; cursor: not-
     randomnessVal.textContent = randomnessEl.value;
   }
   syncLabels();
-  applyPreset("burroughs");
+  applyPreset("medium");
 
   // ---- chaos PRNG -----------------------------------------------------------
   //
@@ -992,67 +938,6 @@ select:disabled, input:disabled, textarea:disabled { opacity: 0.35; cursor: not-
     return result;
   }
 
-  // ---- junction cut-up: Dr. Burroughs' actual algorithm ---------------------
-  //
-  // From 細馬宏通's "みんなの工作教室：カットアップソフトを作ろう！" (12kai.com),
-  // the real Dr. Burroughs software does NOT tokenize by word/character and
-  // shuffle. It cuts at specific marker strings (を, に, という, 。, ...) and
-  // tags every fragment with what marker ended the fragment BEFORE it and
-  // what marker ends the fragment itself. On reassembly, a fragment is only
-  // ever followed by another fragment whose "before" tag matches its own
-  // "after" tag — e.g. a fragment cut at "を" can only be followed by another
-  // fragment that also began right after a "を" cut. Markers are grouped
-  // (space/。/？/、 in one group, を/に/へ in another, という/なんつって in a
-  // third) so junctions don't have to be the exact same marker, just a
-  // compatible one — the "restriction enzyme + ligase" idea from part 4 of
-  // that series. The result reads as grammatically-jointed but semantically
-  // deranged, which plain shuffling can't produce.
-
-  function parseScissorsDict(text) {
-    return text
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => line && !line.startsWith("#"))
-      .map((line) => {
-        const eq = line.indexOf("=");
-        if (eq < 0) return null;
-        const patRaw = line.slice(0, eq).trim();
-        const group = line.slice(eq + 1).trim();
-        if (!patRaw || !group) return null;
-        const pattern = patRaw === "空白" ? " " : patRaw;
-        return { pattern, group };
-      })
-      .filter(Boolean)
-      .sort((a, b) => b.pattern.length - a.pattern.length);
-  }
-
-  function scissorsCut(text, dict) {
-    const fragments = [];
-    let current = "";
-    let beforeGroup = "START";
-    let i = 0;
-    while (i < text.length) {
-      let hit = null;
-      for (const d of dict) {
-        if (d.pattern && text.startsWith(d.pattern, i)) { hit = d; break; }
-      }
-      if (hit) {
-        current += hit.pattern;
-        fragments.push({ text: current, beforeGroup, afterGroup: hit.group });
-        current = "";
-        beforeGroup = hit.group;
-        i += hit.pattern.length;
-      } else {
-        current += text[i];
-        i++;
-      }
-    }
-    if (current.length > 0) {
-      fragments.push({ text: current, beforeGroup, afterGroup: "END" });
-    }
-    return fragments;
-  }
-
   // Picking uniformly at random from a candidate pool means a fragment that
   // sits in a small pool (a rare junction group) gets drawn again and again
   // within the same output — mechanical-looking repetition, not chance. Each
@@ -1075,52 +960,6 @@ select:disabled, input:disabled, textarea:disabled { opacity: 0.35; cursor: not-
       if (r <= 0) return candidates[i];
     }
     return candidates[candidates.length - 1];
-  }
-
-  function generateJunction(sourceTexts, options, rand) {
-    const dict = options.scissorsDict.length ? options.scissorsDict : parseScissorsDict(DEFAULT_SCISSORS_DICT);
-    const allFragments = [];
-    sourceTexts.forEach((text, idx) => {
-      scissorsCut(text, dict).forEach((f) => allFragments.push({ ...f, sourceIndex: idx, _uses: 0 }));
-    });
-
-    if (allFragments.length === 0) {
-      return { chunks: [], multiSource: sourceTexts.length > 1, renderUnit: "junction" };
-    }
-
-    const byBeforeGroup = new Map();
-    allFragments.forEach((f) => {
-      const key = String(f.beforeGroup);
-      if (!byBeforeGroup.has(key)) byBeforeGroup.set(key, []);
-      byBeforeGroup.get(key).push(f);
-    });
-
-    // randomness doubles as "waywardness" here: the chance, at each link,
-    // of ignoring the junction rule entirely and jumping to any fragment.
-    const waywardness = options.randomness / 100;
-    const targetLen = Math.max(1, allFragments.length);
-
-    const startPool = (byBeforeGroup.get("START") && byBeforeGroup.get("START").length)
-      ? byBeforeGroup.get("START")
-      : allFragments;
-    let current = pickWithFatigue(startPool, rand);
-    current._uses++;
-    const chain = [current];
-
-    for (let n = 1; n < targetLen; n++) {
-      let candidates = rand() < waywardness ? null : byBeforeGroup.get(String(current.afterGroup));
-      if (!candidates || candidates.length === 0) candidates = allFragments;
-      current = pickWithFatigue(candidates, rand);
-      current._uses++;
-      chain.push(current);
-    }
-
-    let combined = chain.map((f) => ({ text: f.text, sourceIndex: f.sourceIndex }));
-    if (!options.keepPunct) combined = combined.map((c) => ({ ...c, text: stripPunct(c.text) }));
-    if (options.capRandom) combined = combined.map((c) => ({ ...c, text: randomizeCase(c.text, rand) }));
-    combined = combined.filter((c) => c.text.trim().length > 0);
-
-    return { chunks: combined, multiSource: sourceTexts.length > 1, renderUnit: "junction" };
   }
 
   // ---- post-processing -----------------------------------------------------
@@ -1150,7 +989,6 @@ select:disabled, input:disabled, textarea:disabled { opacity: 0.35; cursor: not-
       max: +chunkMaxEl.value,
       randomness: +randomnessEl.value,
       cutMethod: cutMethodEl.value,
-      scissorsDict: parseScissorsDict(scissorsDictEl.value || DEFAULT_SCISSORS_DICT),
       foldIn: foldInEl.checked,
       keepPunct: keepPunctEl.checked,
       capRandom: capRandomEl.checked,
@@ -1165,10 +1003,6 @@ select:disabled, input:disabled, textarea:disabled { opacity: 0.35; cursor: not-
 
   function generateOne(sourceTexts, options) {
     const rand = makeChaosRandom();
-
-    if (options.cutMethod === "junction") {
-      return generateJunction(sourceTexts, options, rand);
-    }
 
     const chunkArrays = sourceTexts.map((text, idx) =>
       tokenize(text, options.unit, options.min, options.max, rand).map((t) => ({ text: t, sourceIndex: idx }))
@@ -1206,7 +1040,7 @@ select:disabled, input:disabled, textarea:disabled { opacity: 0.35; cursor: not-
   }
 
   function chunksToHtml(chunks, unit, multiSource) {
-    const sep = { char: "", bunsetsu: "", junction: "", word: " ", sentence: " ", line: "\n" }[unit] ?? " ";
+    const sep = { char: "", bunsetsu: "", word: " ", sentence: " ", line: "\n" }[unit] ?? " ";
     let html = "";
     chunks.forEach((c, i) => {
       const seam = multiSource && i > 0 && c.sourceIndex !== chunks[i - 1].sourceIndex;
@@ -1217,7 +1051,7 @@ select:disabled, input:disabled, textarea:disabled { opacity: 0.35; cursor: not-
   }
 
   function chunksToPlainText(chunks, unit) {
-    const sep = { char: "", bunsetsu: "", junction: "", word: " ", sentence: " ", line: "\n" }[unit] ?? " ";
+    const sep = { char: "", bunsetsu: "", word: " ", sentence: " ", line: "\n" }[unit] ?? " ";
     return chunks.map((c) => c.text).join(sep);
   }
 
