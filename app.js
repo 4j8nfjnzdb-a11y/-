@@ -28,6 +28,7 @@
   const keySelect = document.getElementById("keySelect");
   const scaleSelect = document.getElementById("scaleSelect");
   const tracksEl = document.getElementById("tracks");
+  const colorBarEl = document.getElementById("colorBar");
   const toolButtons = [...document.querySelectorAll(".toolBtn")];
 
   const sampleFileInput = document.getElementById("sampleFile");
@@ -67,12 +68,12 @@
   // matching var() reference used for DOM styling elsewhere. `instrument`
   // is one of the INSTRUMENT_OPTIONS values below.
   const TRACKS = {
-    cyan: { hue: 190, color: "#33d6e0", css: "var(--cyan)", instrument: "sine" },
-    magenta: { hue: 335, color: "#ff4d94", css: "var(--magenta)", instrument: "triangle" },
-    yellow: { hue: 45, color: "#ffcc33", css: "var(--yellow)", instrument: "drum" },
-    green: { hue: 140, color: "#4ade80", css: "var(--green)", instrument: "square" },
-    purple: { hue: 265, color: "#a855f7", css: "var(--purple)", instrument: "sawtooth" },
-    orange: { hue: 25, color: "#ff8a3d", css: "var(--orange)", instrument: "triangle" },
+    cyan: { hue: 190, color: "#33d6e0", css: "var(--cyan)", instrument: "sine", sampleSlice: 0 },
+    magenta: { hue: 335, color: "#ff4d94", css: "var(--magenta)", instrument: "triangle", sampleSlice: 1 },
+    yellow: { hue: 45, color: "#ffcc33", css: "var(--yellow)", instrument: "drum", sampleSlice: 2 },
+    green: { hue: 140, color: "#4ade80", css: "var(--green)", instrument: "square", sampleSlice: 3 },
+    purple: { hue: 265, color: "#a855f7", css: "var(--purple)", instrument: "sawtooth", sampleSlice: 4 },
+    orange: { hue: 25, color: "#ff8a3d", css: "var(--orange)", instrument: "triangle", sampleSlice: 5 },
   };
   const TRACK_IDS = Object.keys(TRACKS);
 
@@ -242,7 +243,10 @@
       return;
     }
     const now = audioCtx.currentTime;
-    const idx = clamp(Math.floor((x / cssWidth) * sampleBank.slices.length), 0, sampleBank.slices.length - 1);
+    // each track owns a fixed slice (set in the drawer, or auto-spread
+    // across tracks on chop) rather than picking one from x — that was
+    // making every track's sample sound like a moving target
+    const idx = clamp(track.sampleSlice || 0, 0, sampleBank.slices.length - 1);
     const buffer = state.reverse
       ? sampleBank.reversedSlices[idx]
       : sampleBank.slices[idx];
@@ -477,7 +481,13 @@
     sampleBank = chopBuffer(sampleBuffer, n);
     drawWaveform(sampleBuffer, n);
     sampleStatus.textContent = `${sampleBank.slices.length}個にチョップ済み`;
-    refreshTrackSampleAvailability();
+    // spread tracks across the available slices by default, so switching
+    // several tracks to "サンプル" gives each one a different chunk
+    // right away instead of all landing on slice 1
+    TRACK_IDS.forEach((id, i) => {
+      TRACKS[id].sampleSlice = i % sampleBank.slices.length;
+    });
+    buildTracksUI();
   }
 
   sampleFileInput.addEventListener("change", async (e) => {
@@ -519,7 +529,38 @@
     }
   });
 
-  // ---- tracks UI --------------------------------------------------------
+  // ---- color bar: the ONLY control that switches the drawing color.
+  // Big dedicated circular buttons — nothing else layered on top of them
+  // to steal the tap, unlike the old combined color+instrument row.
+  // -----------------------------------------------------------------
+
+  function buildColorBar() {
+    colorBarEl.innerHTML = "";
+    TRACK_IDS.forEach((id) => {
+      const track = TRACKS[id];
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "colorSwatch";
+      btn.dataset.color = id;
+      btn.style.color = track.css;
+      btn.title = id;
+      btn.addEventListener("click", () => {
+        state.tool = "pen";
+        state.activeColorId = id;
+        updateToolUI();
+      });
+      colorBarEl.appendChild(btn);
+    });
+    updateColorBarUI();
+  }
+
+  function updateColorBarUI() {
+    [...colorBarEl.children].forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.color === state.activeColorId && state.tool === "pen");
+    });
+  }
+
+  // ---- per-track instrument rows (settings drawer only) -----------------
 
   function buildTracksUI() {
     tracksEl.innerHTML = "";
@@ -527,12 +568,10 @@
       const track = TRACKS[id];
       const row = document.createElement("div");
       row.className = "trackRow";
-      row.dataset.color = id;
       row.style.color = track.css;
 
       const dot = document.createElement("span");
       dot.className = "trackDot";
-      dot.style.background = track.css;
       row.appendChild(dot);
 
       const select = document.createElement("select");
@@ -547,35 +586,29 @@
         select.appendChild(opt);
       });
       select.value = track.instrument;
-
-      select.addEventListener("click", (e) => e.stopPropagation());
       select.addEventListener("change", () => {
         track.instrument = select.value;
       });
-
       row.appendChild(select);
-      row.addEventListener("click", () => {
-        state.tool = "pen";
-        state.activeColorId = id;
-        updateToolUI();
-        updateTracksUI();
+
+      const sliceCount = sampleBank ? sampleBank.slices.length : 1;
+      const sliceSelect = document.createElement("select");
+      sliceSelect.className = "sliceSelect";
+      for (let i = 0; i < sliceCount; i++) {
+        const opt = document.createElement("option");
+        opt.value = i;
+        opt.textContent = `スライス${i + 1}`;
+        sliceSelect.appendChild(opt);
+      }
+      sliceSelect.value = clamp(track.sampleSlice || 0, 0, sliceCount - 1);
+      sliceSelect.disabled = !sampleBank;
+      sliceSelect.title = "サンプル使用時のスライス";
+      sliceSelect.addEventListener("change", () => {
+        track.sampleSlice = +sliceSelect.value;
       });
+      row.appendChild(sliceSelect);
 
       tracksEl.appendChild(row);
-    });
-    updateTracksUI();
-  }
-
-  function updateTracksUI() {
-    [...tracksEl.children].forEach((row) => {
-      row.classList.toggle("active", row.dataset.color === state.activeColorId && state.tool === "pen");
-    });
-  }
-
-  function refreshTrackSampleAvailability() {
-    [...tracksEl.querySelectorAll("select")].forEach((select) => {
-      const opt = select.querySelector('option[data-sample-opt="1"]');
-      if (opt) opt.disabled = !sampleBank;
     });
   }
 
@@ -604,7 +637,7 @@
 
   function updateToolUI() {
     toolButtons.forEach((btn) => btn.classList.toggle("active", btn.dataset.tool === state.tool));
-    updateTracksUI();
+    updateColorBarUI();
   }
 
   toolButtons.forEach((btn) => {
@@ -1118,6 +1151,7 @@
 
   // ---- init -----------------------------------------------------------
 
+  buildColorBar();
   buildTracksUI();
   resizeCanvas();
   requestAnimationFrame(frame);
