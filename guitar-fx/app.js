@@ -535,6 +535,20 @@
   }
 
   async function tryLoadSpatialWorklet(audioCtx) {
+    // file:// blocks ES-module-style resource loading outright in every
+    // browser - both fetch() AND audioWorklet.addModule()'s own internal
+    // fetch go through that same restricted path, so the fetch()+Blob
+    // primary route AND its addModule(url) fallback both fail identically,
+    // every single time. That's deterministic, not transient, so retrying
+    // 3 times just makes the user wait through 3 guaranteed failures for
+    // nothing - skip straight to the one message that's actually
+    // actionable here.
+    if (location.protocol === "file:") {
+      log("AudioWorklet読み込み失敗: file://ではブラウザの仕様によりAudioWorkletを読み込めません(コード側の問題ではなく、全ブラウザ共通の制限です)", "err");
+      log("→ 同梱の「サーバーを起動.command」をダブルクリックして、そこで開いたページの方を使ってください", "err");
+      return false;
+    }
+
     // Retry a couple of times before giving up: a transient blip on the
     // very first fetch() of a fresh page load (cold cache, a moment where
     // the local server or the OS network stack isn't quite ready yet) was
@@ -859,16 +873,25 @@
   });
 
   function markSpatialBankUnavailable() {
+    const isFileProtocol = location.protocol === "file:";
+    const noteText = isFileProtocol
+      ? "file://で開いているため無効です。同梱の「サーバーを起動.command」をダブルクリックし、そこで開いたページを使ってください(ブラウザ共通の制限で、再試行しても直りません)。"
+      : "このブラウザ/環境ではAudioWorkletを読み込めなかったため無効です(診断ログ参照)。";
+
     SPATIAL_TRACKS.forEach((key) => {
       const panel = document.querySelector(`.panel.fx[data-fx="${key}"]`);
       if (!panel || panel.querySelector(".unavailable-note")) return;
       panel.style.opacity = "0.45";
       const note = document.createElement("p");
       note.className = "fxdesc unavailable-note";
-      note.textContent = "このブラウザ/環境ではAudioWorkletを読み込めなかったため無効です(診断ログ参照)。";
+      note.textContent = noteText;
       panel.insertBefore(note, panel.firstChild.nextSibling);
     });
 
+    // Retrying is pointless under file:// (the block is deterministic, not
+    // transient) - only offer the retry button when there's actually a
+    // chance it helps.
+    if (isFileProtocol) return;
     const bankLabel = document.querySelector(".bank-label");
     if (bankLabel && !bankLabel.querySelector(".retry-worklet-btn")) {
       const btn = document.createElement("button");
@@ -1013,10 +1036,25 @@
 
   if (!mediaDevicesAvailable) {
     secureWarning.hidden = false;
+    secureWarning.textContent =
+      "⚠ このページは file:// で開かれているため、ブラウザがマイクへのアクセスを許可しません。" +
+      "同梱の「サーバーを起動.command」をダブルクリックし、そこで開いたページを使ってください。";
     statusEl.textContent = "マイクAPIが利用できません (file://で開いていませんか?)";
     startBtn.disabled = true;
     deviceSelect.innerHTML = '<option value="">(利用不可)</option>';
-  } else if (navigator.permissions && navigator.permissions.query) {
+  } else if (location.protocol === "file:") {
+    // Some browsers do expose mediaDevices under file:// (mic access can
+    // work fine), but AudioWorklet/module-style resource loading is
+    // blocked regardless - that's a separate, unconditional restriction,
+    // so warn about it up front instead of only after the user hits Start
+    // and watches the spatial bank fail.
+    secureWarning.hidden = false;
+    secureWarning.textContent =
+      "⚠ このページは file:// で開かれています。マイクは動く場合がありますが、" +
+      "空間ディレイ・バンク(AudioWorklet)はブラウザの仕様上 file:// では読み込めません。" +
+      "同梱の「サーバーを起動.command」をダブルクリックし、そこで開いたページを使うことを強く推奨します。";
+  }
+  if (mediaDevicesAvailable && navigator.permissions && navigator.permissions.query) {
     navigator.permissions.query({ name: "microphone" }).then(
       (status) => {
         log(`microphone permission state: ${status.state}`);
