@@ -319,6 +319,38 @@ input[type="range"]::-moz-range-thumb {
   margin-left: auto;
 }
 
+.fxToggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  flex-basis: 100%;
+  order: 1;
+}
+
+.fxChip {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.65rem;
+  color: var(--ink-dim);
+  letter-spacing: 0.02em;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+}
+.fxChip:has(input:checked) {
+  color: var(--ink);
+  border-color: currentColor;
+  background: rgba(246, 238, 247, 0.08);
+}
+.fxChip input {
+  accent-color: var(--scan);
+  width: 11px;
+  height: 11px;
+}
+
 /* ---- sample panel -------------------------------------------------- */
 
 .samplePanel {

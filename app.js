@@ -69,13 +69,17 @@
   // is one of the INSTRUMENT_OPTIONS values below; `fx` is one of
   // FX_OPTIONS. Object keys are legacy internal ids, not the gem names
   // shown in the UI.
+  function defaultFx() {
+    return { ring: false, tremolo: false, vibrato: false, pitchBend: false, echo: false };
+  }
+
   const TRACKS = {
-    cyan: { hue: 213, color: "#5b8dee", css: "var(--cyan)", instrument: "sine", fx: "none", sampleSlice: 0 },
-    magenta: { hue: 333, color: "#ff8fc0", css: "var(--magenta)", instrument: "triangle", fx: "none", sampleSlice: 1 },
-    yellow: { hue: 66, color: "#d4e157", css: "var(--yellow)", instrument: "kick", fx: "none", sampleSlice: 2 },
-    green: { hue: 157, color: "#35c48a", css: "var(--green)", instrument: "square", fx: "ring", sampleSlice: 3 },
-    purple: { hue: 261, color: "#a374e8", css: "var(--purple)", instrument: "sawtooth", fx: "none", sampleSlice: 4 },
-    orange: { hue: 350, color: "#e0566f", css: "var(--orange)", instrument: "snare", fx: "none", sampleSlice: 5 },
+    cyan: { hue: 213, color: "#5b8dee", css: "var(--cyan)", instrument: "sine", fx: defaultFx(), sampleSlice: 0 },
+    magenta: { hue: 333, color: "#ff8fc0", css: "var(--magenta)", instrument: "triangle", fx: defaultFx(), sampleSlice: 1 },
+    yellow: { hue: 66, color: "#d4e157", css: "var(--yellow)", instrument: "kick", fx: defaultFx(), sampleSlice: 2 },
+    green: { hue: 157, color: "#35c48a", css: "var(--green)", instrument: "square", fx: { ...defaultFx(), ring: true }, sampleSlice: 3 },
+    purple: { hue: 261, color: "#a374e8", css: "var(--purple)", instrument: "sawtooth", fx: defaultFx(), sampleSlice: 4 },
+    orange: { hue: 350, color: "#e0566f", css: "var(--orange)", instrument: "snare", fx: defaultFx(), sampleSlice: 5 },
   };
   const TRACK_IDS = Object.keys(TRACKS);
 
@@ -93,11 +97,14 @@
   ];
   const DRUM_VOICE_SET = new Set(["kick", "snare", "hihatClosed", "hihatOpen", "clap"]);
 
-  const FX_OPTIONS = [
-    { value: "none", label: "なし" },
-    { value: "ring", label: "リング変調" },
-    { value: "tremolo", label: "トレモロ" },
-    { value: "vibrato", label: "ビブラート" },
+  // Independent toggles, not a single pick — any combination can stack
+  // on one track (e.g. ring + vibrato together).
+  const FX_LIST = [
+    { key: "ring", label: "リング" },
+    { key: "tremolo", label: "トレモロ" },
+    { key: "vibrato", label: "ビブラート" },
+    { key: "pitchBend", label: "ベンド" },
+    { key: "echo", label: "エコー" },
   ];
 
   // ---- app state ------------------------------------------------------
@@ -218,25 +225,28 @@
   }
 
   // ---- per-track modulation (cheap, native WebAudio nodes only) --------
-  // "ring" and "tremolo" insert one extra gain stage between the raw
-  // source and its envelope; "vibrato" just wires an LFO into the
-  // source's own detune param. All three are a couple of short-lived
-  // oscillator+gain nodes per note — negligible next to what's already
-  // built per note, so this doesn't reintroduce the earlier heaviness.
+  // Any combination of these can be on for one track at once. "ring"
+  // and "tremolo" each insert one extra gain stage, chained in series;
+  // "vibrato" wires an LFO into the source's own detune param; "echo"
+  // just turns up that note's send to the shared delay/reverb bus, no
+  // extra node. Every enabled effect is at most a couple of short-lived
+  // oscillator+gain nodes — negligible next to what's already built per
+  // note, so stacking several doesn't reintroduce the earlier heaviness.
   function applyModulation(track, sourceNode, now, dur) {
-    if (track.fx === "ring") {
+    let node = sourceNode;
+    if (track.fx.ring) {
       const carrier = audioCtx.createOscillator();
       carrier.type = "sine";
       carrier.frequency.value = 55 + Math.random() * 220;
       const ringGain = audioCtx.createGain();
       ringGain.gain.value = 0; // pure multiply: carrier IS the gain signal
       carrier.connect(ringGain.gain);
-      sourceNode.connect(ringGain);
+      node.connect(ringGain);
       carrier.start(now);
       carrier.stop(now + dur + 0.2);
-      return ringGain;
+      node = ringGain;
     }
-    if (track.fx === "tremolo") {
+    if (track.fx.tremolo) {
       const lfo = audioCtx.createOscillator();
       lfo.type = "sine";
       lfo.frequency.value = 5 + Math.random() * 4;
@@ -245,16 +255,16 @@
       const trem = audioCtx.createGain();
       trem.gain.value = 0.65;
       lfo.connect(depth).connect(trem.gain);
-      sourceNode.connect(trem);
+      node.connect(trem);
       lfo.start(now);
       lfo.stop(now + dur + 0.2);
-      return trem;
+      node = trem;
     }
-    return sourceNode;
+    return node;
   }
 
   function applyVibrato(track, sourceNode, now, dur) {
-    if (track.fx !== "vibrato") return;
+    if (!track.fx.vibrato) return;
     const lfo = audioCtx.createOscillator();
     lfo.type = "sine";
     lfo.frequency.value = 4.5 + Math.random() * 3;
@@ -263,6 +273,31 @@
     lfo.connect(depth).connect(sourceNode.detune);
     lfo.start(now);
     lfo.stop(now + dur + 0.2);
+  }
+
+  // Pitch bend schedules the frequency ramp itself instead of a static
+  // value; sample playback bends playbackRate the same way since that's
+  // what actually controls its pitch.
+  function applyPitchBend(track, oscNode, freq, now, dur) {
+    if (!track.fx.pitchBend) {
+      oscNode.frequency.value = freq;
+      return;
+    }
+    oscNode.frequency.setValueAtTime(freq, now);
+    oscNode.frequency.exponentialRampToValueAtTime(Math.max(20, freq * 0.8), now + dur * 0.85);
+  }
+
+  function applyPitchBendRate(track, srcNode, rate, now, dur) {
+    if (!track.fx.pitchBend) {
+      srcNode.playbackRate.value = rate;
+      return;
+    }
+    srcNode.playbackRate.setValueAtTime(rate, now);
+    srcNode.playbackRate.exponentialRampToValueAtTime(Math.max(0.05, rate * 0.8), now + dur * 0.85);
+  }
+
+  function echoWet(track, baseWet) {
+    return track.fx.echo ? Math.min(1, baseWet * 1.8) : baseWet;
   }
 
   // Waveform character (the buzz of a sawtooth, the hollowness of a
@@ -276,10 +311,10 @@
 
     const osc = audioCtx.createOscillator();
     osc.type = track.instrument;
-    osc.frequency.value = freq;
     osc.detune.value = (Math.random() * 2 - 1) * 6; // humanize: no two notes identical
 
     const decay = 0.7 + Math.random() * 0.7;
+    applyPitchBend(track, osc, freq, now, decay);
     applyVibrato(track, osc, now, decay);
     const modOut = applyModulation(track, osc, now, decay);
 
@@ -297,7 +332,7 @@
     panner.pan.value = clamp((x / cssWidth) * 2 - 1, -1, 1);
 
     modOut.connect(filter).connect(env).connect(panner);
-    sendToSpace(panner, 0.5, 0.55);
+    sendToSpace(panner, 0.5, echoWet(track, 0.55));
 
     osc.start(now);
     osc.stop(now + decay + 0.15);
@@ -319,10 +354,9 @@
 
     const src = audioCtx.createBufferSource();
     src.buffer = buffer;
-    const rate = Math.pow(2, (midi - 60) / 12);
-    src.playbackRate.value = clamp(rate, 0.25, 4);
-
-    const dur = buffer.duration / src.playbackRate.value;
+    const rate = clamp(Math.pow(2, (midi - 60) / 12), 0.25, 4);
+    const dur = buffer.duration / rate;
+    applyPitchBendRate(track, src, rate, now, dur);
     applyVibrato(track, src, now, dur);
     const modOut = applyModulation(track, src, now, dur);
 
@@ -337,7 +371,7 @@
     panner.pan.value = clamp((x / cssWidth) * 2 - 1, -1, 1);
 
     modOut.connect(env).connect(panner);
-    sendToSpace(panner, 0.7, 0.35);
+    sendToSpace(panner, 0.7, echoWet(track, 0.35));
 
     src.start(now);
     src.stop(now + dur + 0.05);
@@ -363,7 +397,7 @@
     const now = audioCtx.currentTime;
     const panner = audioCtx.createStereoPanner();
     panner.pan.value = clamp((x / cssWidth) * 2 - 1, -1, 1);
-    sendToSpace(panner, 0.85, 0.2);
+    sendToSpace(panner, 0.85, echoWet(track, 0.2));
 
     if (voice === "kick") {
       const osc = audioCtx.createOscillator();
@@ -661,20 +695,24 @@
       });
       row.appendChild(select);
 
-      const fxSelect = document.createElement("select");
-      fxSelect.className = "fxSelect";
-      fxSelect.title = "エフェクト";
-      FX_OPTIONS.forEach(({ value, label }) => {
-        const opt = document.createElement("option");
-        opt.value = value;
-        opt.textContent = label;
-        fxSelect.appendChild(opt);
+      const fxToggles = document.createElement("div");
+      fxToggles.className = "fxToggles";
+      FX_LIST.forEach(({ key, label }) => {
+        const chip = document.createElement("label");
+        chip.className = "fxChip";
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = !!track.fx[key];
+        cb.addEventListener("change", () => {
+          track.fx[key] = cb.checked;
+        });
+        const span = document.createElement("span");
+        span.textContent = label;
+        chip.appendChild(cb);
+        chip.appendChild(span);
+        fxToggles.appendChild(chip);
       });
-      fxSelect.value = track.fx;
-      fxSelect.addEventListener("change", () => {
-        track.fx = fxSelect.value;
-      });
-      row.appendChild(fxSelect);
+      row.appendChild(fxToggles);
 
       const sliceCount = sampleBank ? sampleBank.slices.length : 1;
       const sliceSelect = document.createElement("select");
