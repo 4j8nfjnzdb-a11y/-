@@ -159,7 +159,7 @@
     ensureAudio();
     if (audioCtx.state === "suspended") audioCtx.resume();
 
-    const files = Array.from(fileList).filter((f) => f.type.startsWith("audio") || /\.(wav|mp3|m4a|ogg|flac|aiff?|webm)$/i.test(f.name));
+    const files = Array.from(fileList).filter((f) => f.type.startsWith("audio") || /\.(wav|wave|mp3|m4a|aac|ogg|oga|flac|aiff?|webm|wma|opus)$/i.test(f.name));
     if (files.length === 0) {
       setStatus("音声ファイルが見つかりませんでした。", true);
       return;
