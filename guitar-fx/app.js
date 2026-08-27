@@ -516,20 +516,32 @@
     }
   }
 
-  async function buildGraphInto(audioCtx) {
-    let spatialBankAvailable = true;
-    try {
-      log("spatial-track-processor.js を読み込み中…");
-      await loadWorkletModule(audioCtx, "spatial-track-processor.js");
-      log("AudioWorklet読み込み成功", "ok");
-    } catch (err) {
-      // Don't let the spatial bank take the whole app down with it - the
-      // dry signal and the other four effects have nothing to do with
-      // AudioWorklet and should still work even if this fails (missing
-      // file, unsupported browser, wrong MIME type from the local server).
-      spatialBankAvailable = false;
-      log(`AudioWorklet読み込み失敗 — 空間ディレイ・バンクのみ無効化して続行します: ${err.name}: ${err.message}`, "err");
+  async function tryLoadSpatialWorklet(audioCtx) {
+    // Retry a couple of times before giving up: a transient blip on the
+    // very first fetch() of a fresh page load (cold cache, a moment where
+    // the local server or the OS network stack isn't quite ready yet) was
+    // found to be enough to disable the spatial bank for the rest of the
+    // session - and once audioCtx exists, buildGraphOnce/buildGraphInto
+    // never run again, so that one bad first attempt used to be permanent
+    // no matter what device got selected afterward.
+    const attempts = 3;
+    for (let i = 1; i <= attempts; i++) {
+      try {
+        log(`spatial-track-processor.js を読み込み中… (試行 ${i}/${attempts})`);
+        await loadWorkletModule(audioCtx, "spatial-track-processor.js");
+        log("AudioWorklet読み込み成功", "ok");
+        return true;
+      } catch (err) {
+        log(`AudioWorklet読み込み失敗 (試行 ${i}/${attempts}): ${err.name}: ${err.message}`, "err");
+        if (i < attempts) await new Promise((r) => setTimeout(r, 400));
+      }
     }
+    log("空間ディレイ・バンクのみ無効化して続行します(「🔄 空間ディレイ・バンクを再試行」でいつでも再試行できます)", "err");
+    return false;
+  }
+
+  async function buildGraphInto(audioCtx) {
+    const spatialBankAvailable = await tryLoadSpatialWorklet(audioCtx);
 
     inputTrim = audioCtx.createGain();
     // A pro interface like Fireface can hand back a track with far more
@@ -838,6 +850,55 @@
       note.textContent = "このブラウザ/環境ではAudioWorkletを読み込めなかったため無効です(診断ログ参照)。";
       panel.insertBefore(note, panel.firstChild.nextSibling);
     });
+
+    const bankLabel = document.querySelector(".bank-label");
+    if (bankLabel && !bankLabel.querySelector(".retry-worklet-btn")) {
+      const btn = document.createElement("button");
+      btn.className = "ghostBtn small retry-worklet-btn";
+      btn.textContent = "🔄 空間ディレイ・バンクを再試行";
+      btn.style.marginTop = "0.6rem";
+      btn.addEventListener("click", retrySpatialBank);
+      bankLabel.appendChild(btn);
+    }
+  }
+
+  function clearSpatialBankUnavailable() {
+    SPATIAL_TRACKS.forEach((key) => {
+      const panel = document.querySelector(`.panel.fx[data-fx="${key}"]`);
+      if (!panel) return;
+      panel.style.opacity = "";
+      const note = panel.querySelector(".unavailable-note");
+      if (note) note.remove();
+    });
+    const retryBtn = document.querySelector(".retry-worklet-btn");
+    if (retryBtn) retryBtn.remove();
+  }
+
+  // Recovers the spatial bank without a page reload: buildGraphOnce only
+  // ever runs once per page, so a worklet failure on that first attempt
+  // used to be permanent for the rest of the session (no matter which
+  // input device got selected afterward) until this existed.
+  let retryingSpatialBank = false;
+  async function retrySpatialBank() {
+    if (retryingSpatialBank || !audioCtx || modules.spatial1) return;
+    retryingSpatialBank = true;
+    log("空間ディレイ・バンクを手動で再試行中…");
+    const ok = await tryLoadSpatialWorklet(audioCtx);
+    if (ok) {
+      SPATIAL_TRACKS.forEach((key, index) => {
+        const shell = createModuleShell(audioCtx, preFX, wetBus);
+        modules[key] = { shell, fx: buildSpatialTrack(audioCtx, shell, index) };
+      });
+      clearSpatialBankUnavailable();
+      initSpatialTracksFromUI();
+      SPATIAL_TRACKS.forEach((key) => {
+        const panel = document.querySelector(`.panel.fx[data-fx="${key}"]`);
+        const checkbox = panel && panel.querySelector(".fx-enable");
+        if (checkbox && modules[key]) modules[key].shell.setEnabled(checkbox.checked, audioCtx.currentTime);
+      });
+      log("空間ディレイ・バンクが復旧しました", "ok");
+    }
+    retryingSpatialBank = false;
   }
 
   function initSpatialTracksFromUI() {
