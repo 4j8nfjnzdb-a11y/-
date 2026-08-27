@@ -464,11 +464,30 @@
     }
   }
 
+  // addModule() requires the response to carry a JavaScript MIME type
+  // (text/javascript etc). Some local static servers (older Python
+  // versions, misconfigured mimetypes on the OS) send .js as text/plain
+  // or application/octet-stream instead, which Chrome/Firefox refuse to
+  // load as a module - fetch()+Blob sidesteps that entirely by setting
+  // the MIME type ourselves, independent of whatever header the server
+  // actually sent.
+  async function loadWorkletModule(ctx, url) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`${url} の取得に失敗 (HTTP ${res.status})`);
+    const code = await res.text();
+    const blobUrl = URL.createObjectURL(new Blob([code], { type: "application/javascript" }));
+    try {
+      await ctx.audioWorklet.addModule(blobUrl);
+    } finally {
+      URL.revokeObjectURL(blobUrl);
+    }
+  }
+
   async function buildGraphInto(audioCtx) {
     let spatialBankAvailable = true;
     try {
       log("spatial-track-processor.js を読み込み中…");
-      await audioCtx.audioWorklet.addModule("spatial-track-processor.js");
+      await loadWorkletModule(audioCtx, "spatial-track-processor.js");
       log("AudioWorklet読み込み成功", "ok");
     } catch (err) {
       // Don't let the spatial bank take the whole app down with it - the
