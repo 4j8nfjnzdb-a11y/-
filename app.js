@@ -66,14 +66,16 @@
   // `color` is a literal hex used for canvas drawing (ctx.fillStyle can't
   // resolve CSS custom properties without a DOM element); `css` is the
   // matching var() reference used for DOM styling elsewhere. `instrument`
-  // is one of the INSTRUMENT_OPTIONS values below.
+  // is one of the INSTRUMENT_OPTIONS values below; `fx` is one of
+  // FX_OPTIONS. Object keys are legacy internal ids, not the gem names
+  // shown in the UI.
   const TRACKS = {
-    cyan: { hue: 190, color: "#33d6e0", css: "var(--cyan)", instrument: "sine", sampleSlice: 0 },
-    magenta: { hue: 335, color: "#ff4d94", css: "var(--magenta)", instrument: "triangle", sampleSlice: 1 },
-    yellow: { hue: 45, color: "#ffcc33", css: "var(--yellow)", instrument: "drum", sampleSlice: 2 },
-    green: { hue: 140, color: "#4ade80", css: "var(--green)", instrument: "square", sampleSlice: 3 },
-    purple: { hue: 265, color: "#a855f7", css: "var(--purple)", instrument: "sawtooth", sampleSlice: 4 },
-    orange: { hue: 25, color: "#ff8a3d", css: "var(--orange)", instrument: "triangle", sampleSlice: 5 },
+    cyan: { hue: 213, color: "#5b8dee", css: "var(--cyan)", instrument: "sine", fx: "none", sampleSlice: 0 },
+    magenta: { hue: 333, color: "#ff8fc0", css: "var(--magenta)", instrument: "triangle", fx: "none", sampleSlice: 1 },
+    yellow: { hue: 66, color: "#d4e157", css: "var(--yellow)", instrument: "kick", fx: "none", sampleSlice: 2 },
+    green: { hue: 157, color: "#35c48a", css: "var(--green)", instrument: "square", fx: "ring", sampleSlice: 3 },
+    purple: { hue: 261, color: "#a374e8", css: "var(--purple)", instrument: "sawtooth", fx: "none", sampleSlice: 4 },
+    orange: { hue: 350, color: "#e0566f", css: "var(--orange)", instrument: "snare", fx: "none", sampleSlice: 5 },
   };
   const TRACK_IDS = Object.keys(TRACKS);
 
@@ -82,8 +84,20 @@
     { value: "triangle", label: "三角波" },
     { value: "square", label: "矩形波" },
     { value: "sawtooth", label: "ノコギリ波" },
-    { value: "drum", label: "ドラム" },
+    { value: "kick", label: "キック" },
+    { value: "snare", label: "スネア" },
+    { value: "hihatClosed", label: "クローズハイハット" },
+    { value: "hihatOpen", label: "オープンハイハット" },
+    { value: "clap", label: "クラップ" },
     { value: "sample", label: "サンプル" },
+  ];
+  const DRUM_VOICE_SET = new Set(["kick", "snare", "hihatClosed", "hihatOpen", "clap"]);
+
+  const FX_OPTIONS = [
+    { value: "none", label: "なし" },
+    { value: "ring", label: "リング変調" },
+    { value: "tremolo", label: "トレモロ" },
+    { value: "vibrato", label: "ビブラート" },
   ];
 
   // ---- app state ------------------------------------------------------
@@ -203,6 +217,54 @@
     return state.key + degree + octave * 12 - 12; // center register
   }
 
+  // ---- per-track modulation (cheap, native WebAudio nodes only) --------
+  // "ring" and "tremolo" insert one extra gain stage between the raw
+  // source and its envelope; "vibrato" just wires an LFO into the
+  // source's own detune param. All three are a couple of short-lived
+  // oscillator+gain nodes per note — negligible next to what's already
+  // built per note, so this doesn't reintroduce the earlier heaviness.
+  function applyModulation(track, sourceNode, now, dur) {
+    if (track.fx === "ring") {
+      const carrier = audioCtx.createOscillator();
+      carrier.type = "sine";
+      carrier.frequency.value = 55 + Math.random() * 220;
+      const ringGain = audioCtx.createGain();
+      ringGain.gain.value = 0; // pure multiply: carrier IS the gain signal
+      carrier.connect(ringGain.gain);
+      sourceNode.connect(ringGain);
+      carrier.start(now);
+      carrier.stop(now + dur + 0.2);
+      return ringGain;
+    }
+    if (track.fx === "tremolo") {
+      const lfo = audioCtx.createOscillator();
+      lfo.type = "sine";
+      lfo.frequency.value = 5 + Math.random() * 4;
+      const depth = audioCtx.createGain();
+      depth.gain.value = 0.35;
+      const trem = audioCtx.createGain();
+      trem.gain.value = 0.65;
+      lfo.connect(depth).connect(trem.gain);
+      sourceNode.connect(trem);
+      lfo.start(now);
+      lfo.stop(now + dur + 0.2);
+      return trem;
+    }
+    return sourceNode;
+  }
+
+  function applyVibrato(track, sourceNode, now, dur) {
+    if (track.fx !== "vibrato") return;
+    const lfo = audioCtx.createOscillator();
+    lfo.type = "sine";
+    lfo.frequency.value = 4.5 + Math.random() * 3;
+    const depth = audioCtx.createGain();
+    depth.gain.value = 9;
+    lfo.connect(depth).connect(sourceNode.detune);
+    lfo.start(now);
+    lfo.stop(now + dur + 0.2);
+  }
+
   // Waveform character (the buzz of a sawtooth, the hollowness of a
   // square) lives in harmonics well above the fundamental. Keep this
   // filter's cutoff far above the note so those harmonics survive —
@@ -215,8 +277,12 @@
     const osc = audioCtx.createOscillator();
     osc.type = track.instrument;
     osc.frequency.value = freq;
+    osc.detune.value = (Math.random() * 2 - 1) * 6; // humanize: no two notes identical
 
     const decay = 0.7 + Math.random() * 0.7;
+    applyVibrato(track, osc, now, decay);
+    const modOut = applyModulation(track, osc, now, decay);
+
     const env = audioCtx.createGain();
     env.gain.setValueAtTime(0, now);
     env.gain.linearRampToValueAtTime(0.2 * velocity, now + 0.012);
@@ -230,7 +296,7 @@
     const panner = audioCtx.createStereoPanner();
     panner.pan.value = clamp((x / cssWidth) * 2 - 1, -1, 1);
 
-    osc.connect(filter).connect(env).connect(panner);
+    modOut.connect(filter).connect(env).connect(panner);
     sendToSpace(panner, 0.5, 0.55);
 
     osc.start(now);
@@ -257,6 +323,9 @@
     src.playbackRate.value = clamp(rate, 0.25, 4);
 
     const dur = buffer.duration / src.playbackRate.value;
+    applyVibrato(track, src, now, dur);
+    const modOut = applyModulation(track, src, now, dur);
+
     const env = audioCtx.createGain();
     env.gain.setValueAtTime(0, now);
     env.gain.linearRampToValueAtTime(0.75 * velocity, now + 0.008);
@@ -267,7 +336,7 @@
     const panner = audioCtx.createStereoPanner();
     panner.pan.value = clamp((x / cssWidth) * 2 - 1, -1, 1);
 
-    src.connect(env).connect(panner);
+    modOut.connect(env).connect(panner);
     sendToSpace(panner, 0.7, 0.35);
 
     src.start(now);
@@ -275,9 +344,9 @@
   }
 
   // ---- drum synthesis ----------------------------------------------
-  // Bottom-to-top row order so the vertical layout matches a real kit:
-  // low thump at the bottom, bright cymbals at the top.
-  const DRUM_VOICES = ["kick", "snare", "hihatClosed", "clap", "hihatOpen"];
+  // Each track now picks one fixed voice directly (no more guessing by
+  // vertical position, which in practice meant most casual strokes only
+  // ever landed in the hi-hat band).
 
   let noiseBuf = null;
   function noiseBuffer() {
@@ -290,13 +359,7 @@
     return noiseBuf;
   }
 
-  function drumVoiceForY(y) {
-    const norm = 1 - clamp(y / cssHeight, 0, 1); // 0 bottom .. 1 top
-    const idx = clamp(Math.floor(norm * DRUM_VOICES.length), 0, DRUM_VOICES.length - 1);
-    return DRUM_VOICES[idx];
-  }
-
-  function playDrum(voice, x, velocity) {
+  function playDrum(track, voice, x, velocity) {
     const now = audioCtx.currentTime;
     const panner = audioCtx.createStereoPanner();
     panner.pan.value = clamp((x / cssWidth) * 2 - 1, -1, 1);
@@ -306,11 +369,13 @@
       const osc = audioCtx.createOscillator();
       osc.type = "sine";
       osc.frequency.setValueAtTime(150, now);
-      osc.frequency.exponentialRampToValueAtTime(42, now + 0.13);
+      osc.frequency.exponentialRampToValueAtTime(38 + Math.random() * 8, now + 0.13);
+      applyVibrato(track, osc, now, 0.32);
+      const modOut = applyModulation(track, osc, now, 0.32);
       const env = audioCtx.createGain();
       env.gain.setValueAtTime(0.9 * velocity, now);
       env.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
-      osc.connect(env).connect(panner);
+      modOut.connect(env).connect(panner);
       osc.start(now);
       osc.stop(now + 0.34);
       return;
@@ -319,6 +384,8 @@
     if (voice === "snare") {
       const src = audioCtx.createBufferSource();
       src.buffer = noiseBuffer();
+      applyVibrato(track, src, now, 0.16);
+      const modOut = applyModulation(track, src, now, 0.16);
       const bp = audioCtx.createBiquadFilter();
       bp.type = "bandpass";
       bp.frequency.value = 1800;
@@ -326,7 +393,7 @@
       const nEnv = audioCtx.createGain();
       nEnv.gain.setValueAtTime(0.5 * velocity, now);
       nEnv.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
-      src.connect(bp).connect(nEnv).connect(panner);
+      modOut.connect(bp).connect(nEnv).connect(panner);
       src.start(now);
       src.stop(now + 0.18);
 
@@ -345,14 +412,16 @@
     if (voice === "hihatClosed" || voice === "hihatOpen") {
       const src = audioCtx.createBufferSource();
       src.buffer = noiseBuffer();
+      const dur = voice === "hihatOpen" ? 0.28 : 0.05;
+      applyVibrato(track, src, now, dur);
+      const modOut = applyModulation(track, src, now, dur);
       const hp = audioCtx.createBiquadFilter();
       hp.type = "highpass";
       hp.frequency.value = 7000;
-      const dur = voice === "hihatOpen" ? 0.28 : 0.05;
       const env = audioCtx.createGain();
       env.gain.setValueAtTime(0.28 * velocity, now);
       env.gain.exponentialRampToValueAtTime(0.001, now + dur);
-      src.connect(hp).connect(env).connect(panner);
+      modOut.connect(hp).connect(env).connect(panner);
       src.start(now);
       src.stop(now + dur + 0.02);
       return;
@@ -363,6 +432,7 @@
       const t = now + i * 0.011;
       const src = audioCtx.createBufferSource();
       src.buffer = noiseBuffer();
+      const modOut = applyModulation(track, src, t, 0.1);
       const bp = audioCtx.createBiquadFilter();
       bp.type = "bandpass";
       bp.frequency.value = 1500;
@@ -370,7 +440,7 @@
       const env = audioCtx.createGain();
       env.gain.setValueAtTime(0.4 * velocity, t);
       env.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
-      src.connect(bp).connect(env).connect(panner);
+      modOut.connect(bp).connect(env).connect(panner);
       src.start(t);
       src.stop(t + 0.1);
     }
@@ -380,8 +450,8 @@
     const track = TRACKS[stroke.colorId];
     if (track.instrument === "sample") {
       playSample(track, yToMidi(y), x, velocity);
-    } else if (track.instrument === "drum") {
-      playDrum(drumVoiceForY(y), x, velocity);
+    } else if (DRUM_VOICE_SET.has(track.instrument)) {
+      playDrum(track, track.instrument, x, velocity);
     } else {
       playSynth(track, yToMidi(y), x, velocity);
     }
@@ -432,7 +502,7 @@
     if (!buffer) return;
     const data = buffer.getChannelData(0);
     const step = Math.max(1, Math.floor(data.length / w));
-    waveCtx.strokeStyle = "rgba(234,230,223,0.55)";
+    waveCtx.strokeStyle = "rgba(246,238,247,0.55)";
     waveCtx.lineWidth = 1;
     waveCtx.beginPath();
     for (let x = 0; x < w; x++) {
@@ -590,6 +660,21 @@
         track.instrument = select.value;
       });
       row.appendChild(select);
+
+      const fxSelect = document.createElement("select");
+      fxSelect.className = "fxSelect";
+      fxSelect.title = "エフェクト";
+      FX_OPTIONS.forEach(({ value, label }) => {
+        const opt = document.createElement("option");
+        opt.value = value;
+        opt.textContent = label;
+        fxSelect.appendChild(opt);
+      });
+      fxSelect.value = track.fx;
+      fxSelect.addEventListener("change", () => {
+        track.fx = fxSelect.value;
+      });
+      row.appendChild(fxSelect);
 
       const sliceCount = sampleBank ? sampleBank.slices.length : 1;
       const sliceSelect = document.createElement("select");
@@ -764,7 +849,36 @@
     currentStroke.points.push({ x: p.x, y: p.y });
   });
 
+  // Full-resolution points (every ~2.5px) make the curve render smooth,
+  // but triggering a note on every single one of those segments turns
+  // any drawn line into a rapid, mechanical "pa-pa-pa-pa" — the note
+  // rate and rhythm just tracked how fast the mouse sampled, not
+  // anything about the shape. Trigger off a coarser subset instead;
+  // the drawing itself stays fully smooth since rendering still uses
+  // the original dense points.
+  function buildTriggerPoints(points) {
+    if (points.length <= 2) return points;
+    // gap measured in x only: triggering is driven by the playhead's x
+    // position, so a wiggly-but-x-narrow squiggle (lots of arc length,
+    // little horizontal progress) shouldn't still spam extra notes —
+    // 2D arc-length spacing was letting that slip through
+    const minGapX = 26;
+    const out = [points[0]];
+    let last = points[0];
+    for (let i = 1; i < points.length - 1; i++) {
+      if (Math.abs(points[i].x - last.x) >= minGapX) {
+        out.push(points[i]);
+        last = points[i];
+      }
+    }
+    out.push(points[points.length - 1]);
+    return out;
+  }
+
   function endStroke() {
+    if (currentStroke && currentStroke.id != null) {
+      currentStroke.triggerPoints = buildTriggerPoints(currentStroke.points);
+    }
     drawing = false;
     currentStroke = null;
   }
@@ -880,7 +994,7 @@
   function testCrossings(loX, hiX, now) {
     if (hiX < loX) { const t = loX; loX = hiX; hiX = t; }
     state.strokes.forEach((stroke) => {
-      const pts = stroke.points;
+      const pts = stroke.triggerPoints || stroke.points;
       for (let i = 0; i < pts.length - 1; i++) {
         const a = pts[i], b = pts[i + 1];
         const segLo = Math.min(a.x, b.x), segHi = Math.max(a.x, b.x);
@@ -946,8 +1060,18 @@
     r: 0.18 + Math.random() * 0.12,
   }));
 
+  // a handful of twinkling stars for a starlit-sky feel — cheap: no
+  // shadowBlur, no gradients, just small filled circles
+  const stars = Array.from({ length: 42 }, () => ({
+    xr: Math.random(),
+    yr: Math.random(),
+    r: 0.6 + Math.random() * 1.3,
+    phase: Math.random() * Math.PI * 2,
+    speed: 0.5 + Math.random() * 1.1,
+  }));
+
   function drawBackground(t) {
-    ctx.fillStyle = "rgba(3,4,5,0.22)";
+    ctx.fillStyle = "rgba(11,8,22,0.22)";
     ctx.fillRect(0, 0, cssWidth, cssHeight);
 
     // fill only each blob's own bounding box (its gradient is fully
@@ -963,6 +1087,16 @@
       ctx.fillStyle = grad;
       ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
     });
+
+    ctx.fillStyle = "#f6eef7";
+    stars.forEach((s) => {
+      const twinkle = 0.3 + 0.6 * (0.5 + 0.5 * Math.sin(t * s.speed + s.phase));
+      ctx.globalAlpha = 0.55 * twinkle;
+      ctx.beginPath();
+      ctx.arc(s.xr * cssWidth, s.yr * cssHeight, s.r, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
   }
 
   function drawGrid() {
@@ -973,7 +1107,7 @@
     for (let i = 0; i <= rows; i++) {
       const y = i * rowH;
       const isRoot = i % scale.length === 0;
-      ctx.strokeStyle = isRoot ? "rgba(234,230,223,0.13)" : "rgba(234,230,223,0.045)";
+      ctx.strokeStyle = isRoot ? "rgba(246,238,247,0.13)" : "rgba(246,238,247,0.045)";
       ctx.beginPath();
       ctx.moveTo(0, y);
       ctx.lineTo(cssWidth, y);
@@ -1020,7 +1154,7 @@
     if (state.playheadPath && state.playheadPath.points.length > 1) {
       ctx.save();
       ctx.setLineDash([6, 6]);
-      ctx.strokeStyle = "rgba(234,230,223,0.4)";
+      ctx.strokeStyle = "rgba(246,238,247,0.4)";
       ctx.lineWidth = 1.4;
       strokePath(state.playheadPath.points);
       ctx.stroke();
@@ -1031,9 +1165,9 @@
   function drawPlayhead(x) {
     if (!state.playing) return;
     ctx.save();
-    ctx.strokeStyle = "#ff2d6b";
+    ctx.strokeStyle = "#ffcf5c";
     ctx.shadowBlur = 10;
-    ctx.shadowColor = "#ff2d6b";
+    ctx.shadowColor = "#ffcf5c";
     ctx.lineWidth = 1.6;
     ctx.beginPath();
     ctx.moveTo(x, 0);

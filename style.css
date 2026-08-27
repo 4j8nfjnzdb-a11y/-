@@ -1,17 +1,19 @@
 :root {
-  --ink: #eae6df;
-  --ink-dim: rgba(234, 230, 223, 0.55);
-  --bg: #07080a;
-  --bg-solid: #0b0d10;
-  --panel: rgba(255, 255, 255, 0.035);
-  --border: rgba(234, 230, 223, 0.14);
-  --cyan: #33d6e0;
-  --magenta: #ff4d94;
-  --yellow: #ffcc33;
-  --green: #4ade80;
-  --purple: #a855f7;
-  --orange: #ff8a3d;
-  --scan: #ff2d6b;
+  /* a dusky gem-and-starlight palette, deliberately away from the
+     stark-black/neon look of the original reference screenshot */
+  --ink: #f6eef7;
+  --ink-dim: rgba(246, 238, 247, 0.58);
+  --bg: #150f26;
+  --bg-solid: #1e1638;
+  --panel: rgba(255, 255, 255, 0.045);
+  --border: rgba(246, 238, 247, 0.16);
+  --cyan: #5b8dee;      /* sapphire */
+  --magenta: #ff8fc0;   /* rose quartz */
+  --yellow: #d4e157;    /* peridot */
+  --green: #35c48a;     /* emerald */
+  --purple: #a374e8;    /* amethyst */
+  --orange: #e0566f;    /* garnet */
+  --scan: #ffcf5c;      /* starlight gold */
 }
 
 * { box-sizing: border-box; }
@@ -51,15 +53,15 @@ button, summary.ghostBtn {
 }
 
 .playBtn {
-  background: rgba(255, 45, 107, 0.18);
-  border-color: rgba(255, 45, 107, 0.5);
+  background: rgba(255, 207, 92, 0.2);
+  border-color: rgba(255, 207, 92, 0.55);
   flex-shrink: 0;
 }
 .playBtn.playing {
-  background: rgba(255, 45, 107, 0.32);
+  background: rgba(255, 207, 92, 0.34);
 }
 
-.ghostBtn:hover, .toolBtn:hover { border-color: rgba(234, 230, 223, 0.6); }
+.ghostBtn:hover, .toolBtn:hover { border-color: rgba(246, 238, 247, 0.6); }
 
 /* ---- quick bar: always visible, kept short so the canvas stays big --- */
 
@@ -91,8 +93,8 @@ button, summary.ghostBtn {
   justify-content: center;
 }
 .toolBtn.active {
-  background: rgba(234, 230, 223, 0.16);
-  border-color: rgba(234, 230, 223, 0.6);
+  background: rgba(246, 238, 247, 0.16);
+  border-color: rgba(246, 238, 247, 0.6);
 }
 
 .iconBtn {
@@ -124,7 +126,7 @@ button, summary.ghostBtn {
   background: currentColor;
   padding: 0;
   cursor: pointer;
-  box-shadow: 0 0 0 1px rgba(234, 230, 223, 0.18) inset;
+  box-shadow: 0 0 0 1px rgba(246, 238, 247, 0.18) inset;
   transition: transform 0.15s ease, border-color 0.15s ease;
   flex-shrink: 0;
 }
@@ -203,7 +205,7 @@ input[type="range"] {
   appearance: none;
   width: 100%;
   height: 2px;
-  background: rgba(234, 230, 223, 0.3);
+  background: rgba(246, 238, 247, 0.3);
   border-radius: 999px;
   outline: none;
 }
@@ -215,7 +217,7 @@ input[type="range"]::-webkit-slider-thumb {
   border-radius: 50%;
   background: var(--scan);
   cursor: pointer;
-  box-shadow: 0 0 10px rgba(255, 45, 107, 0.7);
+  box-shadow: 0 0 10px rgba(255, 207, 92, 0.7);
 }
 input[type="range"]::-moz-range-thumb {
   width: 11px;
@@ -246,7 +248,7 @@ input[type="range"]::-moz-range-thumb {
   border: 1px solid var(--border);
   border-radius: 10px;
   overflow: hidden;
-  background: #030405;
+  background: #0c0820;
 }
 
 #stage {
@@ -284,8 +286,9 @@ input[type="range"]::-moz-range-thumb {
 .trackRow {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.3rem 0.55rem;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.5rem;
+  padding: 0.4rem 0.55rem;
   border-radius: 8px;
   border: 1px solid var(--border);
 }
