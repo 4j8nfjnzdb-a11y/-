@@ -23,6 +23,8 @@
   const speedSlider = document.getElementById("speed");
   const loopToggle = document.getElementById("loopToggle");
   const reverseToggle = document.getElementById("reverseToggle");
+  const filterSlider = document.getElementById("filterKnob");
+  const spaceSlider = document.getElementById("spaceKnob");
   const keySelect = document.getElementById("keySelect");
   const scaleSelect = document.getElementById("scaleSelect");
   const tracksEl = document.getElementById("tracks");
@@ -62,14 +64,26 @@
 
   // `color` is a literal hex used for canvas drawing (ctx.fillStyle can't
   // resolve CSS custom properties without a DOM element); `css` is the
-  // matching var() reference used for DOM styling elsewhere.
+  // matching var() reference used for DOM styling elsewhere. `instrument`
+  // is one of the INSTRUMENT_OPTIONS values below.
   const TRACKS = {
-    cyan: { hue: 190, color: "#33d6e0", css: "var(--cyan)", waveform: "sine", useSample: false },
-    magenta: { hue: 335, color: "#ff4d94", css: "var(--magenta)", waveform: "triangle", useSample: false },
-    yellow: { hue: 45, color: "#ffcc33", css: "var(--yellow)", waveform: "sawtooth", useSample: false },
-    purple: { hue: 265, color: "#a855f7", css: "var(--purple)", waveform: "square", useSample: false },
+    cyan: { hue: 190, color: "#33d6e0", css: "var(--cyan)", instrument: "sine" },
+    magenta: { hue: 335, color: "#ff4d94", css: "var(--magenta)", instrument: "triangle" },
+    yellow: { hue: 45, color: "#ffcc33", css: "var(--yellow)", instrument: "drum" },
+    green: { hue: 140, color: "#4ade80", css: "var(--green)", instrument: "square" },
+    purple: { hue: 265, color: "#a855f7", css: "var(--purple)", instrument: "sawtooth" },
+    orange: { hue: 25, color: "#ff8a3d", css: "var(--orange)", instrument: "triangle" },
   };
   const TRACK_IDS = Object.keys(TRACKS);
+
+  const INSTRUMENT_OPTIONS = [
+    { value: "sine", label: "サイン波" },
+    { value: "triangle", label: "三角波" },
+    { value: "square", label: "矩形波" },
+    { value: "sawtooth", label: "ノコギリ波" },
+    { value: "drum", label: "ドラム" },
+    { value: "sample", label: "サンプル" },
+  ];
 
   // ---- app state ------------------------------------------------------
 
@@ -79,13 +93,14 @@
     strokes: [], // {id, colorId, points:[{x,y}]}
     playheadPath: null, // {points:[{x,y}], cum:[dist...], total}
     scanMode: "sweep",
+    bounceDir: 1,
     playing: false,
     loop: true,
     reverse: false,
     speedValue: 45, // 1..100 slider
     key: 60,
     scaleName: "pentaMajor",
-    scanProgress: 0, // 0..1 for sweep/path, px for wander
+    scanProgress: 0, // 0..1 for sweep/path/bounce, px for wander
   };
 
   let strokeSeq = 1;
@@ -96,7 +111,7 @@
   // ---- audio engine ---------------------------------------------------
 
   let audioCtx = null;
-  let master, dry, wet, reverbNode, delayA, delayB;
+  let master, dry, wet, reverbNode, delayA, delayB, masterFilter;
 
   function buildImpulseResponse(context, duration, decay) {
     const rate = context.sampleRate;
@@ -117,17 +132,23 @@
 
     master = audioCtx.createGain();
     master.gain.value = 0.9;
+
+    masterFilter = audioCtx.createBiquadFilter();
+    masterFilter.type = "lowpass";
+    masterFilter.frequency.value = filterKnobToHz(+filterSlider.value);
+    masterFilter.Q.value = 0.4;
+
     const compressor = audioCtx.createDynamicsCompressor();
     compressor.threshold.value = -16;
     compressor.ratio.value = 3.2;
-    master.connect(compressor).connect(audioCtx.destination);
+    master.connect(masterFilter).connect(compressor).connect(audioCtx.destination);
 
     dry = audioCtx.createGain();
     dry.gain.value = 0.6;
     dry.connect(master);
 
     wet = audioCtx.createGain();
-    wet.gain.value = 0.7;
+    wet.gain.value = spaceKnobToGain(+spaceSlider.value);
 
     reverbNode = audioCtx.createConvolver();
     reverbNode.buffer = buildImpulseResponse(audioCtx, 3.2, 3.5);
@@ -181,24 +202,29 @@
     return state.key + degree + octave * 12 - 12; // center register
   }
 
+  // Waveform character (the buzz of a sawtooth, the hollowness of a
+  // square) lives in harmonics well above the fundamental. Keep this
+  // filter's cutoff far above the note so those harmonics survive —
+  // it used to track close to the fundamental and quietly sanded every
+  // waveform down to a near-sine.
   function playSynth(track, midi, x, velocity) {
     const now = audioCtx.currentTime;
     const freq = midiToFreq(midi);
 
     const osc = audioCtx.createOscillator();
-    osc.type = track.waveform;
+    osc.type = track.instrument;
     osc.frequency.value = freq;
 
     const decay = 0.7 + Math.random() * 0.7;
     const env = audioCtx.createGain();
     env.gain.setValueAtTime(0, now);
-    env.gain.linearRampToValueAtTime(0.22 * velocity, now + 0.012);
+    env.gain.linearRampToValueAtTime(0.2 * velocity, now + 0.012);
     env.gain.exponentialRampToValueAtTime(0.0006, now + decay);
 
     const filter = audioCtx.createBiquadFilter();
     filter.type = "lowpass";
-    filter.frequency.value = 900 + (freq * 1.5);
-    filter.Q.value = 0.5;
+    filter.frequency.value = 9000;
+    filter.Q.value = 0.3;
 
     const panner = audioCtx.createStereoPanner();
     panner.pan.value = clamp((x / cssWidth) * 2 - 1, -1, 1);
@@ -244,11 +270,117 @@
     src.stop(now + dur + 0.05);
   }
 
+  // ---- drum synthesis ----------------------------------------------
+  // Bottom-to-top row order so the vertical layout matches a real kit:
+  // low thump at the bottom, bright cymbals at the top.
+  const DRUM_VOICES = ["kick", "snare", "hihatClosed", "clap", "hihatOpen"];
+
+  let noiseBuf = null;
+  function noiseBuffer() {
+    if (!noiseBuf) {
+      const len = audioCtx.sampleRate; // 1s of white noise, reused/re-sliced per hit
+      noiseBuf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    }
+    return noiseBuf;
+  }
+
+  function drumVoiceForY(y) {
+    const norm = 1 - clamp(y / cssHeight, 0, 1); // 0 bottom .. 1 top
+    const idx = clamp(Math.floor(norm * DRUM_VOICES.length), 0, DRUM_VOICES.length - 1);
+    return DRUM_VOICES[idx];
+  }
+
+  function playDrum(voice, x, velocity) {
+    const now = audioCtx.currentTime;
+    const panner = audioCtx.createStereoPanner();
+    panner.pan.value = clamp((x / cssWidth) * 2 - 1, -1, 1);
+    sendToSpace(panner, 0.85, 0.2);
+
+    if (voice === "kick") {
+      const osc = audioCtx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(150, now);
+      osc.frequency.exponentialRampToValueAtTime(42, now + 0.13);
+      const env = audioCtx.createGain();
+      env.gain.setValueAtTime(0.9 * velocity, now);
+      env.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
+      osc.connect(env).connect(panner);
+      osc.start(now);
+      osc.stop(now + 0.34);
+      return;
+    }
+
+    if (voice === "snare") {
+      const src = audioCtx.createBufferSource();
+      src.buffer = noiseBuffer();
+      const bp = audioCtx.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.value = 1800;
+      bp.Q.value = 0.7;
+      const nEnv = audioCtx.createGain();
+      nEnv.gain.setValueAtTime(0.5 * velocity, now);
+      nEnv.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+      src.connect(bp).connect(nEnv).connect(panner);
+      src.start(now);
+      src.stop(now + 0.18);
+
+      const osc = audioCtx.createOscillator();
+      osc.type = "triangle";
+      osc.frequency.value = 190;
+      const oEnv = audioCtx.createGain();
+      oEnv.gain.setValueAtTime(0.35 * velocity, now);
+      oEnv.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+      osc.connect(oEnv).connect(panner);
+      osc.start(now);
+      osc.stop(now + 0.14);
+      return;
+    }
+
+    if (voice === "hihatClosed" || voice === "hihatOpen") {
+      const src = audioCtx.createBufferSource();
+      src.buffer = noiseBuffer();
+      const hp = audioCtx.createBiquadFilter();
+      hp.type = "highpass";
+      hp.frequency.value = 7000;
+      const dur = voice === "hihatOpen" ? 0.28 : 0.05;
+      const env = audioCtx.createGain();
+      env.gain.setValueAtTime(0.28 * velocity, now);
+      env.gain.exponentialRampToValueAtTime(0.001, now + dur);
+      src.connect(hp).connect(env).connect(panner);
+      src.start(now);
+      src.stop(now + dur + 0.02);
+      return;
+    }
+
+    // clap: three quick layered noise bursts
+    for (let i = 0; i < 3; i++) {
+      const t = now + i * 0.011;
+      const src = audioCtx.createBufferSource();
+      src.buffer = noiseBuffer();
+      const bp = audioCtx.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.value = 1500;
+      bp.Q.value = 1.2;
+      const env = audioCtx.createGain();
+      env.gain.setValueAtTime(0.4 * velocity, t);
+      env.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+      src.connect(bp).connect(env).connect(panner);
+      src.start(t);
+      src.stop(t + 0.1);
+    }
+  }
+
   function triggerNote(stroke, x, y, velocity) {
     const track = TRACKS[stroke.colorId];
-    const midi = yToMidi(y);
-    if (track.useSample) playSample(track, midi, x, velocity);
-    else playSynth(track, midi, x, velocity);
+    if (track.instrument === "sample") {
+      playSample(track, yToMidi(y), x, velocity);
+    } else if (track.instrument === "drum") {
+      playDrum(drumVoiceForY(y), x, velocity);
+    } else {
+      playSynth(track, yToMidi(y), x, velocity);
+    }
     spawnBurst(x, y, track.color);
   }
 
@@ -289,8 +421,9 @@
   }
 
   function drawWaveform(buffer, chopN) {
-    const w = waveCanvas.width = waveCanvas.clientWidth * devicePixelRatio;
-    const h = waveCanvas.height = waveCanvas.clientHeight * devicePixelRatio;
+    const dpr = effectiveDpr();
+    const w = waveCanvas.width = waveCanvas.clientWidth * dpr;
+    const h = waveCanvas.height = waveCanvas.clientHeight * dpr;
     waveCtx.clearRect(0, 0, w, h);
     if (!buffer) return;
     const data = buffer.getChannelData(0);
@@ -403,28 +536,21 @@
       row.appendChild(dot);
 
       const select = document.createElement("select");
-      ["sine", "triangle", "square", "sawtooth"].forEach((w) => {
+      INSTRUMENT_OPTIONS.forEach(({ value, label }) => {
         const opt = document.createElement("option");
-        opt.value = w;
-        opt.textContent = { sine: "サイン波", triangle: "三角波", square: "矩形波", sawtooth: "ノコギリ波" }[w];
+        opt.value = value;
+        opt.textContent = label;
+        if (value === "sample") {
+          opt.disabled = !sampleBank;
+          opt.dataset.sampleOpt = "1";
+        }
         select.appendChild(opt);
       });
-      const sampleOpt = document.createElement("option");
-      sampleOpt.value = "sample";
-      sampleOpt.textContent = "サンプル";
-      sampleOpt.disabled = !sampleBank;
-      sampleOpt.dataset.sampleOpt = "1";
-      select.appendChild(sampleOpt);
-      select.value = track.waveform;
+      select.value = track.instrument;
 
       select.addEventListener("click", (e) => e.stopPropagation());
       select.addEventListener("change", () => {
-        if (select.value === "sample") {
-          track.useSample = true;
-        } else {
-          track.useSample = false;
-          track.waveform = select.value;
-        }
+        track.instrument = select.value;
       });
 
       row.appendChild(select);
@@ -502,6 +628,7 @@
   scanModeSelect.addEventListener("change", () => {
     state.scanMode = scanModeSelect.value;
     state.scanProgress = 0;
+    state.bounceDir = 1;
     wanderDrift.value = cssWidth / 2;
     wanderDrift.target = cssWidth / 2;
     prevScanX = state.scanMode === "wander" ? wanderDrift.value : 0;
@@ -510,6 +637,25 @@
   speedSlider.addEventListener("input", () => (state.speedValue = +speedSlider.value));
   loopToggle.addEventListener("change", () => (state.loop = loopToggle.checked));
   reverseToggle.addEventListener("change", () => (state.reverse = reverseToggle.checked));
+
+  // ---- macro fx knobs -------------------------------------------------
+
+  function filterKnobToHz(v) {
+    // exponential taper: 0 -> muffled (~250Hz), 100 -> fully open (~14kHz)
+    return 250 * Math.pow(14000 / 250, v / 100);
+  }
+  function spaceKnobToGain(v) {
+    return (v / 100) * 1.3;
+  }
+
+  filterSlider.addEventListener("input", () => {
+    if (masterFilter) {
+      masterFilter.frequency.setTargetAtTime(filterKnobToHz(+filterSlider.value), audioCtx.currentTime, 0.02);
+    }
+  });
+  spaceSlider.addEventListener("input", () => {
+    if (wet) wet.gain.setTargetAtTime(spaceKnobToGain(+spaceSlider.value), audioCtx.currentTime, 0.05);
+  });
 
   playBtn.addEventListener("click", () => {
     if (!audioCtx) initAudio();
@@ -649,6 +795,21 @@
       return state.scanProgress * cssWidth;
     }
 
+    if (state.scanMode === "bounce") {
+      // ping-pong sweep: reverses at each edge on its own, independent
+      // of the reverse toggle — a triangle-wave motion instead of a saw
+      const duration = speedToDuration();
+      state.scanProgress += (dt / duration) * state.bounceDir;
+      if (state.scanProgress >= 1) {
+        state.scanProgress = 1;
+        state.bounceDir = -1;
+      } else if (state.scanProgress <= 0) {
+        state.scanProgress = 0;
+        state.bounceDir = 1;
+      }
+      return state.scanProgress * cssWidth;
+    }
+
     if (state.scanMode === "path") {
       const path = state.playheadPath;
       if (!path || !path.total) return prevScanX;
@@ -756,6 +917,9 @@
     ctx.fillStyle = "rgba(3,4,5,0.22)";
     ctx.fillRect(0, 0, cssWidth, cssHeight);
 
+    // fill only each blob's own bounding box (its gradient is fully
+    // transparent past r anyway) instead of the whole canvas per blob —
+    // a large share of this function's fill-rate cost otherwise
     blobs.forEach((b) => {
       const cx = cssWidth * (0.5 + Math.cos(t * b.speed + b.a) * 0.38);
       const cy = cssHeight * (0.5 + Math.sin(t * b.speed * 0.8 + b.a) * 0.38);
@@ -764,7 +928,7 @@
       grad.addColorStop(0, `hsla(${b.hue}, 70%, 55%, 0.05)`);
       grad.addColorStop(1, `hsla(${b.hue}, 70%, 55%, 0)`);
       ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, cssWidth, cssHeight);
+      ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
     });
   }
 
@@ -803,12 +967,18 @@
       if (s.points.length < 2) return;
       const track = TRACKS[s.colorId];
       ctx.save();
-      ctx.shadowBlur = 14;
-      ctx.shadowColor = track.color;
-      ctx.strokeStyle = track.color;
-      ctx.lineWidth = 2.4;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
+      // cheap glow: a wide low-alpha pass underneath a crisp core pass.
+      // shadowBlur reads as identical but is dramatically slower per
+      // frame — it was the single biggest cost behind "feels heavy" on
+      // phones, since every stroke repaid it on every animation frame.
+      ctx.strokeStyle = hexToRgba(track.color, 0.35);
+      ctx.lineWidth = 7;
+      strokePath(s.points);
+      ctx.stroke();
+      ctx.strokeStyle = track.color;
+      ctx.lineWidth = 2.2;
       strokePath(s.points);
       ctx.stroke();
       ctx.restore();
@@ -915,9 +1085,16 @@
 
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
+  // Retina/mobile devicePixelRatio (often 3) makes every canvas fill cost
+  // 9x the pixels of a 1x screen; capping it is the single biggest lever
+  // for smoothness on phones and costs almost no visible sharpness.
+  function effectiveDpr() {
+    return Math.min(window.devicePixelRatio || 1, 2);
+  }
+
   function resizeCanvas() {
     const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = effectiveDpr();
     const oldW = cssWidth, oldH = cssHeight;
 
     canvas.width = rect.width * dpr;

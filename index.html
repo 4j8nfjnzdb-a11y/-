@@ -22,6 +22,7 @@
           <span>スキャン方式</span>
           <select id="scanMode">
             <option value="sweep">線形スイープ</option>
+            <option value="bounce">バウンド</option>
             <option value="path">描いたパス</option>
             <option value="wander">ゆらぎ（ワンダー）</option>
           </select>
@@ -51,6 +52,14 @@
         <label class="field">
           <span>スケール</span>
           <select id="scaleSelect"></select>
+        </label>
+        <label class="field slider">
+          <span>フィルター</span>
+          <input id="filterKnob" type="range" min="0" max="100" value="100" />
+        </label>
+        <label class="field slider">
+          <span>空間</span>
+          <input id="spaceKnob" type="range" min="0" max="100" value="54" />
         </label>
       </div>
     </header>
