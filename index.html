@@ -71,16 +71,14 @@ html, body {
 .sources {
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  background: var(--line);
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
+  gap: 1.3rem;
   margin: 2.6rem 0 1.2rem;
 }
 
 .source-block {
   background: var(--bg);
-  padding: 1.1rem 0.1rem 1.2rem;
+  border: 1px solid var(--line);
+  padding: 1.1rem 1rem 1.2rem;
 }
 
 .source-block .source-head {
@@ -335,6 +333,8 @@ select:disabled, input:disabled, textarea:disabled { opacity: 0.35; cursor: not-
   margin-top: 3.4rem;
 }
 
+.evolve-row { margin-top: 2rem; }
+
 .result-card {
   padding: 1.7rem 0;
   border-top: 1px solid var(--line-soft);
@@ -522,6 +522,10 @@ select:disabled, input:disabled, textarea:disabled { opacity: 0.35; cursor: not-
     </section>
 
     <section class="results" id="results"></section>
+
+    <div class="evolve-row" id="evolveRow" style="display: none;">
+      <button id="evolveBtn" class="ghostBtn small">★を新しい素材にして、そこからまた継ぐ</button>
+    </div>
   </div>
 
   <script>
@@ -557,6 +561,8 @@ select:disabled, input:disabled, textarea:disabled { opacity: 0.35; cursor: not-
   const capRandomEl = document.getElementById("capRandom");
   const cutBtn = document.getElementById("cutBtn");
   const resultsEl = document.getElementById("results");
+  const evolveRow = document.getElementById("evolveRow");
+  const evolveBtn = document.getElementById("evolveBtn");
 
   const DEFAULT_SCISSORS_DICT = "空白 = 0\n。 = 0\n？ = 0\n！ = 0\n、 = 0\nを = 1\nに = 1\nへ = 1\nで = 1\nと = 1\nから = 1\nまで = 1\nより = 1\nは = 2\nが = 2\nも = 2\nという = 3\nって = 3\nなんつって = 3\nとかの = 3\nの = 4";
 
@@ -917,8 +923,13 @@ select:disabled, input:disabled, textarea:disabled { opacity: 0.35; cursor: not-
     if (n < 2) return chunks.slice();
 
     if (randomness > 70) {
+      const pool = chunks.map((c) => ({ ...c, _uses: 0 }));
       const out = [];
-      for (let i = 0; i < n; i++) out.push(chunks[Math.floor(rand() * n)]);
+      for (let i = 0; i < n; i++) {
+        const picked = pickWithFatigue(pool, rand);
+        picked._uses++;
+        out.push(picked);
+      }
       return out;
     }
 
@@ -1040,11 +1051,35 @@ select:disabled, input:disabled, textarea:disabled { opacity: 0.35; cursor: not-
     return fragments;
   }
 
+  // Picking uniformly at random from a candidate pool means a fragment that
+  // sits in a small pool (a rare junction group) gets drawn again and again
+  // within the same output — mechanical-looking repetition, not chance. Each
+  // pick instead costs the fragment "fatigue": its odds of being drawn again
+  // decay sharply but never hit zero, so a phrase can still recur as an
+  // echo/refrain later on, the way a living system settles into rhythms
+  // without looping — closer to what an unpredictable process should feel
+  // like than a flat uniform draw.
+  function pickWithFatigue(candidates, rand) {
+    if (candidates.length === 1) return candidates[0];
+    let total = 0;
+    const weights = candidates.map((f) => {
+      const w = 1 / Math.pow(1 + (f._uses || 0), 1.7);
+      total += w;
+      return w;
+    });
+    let r = rand() * total;
+    for (let i = 0; i < candidates.length; i++) {
+      r -= weights[i];
+      if (r <= 0) return candidates[i];
+    }
+    return candidates[candidates.length - 1];
+  }
+
   function generateJunction(sourceTexts, options, rand) {
     const dict = options.scissorsDict.length ? options.scissorsDict : parseScissorsDict(DEFAULT_SCISSORS_DICT);
     const allFragments = [];
     sourceTexts.forEach((text, idx) => {
-      scissorsCut(text, dict).forEach((f) => allFragments.push({ ...f, sourceIndex: idx }));
+      scissorsCut(text, dict).forEach((f) => allFragments.push({ ...f, sourceIndex: idx, _uses: 0 }));
     });
 
     if (allFragments.length === 0) {
@@ -1066,13 +1101,15 @@ select:disabled, input:disabled, textarea:disabled { opacity: 0.35; cursor: not-
     const startPool = (byBeforeGroup.get("START") && byBeforeGroup.get("START").length)
       ? byBeforeGroup.get("START")
       : allFragments;
-    let current = startPool[Math.floor(rand() * startPool.length)];
+    let current = pickWithFatigue(startPool, rand);
+    current._uses++;
     const chain = [current];
 
     for (let n = 1; n < targetLen; n++) {
       let candidates = rand() < waywardness ? null : byBeforeGroup.get(String(current.afterGroup));
       if (!candidates || candidates.length === 0) candidates = allFragments;
-      current = candidates[Math.floor(rand() * candidates.length)];
+      current = pickWithFatigue(candidates, rand);
+      current._uses++;
       chain.push(current);
     }
 
@@ -1216,6 +1253,7 @@ select:disabled, input:disabled, textarea:disabled { opacity: 0.35; cursor: not-
     card.querySelector(".keepBtn").addEventListener("click", () => {
       card.classList.toggle("kept");
       card.querySelector(".keepBtn").classList.toggle("kept");
+      updateEvolveVisibility();
     });
 
     card.querySelector(".regenBtn").addEventListener("click", () => {
@@ -1225,6 +1263,7 @@ select:disabled, input:disabled, textarea:disabled { opacity: 0.35; cursor: not-
       void card.offsetWidth;
       card.style.animation = "";
       paint();
+      updateEvolveVisibility();
     });
 
     card.querySelector(".copyBtn").addEventListener("click", async () => {
@@ -1263,7 +1302,27 @@ select:disabled, input:disabled, textarea:disabled { opacity: 0.35; cursor: not-
     for (let i = 0; i < count; i++) {
       resultsEl.appendChild(renderCard(startIndex + i, sourceTexts, options));
     }
+    updateEvolveVisibility();
   }
+
+  function updateEvolveVisibility() {
+    const anyKept = !!resultsEl.querySelector(".result-card.kept");
+    evolveRow.style.display = anyKept ? "" : "none";
+  }
+
+  // Feeds ★-kept results back in as new source material — selection driving
+  // the next generation, rather than always re-cutting the same original
+  // text. The kept cards themselves are left alone; new source blocks are
+  // added alongside the existing material (up to the 4-source cap).
+  evolveBtn.addEventListener("click", () => {
+    const keptTexts = [...resultsEl.querySelectorAll(".result-card.kept")]
+      .map((c) => c.dataset.plain)
+      .filter(Boolean);
+    keptTexts.forEach((t) => {
+      if (sourcesEl.children.length < 4) addSourceBlock(t);
+    });
+    sourcesEl.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
 
   cutBtn.addEventListener("click", () => {
     cutBtn.classList.remove("cutting");
