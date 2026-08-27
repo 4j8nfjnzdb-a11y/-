@@ -447,10 +447,37 @@
   // ---- build the persistent graph (once) ---------------------------------
 
   async function buildGraphOnce() {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    log("spatial-track-processor.js を読み込み中…");
-    await audioCtx.audioWorklet.addModule("spatial-track-processor.js");
-    log("AudioWorklet読み込み成功", "ok");
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    audioCtx = ctx;
+    try {
+      await buildGraphInto(ctx);
+    } catch (err) {
+      // A half-built graph is worse than no graph: with audioCtx left
+      // non-null, every later Start click would skip buildGraphOnce
+      // entirely (`if (!audioCtx)`) and crash on nodes that were never
+      // created. Tear down and null it out so the next attempt is a full,
+      // clean retry instead of getting stuck broken forever.
+      log(`グラフ構築エラー: ${err.name}: ${err.message}`, "err");
+      try { await ctx.close(); } catch (e) {}
+      audioCtx = null;
+      throw err;
+    }
+  }
+
+  async function buildGraphInto(audioCtx) {
+    let spatialBankAvailable = true;
+    try {
+      log("spatial-track-processor.js を読み込み中…");
+      await audioCtx.audioWorklet.addModule("spatial-track-processor.js");
+      log("AudioWorklet読み込み成功", "ok");
+    } catch (err) {
+      // Don't let the spatial bank take the whole app down with it - the
+      // dry signal and the other four effects have nothing to do with
+      // AudioWorklet and should still work even if this fails (missing
+      // file, unsupported browser, wrong MIME type from the local server).
+      spatialBankAvailable = false;
+      log(`AudioWorklet読み込み失敗 — 空間ディレイ・バンクのみ無効化して続行します: ${err.name}: ${err.message}`, "err");
+    }
 
     inputTrim = audioCtx.createGain();
     inputTrim.gain.value = +inputTrimSlider.value / 100;
@@ -496,15 +523,19 @@
       const shell = createModuleShell(audioCtx, preFX, wetBus);
       modules[key] = { shell, fx: builders[key](audioCtx, shell) };
     });
-    SPATIAL_TRACKS.forEach((key, index) => {
-      const shell = createModuleShell(audioCtx, preFX, wetBus);
-      modules[key] = { shell, fx: buildSpatialTrack(audioCtx, shell, index) };
-    });
+    if (spatialBankAvailable) {
+      SPATIAL_TRACKS.forEach((key, index) => {
+        const shell = createModuleShell(audioCtx, preFX, wetBus);
+        modules[key] = { shell, fx: buildSpatialTrack(audioCtx, shell, index) };
+      });
+    } else {
+      markSpatialBankUnavailable();
+    }
 
     applyMasterMix();
     applyMasterVolume();
     applyAllParamsFromUI();
-    initSpatialTracksFromUI();
+    if (spatialBankAvailable) initSpatialTracksFromUI();
   }
 
   function applyMasterMix() {
@@ -734,6 +765,18 @@
     wireReverseControls(key);
     setupRadar(key, (index - 1.5) * 0.4, 0.25 + index * 0.12);
   });
+
+  function markSpatialBankUnavailable() {
+    SPATIAL_TRACKS.forEach((key) => {
+      const panel = document.querySelector(`.panel.fx[data-fx="${key}"]`);
+      if (!panel || panel.querySelector(".unavailable-note")) return;
+      panel.style.opacity = "0.45";
+      const note = document.createElement("p");
+      note.className = "fxdesc unavailable-note";
+      note.textContent = "このブラウザ/環境ではAudioWorkletを読み込めなかったため無効です(診断ログ参照)。";
+      panel.insertBefore(note, panel.firstChild.nextSibling);
+    });
+  }
 
   function initSpatialTracksFromUI() {
     SPATIAL_TRACKS.forEach((key) => {

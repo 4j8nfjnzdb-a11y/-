@@ -305,6 +305,10 @@ input[type="range"]::-moz-range-thumb {
   line-height: 1.7;
 }
 
+.unavailable-note {
+  color: #ff8a8a;
+}
+
 .enable {
   position: relative;
   display: inline-flex;
