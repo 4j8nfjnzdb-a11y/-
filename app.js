@@ -382,7 +382,7 @@
       recordBtn.textContent = "■ 停止";
       sampleStatus.textContent = "録音中…";
     } catch (err) {
-      sampleStatus.textContent = "マイクにアクセスできませんでした";
+      sampleStatus.textContent = "マイクを使用できません。「音源を読み込む」からファイルを選んでください";
     }
   });
 
