@@ -505,14 +505,32 @@
   // the MIME type ourselves, independent of whatever header the server
   // actually sent.
   async function loadWorkletModule(ctx, url) {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`${url} の取得に失敗 (HTTP ${res.status})`);
-    const code = await res.text();
-    const blobUrl = URL.createObjectURL(new Blob([code], { type: "application/javascript" }));
     try {
-      await ctx.audioWorklet.addModule(blobUrl);
-    } finally {
-      URL.revokeObjectURL(blobUrl);
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`${url} の取得に失敗 (HTTP ${res.status})`);
+      const code = await res.text();
+      const blobUrl = URL.createObjectURL(new Blob([code], { type: "application/javascript" }));
+      try {
+        await ctx.audioWorklet.addModule(blobUrl);
+      } finally {
+        URL.revokeObjectURL(blobUrl);
+      }
+    } catch (fetchErr) {
+      // fetch() to a file:// URL is blocked outright by Chrome/Firefox as a
+      // security measure (even a same-folder file, even though a plain
+      // <script src> to that same URL works fine) - this is exactly what
+      // "TypeError: Failed to fetch" under protocol:file: means, and no
+      // amount of retrying will ever fix it. addModule()'s own internal
+      // module-fetching algorithm is the same one <script src> uses and
+      // isn't subject to that restriction, so fall back to handing it the
+      // URL directly. This sacrifices the MIME-type workaround for that
+      // one case, but a file:// page was never going to hit a server MIME
+      // mismatch in the first place.
+      try {
+        await ctx.audioWorklet.addModule(url);
+      } catch (directErr) {
+        throw fetchErr; // the fetch error is usually the more informative one
+      }
     }
   }
 
