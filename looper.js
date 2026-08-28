@@ -69,6 +69,10 @@
     return {
       get value() { return value; },
       retarget() { target = min + Math.random() * (max - min); },
+      // jump both value and target to v — used when something else (a new
+      // grain) wants to re-place this drift immediately instead of it
+      // wandering back from wherever it happened to be
+      set(v) { value = v; target = v; },
       tick(rate) {
         if (Math.random() < 0.05) target = min + Math.random() * (max - min);
         value += (target - value) * rate;
@@ -532,8 +536,8 @@
     applyDepth(v);
   }
 
-  function applyDepth(v) {
-    const d = v.depthAmount; // 0 near .. 1 far
+  function applyDepth(v, amountOverride) {
+    const d = amountOverride ?? v.depthAmount; // 0 near .. 1 far
     const now = audioCtx.currentTime;
     v.depthFilter.frequency.setTargetAtTime(18000 - d * 15500, now, 0.3);
     v.dryGain.gain.setTargetAtTime(1 - d * 0.55, now, 0.3);
@@ -576,6 +580,18 @@
     const now = audioCtx.currentTime;
     gainNode.gain.setValueAtTime(0, now);
     gainNode.gain.linearRampToValueAtTime(1, now + 0.15);
+
+    // give this grain its own place in the field right away, instead of
+    // waiting for the slow continuous wobble to happen to wander there —
+    // the ongoing drift then continues from this new spot rather than
+    // snapping back to wherever it was
+    if (v.panAmount > 0) {
+      const panJitter = randRange(-1, 1) * v.panAmount;
+      v.panDrift.set(panJitter);
+      v.panNode.pan.setTargetAtTime(panJitter, now, 0.06);
+    }
+    const depthJitter = Math.min(1, Math.max(0, v.depthAmount + randRange(-0.12, 0.12)));
+    applyDepth(v, depthJitter);
 
     source.start(now);
 
@@ -646,7 +662,12 @@
     if (!audioCtx) return;
     voices.forEach((v) => {
       if (!v.active || v.panAmount <= 0) return;
-      const drift = v.panDrift.tick(0.01);
+      // at 0.01 the drift's own ~2.4s average retarget interval was
+      // shorter than its ~12-36s time constant to actually get anywhere —
+      // it just sat within a hair of center indefinitely, which read as
+      // "pan doesn't do anything". 0.06 lets it swing across the field in
+      // a few seconds while still wandering, not snapping.
+      const drift = v.panDrift.tick(0.06);
       v.panNode.pan.setTargetAtTime(drift * v.panAmount, audioCtx.currentTime, 0.4);
     });
   }
