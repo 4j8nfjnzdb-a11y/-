@@ -370,7 +370,12 @@ input[type="range"]::-moz-range-thumb {
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--ink);
+  outline: none;
+  border-radius: 2px;
+  transition: background 0.15s ease;
 }
+.result-text:hover { background: var(--accent-soft); }
+.result-text:focus { background: var(--accent-soft); box-shadow: 0 0 0 1px var(--line); }
 
 .result-text .frag { display: inline; }
 .result-text .frag.seam::before {
@@ -489,7 +494,7 @@ input[type="range"]::-moz-range-thumb {
       </div>
 
       <button id="cutBtn" class="cutBtn">継ぐ</button>
-      <p class="hint">押すたびに乱数を生成し直すので、同じ設定でも毎回違う並びになります。★で気に入った結果を残せます。</p>
+      <p class="hint">押すたびに乱数を生成し直すので、同じ設定でも毎回違う並びになります。★で気に入った結果を残せます。結果の文章はクリックすれば直接編集できます。</p>
     </section>
 
     <section class="results" id="results"></section>
@@ -935,22 +940,58 @@ input[type="range"]::-moz-range-thumb {
   const KANJI_BANK = [...new Set(KANJI_POOL_STR)];
   const KANJI_RE = /[一-鿿々〆ヶ]/;
 
+  // Drawing consonant and vowel fully independently every time is
+  // maximally noisy, but that reads as gibberish far more often than it
+  // reads as wordplay. A real pun or rhyme usually keeps *half* the sound
+  // fixed and mutates the other half — a rhyme keeps the vowel and swaps
+  // the consonant (ねこ -> たこ), an echo/alliteration keeps the consonant
+  // and swaps the vowel (さくら -> さそり). So most draws here bias toward
+  // one of those two "keep half, mutate half" moves, with a full
+  // independent redraw as the wildcard case — and the result is retried
+  // (up to 5 times) whenever it would reconstruct the exact original mora,
+  // so "no visible change" is never a possible outcome here.
+  function rhymeOrRandomMora(ph, original, consPool, vowelPool, rand) {
+    let built = original;
+    for (let attempt = 0; attempt < 5 && built === original; attempt++) {
+      const style = rand();
+      let cons, vowel;
+      if (style < 0.4) {
+        cons = consPool[Math.floor(rand() * consPool.length)];
+        vowel = ph.vowel; // rhyme: keep the vowel, mutate the consonant
+      } else if (style < 0.7) {
+        cons = ph.cons;
+        vowel = vowelPool[Math.floor(rand() * vowelPool.length)]; // echo: keep the consonant, mutate the vowel
+      } else {
+        cons = consPool[Math.floor(rand() * consPool.length)];
+        vowel = vowelPool[Math.floor(rand() * vowelPool.length)]; // full noise
+      }
+      built = reconstructKana(cons, vowel) || original;
+    }
+    return built;
+  }
+
   // カオス3: gather every (子音, 母音) pair used anywhere in the piece,
-  // then rebuild every かな mora by drawing a consonant and a vowel
-  // independently from that shared pool — the two are no longer bound to
-  // each other the way they were in any real word, which is the point.
-  // 漢字 gets the same treatment in spirit: drawn from its own pool
-  // instead of a phoneme one, since there's no reading to decompose.
+  // then rebuild every かな mora from that shared pool via rhyme/echo/
+  // noise mutation above. 漢字 gets the same treatment in spirit — drawn
+  // from its own pool instead of a phoneme one, since there's no reading
+  // to decompose — but with every 漢字 already present in this text
+  // excluded from its own draw pool, so a substitution can never
+  // silently reproduce a character that was already there.
   function phonemeRecombine(chunks, rand) {
     const consPool = [];
     const vowelPool = [];
+    const usedKanji = new Set();
     chunks.forEach((c) => {
       for (const m of toMora(c.text)) {
         const ph = moraPhoneme(m);
         if (ph) { consPool.push(ph.cons); vowelPool.push(ph.vowel); }
+        else if (KANJI_RE.test(m)) { usedKanji.add(m); }
       }
     });
-    if (consPool.length === 0) return chunks;
+    if (consPool.length === 0 && usedKanji.size === 0) return chunks;
+
+    const kanjiPool = KANJI_BANK.filter((k) => !usedKanji.has(k));
+    const effectiveKanjiPool = kanjiPool.length > 0 ? kanjiPool : KANJI_BANK;
 
     return chunks.map((c) => {
       let out = "";
@@ -959,14 +1000,12 @@ input[type="range"]::-moz-range-thumb {
         const ph = moraPhoneme(m);
         if (ph) {
           touched = true;
-          const cons = consPool[Math.floor(rand() * consPool.length)];
-          const vowel = vowelPool[Math.floor(rand() * vowelPool.length)];
-          out += reconstructKana(cons, vowel) || m;
+          out += rhymeOrRandomMora(ph, m, consPool, vowelPool, rand);
           continue;
         }
         if (KANJI_RE.test(m)) {
           touched = true;
-          out += KANJI_BANK[Math.floor(rand() * KANJI_BANK.length)];
+          out += effectiveKanjiPool[Math.floor(rand() * effectiveKanjiPool.length)];
           continue;
         }
         out += m;
@@ -1454,7 +1493,7 @@ input[type="range"]::-moz-range-thumb {
           <button type="button" class="copyBtn">コピー</button>
         </span>
       </div>
-      <div class="result-text"></div>
+      <div class="result-text" contenteditable="true" spellcheck="false" title="クリックして直接編集できます"></div>
     `;
 
     card.querySelector(".keepBtn").addEventListener("click", () => {
@@ -1475,7 +1514,8 @@ input[type="range"]::-moz-range-thumb {
 
     card.querySelector(".copyBtn").addEventListener("click", async () => {
       try {
-        await navigator.clipboard.writeText(card.dataset.plain || "");
+        const liveText = card.querySelector(".result-text").innerText;
+        await navigator.clipboard.writeText(liveText || "");
         const btn = card.querySelector(".copyBtn");
         const original = btn.textContent;
         btn.textContent = "コピーした";
@@ -1523,7 +1563,7 @@ input[type="range"]::-moz-range-thumb {
   // added alongside the existing material (up to the 4-source cap).
   evolveBtn.addEventListener("click", () => {
     const keptTexts = [...resultsEl.querySelectorAll(".result-card.kept")]
-      .map((c) => c.dataset.plain)
+      .map((c) => c.querySelector(".result-text").innerText)
       .filter(Boolean);
     keptTexts.forEach((t) => {
       if (sourcesEl.children.length < 4) addSourceBlock(t);
