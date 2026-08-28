@@ -15,6 +15,7 @@
 
 (() => {
   const startBtn = document.getElementById("startBtn");
+  const audioError = document.getElementById("audioError");
   const freezeBtn = document.getElementById("freezeBtn");
   const reverseBtn = document.getElementById("reverseBtn");
   const stutterBtn = document.getElementById("stutterBtn");
@@ -347,9 +348,32 @@
 
   // ---- transport / macros ------------------------------------------------
 
+  function explainAudioError(err) {
+    if (!window.isSecureContext) {
+      return "このページは file:// または http:// で開かれているため、ブラウザがマイクへのアクセスを許可しません。" +
+        "python3 -m http.server などでローカルサーバーを立て、http://localhost:.../granular.html として開いてください。";
+    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      return "このブラウザは録音入力（getUserMedia）に対応していません。最新のChromeまたはFirefoxでお試しください。";
+    }
+    const name = err && err.name;
+    if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+      return "マイクの使用が拒否されています。アドレスバーのマイクアイコン（または設定）から許可し、再読み込みしてください。" +
+        "OS側（システム設定 → プライバシーとセキュリティ → マイク）でブラウザの許可がオンになっているかもご確認ください。";
+    }
+    if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+      return "マイク／オーディオ入力デバイスが見つかりません。接続と、OSの入力デバイス設定をご確認ください。";
+    }
+    if (name === "NotReadableError" || name === "TrackStartError") {
+      return "マイクが他のアプリで使用中のようです。他の通話・録音アプリを閉じてから再度お試しください。";
+    }
+    return `マイクにアクセスできません（${name || err}）。ページを再読み込みしてもう一度お試しください。`;
+  }
+
   async function start() {
     startBtn.disabled = true;
     startBtn.textContent = "接続中…";
+    audioError.hidden = true;
     try {
       if (!audioCtx) await initAudio();
       if (audioCtx.state === "suspended") await audioCtx.resume();
@@ -359,7 +383,9 @@
       startBtn.textContent = "動作中";
       startBtn.classList.add("playing");
     } catch (err) {
-      startBtn.textContent = "マイクにアクセスできません";
+      startBtn.textContent = "マイク入力を開始";
+      audioError.textContent = explainAudioError(err);
+      audioError.hidden = false;
       console.error(err);
     } finally {
       startBtn.disabled = false;

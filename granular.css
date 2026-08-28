@@ -226,6 +226,14 @@ input[type="range"]::-moz-range-thumb {
   padding: 0.4rem 0.5rem;
 }
 
+.errorMsg {
+  color: #ff9d5c;
+  font-size: 0.75rem;
+  letter-spacing: 0.03em;
+  max-width: 32em;
+  line-height: 1.7;
+}
+
 .hint {
   color: var(--ink-dim);
   font-size: 0.72rem;
