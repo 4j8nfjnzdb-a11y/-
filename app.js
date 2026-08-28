@@ -175,21 +175,7 @@
   // ---- audio engine ---------------------------------------------------
 
   let audioCtx = null;
-  let master, dry, wet, reverbNode, delayA, delayB, masterFilter;
-
-  function buildImpulseResponse(context, duration, decay) {
-    const rate = context.sampleRate;
-    const length = Math.floor(rate * duration);
-    const impulse = context.createBuffer(2, length, rate);
-    for (let ch = 0; ch < 2; ch++) {
-      const data = impulse.getChannelData(ch);
-      for (let i = 0; i < length; i++) {
-        const t = i / length;
-        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, decay);
-      }
-    }
-    return impulse;
-  }
+  let master, dry, wet, delayA, delayB, masterFilter;
 
   function initAudio() {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -213,14 +199,6 @@
 
     wet = audioCtx.createGain();
     wet.gain.value = spaceKnobToGain(+spaceSlider.value);
-
-    reverbNode = audioCtx.createConvolver();
-    // convolution reverb cost scales with impulse-response length — a
-    // 3.2s tail was one of the heavier things running continuously
-    // during playback; a shorter tail still reads as "spacious" for a
-    // fraction of the CPU cost
-    reverbNode.buffer = buildImpulseResponse(audioCtx, 1.3, 3.2);
-    reverbNode.connect(wet);
     wet.connect(master);
 
     delayA = audioCtx.createDelay(2.0);
@@ -244,6 +222,11 @@
     delayB.connect(wet);
   }
 
+  // The two damped feedback delays (below) are what give notes their
+  // sense of space now — a convolution reverb used to sit alongside
+  // them here, but that ran continuously and was expensive enough to
+  // be a likely cause of audio crackling (the render thread not
+  // keeping up), independent of how many notes were playing.
   function sendToSpace(node, dryAmt, wetAmt) {
     const dg = audioCtx.createGain();
     dg.gain.value = dryAmt;
@@ -251,7 +234,6 @@
 
     const rg = audioCtx.createGain();
     rg.gain.value = wetAmt;
-    node.connect(rg).connect(reverbNode);
     node.connect(rg).connect(delayA);
     node.connect(rg).connect(delayB);
   }
