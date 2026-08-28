@@ -921,10 +921,24 @@ input[type="range"]::-moz-range-thumb {
     return PHONEME_TO_KANA.get(cons + vowel) || PHONEME_TO_KANA.get(vowel) || null;
   }
 
+  // Without a real dictionary there's no way to know how a given 漢字
+  // is actually read, so it can't be phoneme-decomposed the way かな can.
+  // But leaving every 漢字 untouched made カオス3 stop at "the かな parts
+  // are chaos, the 漢字 parts are exactly as written" — still a fixed,
+  // predictable skeleton underneath. Since there's no legitimate reading
+  // to preserve, a 漢字 here is just as liable to become a *different*
+  // 漢字, drawn from a pool of common ones — not a reading-accurate
+  // substitution, but a real decomposition rather than a pass-through.
+  const KANJI_POOL_STR = "日月火水木金土山川田人口手足目耳心天地雨雪風花草林森石砂海空星光音色形声学校本読書字語言葉思考感情夢希望愛恋友家族親兄弟姉妹犬猫鳥魚虫葉根実種赤青白黒緑黄紫桃桜梅竹松雲霧露霜氷波影時朝昼夜今昔先後内外上下左右東西南北春夏秋冬新古大小高低長短強弱重軽速遅明暗静動走飛泳登降回止進戻会別忘念祈歌踊笑泣叫眠起食飲作壊開閉見失育茂香輝揺流溶凍渇潤染響積散";
+  const KANJI_BANK = [...new Set(KANJI_POOL_STR)];
+  const KANJI_RE = /[一-鿿々〆ヶ]/;
+
   // カオス3: gather every (子音, 母音) pair used anywhere in the piece,
   // then rebuild every かな mora by drawing a consonant and a vowel
   // independently from that shared pool — the two are no longer bound to
   // each other the way they were in any real word, which is the point.
+  // 漢字 gets the same treatment in spirit: drawn from its own pool
+  // instead of a phoneme one, since there's no reading to decompose.
   function phonemeRecombine(chunks, rand) {
     const consPool = [];
     const vowelPool = [];
@@ -941,11 +955,19 @@ input[type="range"]::-moz-range-thumb {
       let touched = false;
       for (const m of toMora(c.text)) {
         const ph = moraPhoneme(m);
-        if (!ph) { out += m; continue; }
-        touched = true;
-        const cons = consPool[Math.floor(rand() * consPool.length)];
-        const vowel = vowelPool[Math.floor(rand() * vowelPool.length)];
-        out += reconstructKana(cons, vowel) || m;
+        if (ph) {
+          touched = true;
+          const cons = consPool[Math.floor(rand() * consPool.length)];
+          const vowel = vowelPool[Math.floor(rand() * vowelPool.length)];
+          out += reconstructKana(cons, vowel) || m;
+          continue;
+        }
+        if (KANJI_RE.test(m)) {
+          touched = true;
+          out += KANJI_BANK[Math.floor(rand() * KANJI_BANK.length)];
+          continue;
+        }
+        out += m;
       }
       return touched ? { ...c, text: out } : c;
     });
@@ -972,6 +994,37 @@ input[type="range"]::-moz-range-thumb {
     "ふえ", "へいわ", "ほのお", "まど", "みなと", "むら", "めぐみ", "もみじ",
     "やま", "ゆき", "よる", "かえで", "きり", "くさ", "こだま", "さと",
     "しお", "すみれ", "たね", "つばさ", "てら", "とうげ", "なぎさ", "ねいろ",
+    // ここから拡張分
+    "あめ", "うみ", "はやし", "いけ", "いわ", "つゆ", "しも", "ゆうひ",
+    "だいち", "みさき", "たに", "みね", "おか", "のはら", "さばく", "うらべ",
+    "うめ", "たんぽぽ", "ひまわり", "あじさい", "きく", "ばら", "ゆり", "あさがお",
+    "つばき", "まつ", "たけ", "つぼみ", "くき", "め", "このは", "わかば",
+    "いぬ", "ねこ", "たぬき", "うさぎ", "しか", "くま", "さる", "とら",
+    "ぞう", "うま", "ひつじ", "やぎ", "ねずみ", "りす", "かめ", "へび",
+    "かえる", "つばめ", "からす", "はと", "わし", "たか", "ふくろう", "こい",
+    "たい", "いるか", "くじら", "ちょう", "とんぼ", "ほたる", "あり", "はち",
+    "あたま", "かお", "はな", "みみ", "くち", "した", "のど", "くび",
+    "かた", "うで", "ゆび", "むね", "はら", "こし", "ひざ", "かかと",
+    "あさ", "ひる", "ゆうがた", "まよなか", "きのう", "きょう", "あさって", "いつか",
+    "むかし", "いま", "はじめ", "おわり", "とし", "しゅん", "あき",
+    "よろこび", "かなしみ", "いかり", "おそれ", "のぞみ", "まよい", "なやみ", "しあわせ",
+    "さびしさ", "なつかしさ", "いのり", "こい", "あい", "うらみ", "ねたみ", "おどろき",
+    "おもいで", "きおく", "げんき", "まこと", "うそ", "うわさ",
+    "いえ", "かべ", "ゆか", "やね", "みち", "はし", "むら", "えき",
+    "しろ", "かいだん", "いど", "かまど", "つくえ", "いす", "たな", "はこ",
+    "ふくろ", "かご", "さら", "わん", "なべ", "かま", "くつ", "ふく",
+    "ぼうし", "かばん", "かさ", "かげ", "おと", "こえ", "うた", "ものがたり",
+    "えほん", "ことば", "なまえ", "いろ", "かたち", "おもさ", "たかさ", "ひろさ",
+    "はやさ", "つよさ", "やわらかさ", "くろい", "あかい", "あおい", "きいろい", "みどり",
+    "ちいさい", "おおきい", "たかい", "ひくい", "はやい", "おそい", "あたたかい", "つめたい",
+    "あつい", "さむい", "あかるい", "くらい", "しずか", "にぎやか", "きびしい", "うつくしい",
+    "たのしい", "かなしい", "うれしい", "さびしい", "こわい", "あぶない",
+    "はしる", "とぶ", "およぐ", "のぼる", "おりる", "まわる", "とまる", "すすむ",
+    "もどる", "かえる", "であう", "わすれる", "おもいだす", "ねがう", "いのる", "うたう",
+    "おどる", "わらう", "なく", "さけぶ", "ささやく", "ねむる", "おきる", "たべる",
+    "のむ", "つくる", "こわす", "ひらく", "とじる", "みつける", "うしなう", "そだつ",
+    "みのる", "しげる", "かおる", "ひかる", "きらめく", "ゆれる", "ながれる", "とける",
+    "こおる", "かわく", "うるおう", "しみる", "ひびく", "こもる", "つもる", "ちる",
   ].map((word) => ({ word, mora: toMora(word) }));
 
   // カオス2: swap a かな fragment for a wordbank entry with a similar
