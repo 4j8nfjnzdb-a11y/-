@@ -135,6 +135,21 @@ button, summary.ghostBtn {
   transform: scale(1.12);
 }
 
+.brushBar {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.brushBtn {
+  padding: 0.28rem 0.7rem;
+  font-size: 0.68rem;
+}
+.brushBtn.active {
+  background: rgba(246, 238, 247, 0.14);
+  border-color: rgba(246, 238, 247, 0.6);
+}
+
 /* ---- settings drawer: floats over the canvas so opening it never
    shrinks the drawing area ------------------------------------------- */
 

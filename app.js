@@ -36,6 +36,7 @@
   const scaleSelect = document.getElementById("scaleSelect");
   const tracksEl = document.getElementById("tracks");
   const colorBarEl = document.getElementById("colorBar");
+  const brushBarEl = document.getElementById("brushBar");
   const toolButtons = [...document.querySelectorAll(".toolBtn")];
 
   const sampleFileInput = document.getElementById("sampleFile");
@@ -114,12 +115,32 @@
     { key: "echo", label: "エコー" },
   ];
 
+  // Brush = how a stroke is drawn AND how it sounds. Purely a set of
+  // multipliers/flags applied on top of whatever the track's own
+  // instrument/fx already do — no extra audio nodes, so picking a
+  // brush costs nothing extra to render or play.
+  const BRUSH_LIST = [
+    { key: "dot", label: "点描" },
+    { key: "thin", label: "細" },
+    { key: "normal", label: "標準" },
+    { key: "thick", label: "太" },
+    { key: "blur", label: "ぼかし" },
+  ];
+  const BRUSH_PROFILES = {
+    dot: { lineWidth: 3.4, core: true, dotStyle: true, decayMul: 0.4, gainMul: 0.95, filterMul: 1.15, wetAdd: 0.05 },
+    thin: { lineWidth: 1.3, core: true, dotStyle: false, decayMul: 0.7, gainMul: 0.78, filterMul: 1.3, wetAdd: 0 },
+    normal: { lineWidth: 2.2, core: true, dotStyle: false, decayMul: 1, gainMul: 1, filterMul: 1, wetAdd: 0 },
+    thick: { lineWidth: 6.5, core: true, dotStyle: false, decayMul: 1.6, gainMul: 1.15, filterMul: 0.85, wetAdd: 0.08 },
+    blur: { lineWidth: 9, core: false, dotStyle: false, decayMul: 1.35, gainMul: 0.85, filterMul: 0.45, wetAdd: 0.28 },
+  };
+
   // ---- app state ------------------------------------------------------
 
   const state = {
     tool: "pen",
     activeColorId: "cyan",
-    strokes: [], // {id, colorId, points:[{x,y}]}
+    brush: "normal",
+    strokes: [], // {id, colorId, brush, points:[{x,y}]}
     playheadPath: null, // {points:[{x,y}], cum:[dist...], total}
     scanMode: "sweep",
     bounceDir: 1,
@@ -312,7 +333,7 @@
   // filter's cutoff far above the note so those harmonics survive —
   // it used to track close to the fundamental and quietly sanded every
   // waveform down to a near-sine.
-  function playSynth(track, midi, x, velocity) {
+  function playSynth(track, midi, x, velocity, brush) {
     const now = audioCtx.currentTime;
     const freq = midiToFreq(midi);
 
@@ -320,34 +341,34 @@
     osc.type = track.instrument;
     osc.detune.value = (Math.random() * 2 - 1) * 6; // humanize: no two notes identical
 
-    const decay = 0.7 + Math.random() * 0.7;
+    const decay = (0.7 + Math.random() * 0.7) * brush.decayMul;
     applyPitchBend(track, osc, freq, now, decay);
     applyVibrato(track, osc, now, decay);
     const modOut = applyModulation(track, osc, now, decay);
 
     const env = audioCtx.createGain();
     env.gain.setValueAtTime(0, now);
-    env.gain.linearRampToValueAtTime(0.2 * velocity, now + 0.012);
+    env.gain.linearRampToValueAtTime(0.2 * velocity * brush.gainMul, now + 0.012);
     env.gain.exponentialRampToValueAtTime(0.0006, now + decay);
 
     const filter = audioCtx.createBiquadFilter();
     filter.type = "lowpass";
-    filter.frequency.value = 9000;
+    filter.frequency.value = 9000 * brush.filterMul;
     filter.Q.value = 0.3;
 
     const panner = audioCtx.createStereoPanner();
     panner.pan.value = clamp((x / cssWidth) * 2 - 1, -1, 1);
 
     modOut.connect(filter).connect(env).connect(panner);
-    sendToSpace(panner, 0.5, echoWet(track, 0.55));
+    sendToSpace(panner, 0.5, Math.min(1, echoWet(track, 0.55) + brush.wetAdd));
 
     osc.start(now);
     osc.stop(now + decay + 0.15);
   }
 
-  function playSample(track, midi, x, velocity) {
+  function playSample(track, midi, x, velocity, brush) {
     if (!sampleBank || !sampleBank.slices.length) {
-      playSynth(track, midi, x, velocity);
+      playSynth(track, midi, x, velocity, brush);
       return;
     }
     const now = audioCtx.currentTime;
@@ -367,18 +388,23 @@
     applyVibrato(track, src, now, dur);
     const modOut = applyModulation(track, src, now, dur);
 
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = 9000 * brush.filterMul;
+    filter.Q.value = 0.3;
+
     const env = audioCtx.createGain();
     env.gain.setValueAtTime(0, now);
-    env.gain.linearRampToValueAtTime(0.75 * velocity, now + 0.008);
+    env.gain.linearRampToValueAtTime(0.75 * velocity * brush.gainMul, now + 0.008);
     const fadeStart = Math.max(now + 0.01, now + dur - 0.03);
-    env.gain.setValueAtTime(0.75 * velocity, fadeStart);
+    env.gain.setValueAtTime(0.75 * velocity * brush.gainMul, fadeStart);
     env.gain.linearRampToValueAtTime(0, now + dur);
 
     const panner = audioCtx.createStereoPanner();
     panner.pan.value = clamp((x / cssWidth) * 2 - 1, -1, 1);
 
-    modOut.connect(env).connect(panner);
-    sendToSpace(panner, 0.7, echoWet(track, 0.35));
+    modOut.connect(filter).connect(env).connect(panner);
+    sendToSpace(panner, 0.7, Math.min(1, echoWet(track, 0.35) + brush.wetAdd));
 
     src.start(now);
     src.stop(now + dur + 0.05);
@@ -400,67 +426,71 @@
     return noiseBuf;
   }
 
-  function playDrum(track, voice, x, velocity) {
+  function playDrum(track, voice, x, velocity, brush) {
     const now = audioCtx.currentTime;
+    const v = velocity * brush.gainMul;
+    const dm = brush.decayMul;
     const panner = audioCtx.createStereoPanner();
     panner.pan.value = clamp((x / cssWidth) * 2 - 1, -1, 1);
-    sendToSpace(panner, 0.85, echoWet(track, 0.2));
+    sendToSpace(panner, 0.85, Math.min(1, echoWet(track, 0.2) + brush.wetAdd));
 
     if (voice === "kick") {
+      const dur = 0.32 * dm;
       const osc = audioCtx.createOscillator();
       osc.type = "sine";
       osc.frequency.setValueAtTime(150, now);
       osc.frequency.exponentialRampToValueAtTime(38 + Math.random() * 8, now + 0.13);
-      applyVibrato(track, osc, now, 0.32);
-      const modOut = applyModulation(track, osc, now, 0.32);
+      applyVibrato(track, osc, now, dur);
+      const modOut = applyModulation(track, osc, now, dur);
       const env = audioCtx.createGain();
-      env.gain.setValueAtTime(0.9 * velocity, now);
-      env.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
+      env.gain.setValueAtTime(0.9 * v, now);
+      env.gain.exponentialRampToValueAtTime(0.001, now + dur);
       modOut.connect(env).connect(panner);
       osc.start(now);
-      osc.stop(now + 0.34);
+      osc.stop(now + dur + 0.02);
       return;
     }
 
     if (voice === "snare") {
+      const dur = 0.16 * dm;
       const src = audioCtx.createBufferSource();
       src.buffer = noiseBuffer();
-      applyVibrato(track, src, now, 0.16);
-      const modOut = applyModulation(track, src, now, 0.16);
+      applyVibrato(track, src, now, dur);
+      const modOut = applyModulation(track, src, now, dur);
       const bp = audioCtx.createBiquadFilter();
       bp.type = "bandpass";
-      bp.frequency.value = 1800;
+      bp.frequency.value = 1800 * brush.filterMul;
       bp.Q.value = 0.7;
       const nEnv = audioCtx.createGain();
-      nEnv.gain.setValueAtTime(0.5 * velocity, now);
-      nEnv.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+      nEnv.gain.setValueAtTime(0.5 * v, now);
+      nEnv.gain.exponentialRampToValueAtTime(0.001, now + dur);
       modOut.connect(bp).connect(nEnv).connect(panner);
       src.start(now);
-      src.stop(now + 0.18);
+      src.stop(now + dur + 0.02);
 
       const osc = audioCtx.createOscillator();
       osc.type = "triangle";
       osc.frequency.value = 190;
       const oEnv = audioCtx.createGain();
-      oEnv.gain.setValueAtTime(0.35 * velocity, now);
-      oEnv.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+      oEnv.gain.setValueAtTime(0.35 * v, now);
+      oEnv.gain.exponentialRampToValueAtTime(0.001, now + dur * 0.75);
       osc.connect(oEnv).connect(panner);
       osc.start(now);
-      osc.stop(now + 0.14);
+      osc.stop(now + dur * 0.75 + 0.02);
       return;
     }
 
     if (voice === "hihatClosed" || voice === "hihatOpen") {
       const src = audioCtx.createBufferSource();
       src.buffer = noiseBuffer();
-      const dur = voice === "hihatOpen" ? 0.28 : 0.05;
+      const dur = (voice === "hihatOpen" ? 0.28 : 0.05) * dm;
       applyVibrato(track, src, now, dur);
       const modOut = applyModulation(track, src, now, dur);
       const hp = audioCtx.createBiquadFilter();
       hp.type = "highpass";
-      hp.frequency.value = 7000;
+      hp.frequency.value = 7000 * brush.filterMul;
       const env = audioCtx.createGain();
-      env.gain.setValueAtTime(0.28 * velocity, now);
+      env.gain.setValueAtTime(0.28 * v, now);
       env.gain.exponentialRampToValueAtTime(0.001, now + dur);
       modOut.connect(hp).connect(env).connect(panner);
       src.start(now);
@@ -469,32 +499,34 @@
     }
 
     // clap: three quick layered noise bursts
+    const clapDur = 0.08 * dm;
     for (let i = 0; i < 3; i++) {
       const t = now + i * 0.011;
       const src = audioCtx.createBufferSource();
       src.buffer = noiseBuffer();
-      const modOut = applyModulation(track, src, t, 0.1);
+      const modOut = applyModulation(track, src, t, clapDur);
       const bp = audioCtx.createBiquadFilter();
       bp.type = "bandpass";
-      bp.frequency.value = 1500;
+      bp.frequency.value = 1500 * brush.filterMul;
       bp.Q.value = 1.2;
       const env = audioCtx.createGain();
-      env.gain.setValueAtTime(0.4 * velocity, t);
-      env.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+      env.gain.setValueAtTime(0.4 * v, t);
+      env.gain.exponentialRampToValueAtTime(0.001, t + clapDur);
       modOut.connect(bp).connect(env).connect(panner);
       src.start(t);
-      src.stop(t + 0.1);
+      src.stop(t + clapDur + 0.02);
     }
   }
 
   function triggerNote(stroke, x, y, velocity) {
     const track = TRACKS[stroke.colorId];
+    const brush = BRUSH_PROFILES[stroke.brush] || BRUSH_PROFILES.normal;
     if (track.instrument === "sample") {
-      playSample(track, yToMidi(y), x, velocity);
+      playSample(track, yToMidi(y), x, velocity, brush);
     } else if (DRUM_VOICE_SET.has(track.instrument)) {
-      playDrum(track, track.instrument, x, velocity);
+      playDrum(track, track.instrument, x, velocity, brush);
     } else {
-      playSynth(track, yToMidi(y), x, velocity);
+      playSynth(track, yToMidi(y), x, velocity, brush);
     }
     spawnBurst(x, y, track.color);
   }
@@ -668,6 +700,29 @@
   function updateColorBarUI() {
     [...colorBarEl.children].forEach((btn) => {
       btn.classList.toggle("active", btn.dataset.color === state.activeColorId && state.tool === "pen");
+    });
+  }
+
+  function buildBrushBar() {
+    brushBarEl.innerHTML = "";
+    BRUSH_LIST.forEach(({ key, label }) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "ghostBtn brushBtn";
+      btn.dataset.brush = key;
+      btn.textContent = label;
+      btn.addEventListener("click", () => {
+        state.brush = key;
+        updateBrushBarUI();
+      });
+      brushBarEl.appendChild(btn);
+    });
+    updateBrushBarUI();
+  }
+
+  function updateBrushBarUI() {
+    [...brushBarEl.children].forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.brush === state.brush);
     });
   }
 
@@ -884,6 +939,7 @@
       currentStroke = {
         id: strokeSeq++,
         colorId: state.activeColorId,
+        brush: state.brush,
         velocity: 0.5 + pressure * 0.5,
         points: [{ x: p.x, y: p.y }],
       };
@@ -906,15 +962,22 @@
 
     if (!currentStroke) return;
     const last = currentStroke.points[currentStroke.points.length - 1];
-    if (dist(last, p) < 2.5) return;
+    // dot brush wants visibly separate dots, not points every ~2.5px
+    const minGap = currentStroke.brush === "dot" ? 16 : 2.5;
+    if (dist(last, p) < minGap) return;
     currentStroke.points.push({ x: p.x, y: p.y });
 
-    // paint just the new segment onto the cached layer immediately,
-    // instead of waiting to redraw the whole stroke — keeps drawing
-    // itself O(1) per point no matter how long the stroke gets
+    // paint just the new bit onto the cached layer immediately, instead
+    // of waiting to redraw the whole stroke — keeps drawing itself O(1)
+    // per point no matter how long the stroke gets
     if (state.tool === "pen") {
-      const n = currentStroke.points.length;
-      paintGlowStroke(strokesCtx, [currentStroke.points[n - 2], currentStroke.points[n - 1]], TRACKS[currentStroke.colorId].color);
+      const color = TRACKS[currentStroke.colorId].color;
+      if (currentStroke.brush === "dot") {
+        paintStroke(strokesCtx, [p], color, currentStroke.brush);
+      } else {
+        const n = currentStroke.points.length;
+        paintStroke(strokesCtx, [currentStroke.points[n - 2], currentStroke.points[n - 1]], color, currentStroke.brush);
+      }
     }
   });
 
@@ -926,6 +989,9 @@
   // the drawing itself stays fully smooth since rendering still uses
   // the original dense points.
   function buildTriggerPoints(points) {
+    // a tapped dot (no drag) is one point — duplicate it so the segment
+    // loop below still has something to test the playhead against
+    if (points.length === 1) return [points[0], points[0]];
     if (points.length <= 2) return points;
     // gap measured in x only: triggering is driven by the playhead's x
     // position, so a wiggly-but-x-narrow squiggle (lots of arc length,
@@ -946,6 +1012,12 @@
 
   function endStroke() {
     if (currentStroke && currentStroke.id != null) {
+      // a plain tap (pointerdown+up, no drag in between) never fires
+      // pointermove, so nothing got painted incrementally — paint the
+      // single dot now so tapping alone still leaves a mark
+      if (currentStroke.points.length === 1) {
+        paintStroke(strokesCtx, currentStroke.points, TRACKS[currentStroke.colorId].color, currentStroke.brush);
+      }
       currentStroke.triggerPoints = buildTriggerPoints(currentStroke.points);
     }
     drawing = false;
@@ -1201,19 +1273,45 @@
   // cheap glow: a wide low-alpha pass underneath a crisp core pass.
   // shadowBlur reads as identical but is dramatically slower per call —
   // it was the single biggest cost behind "feels heavy" on phones.
-  function paintGlowStroke(targetCtx, points, color) {
-    if (points.length < 2) return;
+  // brushKey picks a BRUSH_PROFILES entry: line width, whether the
+  // crisp core pass is drawn at all (off for "blur"), and whether
+  // points render as separate dots ("dot") instead of a connected
+  // path. A stroke with only one point (a tap, no drag) always
+  // renders as a single dot regardless of brush, so "just tap" works.
+  function paintStroke(targetCtx, points, color, brushKey) {
+    if (!points.length) return;
+    const profile = BRUSH_PROFILES[brushKey] || BRUSH_PROFILES.normal;
     targetCtx.save();
+
+    if (profile.dotStyle || points.length === 1) {
+      const rGlow = profile.lineWidth * 1.9;
+      const rCore = Math.max(1.6, profile.lineWidth * 0.85);
+      points.forEach((p) => {
+        targetCtx.beginPath();
+        targetCtx.fillStyle = hexToRgba(color, 0.35);
+        targetCtx.arc(p.x, p.y, rGlow, 0, Math.PI * 2);
+        targetCtx.fill();
+        targetCtx.beginPath();
+        targetCtx.fillStyle = color;
+        targetCtx.arc(p.x, p.y, rCore, 0, Math.PI * 2);
+        targetCtx.fill();
+      });
+      targetCtx.restore();
+      return;
+    }
+
     targetCtx.lineCap = "round";
     targetCtx.lineJoin = "round";
     targetCtx.strokeStyle = hexToRgba(color, 0.35);
-    targetCtx.lineWidth = 7;
+    targetCtx.lineWidth = profile.lineWidth + 4.8;
     strokePath(targetCtx, points);
     targetCtx.stroke();
-    targetCtx.strokeStyle = color;
-    targetCtx.lineWidth = 2.2;
-    strokePath(targetCtx, points);
-    targetCtx.stroke();
+    if (profile.core) {
+      targetCtx.strokeStyle = color;
+      targetCtx.lineWidth = profile.lineWidth;
+      strokePath(targetCtx, points);
+      targetCtx.stroke();
+    }
     targetCtx.restore();
   }
 
@@ -1222,8 +1320,14 @@
   function redrawStrokesLayer() {
     strokesCtx.clearRect(0, 0, cssWidth, cssHeight);
     state.strokes.forEach((s) => {
-      paintGlowStroke(strokesCtx, s.points, TRACKS[s.colorId].color);
+      paintStroke(strokesCtx, s.points, TRACKS[s.colorId].color, s.brush);
     });
+    // this only runs on removals/rebuilds (undo, erase, resize), never
+    // per frame — also wipe the main canvas's own accumulated trail, or
+    // a just-removed stroke lingers as a fading ghost for a few frames
+    // (same issue "clear all" had: the ambient trail only partially
+    // erases each frame, so old composited pixels stick around briefly)
+    ctx.clearRect(0, 0, cssWidth, cssHeight);
   }
 
   function drawStrokes() {
@@ -1373,6 +1477,7 @@
   // ---- init -----------------------------------------------------------
 
   buildColorBar();
+  buildBrushBar();
   buildTracksUI();
   resizeCanvas();
   requestAnimationFrame(frame);
