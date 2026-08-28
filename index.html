@@ -534,7 +534,7 @@ input[type="range"]::-moz-range-thumb {
   // permutation) reads as a genuinely different kind of cut.
   const PRESETS = {
     light:  { unit: "sentence", min: 1, max: 2, randomness: 40, cutMethod: "standard" },
-    medium: { unit: "bunsetsu", min: 2, max: 4, randomness: 55, cutMethod: "grid" },
+    medium: { unit: "bunsetsu", min: 1, max: 3, randomness: 55, cutMethod: "grid" },
     heavy:  { unit: "bunsetsu", min: 1, max: 2, randomness: 85, cutMethod: "permutation" },
     chaos:  { unit: "char", min: 1, max: 6, randomness: 100, cutMethod: "permutation" },
   };
@@ -696,16 +696,34 @@ input[type="range"]::-moz-range-thumb {
     "な", "よ", "ね", "わ", "さ", "ぞ", "ぜ", "か", "し", "ば",
   ].sort((a, b) => b.length - a.length);
 
+  // Brackets/quotes were previously invisible to this splitter, so a
+  // parenthetical like "餅（グルーヴ）が" came out as one permanently-glued
+  // atomic fragment no matter how many times you re-cut — it could move
+  // around as a block but never split internally. Opening brackets now
+  // close off whatever came before them; closing brackets close off the
+  // bracketed span itself, so the aside becomes its own separable fragment.
+  const OPEN_BRACKETS = "「『【〈《（([{";
+  const CLOSE_BRACKETS = "」』】〉》）)]}";
+  const HARD_BOUNDARY = /[。、！？.!?\n]/;
+
   function splitBunsetsu(text) {
     const bunsetsu = [];
     let current = "";
     let i = 0;
     while (i < text.length) {
       const ch = text[i];
+
+      if (OPEN_BRACKETS.includes(ch)) {
+        if (current.trim().length > 0) bunsetsu.push(current);
+        current = ch;
+        i++;
+        continue;
+      }
+
       current += ch;
       i++;
 
-      if (/[。、！？.!?\n]/.test(ch)) {
+      if (CLOSE_BRACKETS.includes(ch) || HARD_BOUNDARY.test(ch)) {
         bunsetsu.push(current);
         current = "";
         continue;
@@ -1004,8 +1022,18 @@ input[type="range"]::-moz-range-thumb {
   function generateOne(sourceTexts, options) {
     const rand = makeChaosRandom();
 
+    // "単語" splits on whitespace. Japanese text with no real inter-word
+    // spaces (only line breaks, which \s already treats as separators)
+    // would silently collapse each line into a single unsplit token — it
+    // looks like something is happening because lines still get reordered,
+    // but nothing inside a line ever breaks. Detect that case and fall back
+    // to bunsetsu splitting instead of pretending "word" mode applies.
+    const effectiveUnit = (options.unit === "word" && !sourceTexts.some((t) => /[ \t]/.test(t)))
+      ? "bunsetsu"
+      : options.unit;
+
     const chunkArrays = sourceTexts.map((text, idx) =>
-      tokenize(text, options.unit, options.min, options.max, rand).map((t) => ({ text: t, sourceIndex: idx }))
+      tokenize(text, effectiveUnit, options.min, options.max, rand).map((t) => ({ text: t, sourceIndex: idx }))
     );
 
     const multiSource = sourceTexts.length > 1;
@@ -1013,7 +1041,7 @@ input[type="range"]::-moz-range-thumb {
     // fold-in can, on rare draws, reassemble back into plain reading order;
     // when randomness is on, that outcome is rejected and re-cut rather
     // than shown as if it were a deliberate result.
-    const identity = options.randomness > 0 ? chunksToPlainText(chunkArrays.flat(), options.unit) : null;
+    const identity = options.randomness > 0 ? chunksToPlainText(chunkArrays.flat(), effectiveUnit) : null;
 
     let combined;
     let attempts = 0;
@@ -1026,7 +1054,7 @@ input[type="range"]::-moz-range-thumb {
         combined = reorder(combined, options.cutMethod, options.randomness, rand);
       }
       attempts++;
-    } while (identity !== null && attempts < 5 && chunksToPlainText(combined, options.unit) === identity);
+    } while (identity !== null && attempts < 5 && chunksToPlainText(combined, effectiveUnit) === identity);
 
     if (!options.keepPunct) {
       combined = combined.map((c) => ({ ...c, text: stripPunct(c.text) }));
@@ -1035,8 +1063,8 @@ input[type="range"]::-moz-range-thumb {
       combined = combined.map((c) => ({ ...c, text: randomizeCase(c.text, rand) }));
     }
 
-    combined = combined.filter((c) => c.text.trim().length > 0 || options.unit === "line");
-    return { chunks: combined, multiSource, renderUnit: options.unit };
+    combined = combined.filter((c) => c.text.trim().length > 0 || effectiveUnit === "line");
+    return { chunks: combined, multiSource, renderUnit: effectiveUnit };
   }
 
   function chunksToHtml(chunks, unit, multiSource) {
