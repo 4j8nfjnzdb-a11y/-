@@ -83,14 +83,26 @@
   }
 
   const TRACKS = {
-    cyan: { hue: 213, color: "#5b8dee", css: "var(--cyan)", instrument: "sine", fx: defaultFx(), sampleSlice: 0 },
-    magenta: { hue: 333, color: "#ff8fc0", css: "var(--magenta)", instrument: "triangle", fx: defaultFx(), sampleSlice: 1 },
-    yellow: { hue: 66, color: "#d4e157", css: "var(--yellow)", instrument: "kick", fx: defaultFx(), sampleSlice: 2 },
-    green: { hue: 157, color: "#35c48a", css: "var(--green)", instrument: "square", fx: defaultFx(), sampleSlice: 3 },
-    purple: { hue: 261, color: "#a374e8", css: "var(--purple)", instrument: "sawtooth", fx: defaultFx(), sampleSlice: 4 },
-    orange: { hue: 350, color: "#e0566f", css: "var(--orange)", instrument: "snare", fx: defaultFx(), sampleSlice: 5 },
+    cyan: { hue: 213, color: "#5b8dee", css: "var(--cyan)", instrument: "sine", fx: defaultFx(), sampleSlice: 0, sampleMode: "walk" },
+    magenta: { hue: 333, color: "#ff8fc0", css: "var(--magenta)", instrument: "triangle", fx: defaultFx(), sampleSlice: 1, sampleMode: "walk" },
+    yellow: { hue: 66, color: "#d4e157", css: "var(--yellow)", instrument: "kick", fx: defaultFx(), sampleSlice: 2, sampleMode: "walk" },
+    green: { hue: 157, color: "#35c48a", css: "var(--green)", instrument: "square", fx: defaultFx(), sampleSlice: 3, sampleMode: "walk" },
+    purple: { hue: 261, color: "#a374e8", css: "var(--purple)", instrument: "sawtooth", fx: defaultFx(), sampleSlice: 4, sampleMode: "walk" },
+    orange: { hue: 350, color: "#e0566f", css: "var(--orange)", instrument: "snare", fx: defaultFx(), sampleSlice: 5, sampleMode: "walk" },
   };
   const TRACK_IDS = Object.keys(TRACKS);
+
+  // How playSample picks which chopped slice to use each time a track
+  // fires — "fixed" keeps the old one-slice-per-track behavior (for
+  // when the color identity matters more than variety); the others
+  // move through the chopped material instead of always landing on
+  // the same syllable.
+  const SAMPLE_MODE_LIST = [
+    { value: "fixed", label: "固定" },
+    { value: "sequential", label: "順次" },
+    { value: "random", label: "ランダム" },
+    { value: "walk", label: "ゆらぎ" },
+  ];
 
   const INSTRUMENT_OPTIONS = [
     { value: "sine", label: "サイン波" },
@@ -372,16 +384,37 @@
     osc.stop(now + decay + 0.15);
   }
 
+  // Which slice a track uses next, per its sampleMode. "walk" takes a
+  // bounded random step from wherever it last was — the "行き交う"
+  // (wandering back and forth) behavior — instead of jumping anywhere
+  // in the material like plain "random" does.
+  function pickSampleSlice(track, sliceCount) {
+    if (sliceCount <= 1) return 0;
+    const startAt = clamp(track.sampleSlice || 0, 0, sliceCount - 1);
+    if (track.sampleMode === "sequential") {
+      const cur = track.sampleCursor == null ? startAt : track.sampleCursor;
+      track.sampleCursor = (cur + 1) % sliceCount;
+      return track.sampleCursor;
+    }
+    if (track.sampleMode === "random") {
+      return Math.floor(Math.random() * sliceCount);
+    }
+    if (track.sampleMode === "walk") {
+      const cur = track.sampleCursor == null ? startAt : track.sampleCursor;
+      const step = Math.random() < 0.5 ? -1 : 1;
+      track.sampleCursor = clamp(cur + step, 0, sliceCount - 1);
+      return track.sampleCursor;
+    }
+    return startAt; // "fixed"
+  }
+
   function playSample(track, midi, x, velocity, brush) {
     if (!sampleBank || !sampleBank.slices.length) {
       playSynth(track, midi, x, velocity, brush);
       return;
     }
     const now = audioCtx.currentTime;
-    // each track owns a fixed slice (set in the drawer, or auto-spread
-    // across tracks on chop) rather than picking one from x — that was
-    // making every track's sample sound like a moving target
-    const idx = clamp(track.sampleSlice || 0, 0, sampleBank.slices.length - 1);
+    const idx = pickSampleSlice(track, sampleBank.slices.length);
     const buffer = state.reverse
       ? sampleBank.reversedSlices[idx]
       : sampleBank.slices[idx];
@@ -767,6 +800,23 @@
       });
       row.appendChild(fxToggles);
 
+      const modeSelect = document.createElement("select");
+      modeSelect.className = "sampleModeSelect";
+      modeSelect.title = "サンプル使用時の再生順";
+      SAMPLE_MODE_LIST.forEach(({ value, label }) => {
+        const opt = document.createElement("option");
+        opt.value = value;
+        opt.textContent = label;
+        modeSelect.appendChild(opt);
+      });
+      modeSelect.value = track.sampleMode;
+      modeSelect.disabled = !sampleBank;
+      modeSelect.addEventListener("change", () => {
+        track.sampleMode = modeSelect.value;
+        track.sampleCursor = null;
+      });
+      row.appendChild(modeSelect);
+
       const sliceCount = sampleBank ? sampleBank.slices.length : 1;
       const sliceSelect = document.createElement("select");
       sliceSelect.className = "sliceSelect";
@@ -778,9 +828,10 @@
       }
       sliceSelect.value = clamp(track.sampleSlice || 0, 0, sliceCount - 1);
       sliceSelect.disabled = !sampleBank;
-      sliceSelect.title = "サンプル使用時のスライス";
+      sliceSelect.title = "固定モード時のスライス、他モードの開始位置";
       sliceSelect.addEventListener("change", () => {
         track.sampleSlice = +sliceSelect.value;
+        track.sampleCursor = null;
       });
       row.appendChild(sliceSelect);
 
