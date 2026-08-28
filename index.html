@@ -411,6 +411,8 @@ input[type="range"]::-moz-range-thumb {
         <button class="presetBtn" data-preset="decompose">分解</button>
         <button class="presetBtn" data-preset="heavy">ヘビー</button>
         <button class="presetBtn" data-preset="chaos">カオス</button>
+        <button class="presetBtn" data-preset="chaos2">カオス2</button>
+        <button class="presetBtn" data-preset="chaos3">カオス3</button>
       </div>
 
       <div class="grid">
@@ -443,6 +445,15 @@ input[type="range"]::-moz-range-thumb {
           <option value="standard" selected>シャッフル — 断片を無作為に並べ替える</option>
           <option value="grid">グリッド — 行/列/対角/スネークで読み順を変える</option>
           <option value="permutation">総当たり — 強度が高いと重複・欠落も発生する入れ替え</option>
+        </select>
+      </label>
+
+      <label class="field wide">
+        <span class="field-label">音の変換 <small>断片を並べ替えるだけでなく、かな部分の音そのものを別の言葉に変える（漢字部分はそのまま）</small></span>
+        <select id="soundMode">
+          <option value="none" selected>なし</option>
+          <option value="mora">モーラ連想 — 母音のパターンが似た別の言葉に入れ替える</option>
+          <option value="phoneme">音素組み替え — 子音と母音をばらして全部組み直す</option>
         </select>
       </label>
 
@@ -514,6 +525,7 @@ input[type="range"]::-moz-range-thumb {
   const randomnessEl = document.getElementById("randomness");
   const randomnessVal = document.getElementById("randomnessVal");
   const cutMethodEl = document.getElementById("cutMethod");
+  const soundModeEl = document.getElementById("soundMode");
   const foldInEl = document.getElementById("foldIn");
   const keepPunctEl = document.getElementById("keepPunct");
   const capRandomEl = document.getElementById("capRandom");
@@ -535,11 +547,21 @@ input[type="range"]::-moz-range-thumb {
   // between ミディアム and ヘビー using the plain derangement-shuffle
   // algorithm (not grid, not permutation) — a third distinct algorithm in
   // the ladder, not just a number between the other two.
+  // カオス2/3 don't just reorder existing fragments — they replace the
+  // sound of the かな portions with different sounds entirely (漢字 is left
+  // alone; there's no dictionary here to look up its reading). カオス2
+  // swaps a かな word for a different real word chosen by vowel-pattern
+  // resemblance (モーラ連想); カオス3 shreds every かな mora into its
+  // consonant+vowel and rebuilds new mora from a pool gathered across the
+  // whole text, so entirely new syllables can appear that were never in
+  // the source at all.
   const PRESETS = {
-    medium:    { unit: "bunsetsu", min: 1, max: 3, randomness: 55, cutMethod: "grid" },
-    decompose: { unit: "bunsetsu", min: 1, max: 2, randomness: 68, cutMethod: "standard" },
-    heavy:     { unit: "bunsetsu", min: 1, max: 2, randomness: 85, cutMethod: "permutation" },
-    chaos:     { unit: "char", min: 1, max: 6, randomness: 100, cutMethod: "permutation" },
+    medium:    { unit: "bunsetsu", min: 1, max: 3, randomness: 55, cutMethod: "grid", soundMode: "none" },
+    decompose: { unit: "bunsetsu", min: 1, max: 2, randomness: 68, cutMethod: "standard", soundMode: "none" },
+    heavy:     { unit: "bunsetsu", min: 1, max: 2, randomness: 85, cutMethod: "permutation", soundMode: "none" },
+    chaos:     { unit: "char", min: 1, max: 6, randomness: 100, cutMethod: "permutation", soundMode: "none" },
+    chaos2:    { unit: "bunsetsu", min: 1, max: 2, randomness: 90, cutMethod: "permutation", soundMode: "mora" },
+    chaos3:    { unit: "bunsetsu", min: 1, max: 2, randomness: 100, cutMethod: "permutation", soundMode: "phoneme" },
   };
 
   let sourceSeq = 0;
@@ -604,6 +626,7 @@ input[type="range"]::-moz-range-thumb {
     chunkMaxEl.value = p.max;
     randomnessEl.value = p.randomness;
     cutMethodEl.value = p.cutMethod;
+    soundModeEl.value = p.soundMode || "none";
     syncLabels();
     [...presetsEl.children].forEach((b) => b.classList.toggle("active", b.dataset.preset === name));
   }
@@ -614,7 +637,7 @@ input[type="range"]::-moz-range-thumb {
     applyPreset(btn.dataset.preset);
   });
 
-  [unitEl, chunkMinEl, chunkMaxEl, randomnessEl, cutMethodEl, foldInEl, keepPunctEl, capRandomEl].forEach((el) => {
+  [unitEl, chunkMinEl, chunkMaxEl, randomnessEl, cutMethodEl, soundModeEl, foldInEl, keepPunctEl, capRandomEl].forEach((el) => {
     el.addEventListener("input", () => {
       [...presetsEl.children].forEach((b) => b.classList.remove("active"));
     });
@@ -803,6 +826,186 @@ input[type="range"]::-moz-range-thumb {
     }
     if (current.trim().length > 0) bunsetsu.push(current);
     return bunsetsu.map((s) => s.trim()).filter((s) => s.length > 0);
+  }
+
+  // ---- mora/phoneme engine: カオス2・カオス3 -------------------------------
+  //
+  // Everything above only rearranges fragments that already existed in the
+  // source. These two modes actually replace the *sound* of a fragment —
+  // カオス2 swaps a かな word for an unrelated real word chosen because its
+  // vowels rhyme; カオス3 shreds every mora into a bare consonant+vowel
+  // pair and rebuilds new mora from a pool gathered across the whole
+  // piece, so syllables can appear that were never in the source text at
+  // all. There's no dictionary here to convert 漢字 to a reading, so both
+  // only touch spans that are already かな — 漢字 passes through untouched.
+
+  const GOJUON_ROWS = [
+    { cons: "",  a: "あ", i: "い", u: "う", e: "え", o: "お" },
+    { cons: "k", a: "か", i: "き", u: "く", e: "け", o: "こ" },
+    { cons: "s", a: "さ", i: "し", u: "す", e: "せ", o: "そ" },
+    { cons: "t", a: "た", i: "ち", u: "つ", e: "て", o: "と" },
+    { cons: "n", a: "な", i: "に", u: "ぬ", e: "ね", o: "の" },
+    { cons: "h", a: "は", i: "ひ", u: "ふ", e: "へ", o: "ほ" },
+    { cons: "m", a: "ま", i: "み", u: "む", e: "め", o: "も" },
+    { cons: "y", a: "や", u: "ゆ", o: "よ" },
+    { cons: "r", a: "ら", i: "り", u: "る", e: "れ", o: "ろ" },
+    { cons: "w", a: "わ", o: "を" },
+    { cons: "g", a: "が", i: "ぎ", u: "ぐ", e: "げ", o: "ご" },
+    { cons: "z", a: "ざ", i: "じ", u: "ず", e: "ぜ", o: "ぞ" },
+    { cons: "d", a: "だ", i: "ぢ", u: "づ", e: "で", o: "ど" },
+    { cons: "b", a: "ば", i: "び", u: "ぶ", e: "べ", o: "ぼ" },
+    { cons: "p", a: "ぱ", i: "ぴ", u: "ぷ", e: "ぺ", o: "ぽ" },
+  ];
+  const KATA_ROWS = [
+    { cons: "",  a: "ア", i: "イ", u: "ウ", e: "エ", o: "オ" },
+    { cons: "k", a: "カ", i: "キ", u: "ク", e: "ケ", o: "コ" },
+    { cons: "s", a: "サ", i: "シ", u: "ス", e: "セ", o: "ソ" },
+    { cons: "t", a: "タ", i: "チ", u: "ツ", e: "テ", o: "ト" },
+    { cons: "n", a: "ナ", i: "ニ", u: "ヌ", e: "ネ", o: "ノ" },
+    { cons: "h", a: "ハ", i: "ヒ", u: "フ", e: "ヘ", o: "ホ" },
+    { cons: "m", a: "マ", i: "ミ", u: "ム", e: "メ", o: "モ" },
+    { cons: "y", a: "ヤ", u: "ユ", o: "ヨ" },
+    { cons: "r", a: "ラ", i: "リ", u: "ル", e: "レ", o: "ロ" },
+    { cons: "w", a: "ワ", o: "ヲ" },
+    { cons: "g", a: "ガ", i: "ギ", u: "グ", e: "ゲ", o: "ゴ" },
+    { cons: "z", a: "ザ", i: "ジ", u: "ズ", e: "ゼ", o: "ゾ" },
+    { cons: "d", a: "ダ", i: "ヂ", u: "ヅ", e: "デ", o: "ド" },
+    { cons: "b", a: "バ", i: "ビ", u: "ブ", e: "ベ", o: "ボ" },
+    { cons: "p", a: "パ", i: "ピ", u: "プ", e: "ペ", o: "ポ" },
+  ];
+  const SMALL_KANA_VOWEL = {
+    "ゃ": "a", "ゅ": "u", "ょ": "o", "ぁ": "a", "ぃ": "i", "ぅ": "u", "ぇ": "e", "ぉ": "o",
+    "ャ": "a", "ュ": "u", "ョ": "o", "ァ": "a", "ィ": "i", "ゥ": "u", "ェ": "e", "ォ": "o",
+  };
+  const KANA_ONLY_RE = /^[぀-ゟー゠-ヿ]+$/;
+
+  const KANA_TO_PHONEME = new Map();
+  const PHONEME_TO_KANA = new Map();
+  for (const rows of [GOJUON_ROWS, KATA_ROWS]) {
+    for (const row of rows) {
+      for (const v of ["a", "i", "u", "e", "o"]) {
+        const ch = row[v];
+        if (!ch) continue;
+        KANA_TO_PHONEME.set(ch, { cons: row.cons, vowel: v });
+        if (rows === GOJUON_ROWS) PHONEME_TO_KANA.set(row.cons + v, ch); // reconstruct in hiragana
+      }
+    }
+  }
+
+  // Merge small kana (ゃゅょぁぃぅぇぉ and katakana equivalents) into the
+  // preceding character so a compound sound like きゃ or ファ stays one
+  // mora, and keep っ/ッ/ー as their own unbreakable single-character mora.
+  function toMora(text) {
+    const mora = [];
+    for (const ch of text) {
+      if (SMALL_KANA_VOWEL[ch] && mora.length > 0) {
+        mora[mora.length - 1] += ch;
+      } else {
+        mora.push(ch);
+      }
+    }
+    return mora;
+  }
+
+  function moraPhoneme(mora) {
+    if (mora.length === 1) return KANA_TO_PHONEME.get(mora) || null;
+    if (mora.length === 2) {
+      const base = KANA_TO_PHONEME.get(mora[0]);
+      const smallVowel = SMALL_KANA_VOWEL[mora[1]];
+      if (base && smallVowel) return { cons: base.cons + "y", vowel: smallVowel };
+    }
+    return null;
+  }
+
+  function reconstructKana(cons, vowel) {
+    return PHONEME_TO_KANA.get(cons + vowel) || PHONEME_TO_KANA.get(vowel) || null;
+  }
+
+  // カオス3: gather every (子音, 母音) pair used anywhere in the piece,
+  // then rebuild every かな mora by drawing a consonant and a vowel
+  // independently from that shared pool — the two are no longer bound to
+  // each other the way they were in any real word, which is the point.
+  function phonemeRecombine(chunks, rand) {
+    const consPool = [];
+    const vowelPool = [];
+    chunks.forEach((c) => {
+      for (const m of toMora(c.text)) {
+        const ph = moraPhoneme(m);
+        if (ph) { consPool.push(ph.cons); vowelPool.push(ph.vowel); }
+      }
+    });
+    if (consPool.length === 0) return chunks;
+
+    return chunks.map((c) => {
+      let out = "";
+      let touched = false;
+      for (const m of toMora(c.text)) {
+        const ph = moraPhoneme(m);
+        if (!ph) { out += m; continue; }
+        touched = true;
+        const cons = consPool[Math.floor(rand() * consPool.length)];
+        const vowel = vowelPool[Math.floor(rand() * vowelPool.length)];
+        out += reconstructKana(cons, vowel) || m;
+      }
+      return touched ? { ...c, text: out } : c;
+    });
+  }
+
+  // A curated word bank for カオス2 — not the "vast dictionary" a real
+  // implementation would draw from (that needs a server or a multi-
+  // megabyte morphological library, neither of which fits a single
+  // portable HTML file), but enough varied everyday words, spanning a
+  // wide range of mora lengths and vowel patterns, to find a real
+  // resemblance-by-sound rather than picking blindly.
+  const MORA_WORDBANK = [
+    "あした", "あさひ", "あかし", "あまり", "あかり", "あるく", "いのち", "いちご",
+    "うみべ", "うつわ", "えがお", "おどり", "おもい", "かぜ", "かがみ", "かなた",
+    "きつね", "きぼう", "くも", "くらし", "けむり", "こころ", "ことり", "さくら",
+    "さかな", "しずく", "しろい", "すずめ", "せかい", "そら", "たいよう", "たから",
+    "たわし", "たわむれ", "タワー", "ちから", "つばめ", "つき", "であい", "てがみ",
+    "とおく", "とり", "ながれ", "なみだ", "にじ", "ぬくもり", "ねがい", "のはら",
+    "はじまり", "はな", "ひかり", "ふゆ", "へや", "ほし", "まち", "みずうみ",
+    "むかし", "めぐり", "もり", "やさしい", "ゆめ", "よあけ", "りんご", "るり",
+    "れきし", "ろうか", "かわ", "きた", "くうき", "けしき", "こおり", "さかい",
+    "しま", "すな", "せみ", "そで", "たき", "ちきゅう", "つち", "てんき",
+    "とびら", "なつ", "にわ", "ぬま", "ねむり", "のぼり", "はる", "ひろば",
+    "ふえ", "へいわ", "ほのお", "まど", "みなと", "むら", "めぐみ", "もみじ",
+    "やま", "ゆき", "よる", "かえで", "きり", "くさ", "こだま", "さと",
+    "しお", "すみれ", "たね", "つばさ", "てら", "とうげ", "なぎさ", "ねいろ",
+  ].map((word) => ({ word, mora: toMora(word) }));
+
+  // カオス2: swap a かな fragment for a wordbank entry with a similar
+  // mora count whose vowels line up in roughly the same pattern — real
+  // words, chosen by resemblance-by-sound rather than meaning, the way a
+  // pun or a mishearing substitutes one word for another.
+  function moraSubstitute(chunks, rand) {
+    return chunks.map((c) => {
+      const trimmed = c.text.trim();
+      if (trimmed.length < 2 || !KANA_ONLY_RE.test(trimmed)) return c;
+
+      const srcMora = toMora(trimmed);
+      const candidates = MORA_WORDBANK.filter((w) => Math.abs(w.mora.length - srcMora.length) <= 1 && w.word !== trimmed);
+      if (candidates.length === 0) return c;
+
+      const scored = candidates.map((w) => {
+        let score = 0;
+        const len = Math.min(w.mora.length, srcMora.length);
+        for (let i = 0; i < len; i++) {
+          const a = moraPhoneme(srcMora[i]);
+          const b = moraPhoneme(w.mora[i]);
+          if (a && b && a.vowel === b.vowel) score++;
+        }
+        const aLast = moraPhoneme(srcMora[srcMora.length - 1]);
+        const bLast = moraPhoneme(w.mora[w.mora.length - 1]);
+        if (aLast && bLast && aLast.vowel === bLast.vowel) score += 2; // rhyme bonus
+        return { w, score };
+      });
+      scored.sort((a, b) => b.score - a.score);
+      const topScore = scored[0].score;
+      const top = topScore > 0 ? scored.filter((s) => s.score >= topScore * 0.6) : scored;
+      const pick = top[Math.floor(rand() * top.length)];
+      return pick ? { ...c, text: pick.w.word } : c;
+    });
   }
 
   function groupTokens(tokens, min, max, joinStr, rand) {
@@ -1067,6 +1270,7 @@ input[type="range"]::-moz-range-thumb {
       max: +chunkMaxEl.value,
       randomness: +randomnessEl.value,
       cutMethod: cutMethodEl.value,
+      soundMode: soundModeEl.value,
       foldIn: foldInEl.checked,
       keepPunct: keepPunctEl.checked,
       capRandom: capRandomEl.checked,
@@ -1115,6 +1319,12 @@ input[type="range"]::-moz-range-thumb {
       }
       attempts++;
     } while (identity !== null && attempts < 5 && chunksToPlainText(combined, effectiveUnit) === identity);
+
+    if (options.soundMode === "mora") {
+      combined = moraSubstitute(combined, rand);
+    } else if (options.soundMode === "phoneme") {
+      combined = phonemeRecombine(combined, rand);
+    }
 
     if (!options.keepPunct) {
       combined = combined.map((c) => ({ ...c, text: stripPunct(c.text) }));
