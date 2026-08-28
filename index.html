@@ -637,21 +637,34 @@ input[type="range"]::-moz-range-thumb {
 
   // ---- chaos PRNG -----------------------------------------------------------
   //
-  // A fresh logistic-map generator is seeded on every single cut, so each
-  // press starts from a new initial condition. The logistic map
-  // x -> r*x*(1-x) with r in [3.9, 3.999] is the textbook chaotic regime:
-  // two runs that start a hair's-breadth apart diverge completely within a
-  // few iterations (sensitive dependence on initial conditions), which is
-  // exactly the "never the same twice" behavior a cut-up should have.
+  // A single logistic map is one traceable formula: know r and the seed and
+  // the whole sequence is reconstructible, and a careful reader can start
+  // to sense the shape of it after enough presses. Three chaotic maps from
+  // different families — quadratic (logistic), piecewise-linear (tent),
+  // and transcendental (sine) — each with an independently random seed and
+  // parameter, summed and taken mod 1, have no such single closed form: the
+  // combined sequence isn't any one attractor, it's the interference
+  // pattern between three unrelated ones. A fresh instance is built for
+  // every single cut, so sensitive dependence on initial conditions also
+  // means no two presses share a trajectory.
 
   function makeChaosRandom() {
     let x = Math.random() * 0.8 + 0.1;
-    const r = 3.9 + Math.random() * 0.099;
-    for (let i = 0; i < 30; i++) x = r * x * (1 - x); // discard transient
+    let y = Math.random() * 0.8 + 0.1;
+    let z = Math.random() * 0.8 + 0.1;
+    const rx = 3.9 + Math.random() * 0.099;   // logistic map, chaotic regime
+    const ry = 1.95 + Math.random() * 0.049;  // tent map, near-maximal slope
+    const rz = 0.9 + Math.random() * 0.09;    // sine-map phase offset
+
+    const stepX = () => { x = rx * x * (1 - x); return x; };
+    const stepY = () => { y = y < 0.5 ? ry * y : ry * (1 - y); return y; };
+    const stepZ = () => { z = Math.abs(Math.sin(Math.PI * (rz + z) * 3.7)) % 1; return z; };
+
+    for (let i = 0; i < 40; i++) { stepX(); stepY(); stepZ(); } // discard transient
+
     return function chaosRandom() {
-      x = r * x * (1 - x);
-      if (!(x > 0.0001 && x < 0.9999)) x = Math.random(); // escape rare fixed points
-      return x;
+      const v = (stepX() + stepY() + stepZ()) % 1;
+      return (v > 0.0001 && v < 0.9999 && !Number.isNaN(v)) ? v : Math.random();
     };
   }
 
@@ -706,7 +719,17 @@ input[type="range"]::-moz-range-thumb {
   const CLOSE_BRACKETS = "」』】〉》）)]}";
   const HARD_BOUNDARY = /[。、！？.!?\n]/;
 
-  function splitBunsetsu(text) {
+  // Cutting only where a particle happens to sit is a rule, not chance —
+  // anyone who knows a handful of Japanese particles can predict exactly
+  // where every boundary will fall, even though the *reordering* afterward
+  // is chaotic. A real pair of scissors doesn't check grammar first. So on
+  // top of the particle/bracket boundaries, every couple of characters
+  // there's also a small chaos-driven chance of a cut with no grammatical
+  // excuse at all — the "blade slipped" cut a human cutting up a page by
+  // eye would sometimes make, landing mid-word.
+  const WILD_CUT_CHANCE = 0.09;
+
+  function splitBunsetsu(text, rand) {
     const bunsetsu = [];
     let current = "";
     let i = 0;
@@ -737,6 +760,12 @@ input[type="range"]::-moz-range-thumb {
       if (hit) {
         current += hit;
         i += hit.length;
+        bunsetsu.push(current);
+        current = "";
+        continue;
+      }
+
+      if (current.length >= 2 && rand() < WILD_CUT_CHANCE) {
         bunsetsu.push(current);
         current = "";
       }
@@ -771,7 +800,7 @@ input[type="range"]::-moz-range-thumb {
   function tokenize(text, unit, min, max, rand) {
     switch (unit) {
       case "char": return tokenizeChars(text, min, max, rand);
-      case "bunsetsu": return groupTokens(splitBunsetsu(text), min, max, "", rand);
+      case "bunsetsu": return groupTokens(splitBunsetsu(text, rand), min, max, "", rand);
       case "line": return groupTokens(splitLines(text), min, max, "\n", rand);
       case "sentence": return groupTokens(splitSentences(text), min, max, " ", rand);
       case "word":
