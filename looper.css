@@ -264,6 +264,17 @@ input[type="range"]::-moz-range-thumb {
   align-self: flex-start;
 }
 
+.speedButtons {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: -0.35rem;
+}
+
+.speedButtons .ghostBtn.small {
+  flex: 1;
+  text-align: center;
+}
+
 .transport {
   display: flex;
   align-items: center;

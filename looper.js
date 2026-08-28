@@ -51,6 +51,8 @@
     reverse: el(`voice${letter}-reverse`),
     speed: el(`voice${letter}-speed`),
     speedLabel: el(`voice${letter}-speedLabel`),
+    speedHalf: el(`voice${letter}-speedHalf`),
+    speedDouble: el(`voice${letter}-speedDouble`),
     level: el(`voice${letter}-level`),
     pan: el(`voice${letter}-pan`),
     depth: el(`voice${letter}-depth`),
@@ -99,7 +101,11 @@
   }
 
   async function initAudio() {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    // "playback" latency hint trades a bit of extra output delay for a
+    // much larger hardware buffer, which is what actually matters for
+    // avoiding crackling — this is an ambient/generative effect, not a
+    // low-latency performance monitor, so the tradeoff is free
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: "playback" });
 
     masterGain = audioCtx.createGain();
     masterGain.gain.value = +masterVolSlider.value / 100;
@@ -208,13 +214,24 @@
     ringSamplesWritten = 0;
   }
 
+  // bulk TypedArray.set() copies instead of a per-sample loop — with loops
+  // up to 30s long this used to be a multi-million-iteration JS loop right
+  // on the main thread at every re-trigger, which is exactly what produces
+  // audible crackling: it blocks whatever else is due to run (including,
+  // on the ScriptProcessor fallback path, audio rendering itself)
   function writeRingChunk(l, r) {
     const n = l.length;
-    for (let i = 0; i < n; i++) {
-      ringL[ringWritePos] = l[i];
-      ringR[ringWritePos] = r[i];
-      ringWritePos = (ringWritePos + 1) % ringLen;
+    const spaceToEnd = ringLen - ringWritePos;
+    if (n <= spaceToEnd) {
+      ringL.set(l, ringWritePos);
+      ringR.set(r, ringWritePos);
+    } else {
+      ringL.set(l.subarray(0, spaceToEnd), ringWritePos);
+      ringR.set(r.subarray(0, spaceToEnd), ringWritePos);
+      ringL.set(l.subarray(spaceToEnd), 0);
+      ringR.set(r.subarray(spaceToEnd), 0);
     }
+    ringWritePos = (ringWritePos + n) % ringLen;
     ringSamplesWritten = Math.min(ringLen, ringSamplesWritten + n);
   }
 
@@ -229,10 +246,15 @@
     const outL = buf.getChannelData(0);
     const outR = buf.getChannelData(1);
     const start = (ringWritePos - n + ringLen) % ringLen;
-    for (let i = 0; i < n; i++) {
-      const idx = (start + i) % ringLen;
-      outL[i] = ringL[idx];
-      outR[i] = ringR[idx];
+    if (start + n <= ringLen) {
+      outL.set(ringL.subarray(start, start + n));
+      outR.set(ringR.subarray(start, start + n));
+    } else {
+      const firstPart = ringLen - start;
+      outL.set(ringL.subarray(start, ringLen));
+      outR.set(ringR.subarray(start, ringLen));
+      outL.set(ringL.subarray(0, n - firstPart), firstPart);
+      outR.set(ringR.subarray(0, n - firstPart), firstPart);
     }
     if (reverse) {
       outL.reverse();
@@ -250,18 +272,25 @@
   let labelsUnlocked = false;
 
   async function listInputDevices() {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const inputs = devices.filter((d) => d.kind === "audioinput");
-    const previousValue = deviceSelect.value;
-    deviceSelect.innerHTML = "";
-    inputs.forEach((d, i) => {
-      const opt = document.createElement("option");
-      opt.value = d.deviceId;
-      opt.textContent = d.label || `入力 ${i + 1}`;
-      deviceSelect.appendChild(opt);
-    });
-    if (inputs.some((d) => d.deviceId === previousValue)) {
-      deviceSelect.value = previousValue;
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const inputs = devices.filter((d) => d.kind === "audioinput");
+      const previousValue = deviceSelect.value;
+      deviceSelect.innerHTML = "";
+      inputs.forEach((d, i) => {
+        const opt = document.createElement("option");
+        opt.value = d.deviceId;
+        opt.textContent = d.label || `入力 ${i + 1}`;
+        deviceSelect.appendChild(opt);
+      });
+      if (inputs.some((d) => d.deviceId === previousValue)) {
+        deviceSelect.value = previousValue;
+      }
+    } catch (err) {
+      // device enumeration itself can be blocked (e.g. no mediaDevices in
+      // this context) — leave whatever the select already had rather than
+      // letting this bubble up and silently abort the caller
+      console.warn("listInputDevices failed:", err);
     }
   }
 
@@ -279,16 +308,24 @@
   }
 
   async function armInput() {
-    if (!audioCtx) await initAudio();
-    if (audioCtx.state === "suspended") await audioCtx.resume();
-
-    // first pass: unlock real device labels so "内蔵マイク" vs the audio
-    // interface are actually distinguishable, then let the (now correctly
-    // labeled) selection decide which device to actually open
-    await unlockDeviceLabels();
-
-    const deviceId = deviceSelect.value || undefined;
     try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        inputStatus.textContent =
+          "このページではマイク入力(getUserMedia)を使えません。埋め込みプレビューだとブラウザ側でブロックされることがあります。";
+        return;
+      }
+
+      if (!audioCtx) await initAudio();
+      if (audioCtx.state === "suspended") await audioCtx.resume();
+
+      inputStatus.textContent = "許可を確認中…";
+
+      // first pass: unlock real device labels so "内蔵マイク" vs the audio
+      // interface are actually distinguishable, then let the (now correctly
+      // labeled) selection decide which device to actually open
+      await unlockDeviceLabels();
+
+      const deviceId = deviceSelect.value || undefined;
       mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           deviceId: deviceId ? { exact: deviceId } : undefined,
@@ -298,26 +335,29 @@
           channelCount: { ideal: 2 },
         },
       });
+
+      if (sourceNode) sourceNode.disconnect();
+      if (ringTapNode) ringTapNode.disconnect();
+
+      sourceNode = audioCtx.createMediaStreamSource(mediaStream);
+      sourceNode.connect(inputGain);
+
+      ringTapNode = makeTapNode(writeRingChunk);
+      inputGain.connect(ringTapNode);
+
+      await listInputDevices();
+      const track = mediaStream.getAudioTracks()[0];
+      inputStatus.textContent = `接続中: ${track.label || "入力デバイス"}`;
+      armBtn.textContent = "再接続";
+
+      bootstrapActiveVoices();
     } catch (err) {
-      inputStatus.textContent = `入力を開けませんでした: ${err.message}`;
-      return;
+      // whatever failed above (permission denial, no secure context, no
+      // audio hardware, AudioContext blocked, …) — always leave a visible
+      // message instead of failing silently
+      inputStatus.textContent = `入力を開けませんでした: ${(err && err.message) || err}`;
+      console.error("armInput failed:", err);
     }
-
-    if (sourceNode) sourceNode.disconnect();
-    if (ringTapNode) ringTapNode.disconnect();
-
-    sourceNode = audioCtx.createMediaStreamSource(mediaStream);
-    sourceNode.connect(inputGain);
-
-    ringTapNode = makeTapNode(writeRingChunk);
-    inputGain.connect(ringTapNode);
-
-    await listInputDevices();
-    const track = mediaStream.getAudioTracks()[0];
-    inputStatus.textContent = `接続中: ${track.label || "入力デバイス"}`;
-    armBtn.textContent = "再接続";
-
-    bootstrapActiveVoices();
   }
 
   // picking a different device from the dropdown reconnects immediately,
@@ -578,9 +618,20 @@
     clearInterval(bootstrapPoll);
     bootstrapPoll = setInterval(() => {
       if (ringSecondsAvailable() < 0.6) return;
+      // triggerVoice() clamps its random duration down to whatever's
+      // actually in the ring buffer, and right at connect time that's a
+      // near-identical tiny number for every voice fired in the same
+      // instant — every layer's random pick then gets clamped to the same
+      // ceiling and they all start out looking identical. Staggering the
+      // first trigger per voice gives each one a different (and growing)
+      // ceiling to land on, so they diverge immediately instead of only
+      // after their first flow re-trigger.
       voiceEls.forEach((ui, i) => {
         const v = voices[i];
-        if (ui.active.checked && !v.active) setVoiceActive(v, true);
+        if (!ui.active.checked || v.active) return;
+        setTimeout(() => {
+          if (ui.active.checked && !v.active) setVoiceActive(v, true);
+        }, i * 400);
       });
       clearInterval(bootstrapPoll);
     }, 150);
@@ -655,13 +706,23 @@
       if (v.active) triggerVoice(v, v.currentDuration);
     });
 
-    ui.speed.addEventListener("input", () => {
+    function applySpeed() {
       v.speed = +ui.speed.value / 100;
       ui.speedLabel.textContent = `${v.speed.toFixed(2)}x`;
       if (v.currentSource) {
         v.currentSource.playbackRate.setTargetAtTime(v.speed, audioCtx.currentTime, 0.05);
       }
-    });
+    }
+
+    ui.speed.addEventListener("input", applySpeed);
+
+    const speedMin = +ui.speed.min, speedMax = +ui.speed.max;
+    function setSpeedMultiplier(multiplier) {
+      ui.speed.value = Math.round(Math.min(speedMax, Math.max(speedMin, multiplier * 100)));
+      applySpeed();
+    }
+    ui.speedHalf.addEventListener("click", () => setSpeedMultiplier(0.5));
+    ui.speedDouble.addEventListener("click", () => setSpeedMultiplier(2));
 
     ui.level.addEventListener("input", () => {
       v.level = +ui.level.value / 100;
@@ -689,10 +750,15 @@
   });
 
   startBtn.addEventListener("click", async () => {
-    if (!audioCtx) await initAudio();
-    if (audioCtx.state === "suspended") await audioCtx.resume();
-    startBtn.textContent = "オーディオ起動中";
-    startBtn.disabled = true;
+    try {
+      if (!audioCtx) await initAudio();
+      if (audioCtx.state === "suspended") await audioCtx.resume();
+      startBtn.textContent = "オーディオ起動中";
+      startBtn.disabled = true;
+    } catch (err) {
+      inputStatus.textContent = `オーディオの初期化に失敗しました: ${(err && err.message) || err}`;
+      console.error("initAudio failed:", err);
+    }
   });
 
   armBtn.addEventListener("click", armInput);
@@ -721,9 +787,15 @@
   let particles = [];
   let hue = 200;
 
+  // a full-screen canvas cleared every frame at real devicePixelRatio gets
+  // expensive fast on 2x/3x displays and was competing with the audio
+  // thread for CPU — capping it keeps the visual nearly as sharp for a
+  // fraction of the fill-rate cost
+  const CANVAS_DPR = Math.min(devicePixelRatio || 1, 1.5);
+
   function resizeCanvas() {
-    canvas.width = window.innerWidth * devicePixelRatio;
-    canvas.height = window.innerHeight * devicePixelRatio;
+    canvas.width = window.innerWidth * CANVAS_DPR;
+    canvas.height = window.innerHeight * CANVAS_DPR;
   }
   window.addEventListener("resize", resizeCanvas);
   resizeCanvas();
@@ -762,13 +834,13 @@
     particles.push({
       x: w * (0.2 + 0.6 * (v.index / (MAX_VOICES - 1))),
       y: h * 0.5 + (Math.random() - 0.5) * h * 0.2,
-      r: 5 * devicePixelRatio,
+      r: 5 * CANVAS_DPR,
       life: 0,
       maxLife: Math.max(1.2, Math.min(4, v.currentDuration)),
       vx: (Math.random() - 0.5) * 4,
       vy: (Math.random() - 0.5) * 4,
       hue: voiceHues[v.index] ?? 200,
     });
-    if (particles.length > 100) particles.shift();
+    if (particles.length > 60) particles.shift();
   }
 })();
