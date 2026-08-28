@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>meguri — realtime effect looper</title>
+<link rel="stylesheet" href="looper.css" />
+</head>
+<body>
+  <canvas id="bg"></canvas>
+
+  <main class="ui">
+    <header>
+      <h1>meguri <span class="sub">巡</span></h1>
+      <p class="tagline">
+        入力を絶えずリングバッファへ録りため、そこから短い窓を切り出してループさせるリアルタイム・エフェクト。
+        窓の長さ・パン・奥行きはそれぞれ自分の速度でゆっくり揺れ、"flow" にすると窓そのものが次々と新しい素材へ流れていきます。
+      </p>
+    </header>
+
+    <section class="panel">
+      <h2>1. 入力 / 内蔵録音</h2>
+      <p class="hint">
+        RME Fireface を使う場合は OS 側の入力デバイスとして Fireface を選び、TotalMix FX で聴きたいチャンネルを
+        ブラウザに見えているステレオペア（通常 1/2）にルーティングしてください。ブラウザの自動エコー除去・自動ゲインは
+        無効化して接続します。
+      </p>
+      <div class="row">
+        <select id="deviceSelect"></select>
+        <button id="armBtn" class="ghostBtn">入力を接続</button>
+        <label class="check">
+          <input type="checkbox" id="monitorToggle" />
+          モニター（生音を聴く）
+        </label>
+      </div>
+      <div class="meter"><div id="meterFill" class="meterFill"></div></div>
+      <p id="inputStatus" class="status">未接続</p>
+
+      <div class="row">
+        <button id="recordBtn" class="ghostBtn">● 録音開始</button>
+        <span id="recordStatus" class="status">待機中</span>
+        <a id="downloadLink" class="downloadLink" hidden download>WAVをダウンロード</a>
+      </div>
+      <p class="hint small">録音はマスター出力（ループ＋ディレイ＋リバーブ込み）を等倍PCM/16bit WAVでそのまま書き出します。</p>
+    </section>
+
+    <section class="panel">
+      <h2>2. 自動サンプリング</h2>
+      <div class="row">
+        <label class="check">
+          <input type="checkbox" id="autoSampleToggle" checked />
+          自動サンプリングを有効化
+        </label>
+        <label class="slider inline">
+          <span>間隔</span>
+          <input id="autoInterval" type="range" min="8" max="60" value="24" />
+          <em id="autoIntervalLabel">24s</em>
+        </label>
+        <button id="sampleNowBtn" class="ghostBtn">今すぐ全レイヤーを再サンプル</button>
+      </div>
+      <label class="slider inline">
+        <span>長さの範囲</span>
+        <input id="minDur" type="range" min="1" max="20" step="0.5" value="1" />
+        <input id="maxDur" type="range" min="1" max="20" step="0.5" value="20" />
+        <em id="durRangeLabel">1s – 20s</em>
+      </label>
+    </section>
+
+    <section class="panel voices">
+      <h2>3. レイヤー（最大4つ重ねられます）</h2>
+      <div class="voiceGrid">
+        <div id="voiceA" class="voiceCard">
+          <div class="voiceHead">
+            <label class="check"><input type="checkbox" id="voiceA-active" /><strong>A</strong></label>
+            <select id="voiceA-mode">
+              <option value="fixed">固定ループ</option>
+              <option value="flow">flow（流れる）</option>
+            </select>
+            <span id="voiceA-durLabel" class="durLabel">–</span>
+          </div>
+          <label class="check small"><input type="checkbox" id="voiceA-reverse" /> 逆再生</label>
+          <label class="slider small">
+            <span>ピッチ/スピード</span>
+            <input id="voiceA-speed" type="range" min="25" max="300" value="100" />
+            <em id="voiceA-speedLabel">1.00x</em>
+          </label>
+          <label class="slider small">
+            <span>パンの揺れ</span>
+            <input id="voiceA-pan" type="range" min="0" max="100" value="30" />
+          </label>
+          <label class="slider small">
+            <span>奥行き</span>
+            <input id="voiceA-depth" type="range" min="0" max="100" value="30" />
+          </label>
+          <button id="voiceA-resample" class="ghostBtn small">再サンプル</button>
+        </div>
+
+        <div id="voiceB" class="voiceCard">
+          <div class="voiceHead">
+            <label class="check"><input type="checkbox" id="voiceB-active" /><strong>B</strong></label>
+            <select id="voiceB-mode">
+              <option value="fixed">固定ループ</option>
+              <option value="flow">flow（流れる）</option>
+            </select>
+            <span id="voiceB-durLabel" class="durLabel">–</span>
+          </div>
+          <label class="check small"><input type="checkbox" id="voiceB-reverse" /> 逆再生</label>
+          <label class="slider small">
+            <span>ピッチ/スピード</span>
+            <input id="voiceB-speed" type="range" min="25" max="300" value="100" />
+            <em id="voiceB-speedLabel">1.00x</em>
+          </label>
+          <label class="slider small">
+            <span>パンの揺れ</span>
+            <input id="voiceB-pan" type="range" min="0" max="100" value="55" />
+          </label>
+          <label class="slider small">
+            <span>奥行き</span>
+            <input id="voiceB-depth" type="range" min="0" max="100" value="50" />
+          </label>
+          <button id="voiceB-resample" class="ghostBtn small">再サンプル</button>
+        </div>
+
+        <div id="voiceC" class="voiceCard">
+          <div class="voiceHead">
+            <label class="check"><input type="checkbox" id="voiceC-active" /><strong>C</strong></label>
+            <select id="voiceC-mode">
+              <option value="fixed">固定ループ</option>
+              <option value="flow" selected>flow（流れる）</option>
+            </select>
+            <span id="voiceC-durLabel" class="durLabel">–</span>
+          </div>
+          <label class="check small"><input type="checkbox" id="voiceC-reverse" /> 逆再生</label>
+          <label class="slider small">
+            <span>ピッチ/スピード</span>
+            <input id="voiceC-speed" type="range" min="25" max="300" value="70" />
+            <em id="voiceC-speedLabel">0.70x</em>
+          </label>
+          <label class="slider small">
+            <span>パンの揺れ</span>
+            <input id="voiceC-pan" type="range" min="0" max="100" value="70" />
+          </label>
+          <label class="slider small">
+            <span>奥行き</span>
+            <input id="voiceC-depth" type="range" min="0" max="100" value="65" />
+          </label>
+          <button id="voiceC-resample" class="ghostBtn small">再サンプル</button>
+        </div>
+
+        <div id="voiceD" class="voiceCard">
+          <div class="voiceHead">
+            <label class="check"><input type="checkbox" id="voiceD-active" /><strong>D</strong></label>
+            <select id="voiceD-mode">
+              <option value="fixed">固定ループ</option>
+              <option value="flow">flow（流れる）</option>
+            </select>
+            <span id="voiceD-durLabel" class="durLabel">–</span>
+          </div>
+          <label class="check small"><input type="checkbox" id="voiceD-reverse" /> 逆再生</label>
+          <label class="slider small">
+            <span>ピッチ/スピード</span>
+            <input id="voiceD-speed" type="range" min="25" max="300" value="150" />
+            <em id="voiceD-speedLabel">1.50x</em>
+          </label>
+          <label class="slider small">
+            <span>パンの揺れ</span>
+            <input id="voiceD-pan" type="range" min="0" max="100" value="20" />
+          </label>
+          <label class="slider small">
+            <span>奥行き</span>
+            <input id="voiceD-depth" type="range" min="0" max="100" value="15" />
+          </label>
+          <button id="voiceD-resample" class="ghostBtn small">再サンプル</button>
+        </div>
+      </div>
+    </section>
+
+    <div class="transport">
+      <button id="startBtn" class="playBtn">オーディオ開始</button>
+      <label class="slider inline">
+        <span>マスター音量</span>
+        <input id="masterVol" type="range" min="0" max="100" value="80" />
+      </label>
+    </div>
+
+    <p class="hint small">音は毎回、少しずつ違う姿で戻ってきます。同じ窓は二度と同じでは切り出されません。</p>
+  </main>
+
+  <script src="looper.js"></script>
+</body>
+</html>
