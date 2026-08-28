@@ -12,6 +12,13 @@
 (() => {
   const canvas = document.getElementById("stage");
   const ctx = canvas.getContext("2d");
+  // Finished strokes are cached here and only re-rendered on structural
+  // changes (draw, erase, undo, clear, resize) — every animation frame
+  // just blits this layer instead of re-tracing every point of every
+  // stroke ever drawn, which used to make the app slow down and
+  // eventually stall the longer a session went on.
+  const strokesCanvas = document.createElement("canvas");
+  const strokesCtx = strokesCanvas.getContext("2d");
   const waveCanvas = document.getElementById("waveCanvas");
   const waveCtx = waveCanvas.getContext("2d");
   const hint = document.getElementById("hint");
@@ -774,11 +781,21 @@
     state.strokes = [];
     state.playheadPath = null;
     hint.classList.remove("hidden");
+    strokesCtx.clearRect(0, 0, cssWidth, cssHeight);
+    // the main canvas keeps a fading trail of whatever was composited
+    // onto it each frame (that's how the ambient glow trail works) —
+    // without this, cleared strokes would linger as a faint ghost for
+    // several frames instead of vanishing immediately
+    ctx.clearRect(0, 0, cssWidth, cssHeight);
   });
 
   undoBtn.addEventListener("click", () => {
-    if (state.tool === "path") state.playheadPath = null;
-    else state.strokes.pop();
+    if (state.tool === "path") {
+      state.playheadPath = null;
+    } else {
+      state.strokes.pop();
+      redrawStrokesLayer();
+    }
   });
 
   scanModeSelect.addEventListener("change", () => {
@@ -851,7 +868,10 @@
     if (state.tool === "eraser") {
       drawing = true;
       const idx = nearestStrokeIndex(p, 16);
-      if (idx >= 0) state.strokes.splice(idx, 1);
+      if (idx >= 0) {
+        state.strokes.splice(idx, 1);
+        redrawStrokesLayer();
+      }
       return;
     }
 
@@ -877,7 +897,10 @@
 
     if (state.tool === "eraser") {
       const idx = nearestStrokeIndex(p, 16);
-      if (idx >= 0) state.strokes.splice(idx, 1);
+      if (idx >= 0) {
+        state.strokes.splice(idx, 1);
+        redrawStrokesLayer();
+      }
       return;
     }
 
@@ -885,6 +908,14 @@
     const last = currentStroke.points[currentStroke.points.length - 1];
     if (dist(last, p) < 2.5) return;
     currentStroke.points.push({ x: p.x, y: p.y });
+
+    // paint just the new segment onto the cached layer immediately,
+    // instead of waiting to redraw the whole stroke — keeps drawing
+    // itself O(1) per point no matter how long the stroke gets
+    if (state.tool === "pen") {
+      const n = currentStroke.points.length;
+      paintGlowStroke(strokesCtx, [currentStroke.points[n - 2], currentStroke.points[n - 1]], TRACKS[currentStroke.colorId].color);
+    }
   });
 
   // Full-resolution points (every ~2.5px) make the curve render smooth,
@@ -1153,48 +1184,57 @@
     }
   }
 
-  function strokePath(points) {
-    ctx.beginPath();
-    ctx.moveTo(points[0].x, points[0].y);
+  function strokePath(targetCtx, points) {
+    targetCtx.beginPath();
+    targetCtx.moveTo(points[0].x, points[0].y);
     for (let i = 1; i < points.length - 1; i++) {
       const midX = (points[i].x + points[i + 1].x) / 2;
       const midY = (points[i].y + points[i + 1].y) / 2;
-      ctx.quadraticCurveTo(points[i].x, points[i].y, midX, midY);
+      targetCtx.quadraticCurveTo(points[i].x, points[i].y, midX, midY);
     }
     if (points.length > 1) {
       const last = points[points.length - 1];
-      ctx.lineTo(last.x, last.y);
+      targetCtx.lineTo(last.x, last.y);
     }
   }
 
-  function drawStrokes() {
+  // cheap glow: a wide low-alpha pass underneath a crisp core pass.
+  // shadowBlur reads as identical but is dramatically slower per call —
+  // it was the single biggest cost behind "feels heavy" on phones.
+  function paintGlowStroke(targetCtx, points, color) {
+    if (points.length < 2) return;
+    targetCtx.save();
+    targetCtx.lineCap = "round";
+    targetCtx.lineJoin = "round";
+    targetCtx.strokeStyle = hexToRgba(color, 0.35);
+    targetCtx.lineWidth = 7;
+    strokePath(targetCtx, points);
+    targetCtx.stroke();
+    targetCtx.strokeStyle = color;
+    targetCtx.lineWidth = 2.2;
+    strokePath(targetCtx, points);
+    targetCtx.stroke();
+    targetCtx.restore();
+  }
+
+  // Rebuilds the cached strokes layer from scratch. Only called on
+  // structural changes (erase, undo, clear, resize) — never per frame.
+  function redrawStrokesLayer() {
+    strokesCtx.clearRect(0, 0, cssWidth, cssHeight);
     state.strokes.forEach((s) => {
-      if (s.points.length < 2) return;
-      const track = TRACKS[s.colorId];
-      ctx.save();
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      // cheap glow: a wide low-alpha pass underneath a crisp core pass.
-      // shadowBlur reads as identical but is dramatically slower per
-      // frame — it was the single biggest cost behind "feels heavy" on
-      // phones, since every stroke repaid it on every animation frame.
-      ctx.strokeStyle = hexToRgba(track.color, 0.35);
-      ctx.lineWidth = 7;
-      strokePath(s.points);
-      ctx.stroke();
-      ctx.strokeStyle = track.color;
-      ctx.lineWidth = 2.2;
-      strokePath(s.points);
-      ctx.stroke();
-      ctx.restore();
+      paintGlowStroke(strokesCtx, s.points, TRACKS[s.colorId].color);
     });
+  }
+
+  function drawStrokes() {
+    ctx.drawImage(strokesCanvas, 0, 0, cssWidth, cssHeight);
 
     if (state.playheadPath && state.playheadPath.points.length > 1) {
       ctx.save();
       ctx.setLineDash([6, 6]);
       ctx.strokeStyle = "rgba(246,238,247,0.4)";
       ctx.lineWidth = 1.4;
-      strokePath(state.playheadPath.points);
+      strokePath(ctx, state.playheadPath.points);
       ctx.stroke();
       ctx.restore();
     }
@@ -1213,10 +1253,11 @@
     ctx.stroke();
     ctx.restore();
 
-    // live intersection dots
+    // live intersection dots — same sparse point set used for triggering,
+    // so this scan also stays cheap regardless of how much has been drawn
     ctx.save();
     state.strokes.forEach((s) => {
-      const pts = s.points;
+      const pts = s.triggerPoints || s.points;
       for (let i = 0; i < pts.length - 1; i++) {
         const a = pts[i], b = pts[i + 1];
         const lo = Math.min(a.x, b.x), hi = Math.max(a.x, b.x);
@@ -1308,6 +1349,10 @@
     cssWidth = rect.width;
     cssHeight = rect.height;
 
+    strokesCanvas.width = canvas.width;
+    strokesCanvas.height = canvas.height;
+    strokesCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
     // keep existing drawings proportionally placed instead of distorting
     if (oldW > 0 && oldH > 0 && (oldW !== cssWidth || oldH !== cssHeight)) {
       const sx = cssWidth / oldW, sy = cssHeight / oldH;
@@ -1315,6 +1360,10 @@
       state.strokes.forEach((s) => rescale(s.points));
       if (state.playheadPath) rescale(state.playheadPath.points);
     }
+
+    // setting canvas.width/height always wipes the bitmap, so the cache
+    // needs rebuilding here regardless of whether this was a real resize
+    redrawStrokesLayer();
   }
   window.addEventListener("resize", () => {
     resizeCanvas();
