@@ -25,6 +25,7 @@
 
   const playBtn = document.getElementById("playBtn");
   const clearBtn = document.getElementById("clearBtn");
+  const saveImageBtn = document.getElementById("saveImageBtn");
   const undoBtn = document.getElementById("undoBtn");
   const scanModeSelect = document.getElementById("scanMode");
   const speedSlider = document.getElementById("speed");
@@ -867,6 +868,45 @@
     // without this, cleared strokes would linger as a faint ghost for
     // several frames instead of vanishing immediately
     ctx.clearRect(0, 0, cssWidth, cssHeight);
+  });
+
+  // Inside a published Artifact, the page can't trigger a browser
+  // download directly (the viewer's sandbox makes <a download> and
+  // similar inert) — files only reach the viewer through the
+  // `downloads` capability's confirmation prompt. Outside that context
+  // (the plain standalone files), window.claude doesn't exist at all,
+  // so fall back to a normal same-tab download there.
+  saveImageBtn.addEventListener("click", () => {
+    canvas.toBlob(async (blob) => {
+      if (!blob) return;
+      const filename = `senon-${Date.now()}.png`;
+
+      if (typeof window.claude !== "undefined" && typeof window.claude.use === "function") {
+        try {
+          const downloads = await window.claude.use("downloads");
+          if (downloads) {
+            try {
+              await downloads.save({ filename, data: blob });
+            } catch (err) {
+              // declined / rate_limited / etc — the viewer already saw
+              // the prompt outcome, nothing more to do here
+            }
+            return;
+          }
+        } catch (err) {
+          // fall through to the plain-browser path below
+        }
+      }
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }, "image/png");
   });
 
   undoBtn.addEventListener("click", () => {
