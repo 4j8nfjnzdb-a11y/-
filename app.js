@@ -41,7 +41,6 @@
   const toolButtons = [...document.querySelectorAll(".toolBtn")];
 
   const sampleFileInput = document.getElementById("sampleFile");
-  const recordBtn = document.getElementById("recordBtn");
   const sampleStatus = document.getElementById("sampleStatus");
   const chopCountSlider = document.getElementById("chopCount");
   const chopCountLabel = document.getElementById("chopCountLabel");
@@ -86,7 +85,7 @@
     cyan: { hue: 213, color: "#5b8dee", css: "var(--cyan)", instrument: "sine", fx: defaultFx(), sampleSlice: 0 },
     magenta: { hue: 333, color: "#ff8fc0", css: "var(--magenta)", instrument: "triangle", fx: defaultFx(), sampleSlice: 1 },
     yellow: { hue: 66, color: "#d4e157", css: "var(--yellow)", instrument: "kick", fx: defaultFx(), sampleSlice: 2 },
-    green: { hue: 157, color: "#35c48a", css: "var(--green)", instrument: "square", fx: { ...defaultFx(), ring: true }, sampleSlice: 3 },
+    green: { hue: 157, color: "#35c48a", css: "var(--green)", instrument: "square", fx: defaultFx(), sampleSlice: 3 },
     purple: { hue: 261, color: "#a374e8", css: "var(--purple)", instrument: "sawtooth", fx: defaultFx(), sampleSlice: 4 },
     orange: { hue: 350, color: "#e0566f", css: "var(--orange)", instrument: "snare", fx: defaultFx(), sampleSlice: 5 },
   };
@@ -152,7 +151,7 @@
     key: 60,
     scaleName: "pentaMajor",
     scanProgress: 0, // 0..1 for sweep/path/bounce, px for wander
-    polyphonyLimit: 0, // 0 = unlimited; otherwise max notes sounding at once
+    polyphonyLimit: 3, // 0 = unlimited; otherwise max notes sounding at once
   };
 
   let strokeSeq = 1;
@@ -203,7 +202,11 @@
     wet.gain.value = spaceKnobToGain(+spaceSlider.value);
 
     reverbNode = audioCtx.createConvolver();
-    reverbNode.buffer = buildImpulseResponse(audioCtx, 3.2, 3.5);
+    // convolution reverb cost scales with impulse-response length — a
+    // 3.2s tail was one of the heavier things running continuously
+    // during playback; a shorter tail still reads as "spacious" for a
+    // fraction of the CPU cost
+    reverbNode.buffer = buildImpulseResponse(audioCtx, 1.3, 3.2);
     reverbNode.connect(wet);
     wet.connect(master);
 
@@ -551,8 +554,6 @@
 
   let sampleBuffer = null;
   let sampleBank = null; // {slices:[AudioBuffer], reversedSlices:[AudioBuffer]}
-  let mediaRecorder = null;
-  let recordedChunks = [];
 
   function reverseBuffer(buffer) {
     const rev = audioCtx.createBuffer(buffer.numberOfChannels, buffer.length, buffer.sampleRate);
@@ -659,33 +660,6 @@
   chopBtn.addEventListener("click", doChop);
   chopCountSlider.addEventListener("input", () => {
     chopCountLabel.textContent = chopCountSlider.value;
-  });
-
-  recordBtn.addEventListener("click", async () => {
-    if (mediaRecorder && mediaRecorder.state === "recording") {
-      mediaRecorder.stop();
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      recordedChunks = [];
-      mediaRecorder = new MediaRecorder(stream);
-      mediaRecorder.ondataavailable = (e) => recordedChunks.push(e.data);
-      mediaRecorder.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
-        recordBtn.classList.remove("recording");
-        recordBtn.textContent = "🎙 録音";
-        const blob = new Blob(recordedChunks, { type: "audio/webm" });
-        const buf = await blob.arrayBuffer();
-        loadSampleFromArrayBuffer(buf, "録音音源");
-      };
-      mediaRecorder.start();
-      recordBtn.classList.add("recording");
-      recordBtn.textContent = "■ 停止";
-      sampleStatus.textContent = "録音中…";
-    } catch (err) {
-      sampleStatus.textContent = "マイクを使用できません。「音源を読み込む」からファイルを選んでください";
-    }
   });
 
   // ---- color bar: the ONLY control that switches the drawing color.
@@ -1211,7 +1185,7 @@
 
   // ---- ambient background blobs -----------------------------------------
 
-  const blobs = [0, 1, 2, 3].map((i) => ({
+  const blobs = [0, 1].map((i) => ({
     hue: TRACKS[TRACK_IDS[i]].hue,
     a: Math.random() * Math.PI * 2,
     speed: 0.05 + Math.random() * 0.05,
@@ -1220,7 +1194,7 @@
 
   // a handful of twinkling stars for a starlit-sky feel — cheap: no
   // shadowBlur, no gradients, just small filled circles
-  const stars = Array.from({ length: 42 }, () => ({
+  const stars = Array.from({ length: 16 }, () => ({
     xr: Math.random(),
     yr: Math.random(),
     r: 0.6 + Math.random() * 1.3,
@@ -1228,9 +1202,18 @@
     speed: 0.5 + Math.random() * 1.1,
   }));
 
+  // Ambient decoration (blobs + stars) is slow-moving and doesn't need
+  // full 60fps — skipping it every other frame roughly halves its cost
+  // (gradient creation is one of the pricier canvas ops) with no
+  // visible difference, since the fade trail still runs every frame.
+  let ambientFrameToggle = false;
+
   function drawBackground(t) {
     ctx.fillStyle = "rgba(11,8,22,0.22)";
     ctx.fillRect(0, 0, cssWidth, cssHeight);
+
+    ambientFrameToggle = !ambientFrameToggle;
+    if (!ambientFrameToggle) return;
 
     // fill only each blob's own bounding box (its gradient is fully
     // transparent past r anyway) instead of the whole canvas per blob —

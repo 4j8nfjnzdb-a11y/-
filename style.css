@@ -388,16 +388,6 @@ input[type="range"]::-moz-range-thumb {
   color: var(--ink-dim);
 }
 
-#recordBtn.recording {
-  border-color: var(--magenta);
-  color: var(--magenta);
-  animation: pulseRec 1s ease-in-out infinite;
-}
-@keyframes pulseRec {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
 .waveCanvas {
   width: 100%;
   height: 40px;
