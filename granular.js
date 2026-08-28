@@ -149,6 +149,31 @@
 
   // ---- audio graph -----------------------------------------------------
 
+  const MIC_CONSTRAINTS = {
+    audio: {
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+      channelCount: 2,
+    },
+  };
+
+  async function getMicStream() {
+    try {
+      return await navigator.mediaDevices.getUserMedia(MIC_CONSTRAINTS);
+    } catch (err) {
+      // AbortError ("Could not start audio source") is usually a transient
+      // OS/driver hiccup rather than a real denial — one retry after a
+      // short pause resolves it in practice, so only surface it to the
+      // user if it happens twice in a row.
+      if (err && err.name === "AbortError") {
+        await new Promise((r) => setTimeout(r, 400));
+        return await navigator.mediaDevices.getUserMedia(MIC_CONSTRAINTS);
+      }
+      throw err;
+    }
+  }
+
   async function initAudio() {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     sampleRate = audioCtx.sampleRate;
@@ -219,14 +244,7 @@
 
     updateFilter();
 
-    micStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: false,
-        channelCount: 2,
-      },
-    });
+    micStream = await getMicStream();
 
     await audioCtx.audioWorklet.addModule("granular-worklet.js");
     const micSource = audioCtx.createMediaStreamSource(micStream);
@@ -366,6 +384,13 @@
     }
     if (name === "NotReadableError" || name === "TrackStartError") {
       return "マイクが他のアプリで使用中のようです。他の通話・録音アプリを閉じてから再度お試しください。";
+    }
+    if (name === "AbortError") {
+      return "OS／ドライバー側でマイクを起動できませんでした（一度自動で再試行済みです）。" +
+        "考えられる原因: ① OSのマイク権限がブラウザに許可されていない（Windows: 設定→プライバシー→マイク、" +
+        "macOS: システム設定→プライバシーとセキュリティ→マイク）、② 既定の入力デバイスが無効・未接続（Bluetoothマイクの再接続など）、" +
+        "③ Windowsで他アプリの排他制御が有効（サウンド設定→録音→マイクのプロパティ→詳細タブ→「排他モードで…」のチェックを外す）。" +
+        "解決しない場合はブラウザを再起動するか、別のブラウザ（Firefox等）でお試しください。";
     }
     return `マイクにアクセスできません（${name || err}）。ページを再読み込みしてもう一度お試しください。`;
   }
