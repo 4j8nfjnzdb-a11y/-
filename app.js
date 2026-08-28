@@ -30,6 +30,7 @@
   const speedSlider = document.getElementById("speed");
   const loopToggle = document.getElementById("loopToggle");
   const reverseToggle = document.getElementById("reverseToggle");
+  const polyphonySelect = document.getElementById("polyphonyLimit");
   const filterSlider = document.getElementById("filterKnob");
   const spaceSlider = document.getElementById("spaceKnob");
   const keySelect = document.getElementById("keySelect");
@@ -151,6 +152,7 @@
     key: 60,
     scaleName: "pentaMajor",
     scanProgress: 0, // 0..1 for sweep/path/bounce, px for wander
+    polyphonyLimit: 0, // 0 = unlimited; otherwise max notes sounding at once
   };
 
   let strokeSeq = 1;
@@ -518,7 +520,21 @@
     }
   }
 
+  // Each note with FX stacked on it (ring + tremolo + vibrato, say) can
+  // spawn a dozen-plus AudioNodes. That's fine for a few notes at once
+  // but adds up fast with several busy tracks — this caps how many can
+  // be sounding simultaneously, dropping (not queuing) new triggers
+  // past the limit so the audio graph never grows unbounded. 0 = no cap.
+  let activeVoiceCount = 0;
+  function reserveVoice(durationSec) {
+    if (state.polyphonyLimit > 0 && activeVoiceCount >= state.polyphonyLimit) return false;
+    activeVoiceCount++;
+    setTimeout(() => { activeVoiceCount = Math.max(0, activeVoiceCount - 1); }, Math.max(0, durationSec * 1000));
+    return true;
+  }
+
   function triggerNote(stroke, x, y, velocity) {
+    if (!reserveVoice(1.2)) return;
     const track = TRACKS[stroke.colorId];
     const brush = BRUSH_PROFILES[stroke.brush] || BRUSH_PROFILES.normal;
     if (track.instrument === "sample") {
@@ -865,6 +881,7 @@
   speedSlider.addEventListener("input", () => (state.speedValue = +speedSlider.value));
   loopToggle.addEventListener("change", () => (state.loop = loopToggle.checked));
   reverseToggle.addEventListener("change", () => (state.reverse = reverseToggle.checked));
+  polyphonySelect.addEventListener("change", () => (state.polyphonyLimit = +polyphonySelect.value));
 
   // ---- macro fx knobs -------------------------------------------------
 
