@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>kizami — realtime granular looper</title>
+<link rel="stylesheet" href="granular.css" />
+</head>
+<body>
+  <canvas id="bg"></canvas>
+
+  <main class="ui">
+    <header>
+      <h1>kizami <span class="sub">きざむ</span></h1>
+      <p class="tagline">生の演奏をリング・バッファに刻み、粒（グレイン）にして彫刻するリアルタイム・ステレオ・グラニュラー・ルーパー。</p>
+      <nav class="crossnav"><a href="index.html">← kizashi</a></nav>
+    </header>
+
+    <div class="transport">
+      <button id="startBtn" class="playBtn">マイク入力を開始</button>
+      <button id="freezeBtn" class="toggleBtn">フリーズ <em>freeze</em></button>
+      <button id="reverseBtn" class="toggleBtn">逆再生 <em>reverse</em></button>
+      <button id="stutterBtn" class="holdBtn">スタッター <em>hold</em></button>
+      <button id="clearBtn" class="ghostBtn">バッファ消去</button>
+    </div>
+
+    <div class="panels">
+      <section class="panel">
+        <h2>ループ <em>loop</em></h2>
+        <label class="slider">
+          <span>持続 <em>sustain</em></span>
+          <input id="sustain" type="range" min="0" max="99" value="55" />
+        </label>
+        <label class="slider">
+          <span>位置 <em>position</em></span>
+          <input id="position" type="range" min="0" max="100" value="18" />
+        </label>
+        <label class="slider">
+          <span>漂流 <em>drift</em></span>
+          <input id="drift" type="range" min="0" max="100" value="15" />
+        </label>
+      </section>
+
+      <section class="panel">
+        <h2>グレイン <em>grain</em></h2>
+        <label class="slider">
+          <span>粒サイズ <em>size</em></span>
+          <input id="size" type="range" min="8" max="500" value="90" />
+        </label>
+        <label class="slider">
+          <span>密度 <em>density</em></span>
+          <input id="density" type="range" min="1" max="100" value="45" />
+        </label>
+        <label class="slider">
+          <span>散布 <em>spray</em></span>
+          <input id="spray" type="range" min="0" max="100" value="20" />
+        </label>
+        <label class="slider">
+          <span>ピッチ <em>pitch</em></span>
+          <input id="pitch" type="range" min="-24" max="24" value="0" />
+        </label>
+        <label class="slider">
+          <span>ピッチ散布 <em>pitch spray</em></span>
+          <input id="pitchSpray" type="range" min="0" max="12" value="0" />
+        </label>
+        <label class="slider">
+          <span>逆再生確率 <em>rev. prob</em></span>
+          <input id="reverseProb" type="range" min="0" max="100" value="0" />
+        </label>
+        <label class="slider">
+          <span>広がり <em>spread</em></span>
+          <input id="spread" type="range" min="0" max="100" value="70" />
+        </label>
+        <label class="slider select">
+          <span>輪郭 <em>contour</em></span>
+          <select id="contour">
+            <option value="smooth">滑らか smooth</option>
+            <option value="click">クリック click</option>
+            <option value="swell">スウェル swell</option>
+            <option value="pluck">プラック pluck</option>
+          </select>
+        </label>
+      </section>
+
+      <section class="panel">
+        <h2>彫刻 <em>sculpt</em></h2>
+        <label class="slider">
+          <span>カットオフ <em>cutoff</em></span>
+          <input id="filterFreq" type="range" min="0" max="100" value="80" />
+        </label>
+        <label class="slider">
+          <span>レゾナンス <em>resonance</em></span>
+          <input id="filterQ" type="range" min="0" max="100" value="15" />
+        </label>
+        <label class="slider select">
+          <span>フィルター種 <em>type</em></span>
+          <select id="filterType">
+            <option value="lowpass">ローパス</option>
+            <option value="highpass">ハイパス</option>
+            <option value="bandpass">バンドパス</option>
+          </select>
+        </label>
+        <label class="slider">
+          <span>ドライブ <em>drive</em></span>
+          <input id="drive" type="range" min="0" max="100" value="0" />
+        </label>
+        <label class="slider">
+          <span>空間 <em>space</em></span>
+          <input id="space" type="range" min="0" max="100" value="35" />
+        </label>
+      </section>
+    </div>
+
+    <p class="hint">マイクまたは楽器の入力を、常時回転する6秒のリングバッファへ刻み続けます。フリーズで時を止め、位置と散布で粒を彫り出してください。</p>
+  </main>
+
+  <script src="granular.js"></script>
+</body>
+</html>
