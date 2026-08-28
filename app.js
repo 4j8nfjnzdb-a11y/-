@@ -64,6 +64,7 @@
   ];
 
   const OCTAVE_SPAN = 3;
+  const MAX_STROKES = 200; // oldest strokes drop once a session draws past this
 
   function midiToFreq(m) {
     return 440 * Math.pow(2, (m - 69) / 12);
@@ -827,6 +828,7 @@
     state.playheadPath = null;
     hint.classList.remove("hidden");
     strokesCtx.clearRect(0, 0, cssWidth, cssHeight);
+    triggerCooldowns.clear();
     // the main canvas keeps a fading trail of whatever was composited
     // onto it each frame (that's how the ambient glow trail works) —
     // without this, cleared strokes would linger as a faint ghost for
@@ -838,7 +840,8 @@
     if (state.tool === "path") {
       state.playheadPath = null;
     } else {
-      state.strokes.pop();
+      const removed = state.strokes.pop();
+      if (removed) triggerCooldowns.delete(removed.id);
       redrawStrokesLayer();
     }
   });
@@ -915,7 +918,8 @@
       drawing = true;
       const idx = nearestStrokeIndex(p, 16);
       if (idx >= 0) {
-        state.strokes.splice(idx, 1);
+        const [removed] = state.strokes.splice(idx, 1);
+        triggerCooldowns.delete(removed.id);
         redrawStrokesLayer();
       }
       return;
@@ -935,6 +939,17 @@
         points: [{ x: p.x, y: p.y }],
       };
       state.strokes.push(currentStroke);
+
+      // an unbounded canvas keeps growing in memory (and in cooldown
+      // bookkeeping) for the entire session no matter how fast per-frame
+      // rendering is — cap it so a long, heavy drawing session can't
+      // eventually exhaust memory on its own. Oldest strokes fall off
+      // first, same as any other bounded history.
+      if (state.strokes.length > MAX_STROKES) {
+        const dropped = state.strokes.shift();
+        triggerCooldowns.delete(dropped.id);
+        redrawStrokesLayer();
+      }
     }
   });
 
@@ -945,7 +960,8 @@
     if (state.tool === "eraser") {
       const idx = nearestStrokeIndex(p, 16);
       if (idx >= 0) {
-        state.strokes.splice(idx, 1);
+        const [removed] = state.strokes.splice(idx, 1);
+        triggerCooldowns.delete(removed.id);
         redrawStrokesLayer();
       }
       return;
@@ -1121,6 +1137,12 @@
     return wanderDrift.value;
   }
 
+  // strokeId -> Map(segmentIndex -> lastTriggerTime). Nested so a
+  // removed stroke's cooldown entries can be dropped in one call
+  // (triggerCooldowns.delete(id)) instead of leaking forever — a flat
+  // "id_seg" map never got cleaned up as strokes were erased/undone,
+  // growing for the entire session regardless of how much was still
+  // on screen. That's the "draw a lot and it breaks" leak.
   const triggerCooldowns = new Map();
 
   function testCrossings(loX, hiX, now) {
@@ -1132,14 +1154,18 @@
         const segLo = Math.min(a.x, b.x), segHi = Math.max(a.x, b.x);
         const lo = Math.max(loX, segLo), hi = Math.min(hiX, segHi);
         if (lo <= hi) {
-          const key = stroke.id + "_" + i;
-          const last = triggerCooldowns.get(key) || 0;
+          let strokeCooldowns = triggerCooldowns.get(stroke.id);
+          const last = strokeCooldowns ? strokeCooldowns.get(i) || 0 : 0;
           if (now - last > 100) {
             const xTrig = (lo + hi) / 2;
             const t = b.x === a.x ? 0 : (xTrig - a.x) / (b.x - a.x);
             const y = a.y + (b.y - a.y) * clamp(t, 0, 1);
             triggerNote(stroke, xTrig, y, stroke.velocity || 0.7);
-            triggerCooldowns.set(key, now);
+            if (!strokeCooldowns) {
+              strokeCooldowns = new Map();
+              triggerCooldowns.set(stroke.id, strokeCooldowns);
+            }
+            strokeCooldowns.set(i, now);
           }
         }
       }
