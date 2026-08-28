@@ -885,14 +885,16 @@ input[type="range"]::-moz-range-thumb {
   const KANA_ONLY_RE = /^[぀-ゟー゠-ヿ]+$/;
 
   const KANA_TO_PHONEME = new Map();
-  const PHONEME_TO_KANA = new Map();
+  const PHONEME_TO_HIRAGANA = new Map();
+  const PHONEME_TO_KATAKANA = new Map();
   for (const rows of [GOJUON_ROWS, KATA_ROWS]) {
+    const target = rows === GOJUON_ROWS ? PHONEME_TO_HIRAGANA : PHONEME_TO_KATAKANA;
     for (const row of rows) {
       for (const v of ["a", "i", "u", "e", "o"]) {
         const ch = row[v];
         if (!ch) continue;
         KANA_TO_PHONEME.set(ch, { cons: row.cons, vowel: v });
-        if (rows === GOJUON_ROWS) PHONEME_TO_KANA.set(row.cons + v, ch); // reconstruct in hiragana
+        target.set(row.cons + v, ch);
       }
     }
   }
@@ -922,8 +924,21 @@ input[type="range"]::-moz-range-thumb {
     return null;
   }
 
-  function reconstructKana(cons, vowel) {
-    return PHONEME_TO_KANA.get(cons + vowel) || PHONEME_TO_KANA.get(vowel) || null;
+  // Katakana was already being decomposed into phonemes correctly on the
+  // way in — a ワ or a タ contributed its consonant/vowel to the shared
+  // pool just like ひらがな did. But reconstruction only ever rebuilt in
+  // ひらがな, so カタカナ was a one-way sink: it fed the chaos but could
+  // never come back out of it. Every rebuild now picks ひらがな or カタカナ
+  // independently at random, so a mora that started as ひらがな can
+  // resurface as カタカナ and vice versa — all three scripts (漢字 included,
+  // via phonemeRecombine's separate kanji pool) are genuinely symmetric
+  // participants in the same chaos now, not two real scripts plus one
+  // that quietly gets flattened away.
+  function reconstructKana(cons, vowel, rand) {
+    const useKatakana = rand() < 0.5;
+    const primary = useKatakana ? PHONEME_TO_KATAKANA : PHONEME_TO_HIRAGANA;
+    const fallback = useKatakana ? PHONEME_TO_HIRAGANA : PHONEME_TO_KATAKANA;
+    return primary.get(cons + vowel) || primary.get(vowel) || fallback.get(cons + vowel) || fallback.get(vowel) || null;
   }
 
   // Without a real dictionary there's no way to know how a given 漢字
@@ -965,7 +980,7 @@ input[type="range"]::-moz-range-thumb {
         cons = consPool[Math.floor(rand() * consPool.length)];
         vowel = vowelPool[Math.floor(rand() * vowelPool.length)]; // full noise
       }
-      built = reconstructKana(cons, vowel) || original;
+      built = reconstructKana(cons, vowel, rand) || original;
     }
     return built;
   }
