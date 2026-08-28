@@ -42,6 +42,7 @@
   const downloadLink = el("downloadLink");
 
   const masterVolSlider = el("masterVol");
+  const bgAnimToggle = el("bgAnimToggle");
 
   const voiceEls = VOICE_LETTERS.map((letter) => ({
     letter,
@@ -116,7 +117,10 @@
     masterGain.connect(compressor).connect(audioCtx.destination);
 
     reverbNode = audioCtx.createConvolver();
-    reverbNode.buffer = buildImpulseResponse(audioCtx, 4.5, 2.6);
+    // convolution cost scales directly with impulse-response length; 4.5s
+    // was audibly nice but heavier than this app needs — this still reads
+    // as a real room/space, at well under half the CPU cost
+    reverbNode.buffer = buildImpulseResponse(audioCtx, 2.0, 2.6);
     reverbNode.connect(masterGain);
 
     // the "compound delay" bus: two non-multiple, damped feedback delay
@@ -800,31 +804,59 @@
   window.addEventListener("resize", resizeCanvas);
   resizeCanvas();
 
-  function draw() {
+  // this is decorative, not part of the audio path, but a full-screen
+  // canvas repainted at 60fps with per-particle radial gradients was real
+  // GPU/CPU load competing for the same core the audio needs — flat fills
+  // instead of gradients, ~30fps instead of 60, and an outright off switch
+  // off by default — this is the single biggest lever for a struggling
+  // machine, so don't make people find the switch after the fact
+  let bgAnimEnabled = !!bgAnimToggle?.checked;
+  let lastDrawTime = 0;
+  const FRAME_INTERVAL = 1000 / 30;
+
+  function draw(now) {
+    if (!bgAnimEnabled) return;
+    requestAnimationFrame(draw);
+    if (now - lastDrawTime < FRAME_INTERVAL) return;
+    const dt = lastDrawTime ? (now - lastDrawTime) / 1000 : FRAME_INTERVAL / 1000;
+    lastDrawTime = now;
+
     const w = canvas.width, h = canvas.height;
-    ctx2d.fillStyle = `hsla(${hue}, 25%, 4%, 0.16)`;
+    ctx2d.fillStyle = `hsla(${hue}, 25%, 4%, 0.3)`;
     ctx2d.fillRect(0, 0, w, h);
 
     particles.forEach((p) => {
-      p.life += 1 / 60;
-      p.x += p.vx * 0.016;
-      p.y += p.vy * 0.016;
+      p.life += dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
       const t = p.life / p.maxLife;
-      const alpha = Math.max(0, 1 - t) * 0.45;
+      const alpha = Math.max(0, 1 - t) * 0.5;
       const r = p.r * (1 + t * 6);
-      const grad = ctx2d.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
-      grad.addColorStop(0, `hsla(${p.hue}, 55%, 72%, ${alpha})`);
-      grad.addColorStop(1, `hsla(${p.hue}, 55%, 72%, 0)`);
-      ctx2d.fillStyle = grad;
+      ctx2d.globalAlpha = alpha;
+      ctx2d.fillStyle = `hsl(${p.hue}, 55%, 72%)`;
       ctx2d.beginPath();
       ctx2d.arc(p.x, p.y, r, 0, Math.PI * 2);
       ctx2d.fill();
     });
+    ctx2d.globalAlpha = 1;
     particles = particles.filter((p) => p.life < p.maxLife);
-
-    requestAnimationFrame(draw);
   }
-  requestAnimationFrame(draw);
+
+  function setBgAnimEnabled(enabled) {
+    bgAnimEnabled = enabled;
+    if (enabled) {
+      lastDrawTime = 0;
+      requestAnimationFrame(draw);
+    } else {
+      ctx2d.fillStyle = "#0b0d10";
+      ctx2d.fillRect(0, 0, canvas.width, canvas.height);
+    }
+  }
+  setBgAnimEnabled(bgAnimEnabled);
+
+  if (bgAnimToggle) {
+    bgAnimToggle.addEventListener("change", () => setBgAnimEnabled(bgAnimToggle.checked));
+  }
 
   const voiceHues = [200, 320, 60, 150];
 
