@@ -407,8 +407,8 @@ input[type="range"]::-moz-range-thumb {
       <h2>切り方の設定</h2>
 
       <div class="presets" id="presets">
-        <button class="presetBtn" data-preset="light">ライト</button>
         <button class="presetBtn" data-preset="medium">ミディアム</button>
+        <button class="presetBtn" data-preset="decompose">分解</button>
         <button class="presetBtn" data-preset="heavy">ヘビー</button>
         <button class="presetBtn" data-preset="chaos">カオス</button>
       </div>
@@ -531,12 +531,15 @@ input[type="range"]::-moz-range-thumb {
   // Each rung uses a different reordering algorithm, not just a different
   // randomness number — "shuffle a bit more" reads as the same behavior at
   // a lower volume, but a different algorithm (shuffle -> grid -> full
-  // permutation) reads as a genuinely different kind of cut.
+  // permutation) reads as a genuinely different kind of cut. 分解 sits
+  // between ミディアム and ヘビー using the plain derangement-shuffle
+  // algorithm (not grid, not permutation) — a third distinct algorithm in
+  // the ladder, not just a number between the other two.
   const PRESETS = {
-    light:  { unit: "sentence", min: 1, max: 2, randomness: 40, cutMethod: "standard" },
-    medium: { unit: "bunsetsu", min: 1, max: 3, randomness: 55, cutMethod: "grid" },
-    heavy:  { unit: "bunsetsu", min: 1, max: 2, randomness: 85, cutMethod: "permutation" },
-    chaos:  { unit: "char", min: 1, max: 6, randomness: 100, cutMethod: "permutation" },
+    medium:    { unit: "bunsetsu", min: 1, max: 3, randomness: 55, cutMethod: "grid" },
+    decompose: { unit: "bunsetsu", min: 1, max: 2, randomness: 68, cutMethod: "standard" },
+    heavy:     { unit: "bunsetsu", min: 1, max: 2, randomness: 85, cutMethod: "permutation" },
+    chaos:     { unit: "char", min: 1, max: 6, randomness: 100, cutMethod: "permutation" },
   };
 
   let sourceSeq = 0;
@@ -712,12 +715,20 @@ input[type="range"]::-moz-range-thumb {
   // Brackets/quotes were previously invisible to this splitter, so a
   // parenthetical like "餅（グルーヴ）が" came out as one permanently-glued
   // atomic fragment no matter how many times you re-cut — it could move
-  // around as a block but never split internally. Opening brackets now
-  // close off whatever came before them; closing brackets close off the
-  // bracketed span itself, so the aside becomes its own separable fragment.
+  // around as a block but never split internally. That fix alone still
+  // treats a bracket pair as structural glue, though: the mark always
+  // travels attached to a neighbor, in effect "preserved" as punctuation
+  // rather than actually decomposed the way any other character is. A 「
+  // or a 。 is orthography, not scaffolding — it should be exactly as
+  // liable to end up loose and disconnected from its partner as any
+  // fragment of the sentence around it. So opening/closing brackets and
+  // sentence punctuation (。、！？) each get a chaos-driven chance of being
+  // split off as their own bare one-character fragment instead of staying
+  // attached to what precedes or encloses them.
   const OPEN_BRACKETS = "「『【〈《（([{";
   const CLOSE_BRACKETS = "」』】〉》）)]}";
-  const HARD_BOUNDARY = /[。、！？.!?\n]/;
+  const HARD_PUNCT = /[。、！？.!?]/;
+  const SYMBOL_DETACH_CHANCE = 0.45;
 
   // Cutting only where a particle happens to sit is a rule, not chance —
   // anyone who knows a handful of Japanese particles can predict exactly
@@ -738,16 +749,36 @@ input[type="range"]::-moz-range-thumb {
 
       if (OPEN_BRACKETS.includes(ch)) {
         if (current.trim().length > 0) bunsetsu.push(current);
-        current = ch;
+        if (rand() < SYMBOL_DETACH_CHANCE) {
+          bunsetsu.push(ch);
+          current = "";
+        } else {
+          current = ch;
+        }
         i++;
+        continue;
+      }
+
+      if (ch === "\n") {
+        current += ch;
+        i++;
+        bunsetsu.push(current);
+        current = "";
         continue;
       }
 
       current += ch;
       i++;
 
-      if (CLOSE_BRACKETS.includes(ch) || HARD_BOUNDARY.test(ch)) {
-        bunsetsu.push(current);
+      if (CLOSE_BRACKETS.includes(ch) || HARD_PUNCT.test(ch)) {
+        if (rand() < SYMBOL_DETACH_CHANCE && current.length > 1) {
+          const symbol = current.slice(-1);
+          const body = current.slice(0, -1);
+          if (body.trim().length > 0) bunsetsu.push(body);
+          bunsetsu.push(symbol);
+        } else {
+          bunsetsu.push(current);
+        }
         current = "";
         continue;
       }
