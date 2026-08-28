@@ -13,8 +13,9 @@
     <header>
       <h1>meguri <span class="sub">巡</span></h1>
       <p class="tagline">
-        入力を絶えずリングバッファへ録りため、そこから短い窓を切り出してループさせるリアルタイム・エフェクト。
-        窓の長さ・パン・奥行きはそれぞれ自分の速度でゆっくり揺れ、"flow" にすると窓そのものが次々と新しい素材へ流れていきます。
+        入力を絶えずリングバッファへ録りため、そこから短い窓を切り出してループさせるサンプリング＋ミキサー。
+        入力を接続すると4つのレイヤーは自動的に流れ始め、窓の長さ・パン・奥行きはそれぞれ自分の速度でゆっくり揺れます。
+        レイヤーごとに "flow（ランダムに流れる）" と "固定（止める）" を切り替えられます。
       </p>
     </header>
 
@@ -23,7 +24,8 @@
       <p class="hint">
         RME Fireface を使う場合は OS 側の入力デバイスとして Fireface を選び、TotalMix FX で聴きたいチャンネルを
         ブラウザに見えているステレオペア（通常 1/2）にルーティングしてください。ブラウザの自動エコー除去・自動ゲインは
-        無効化して接続します。
+        無効化して接続します。「入力を接続」を押すと一度だけ許可ダイアログが出て、そのあと入力欄に実際のデバイス名
+        （内蔵マイク／Fireface など）が表示されます。選び直すと自動的に接続し直します。
       </p>
       <div class="row">
         <select id="deviceSelect"></select>
@@ -60,25 +62,29 @@
       </div>
       <label class="slider inline">
         <span>長さの範囲</span>
-        <input id="minDur" type="range" min="1" max="20" step="0.5" value="1" />
-        <input id="maxDur" type="range" min="1" max="20" step="0.5" value="20" />
-        <em id="durRangeLabel">1s – 20s</em>
+        <input id="minDur" type="range" min="1" max="30" step="0.5" value="1" />
+        <input id="maxDur" type="range" min="1" max="30" step="0.5" value="30" />
+        <em id="durRangeLabel">1s – 30s</em>
       </label>
     </section>
 
     <section class="panel voices">
-      <h2>3. レイヤー（最大4つ重ねられます）</h2>
+      <h2>3. レイヤー・ミキサー（最大4つ、接続すると自動で流れ始めます）</h2>
       <div class="voiceGrid">
-        <div id="voiceA" class="voiceCard">
+        <div id="voiceA" class="voiceCard flow">
           <div class="voiceHead">
-            <label class="check"><input type="checkbox" id="voiceA-active" /><strong>A</strong></label>
+            <label class="check"><input type="checkbox" id="voiceA-active" checked /><strong>A</strong></label>
             <select id="voiceA-mode">
-              <option value="fixed">固定ループ</option>
-              <option value="flow">flow（流れる）</option>
+              <option value="fixed">固定（止める）</option>
+              <option value="flow" selected>flow（ランダムに流れる）</option>
             </select>
             <span id="voiceA-durLabel" class="durLabel">–</span>
           </div>
           <label class="check small"><input type="checkbox" id="voiceA-reverse" /> 逆再生</label>
+          <label class="slider small">
+            <span>レベル</span>
+            <input id="voiceA-level" type="range" min="0" max="100" value="85" />
+          </label>
           <label class="slider small">
             <span>ピッチ/スピード</span>
             <input id="voiceA-speed" type="range" min="25" max="300" value="100" />
@@ -95,16 +101,20 @@
           <button id="voiceA-resample" class="ghostBtn small">再サンプル</button>
         </div>
 
-        <div id="voiceB" class="voiceCard">
+        <div id="voiceB" class="voiceCard flow">
           <div class="voiceHead">
-            <label class="check"><input type="checkbox" id="voiceB-active" /><strong>B</strong></label>
+            <label class="check"><input type="checkbox" id="voiceB-active" checked /><strong>B</strong></label>
             <select id="voiceB-mode">
-              <option value="fixed">固定ループ</option>
-              <option value="flow">flow（流れる）</option>
+              <option value="fixed">固定（止める）</option>
+              <option value="flow" selected>flow（ランダムに流れる）</option>
             </select>
             <span id="voiceB-durLabel" class="durLabel">–</span>
           </div>
           <label class="check small"><input type="checkbox" id="voiceB-reverse" /> 逆再生</label>
+          <label class="slider small">
+            <span>レベル</span>
+            <input id="voiceB-level" type="range" min="0" max="100" value="80" />
+          </label>
           <label class="slider small">
             <span>ピッチ/スピード</span>
             <input id="voiceB-speed" type="range" min="25" max="300" value="100" />
@@ -121,16 +131,20 @@
           <button id="voiceB-resample" class="ghostBtn small">再サンプル</button>
         </div>
 
-        <div id="voiceC" class="voiceCard">
+        <div id="voiceC" class="voiceCard flow">
           <div class="voiceHead">
-            <label class="check"><input type="checkbox" id="voiceC-active" /><strong>C</strong></label>
+            <label class="check"><input type="checkbox" id="voiceC-active" checked /><strong>C</strong></label>
             <select id="voiceC-mode">
-              <option value="fixed">固定ループ</option>
-              <option value="flow" selected>flow（流れる）</option>
+              <option value="fixed">固定（止める）</option>
+              <option value="flow" selected>flow（ランダムに流れる）</option>
             </select>
             <span id="voiceC-durLabel" class="durLabel">–</span>
           </div>
           <label class="check small"><input type="checkbox" id="voiceC-reverse" /> 逆再生</label>
+          <label class="slider small">
+            <span>レベル</span>
+            <input id="voiceC-level" type="range" min="0" max="100" value="75" />
+          </label>
           <label class="slider small">
             <span>ピッチ/スピード</span>
             <input id="voiceC-speed" type="range" min="25" max="300" value="70" />
@@ -147,16 +161,20 @@
           <button id="voiceC-resample" class="ghostBtn small">再サンプル</button>
         </div>
 
-        <div id="voiceD" class="voiceCard">
+        <div id="voiceD" class="voiceCard flow">
           <div class="voiceHead">
-            <label class="check"><input type="checkbox" id="voiceD-active" /><strong>D</strong></label>
+            <label class="check"><input type="checkbox" id="voiceD-active" checked /><strong>D</strong></label>
             <select id="voiceD-mode">
-              <option value="fixed">固定ループ</option>
-              <option value="flow">flow（流れる）</option>
+              <option value="fixed">固定（止める）</option>
+              <option value="flow" selected>flow（ランダムに流れる）</option>
             </select>
             <span id="voiceD-durLabel" class="durLabel">–</span>
           </div>
           <label class="check small"><input type="checkbox" id="voiceD-reverse" /> 逆再生</label>
+          <label class="slider small">
+            <span>レベル</span>
+            <input id="voiceD-level" type="range" min="0" max="100" value="70" />
+          </label>
           <label class="slider small">
             <span>ピッチ/スピード</span>
             <input id="voiceD-speed" type="range" min="25" max="300" value="150" />

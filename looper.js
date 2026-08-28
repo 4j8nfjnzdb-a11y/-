@@ -51,6 +51,7 @@
     reverse: el(`voice${letter}-reverse`),
     speed: el(`voice${letter}-speed`),
     speedLabel: el(`voice${letter}-speedLabel`),
+    level: el(`voice${letter}-level`),
     pan: el(`voice${letter}-pan`),
     depth: el(`voice${letter}-depth`),
     resample: el(`voice${letter}-resample`),
@@ -242,9 +243,16 @@
 
   // ---- input / recording -----------------------------------------------
 
+  // device labels stay blank until a permission grant unlocks them, and
+  // rebuilding <select> naively resets its selection — both of which made
+  // picking a specific input (e.g. a laptop's built-in mic vs an
+  // interface) look like it silently failed to "take"
+  let labelsUnlocked = false;
+
   async function listInputDevices() {
     const devices = await navigator.mediaDevices.enumerateDevices();
     const inputs = devices.filter((d) => d.kind === "audioinput");
+    const previousValue = deviceSelect.value;
     deviceSelect.innerHTML = "";
     inputs.forEach((d, i) => {
       const opt = document.createElement("option");
@@ -252,11 +260,32 @@
       opt.textContent = d.label || `入力 ${i + 1}`;
       deviceSelect.appendChild(opt);
     });
+    if (inputs.some((d) => d.deviceId === previousValue)) {
+      deviceSelect.value = previousValue;
+    }
+  }
+
+  async function unlockDeviceLabels() {
+    if (labelsUnlocked) return;
+    try {
+      const probe = await navigator.mediaDevices.getUserMedia({ audio: true });
+      probe.getTracks().forEach((t) => t.stop());
+      labelsUnlocked = true;
+    } catch (err) {
+      // permission denied outright; listInputDevices() below will still
+      // run and just keep showing generic labels
+    }
+    await listInputDevices();
   }
 
   async function armInput() {
     if (!audioCtx) await initAudio();
     if (audioCtx.state === "suspended") await audioCtx.resume();
+
+    // first pass: unlock real device labels so "内蔵マイク" vs the audio
+    // interface are actually distinguishable, then let the (now correctly
+    // labeled) selection decide which device to actually open
+    await unlockDeviceLabels();
 
     const deviceId = deviceSelect.value || undefined;
     try {
@@ -287,7 +316,15 @@
     const track = mediaStream.getAudioTracks()[0];
     inputStatus.textContent = `接続中: ${track.label || "入力デバイス"}`;
     armBtn.textContent = "再接続";
+
+    bootstrapActiveVoices();
   }
+
+  // picking a different device from the dropdown reconnects immediately,
+  // instead of requiring a second click on "再接続"
+  deviceSelect.addEventListener("change", () => {
+    if (audioCtx) armInput();
+  });
 
   monitorToggle.addEventListener("change", () => {
     if (!audioCtx) return;
@@ -415,9 +452,10 @@
     letter,
     index,
     active: false,
-    mode: "fixed", // 'fixed' | 'flow'
+    mode: "flow", // 'fixed' | 'flow'
     reverse: false,
     speed: 1,
+    level: 0.85,
     panAmount: 0,
     depthAmount: 0.3,
     currentSource: null,
@@ -429,6 +467,8 @@
 
   function buildVoiceChain(v) {
     v.panNode = audioCtx.createStereoPanner();
+    v.levelGain = audioCtx.createGain(); // the mixer fader for this layer
+    v.levelGain.gain.value = v.level;
     v.depthFilter = audioCtx.createBiquadFilter();
     v.depthFilter.type = "lowpass";
     v.depthFilter.frequency.value = 18000;
@@ -437,7 +477,8 @@
     v.wetGain = audioCtx.createGain();
     v.delaySendGain = audioCtx.createGain();
 
-    v.panNode.connect(v.depthFilter);
+    v.panNode.connect(v.levelGain);
+    v.levelGain.connect(v.depthFilter);
     v.depthFilter.connect(v.dryGain).connect(masterGain);
     v.depthFilter.connect(v.wetGain).connect(reverbNode);
     v.depthFilter.connect(v.delaySendGain);
@@ -528,6 +569,23 @@
     }
   }
 
+  // voices that are checked "active" by default in the markup never fire a
+  // change event, and the very first trigger attempt right after arming
+  // usually lands before the ring buffer has any material — so wait for
+  // enough signal, then kick off every voice the UI already shows as on
+  let bootstrapPoll = null;
+  function bootstrapActiveVoices() {
+    clearInterval(bootstrapPoll);
+    bootstrapPoll = setInterval(() => {
+      if (ringSecondsAvailable() < 0.6) return;
+      voiceEls.forEach((ui, i) => {
+        const v = voices[i];
+        if (ui.active.checked && !v.active) setVoiceActive(v, true);
+      });
+      clearInterval(bootstrapPoll);
+    }, 150);
+  }
+
   // slow pan drift, ticked from the same loop as the meter/canvas
   function updateVoiceDrift() {
     if (!audioCtx) return;
@@ -603,6 +661,11 @@
       if (v.currentSource) {
         v.currentSource.playbackRate.setTargetAtTime(v.speed, audioCtx.currentTime, 0.05);
       }
+    });
+
+    ui.level.addEventListener("input", () => {
+      v.level = +ui.level.value / 100;
+      if (audioCtx) v.levelGain.gain.setTargetAtTime(v.level, audioCtx.currentTime, 0.05);
     });
 
     ui.pan.addEventListener("input", () => {
