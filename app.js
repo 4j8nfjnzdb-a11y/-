@@ -1,21 +1,39 @@
-// kizashi — generative ambient
+// ひまわり — fibonacci spiral music
 //
-// The idea: build a texture that reads as "repetition" (steady pulse,
-// familiar scale, cyclic pads) while every layer runs on its own
-// incommensurate clock and a slowly-drifting probability of firing at
-// all. The listener's short-term predictive model never quite locks in
-// — each layer swerves a little before it would become obvious — but
-// nothing is ever pure noise either. That balance is tuned by the
-// "swerve" and "density" sliders.
+// Inspired by Fibonacci-pulse ("time quasicrystal") driving schemes and by
+// phyllotaxis — the golden-angle spiral sunflower seeds and pinecone
+// scales grow in. The idea carried over here is not the physics itself,
+// just its aesthetic core: a rule as simple as "add the previous two" or
+// "step by one golden angle each time" produces a pattern that is
+// perfectly ordered yet never exactly repeats.
+//
+// - Rhythm: each layer walks a Sturmian / mechanical word built from a
+//   single ratio r. At r = 1/2 this is the plain alternating word ABAB...
+//   (periodic, "resonant"). As r slides toward 1/φ it becomes the
+//   Fibonacci word A→AB, B→A: AABABAABA... — the least periodic,
+//   least resonant sequence of long (A) and short (B) pulses there is.
+// - Melody: a running phase advances by r*scaleLength each step (a Beatty
+//   sequence), spreading scale degrees as evenly and non-repeatingly as
+//   the same ratio allows.
+// - Visual: every triggered note is placed at angle i*r turns and radius
+//   c*sqrt(i) from center — Vogel's model of a sunflower head. At r=1/2
+//   the "spiral" collapses into two straight rows; near r=1/φ it opens
+//   into the familiar interlocking spiral arms.
+// - Timing/velocity carry a small 1/f (pink) noise wobble — the same
+//   "1/fゆらぎ" fluctuation prized in acoustics and design, layered on
+//   top of the deterministic rule rather than replacing it.
 
 (() => {
   const playBtn = document.getElementById("playBtn");
   const paletteBtn = document.getElementById("paletteBtn");
   const densitySlider = document.getElementById("density");
   const toneSlider = document.getElementById("tone");
-  const swerveSlider = document.getElementById("swerve");
+  const goldenSlider = document.getElementById("golden");
   const canvas = document.getElementById("bg");
   const ctx2d = canvas.getContext("2d");
+
+  const PHI = (1 + Math.sqrt(5)) / 2;
+  const GOLDEN_CONJ = PHI - 1; // ~0.6180339887
 
   let audioCtx = null;
   let master, dry, wet, reverbNode, delayA, delayB, delayFeedbackA, delayFeedbackB;
@@ -27,8 +45,6 @@
   // ---- musical material -------------------------------------------
 
   const SCALES = {
-    // semitone offsets from root, chosen to always sound consonant
-    // no matter which degree becomes the melodic center
     warm: [0, 2, 3, 7, 9, 10],      // dorian-ish, dusky
     mid: [0, 2, 4, 7, 9, 11],       // major/ionian, open
     bright: [0, 2, 4, 6, 9, 11],    // lydian-ish, lifted
@@ -50,34 +66,35 @@
   }
 
   function scaleForTone(tone) {
-    // tone: 0..100 -> warm..bright
     if (tone < 33) return SCALES.warm;
     if (tone < 66) return SCALES.mid;
     return SCALES.bright;
   }
 
-  function pickDegree(layer) {
-    const scale = scaleForTone(+toneSlider.value);
-    const degree = scale[Math.floor(Math.random() * scale.length)];
-    return palette.root + degree + layer.octave * 12;
+  // r: 0..1 -> ratio between 1/2 (periodic) and 1/φ (golden, most quasi-periodic)
+  function currentRatio() {
+    const g = +goldenSlider.value / 100;
+    return 0.5 + g * (GOLDEN_CONJ - 0.5);
   }
 
-  // ---- smoothed randomness (organic "swerve", not white noise) -----
+  // ---- 1/f (pink) noise, for organic micro-timing/velocity wobble ----
 
-  function makeDrift(min, max, start) {
-    let value = start ?? (min + max) / 2;
-    let target = value;
-    return {
-      get value() { return value; },
-      tick(rate) {
-        if (Math.random() < 0.08) {
-          target = min + Math.random() * (max - min);
-        }
-        value += (target - value) * rate;
-        return value;
-      },
+  function makePinkNoise() {
+    let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+    return function pink() {
+      const white = Math.random() * 2 - 1;
+      b0 = 0.99886 * b0 + white * 0.0555179;
+      b1 = 0.99332 * b1 + white * 0.0750759;
+      b2 = 0.96900 * b2 + white * 0.1538520;
+      b3 = 0.86650 * b3 + white * 0.3104856;
+      b4 = 0.55000 * b4 + white * 0.5329522;
+      b5 = -0.7616 * b5 - white * 0.0168980;
+      const out = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
+      b6 = white * 0.115926;
+      return out * 0.11; // roughly in [-1, 1]
     };
   }
+  const pink = makePinkNoise();
 
   // ---- audio graph ---------------------------------------------------
 
@@ -119,8 +136,6 @@
     reverbNode.connect(wet);
     wet.connect(master);
 
-    // two non-multiple delay lines, damped feedback, for a soft
-    // shimmering space that never quite settles into a fixed comb
     delayA = audioCtx.createDelay(2.0);
     delayA.delayTime.value = 0.372;
     delayFeedbackA = audioCtx.createGain();
@@ -160,7 +175,9 @@
     node.connect(dla).connect(delayB);
   }
 
-  // ---- pad drone layer: slow, cyclic-feeling, never exactly cyclic --
+  // ---- pad drone layer -------------------------------------------
+  // Each voice's filter LFO period is the previous one times φ, so no
+  // two layers' cycles ever line back up on each other.
 
   function buildPads() {
     padVoices.forEach((v) => v.stopAll && v.stopAll());
@@ -170,8 +187,7 @@
     intervals.forEach((iv, i) => {
       const osc = audioCtx.createOscillator();
       osc.type = i % 2 === 0 ? "sine" : "triangle";
-      const detune = (Math.random() * 2 - 1) * 6;
-      osc.detune.value = detune;
+      osc.detune.value = (Math.random() * 2 - 1) * 6;
 
       const gain = audioCtx.createGain();
       gain.gain.value = 0;
@@ -186,9 +202,7 @@
 
       osc.start();
 
-      // each voice's filter LFO period is an irrational-ish multiple
-      // of the others, so the ensemble never repeats a combined shape
-      const lfoPeriod = 17 + i * 6.28 + Math.random() * 4;
+      const lfoPeriod = 12 * Math.pow(PHI, i);
       padVoices.push({
         osc, gain, filter, interval: iv,
         lfoPeriod, phase: Math.random() * Math.PI * 2,
@@ -224,26 +238,44 @@
     });
   }
 
-  // ---- sparse melodic "bell" layers ----------------------------------
-  // Each layer keeps its own clock. On every tick it may or may not
-  // fire, governed by a probability that random-walks between a low
-  // and high bound — the swerve control widens or narrows that walk.
+  // ---- fibonacci-word bell layers -------------------------------------
+  // Each layer has its own pulse period (successive Fibonacci numbers ×
+  // a base unit, so the layers' tempi are themselves near-golden-ratio
+  // multiples of each other) and its own Sturmian accumulator: every
+  // step it adds the shared ratio r and fires a "long" (A) pulse when
+  // the accumulator rolls over 1, a "short" (B) pulse otherwise. At
+  // r = 1/φ this bit stream *is* the Fibonacci word.
+  //
+  // Pitch comes from a second accumulator (a Beatty sequence) stepping
+  // through the current scale by r×scaleLength each time — same ratio,
+  // same never-quite-repeating spread, applied to melody instead of time.
+
+  const LAYER_FIB_PERIODS = [3, 5, 8]; // consecutive Fibonacci numbers
 
   function buildBellLayers() {
-    bellLayers = [
-      { octave: 1, baseInterval: 2.6, gain: 0.16, decayMin: 1.8, decayMax: 4.5,
-        prob: makeDrift(0.15, 0.7, 0.4), jitter: makeDrift(-1, 1, 0), nextTime: 0 },
-      { octave: 2, baseInterval: 1.7, gain: 0.11, decayMin: 1.2, decayMax: 3.0,
-        prob: makeDrift(0.1, 0.65, 0.3), jitter: makeDrift(-1, 1, 0), nextTime: 0 },
-      { octave: 3, baseInterval: 4.1, gain: 0.09, decayMin: 2.0, decayMax: 5.5,
-        prob: makeDrift(0.08, 0.5, 0.2), jitter: makeDrift(-1, 1, 0), nextTime: 0 },
-    ];
+    bellLayers = LAYER_FIB_PERIODS.map((fibN, i) => ({
+      octave: i + 1,
+      period: 0.24 * fibN,
+      gain: [0.17, 0.12, 0.09][i],
+      decayMin: [1.6, 1.1, 1.9][i],
+      decayMax: [3.8, 2.6, 5.0][i],
+      acc: Math.random(),
+      melodicAcc: Math.random() * 6,
+      nextTime: 0,
+    }));
     const now = audioCtx.currentTime;
-    bellLayers.forEach((l, i) => { l.nextTime = now + 1 + i * 0.7; });
+    bellLayers.forEach((l, i) => { l.nextTime = now + 1 + i * 0.5; });
   }
 
-  function triggerBell(layer, time) {
-    const midi = pickDegree(layer);
+  let noteIndex = 0;
+  const SPIRAL_N = 320;
+
+  function triggerBell(layer, time, long, r) {
+    const scale = scaleForTone(+toneSlider.value);
+    const scaleLen = scale.length;
+    layer.melodicAcc = (layer.melodicAcc + r * scaleLen) % scaleLen;
+    const degree = scale[Math.floor(layer.melodicAcc)];
+    const midi = palette.root + degree + layer.octave * 12;
     const freq = midiToFreq(midi);
     const decay = layer.decayMin + Math.random() * (layer.decayMax - layer.decayMin);
 
@@ -251,15 +283,19 @@
     osc.type = "sine";
     osc.frequency.value = freq;
 
+    // a soft partial at the golden ratio itself, not a harmonic multiple
     const partial = audioCtx.createOscillator();
     partial.type = "sine";
-    partial.frequency.value = freq * 2.01;
+    partial.frequency.value = freq * PHI;
     const partialGain = audioCtx.createGain();
-    partialGain.gain.value = 0.18;
+    partialGain.gain.value = 0.15;
+
+    const velocityWobble = 1 + pink() * 0.18;
+    const level = layer.gain * (long ? 1.15 : 0.8) * velocityWobble;
 
     const env = audioCtx.createGain();
     env.gain.setValueAtTime(0, time);
-    env.gain.linearRampToValueAtTime(layer.gain, time + 0.03);
+    env.gain.linearRampToValueAtTime(Math.max(0.01, level), time + 0.03);
     env.gain.exponentialRampToValueAtTime(0.0005, time + decay);
 
     const filter = audioCtx.createBiquadFilter();
@@ -282,32 +318,36 @@
     osc.stop(time + decay + 0.2);
     partial.stop(time + decay + 0.2);
 
-    spawnParticle(midi, panner.pan.value, decay);
+    spawnParticle(midi, r, decay, long);
   }
 
   function scheduleBells() {
     const now = audioCtx.currentTime;
     const lookahead = 0.25;
     const density = +densitySlider.value / 100;
-    const swerve = +swerveSlider.value / 100;
+    const r = currentRatio();
 
     bellLayers.forEach((layer) => {
       while (layer.nextTime < now + lookahead) {
         const t = layer.nextTime;
 
-        // probability itself drifts — this is the "dodge the
-        // prediction just before it forms" mechanism
-        const walkRate = 0.05 + swerve * 0.25;
-        const p = layer.prob.tick(walkRate);
-        const effectiveP = Math.min(0.95, p + density * 0.35);
-
-        if (Math.random() < effectiveP) {
-          triggerBell(layer, t);
+        layer.acc += r;
+        let long = false;
+        if (layer.acc >= 1) {
+          layer.acc -= 1;
+          long = true;
         }
 
-        const jitterAmt = layer.jitter.tick(0.15) * (0.15 + swerve * 0.35);
-        const interval = layer.baseInterval * (1 + jitterAmt) / (0.4 + density * 0.9);
-        layer.nextTime = t + Math.max(0.35, interval);
+        // long ("A") pulses are the backbone of the fibonacci word and
+        // fire almost every time; short ("B") pulses are optional
+        // accents gated by density
+        const fireProb = long ? 0.85 + density * 0.15 : density * 0.6;
+        if (Math.random() < fireProb) {
+          const jitter = pink() * 0.022; // seconds, the 1/f wobble
+          triggerBell(layer, Math.max(now, t + jitter), long, r);
+        }
+
+        layer.nextTime = t + layer.period;
       }
     });
   }
@@ -359,7 +399,10 @@
     if (audioCtx) crossfadePadsToPalette(6);
   });
 
-  // ---- visual: quiet drifting field, loosely tied to note events -----
+  // ---- visual: golden-angle spiral (Vogel's sunflower model) -----
+  // Note i is placed at angle i·r turns and radius c·√i from center.
+  // r = 1/2 collapses the spiral into two straight rows; r → 1/φ opens
+  // it into the interlocking arms seen in real sunflower heads.
 
   let particles = [];
   let hue = palette.hue;
@@ -371,19 +414,23 @@
   window.addEventListener("resize", resizeCanvas);
   resizeCanvas();
 
-  function spawnParticle(midi, pan, decay) {
+  function spawnParticle(midi, r, decay, long) {
+    const i = noteIndex++ % SPIRAL_N;
+    const angle = i * r * Math.PI * 2;
     const w = canvas.width, h = canvas.height;
-    const x = ((midi % 24) / 24) * w * 0.8 + w * 0.1;
-    const y = h * 0.5 - pan * h * 0.32 + (Math.random() - 0.5) * h * 0.15;
+    const maxRadius = Math.min(w, h) * 0.44;
+    const radius = maxRadius * Math.sqrt(i / SPIRAL_N);
+    const cx = w / 2, cy = h / 2;
     particles.push({
-      x, y,
-      r: 4 * devicePixelRatio,
+      x: cx + Math.cos(angle) * radius,
+      y: cy + Math.sin(angle) * radius,
+      r: (long ? 5 : 3.2) * devicePixelRatio,
       life: 0,
       maxLife: Math.max(1.5, decay),
-      vx: (Math.random() - 0.5) * 6,
-      vy: (Math.random() - 0.5) * 6,
+      vx: (Math.random() - 0.5) * 3,
+      vy: (Math.random() - 0.5) * 3,
     });
-    if (particles.length > 120) particles.shift();
+    if (particles.length > 220) particles.shift();
   }
 
   function draw() {
@@ -401,7 +448,7 @@
       p.y += p.vy * 0.016;
       const t = p.life / p.maxLife;
       const alpha = Math.max(0, 1 - t) * 0.5;
-      const r = p.r * (1 + t * 8);
+      const r = p.r * (1 + t * 6);
       const grad = ctx2d.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
       grad.addColorStop(0, `hsla(${hue}, 60%, 75%, ${alpha})`);
       grad.addColorStop(1, `hsla(${hue}, 60%, 75%, 0)`);

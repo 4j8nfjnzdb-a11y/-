@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>kizashi — generative ambient</title>
+<title>ひまわり — fibonacci spiral music</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -11,8 +11,8 @@
 
   <main class="ui">
     <header>
-      <h1>kizashi <span class="sub">きざし</span></h1>
-      <p class="tagline">反復に見せかけて、予測の像を結ぶ寸前でかわし続けるアンビエント。</p>
+      <h1>ひまわり <span class="sub">フィボナッチ螺旋音楽</span></h1>
+      <p class="tagline">足し算だけの単純な規則から、二度と正確には重ならない秩序が生まれる。ひまわりの種を並べる角度—黄金角—が、ここでは音の並びと明滅の位置を決めている。</p>
     </header>
 
     <div class="transport">
@@ -30,12 +30,12 @@
         <input id="tone" type="range" min="0" max="100" value="50" />
       </label>
       <label class="slider">
-        <span>揺らぎ <em>swerve</em></span>
-        <input id="swerve" type="range" min="0" max="100" value="55" />
+        <span>黄金 <em>golden ratio</em></span>
+        <input id="golden" type="range" min="0" max="100" value="68" />
       </label>
     </div>
 
-    <p class="hint">音は毎回、一度きりのものです。同じ配列は二度と戻ってきません。</p>
+    <p class="hint">「黄金」を0に近づけると単純な繰り返し（1:2）に、100に近づけると割り切れない秩序—黄金比 φ—に連続的に移り変わる。リズムの骨格はフィボナッチ語（A→AB, B→A）、旋律と螺旋の座標は同じ比 φ でずらし続ける黄金角。タイミングにはごく僅かな 1/f ゆらぎを重ねている。</p>
   </main>
 
   <script src="app.js"></script>
