@@ -50,6 +50,7 @@
     active: el(`voice${letter}-active`),
     mode: el(`voice${letter}-mode`),
     reverse: el(`voice${letter}-reverse`),
+    pitchRandom: el(`voice${letter}-pitchRandom`),
     speed: el(`voice${letter}-speed`),
     speedLabel: el(`voice${letter}-speedLabel`),
     speedHalf: el(`voice${letter}-speedHalf`),
@@ -506,9 +507,11 @@
     level: 0.85,
     panAmount: 0,
     depthAmount: 0.3,
+    pitchRandom: false,
     currentSource: null,
     currentGain: null,
     panDrift: makeDrift(-1, 1, 0),
+    pitchDrift: makeDrift(-7, 7, 0), // semitones, continuous (microtonal) around v.speed
     flowTimer: null,
     currentDuration: 4,
   }));
@@ -568,10 +571,15 @@
 
     const buffer = extractSnapshot(duration, v.reverse);
 
+    if (v.pitchRandom) {
+      v.pitchDrift.set(randRange(-7, 7));
+    }
+    const initialRate = v.pitchRandom ? v.speed * Math.pow(2, v.pitchDrift.value / 12) : v.speed;
+
     const source = audioCtx.createBufferSource();
     source.buffer = buffer;
     source.loop = v.mode === "fixed";
-    source.playbackRate.value = v.speed;
+    source.playbackRate.value = initialRate;
 
     const gainNode = audioCtx.createGain();
     gainNode.gain.value = 0;
@@ -660,15 +668,25 @@
   // slow pan drift, ticked from the same loop as the meter/canvas
   function updateVoiceDrift() {
     if (!audioCtx) return;
+    const now = audioCtx.currentTime;
     voices.forEach((v) => {
-      if (!v.active || v.panAmount <= 0) return;
-      // at 0.01 the drift's own ~2.4s average retarget interval was
-      // shorter than its ~12-36s time constant to actually get anywhere —
-      // it just sat within a hair of center indefinitely, which read as
-      // "pan doesn't do anything". 0.06 lets it swing across the field in
-      // a few seconds while still wandering, not snapping.
-      const drift = v.panDrift.tick(0.06);
-      v.panNode.pan.setTargetAtTime(drift * v.panAmount, audioCtx.currentTime, 0.4);
+      if (!v.active) return;
+
+      if (v.panAmount > 0) {
+        // at 0.01 the drift's own ~2.4s average retarget interval was
+        // shorter than its ~12-36s time constant to actually get anywhere —
+        // it just sat within a hair of center indefinitely, which read as
+        // "pan doesn't do anything". 0.06 lets it swing across the field in
+        // a few seconds while still wandering, not snapping.
+        const drift = v.panDrift.tick(0.06);
+        v.panNode.pan.setTargetAtTime(drift * v.panAmount, now, 0.4);
+      }
+
+      if (v.pitchRandom && v.currentSource) {
+        const semitones = v.pitchDrift.tick(0.06);
+        const rate = v.speed * Math.pow(2, semitones / 12);
+        v.currentSource.playbackRate.setTargetAtTime(rate, now, 0.4);
+      }
     });
   }
   setInterval(updateVoiceDrift, 120);
@@ -729,6 +747,15 @@
     ui.reverse.addEventListener("change", () => {
       v.reverse = ui.reverse.checked;
       if (v.active) triggerVoice(v, v.currentDuration);
+    });
+
+    ui.pitchRandom.addEventListener("change", () => {
+      v.pitchRandom = ui.pitchRandom.checked;
+      if (!v.pitchRandom && v.currentSource && audioCtx) {
+        // snap cleanly back to the slider's exact speed instead of leaving
+        // it wherever the drift last wandered to
+        v.currentSource.playbackRate.setTargetAtTime(v.speed, audioCtx.currentTime, 0.15);
+      }
     });
 
     function applySpeed() {
