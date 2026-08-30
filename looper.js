@@ -87,10 +87,24 @@
   // ---- audio context + graph ------------------------------------------
 
   let audioCtx = null;
-  let masterGain, compressor, reverbNode, delayA, delayB;
+  let masterGain, compressor, limiter, reverbNode, delayA, delayB;
   let inputGain, monitorGain, sourceNode, mediaStream;
   let analyser, meterData;
   let workletSupported = false;
+
+  // a tanh soft-clip curve: approaches but mathematically never exceeds
+  // +/-1, so whatever the compressor lets through on a transient pile-up
+  // (four voices re-triggering close together, plus reverb/delay tails)
+  // still can't produce a hard digital clip
+  function buildSoftClipCurve(amount, samples) {
+    const curve = new Float32Array(samples);
+    const norm = Math.tanh(amount);
+    for (let i = 0; i < samples; i++) {
+      const x = (i / (samples - 1)) * 2 - 1;
+      curve[i] = Math.tanh(amount * x) / norm;
+    }
+    return curve;
+  }
 
   function buildImpulseResponse(context, duration, decay) {
     const rate = context.sampleRate;
@@ -117,9 +131,17 @@
     masterGain.gain.value = +masterVolSlider.value / 100;
 
     compressor = audioCtx.createDynamicsCompressor();
-    compressor.threshold.value = -16;
-    compressor.ratio.value = 3.5;
-    masterGain.connect(compressor).connect(audioCtx.destination);
+    compressor.threshold.value = -20;
+    compressor.knee.value = 12;
+    compressor.ratio.value = 6;
+    compressor.attack.value = 0.002;
+    compressor.release.value = 0.2;
+
+    limiter = audioCtx.createWaveShaper();
+    limiter.curve = buildSoftClipCurve(2.2, 2048);
+    limiter.oversample = "4x";
+
+    masterGain.connect(compressor).connect(limiter).connect(audioCtx.destination);
 
     reverbNode = audioCtx.createConvolver();
     // convolution cost scales directly with impulse-response length; 4.5s
@@ -409,7 +431,13 @@
     if (!audioCtx) return;
     if (!recordTapNode) {
       recordTapNode = makeTapNode(onRecordChunk);
-      masterGain.connect(recordTapNode);
+      // tap after the compressor/limiter, not masterGain — otherwise the
+      // recording gets the raw, unprotected sum of all four layers plus
+      // reverb/delay tails, while the speakers hear the limited version.
+      // Four voices re-triggering close together can easily push that raw
+      // sum well past 0dBFS, which is exactly "録音すると音割れ" while
+      // live listening sounds fine.
+      limiter.connect(recordTapNode);
     }
     recordChunksL = [];
     recordChunksR = [];
