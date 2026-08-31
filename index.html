@@ -3,41 +3,50 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>kizashi — generative ambient</title>
+<title>CIRCUIT CHOP — modular drum sample mangler</title>
+<link rel="icon" href="data:," />
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <canvas id="bg"></canvas>
-
-  <main class="ui">
-    <header>
-      <h1>kizashi <span class="sub">きざし</span></h1>
-      <p class="tagline">反復に見せかけて、予測の像を結ぶ寸前でかわし続けるアンビエント。</p>
-    </header>
-
+  <header class="topbar">
+    <h1>CIRCUIT CHOP <span class="sub">4スロット・モジュラー・ドラムサンプルミキサー</span></h1>
     <div class="transport">
-      <button id="playBtn" class="playBtn">再生</button>
-      <button id="paletteBtn" class="ghostBtn">配色を変える</button>
+      <button id="playBtn" class="playBtn">▶ 再生</button>
+      <label class="bpmField">
+        <span>BPM</span>
+        <input id="bpm" type="number" min="40" max="220" value="120" />
+      </label>
+      <label class="mixField">
+        <span>MASTER</span>
+        <input id="masterVol" type="range" min="0" max="1" step="0.01" value="0.85" />
+      </label>
+      <div class="meter"><div id="meterBar" class="meterBar"></div></div>
     </div>
+  </header>
 
-    <div class="controls">
-      <label class="slider">
-        <span>密度 <em>density</em></span>
-        <input id="density" type="range" min="0" max="100" value="42" />
-      </label>
-      <label class="slider">
-        <span>明暗 <em>tone</em></span>
-        <input id="tone" type="range" min="0" max="100" value="50" />
-      </label>
-      <label class="slider">
-        <span>揺らぎ <em>swerve</em></span>
-        <input id="swerve" type="range" min="0" max="100" value="55" />
-      </label>
-    </div>
+  <main>
+    <section id="slots" class="slots"></section>
 
-    <p class="hint">音は毎回、一度きりのものです。同じ配列は二度と戻ってきません。</p>
+    <section class="patchSection">
+      <div class="patchToolbar">
+        <span class="patchTitle">PATCH BAY <span class="sub">中継ボックスをつないで回路を組む</span></span>
+        <div class="addButtons">
+          <button data-add="glitch">+ GLITCH</button>
+          <button data-add="filter">+ FILTER</button>
+          <button data-add="crush">+ CRUSH</button>
+          <button data-add="delay">+ DELAY</button>
+          <button id="clearPatchBtn" class="ghostBtn">配線リセット</button>
+        </div>
+      </div>
+      <div id="patchViewport" class="patchViewport">
+        <div id="patchCanvas" class="patchCanvas">
+          <svg id="cableLayer" class="cableLayer"></svg>
+        </div>
+      </div>
+      <p class="hint">出力ポート（右の丸）をドラッグして、別のボックスの入力ポート（左の丸）へつなげます。ケーブル中央の×で切断。SLOT はそれぞれの出力、MASTER が最終出力です。</p>
+    </section>
   </main>
 
-  <script src="app.js"></script>
+  <script type="module" src="js/main.js"></script>
 </body>
 </html>
