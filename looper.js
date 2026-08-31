@@ -51,6 +51,7 @@
     mode: el(`voice${letter}-mode`),
     reverse: el(`voice${letter}-reverse`),
     pitchRandom: el(`voice${letter}-pitchRandom`),
+    locked: el(`voice${letter}-locked`),
     speed: el(`voice${letter}-speed`),
     speedLabel: el(`voice${letter}-speedLabel`),
     speedHalf: el(`voice${letter}-speedHalf`),
@@ -536,6 +537,7 @@
     panAmount: 0,
     depthAmount: 0.3,
     pitchRandom: false,
+    locked: false,
     currentSource: null,
     currentGain: null,
     panDrift: makeDrift(-1, 1, 0),
@@ -645,10 +647,10 @@
 
   function scheduleFlow(v, justPlayedDuration) {
     clearTimeout(v.flowTimer);
-    if (!v.active || v.mode !== "flow") return;
+    if (!v.active || v.mode !== "flow" || v.locked) return;
     const nextDuration = pickDuration();
     v.flowTimer = setTimeout(() => {
-      if (v.active && v.mode === "flow") triggerVoice(v, nextDuration);
+      if (v.active && v.mode === "flow" && !v.locked) triggerVoice(v, nextDuration);
     }, Math.max(300, justPlayedDuration * 1000 * 0.92));
   }
 
@@ -726,7 +728,7 @@
   function autoSampleTick() {
     if (!autoSampleToggle.checked) return;
     voices.forEach((v) => {
-      if (v.active && v.mode === "fixed") triggerVoice(v);
+      if (v.active && v.mode === "fixed" && !v.locked) triggerVoice(v);
     });
     scheduleAutoSample();
   }
@@ -755,7 +757,7 @@
   });
 
   sampleNowBtn.addEventListener("click", () => {
-    voices.forEach((v) => { if (v.active) triggerVoice(v); });
+    voices.forEach((v) => { if (v.active && !v.locked) triggerVoice(v); });
   });
 
   // ---- voice UI wiring ----------------------------------------------------
@@ -784,6 +786,15 @@
         // it wherever the drift last wandered to
         v.currentSource.playbackRate.setTargetAtTime(v.speed, audioCtx.currentTime, 0.15);
       }
+    });
+
+    // locking a layer exempts it from every *automatic* re-trigger (the
+    // global auto-sample timer, flow mode's own self-scheduling, and the
+    // "今すぐ全レイヤーを再サンプル" bulk button) — the only way its
+    // content changes once locked is this voice's own 再サンプル button
+    ui.locked.addEventListener("change", () => {
+      v.locked = ui.locked.checked;
+      clearTimeout(v.flowTimer);
     });
 
     function applySpeed() {
