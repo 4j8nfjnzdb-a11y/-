@@ -39,6 +39,14 @@
         <button id="randomAllBtn" class="bigBtn ghost">🎲 全トラックランダム</button>
       </div>
 
+      <div class="master-row">
+        <button id="chaosBtn" class="bigBtn chaos">🌀 カオス・ランダム</button>
+        <label class="hslider">
+          <span>同時トラック数(最大) <em id="chaosCountLabel">4</em></span>
+          <input id="chaosCount" type="range" min="1" max="4" value="4" step="1" />
+        </label>
+      </div>
+
       <div id="recordingResult" class="recording-result" hidden>
         <audio id="recordingAudio" controls></audio>
         <a id="recordingDownload" class="downloadLink" download>ダウンロード</a>
@@ -48,6 +56,7 @@
         マイク開始 → 各トラックのフェーダーを上げる。<strong>⏺ルーパー</strong>は1回押して弾き始め、もう1回押すとそこまで弾いた分だけをそのままループします(本物のルーパーペダルと同じ挙動)。
         <strong>🎲ランダムループ</strong>はここまでの録音からランダムな一部を切り出してループする、崩れた質感重視のモードです。
         「自動」を押すと一定間隔でループ箇所が変わり続け、「固定」でその場のループに留めます。
+        <strong>🌀カオス・ランダム</strong>はスイッチ1つで全トラックを勝手に暴走させます。ランダムなトラックが順不同に鳴り始め、ループ長も毎回バラバラ、次に切り替わるまでの間隔も速かったり長かったりで揺れ続けます。同時に鳴る最大トラック数はスライダーで指定でき、実際の数はその範囲内で常に変動します。
         <strong>ドライ/エフェクトMix</strong>は0でギター(マイク)の生音のみ、100で4トラックのエフェクト合計のみが出力されます。マイクの生音がスピーカーに乗るとハウリングしやすくなるため、0より上で使う場合は特にヘッドホン推奨。
       </p>
     </section>

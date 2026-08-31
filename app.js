@@ -67,6 +67,9 @@
   let writeIndex = 0;
   let totalWritten = 0;
 
+  let chaosMode = false;
+  let chaosTimer = null;
+
   // Track state exists independently of the audio graph so the 4 panels
   // can render immediately; audio nodes are attached once the AudioContext
   // is created (on first mic start).
@@ -90,6 +93,7 @@
       loopMaxSec: 1.0,
       looperArmed: false,
       looperStartTotal: 0,
+      chaosActive: false,
       el: {},
     });
   }
@@ -384,6 +388,85 @@
     triggerRandomLoop(track);
     const wait = 1500 + Math.random() * 3500;
     track.autoTimer = setTimeout(() => scheduleAutoLoop(track), wait);
+  }
+
+  // ---------- chaos mode: one switch, everything shifts on its own ----
+  //
+  // A single global engine that keeps grabbing a random track and either
+  // bringing it in, re-rolling its loop with a fresh (independently
+  // randomized) length, or dropping it back out — so the set of tracks
+  // sounding at once drifts between 1 and the chosen max in no fixed
+  // order, loop lengths never settle on a pattern, and the gap between
+  // events is itself randomized (sometimes a fast flurry, sometimes a
+  // long held drone).
+
+  function fireChaosLoop(track) {
+    const maxLen = 0.3 + Math.random() * 4.7; // ceiling itself varies each call
+    const seg = extractRandomSegment(0.08, maxLen);
+    if (!seg) return;
+    playSegmentOnTrack(track, seg);
+    const secs = seg.length / seg.sampleRate;
+    track.loopMaxSec = secs;
+    if (track.el.lenSlider) {
+      track.el.lenSlider.value = String(Math.min(250, Math.round(secs * 10)));
+      track.el.lenLabel.textContent = secs.toFixed(2) + "s";
+    }
+  }
+
+  function activateChaosTrack(track) {
+    track.chaosActive = true;
+    if (track.auto) {
+      track.auto = false;
+      track.el.autoBtn.classList.remove("active");
+      if (track.autoTimer) clearTimeout(track.autoTimer);
+    }
+    if (+track.el.fader.value === 0) {
+      track.el.fader.value = 45 + Math.floor(Math.random() * 45);
+      track.el.fader.dispatchEvent(new Event("input"));
+    }
+    fireChaosLoop(track);
+  }
+
+  function deactivateChaosTrack(track) {
+    track.chaosActive = false;
+    track.el.fader.value = 0;
+    track.el.fader.dispatchEvent(new Event("input"));
+  }
+
+  function chaosTick() {
+    if (!chaosMode) return;
+    const maxTracks = Math.max(1, Math.min(4, +document.getElementById("chaosCount").value));
+    const active = tracks.filter((t) => t.chaosActive);
+    const inactive = tracks.filter((t) => !t.chaosActive);
+
+    const roll = Math.random();
+    if (active.length === 0 || (inactive.length > 0 && active.length < maxTracks && roll < 0.55)) {
+      activateChaosTrack(inactive[Math.floor(Math.random() * inactive.length)]);
+    } else if (active.length > 1 && roll < 0.75) {
+      deactivateChaosTrack(active[Math.floor(Math.random() * active.length)]);
+    } else {
+      fireChaosLoop(active[Math.floor(Math.random() * active.length)]);
+    }
+
+    const fastBurst = Math.random() < 0.35;
+    const wait = fastBurst ? 150 + Math.random() * 500 : 1200 + Math.random() * 3500;
+    chaosTimer = setTimeout(chaosTick, wait);
+  }
+
+  function setChaosMode(on) {
+    if (on && !audioCtx) {
+      alert("先にマイクを開始してください");
+      return;
+    }
+    chaosMode = on;
+    document.getElementById("chaosBtn").classList.toggle("active", chaosMode);
+    document.getElementById("chaosBtn").textContent = chaosMode ? "🌀 カオス停止" : "🌀 カオス・ランダム";
+    if (chaosMode) {
+      chaosTick();
+    } else {
+      if (chaosTimer) clearTimeout(chaosTimer);
+      tracks.forEach((t) => { t.chaosActive = false; });
+    }
   }
 
   function applyPitch(track, semitones, glideSec) {
@@ -697,6 +780,12 @@
   document.getElementById("masterVol").addEventListener("input", (e) => {
     if (!audioCtx) return;
     masterOutGain.gain.setTargetAtTime(+e.target.value / 100, audioCtx.currentTime, PARAM_GLIDE);
+  });
+
+  document.getElementById("chaosBtn").addEventListener("click", () => setChaosMode(!chaosMode));
+
+  document.getElementById("chaosCount").addEventListener("input", (e) => {
+    document.getElementById("chaosCountLabel").textContent = e.target.value;
   });
 
   document.getElementById("dryWetMix").addEventListener("input", (e) => {

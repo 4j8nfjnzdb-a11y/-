@@ -92,6 +92,10 @@ button:active { transform: scale(0.97); }
   color: #06231a;
 }
 
+.bigBtn.chaos {
+  border-color: var(--accent-2);
+}
+
 .bigBtn.ghost {
   background: transparent;
 }
