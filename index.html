@@ -3,39 +3,50 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>kizashi — generative ambient</title>
+<title>4tr ランダムピッチループサンプラー</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <canvas id="bg"></canvas>
-
-  <main class="ui">
+  <main class="app">
     <header>
-      <h1>kizashi <span class="sub">きざし</span></h1>
-      <p class="tagline">反復に見せかけて、予測の像を結ぶ寸前でかわし続けるアンビエント。</p>
+      <h1>ランダムピッチ<span class="accent">ループ</span>サンプラー</h1>
+      <p class="tagline">マイクで弾いたフレーズを4トラックが勝手に切り取ってループ&ピッチシフトし続けます。</p>
     </header>
 
-    <div class="transport">
-      <button id="playBtn" class="playBtn">再生</button>
-      <button id="paletteBtn" class="ghostBtn">配色を変える</button>
-    </div>
+    <section class="master">
+      <div class="master-row">
+        <button id="micBtn" class="bigBtn">🎙 マイク開始</button>
+        <div class="meter" title="入力レベル">
+          <span class="meter-label">IN</span>
+          <div class="meter-track"><div id="inputMeterFill" class="meter-fill"></div></div>
+        </div>
+        <div class="meter" title="出力レベル">
+          <span class="meter-label">OUT</span>
+          <div class="meter-track"><div id="outputMeterFill" class="meter-fill"></div></div>
+        </div>
+      </div>
 
-    <div class="controls">
-      <label class="slider">
-        <span>密度 <em>density</em></span>
-        <input id="density" type="range" min="0" max="100" value="42" />
-      </label>
-      <label class="slider">
-        <span>明暗 <em>tone</em></span>
-        <input id="tone" type="range" min="0" max="100" value="50" />
-      </label>
-      <label class="slider">
-        <span>揺らぎ <em>swerve</em></span>
-        <input id="swerve" type="range" min="0" max="100" value="55" />
-      </label>
-    </div>
+      <div class="master-row">
+        <label class="hslider">
+          <span>マスター音量</span>
+          <input id="masterVol" type="range" min="0" max="100" value="80" />
+        </label>
+        <button id="recordBtn" class="bigBtn record">⏺ 録音開始</button>
+        <button id="randomAllBtn" class="bigBtn ghost">🎲 全トラックランダム</button>
+      </div>
 
-    <p class="hint">音は毎回、一度きりのものです。同じ配列は二度と戻ってきません。</p>
+      <div id="recordingResult" class="recording-result" hidden>
+        <audio id="recordingAudio" controls></audio>
+        <a id="recordingDownload" class="downloadLink" download>ダウンロード</a>
+      </div>
+
+      <p class="hint">
+        マイク開始 → 各トラックのフェーダーを上げる → 「ループ」ボタンでその瞬間までの録音からランダムな一部を切り出してループ再生します。
+        「自動」を押すと一定間隔でループ箇所が変わり続け、「固定」でその場のループに留めます。ハウリング防止のためヘッドホン推奨。
+      </p>
+    </section>
+
+    <section id="tracks" class="tracks"></section>
   </main>
 
   <script src="app.js"></script>

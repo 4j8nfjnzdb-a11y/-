@@ -1,85 +1,68 @@
-// kizashi — generative ambient
+// 4-track random pitch/loop sampler.
 //
-// The idea: build a texture that reads as "repetition" (steady pulse,
-// familiar scale, cyclic pads) while every layer runs on its own
-// incommensurate clock and a slowly-drifting probability of firing at
-// all. The listener's short-term predictive model never quite locks in
-// — each layer swerves a little before it would become obvious — but
-// nothing is ever pure noise either. That balance is tuned by the
-// "swerve" and "density" sliders.
+// Mic input is continuously captured into a rolling ring buffer (via an
+// AudioWorklet, so capture itself costs almost nothing). Each of the 4
+// tracks independently grabs a short random (or manually chosen) slice
+// of that buffer, loops it seamlessly (edge-faded to avoid clicks), and
+// plays it back at an adjustable/randomizable pitch (varispeed). A
+// master limiter + soft-clip stage keeps the mix from ever crackling no
+// matter how many tracks pile up.
 
 (() => {
-  const playBtn = document.getElementById("playBtn");
-  const paletteBtn = document.getElementById("paletteBtn");
-  const densitySlider = document.getElementById("density");
-  const toneSlider = document.getElementById("tone");
-  const swerveSlider = document.getElementById("swerve");
-  const canvas = document.getElementById("bg");
-  const ctx2d = canvas.getContext("2d");
+  const NUM_TRACKS = 4;
+  const RING_SECONDS = 10;
+  const VOICE_FADE = 0.12; // seconds, crossfade when a loop is replaced
+  const PARAM_GLIDE = 0.08; // seconds, smoothing for slider-driven params
 
   let audioCtx = null;
-  let master, dry, wet, reverbNode, delayA, delayB, delayFeedbackA, delayFeedbackB;
-  let padVoices = [];
-  let bellLayers = [];
-  let running = false;
-  let schedulerTimer = null;
+  let micStream = null;
+  let micSource = null;
+  let recorderNode = null;
+  let inputAnalyser = null;
+  let outputAnalyser = null;
+  let masterGain = null;
+  let reverbInput = null;
+  let recordDest = null;
+  let mediaRecorder = null;
+  let recordedChunks = [];
+  let recording = false;
+  let micActive = false;
 
-  // ---- musical material -------------------------------------------
+  let ringBuffer = null;
+  let ringLen = 0;
+  let writeIndex = 0;
+  let totalWritten = 0;
 
-  const SCALES = {
-    // semitone offsets from root, chosen to always sound consonant
-    // no matter which degree becomes the melodic center
-    warm: [0, 2, 3, 7, 9, 10],      // dorian-ish, dusky
-    mid: [0, 2, 4, 7, 9, 11],       // major/ionian, open
-    bright: [0, 2, 4, 6, 9, 11],    // lydian-ish, lifted
-  };
-
-  const ROOTS = [48, 50, 53, 55, 57]; // C, D, F, G, A (midi, low register)
-
-  let palette = makePalette();
-
-  function makePalette() {
-    const roots = ROOTS.slice();
-    const root = roots[Math.floor(Math.random() * roots.length)];
-    const hue = Math.random() * 360;
-    return { root, hue };
+  // Track state exists independently of the audio graph so the 4 panels
+  // can render immediately; audio nodes are attached once the AudioContext
+  // is created (on first mic start).
+  const tracks = [];
+  for (let i = 0; i < NUM_TRACKS; i++) {
+    tracks.push({
+      index: i,
+      panNode: null,
+      depthFilter: null,
+      depthGain: null,
+      reverbSend: null,
+      fader: null,
+      analyser: null,
+      voice: null,
+      pitchSemitones: 0,
+      randomPitch: false,
+      pitchTimer: null,
+      lock: false,
+      auto: false,
+      autoTimer: null,
+      loopMaxSec: 1.0,
+      el: {},
+    });
   }
 
-  function midiToFreq(m) {
-    return 440 * Math.pow(2, (m - 69) / 12);
+  // ---------- helpers ----------------------------------------------
+
+  function semitonesToRatio(st) {
+    return Math.pow(2, st / 12);
   }
-
-  function scaleForTone(tone) {
-    // tone: 0..100 -> warm..bright
-    if (tone < 33) return SCALES.warm;
-    if (tone < 66) return SCALES.mid;
-    return SCALES.bright;
-  }
-
-  function pickDegree(layer) {
-    const scale = scaleForTone(+toneSlider.value);
-    const degree = scale[Math.floor(Math.random() * scale.length)];
-    return palette.root + degree + layer.octave * 12;
-  }
-
-  // ---- smoothed randomness (organic "swerve", not white noise) -----
-
-  function makeDrift(min, max, start) {
-    let value = start ?? (min + max) / 2;
-    let target = value;
-    return {
-      get value() { return value; },
-      tick(rate) {
-        if (Math.random() < 0.08) {
-          target = min + Math.random() * (max - min);
-        }
-        value += (target - value) * rate;
-        return value;
-      },
-    };
-  }
-
-  // ---- audio graph ---------------------------------------------------
 
   function buildImpulseResponse(context, duration, decay) {
     const rate = context.sampleRate;
@@ -95,324 +78,517 @@
     return impulse;
   }
 
-  function initAudio() {
+  function makeSoftClipCurve(amount) {
+    const n = 1024;
+    const curve = new Float32Array(n);
+    const k = Math.tanh(amount);
+    for (let i = 0; i < n; i++) {
+      const x = (i / (n - 1)) * 2 - 1;
+      curve[i] = Math.tanh(x * amount) / k;
+    }
+    return curve;
+  }
+
+  // ---------- ring buffer -------------------------------------------
+
+  function writeChunkToRing(chunk) {
+    for (let i = 0; i < chunk.length; i++) {
+      ringBuffer[writeIndex] = chunk[i];
+      writeIndex = (writeIndex + 1) % ringLen;
+      totalWritten++;
+    }
+  }
+
+  // Reads `length` samples ending `backOffset` samples before "now",
+  // applies a short edge fade so the segment loops without a click.
+  function readRing(backOffset, length) {
+    const startIdx = ((writeIndex - backOffset) % ringLen + ringLen * 2) % ringLen;
+    const out = new Float32Array(length);
+    for (let i = 0; i < length; i++) {
+      out[i] = ringBuffer[(startIdx + i) % ringLen];
+    }
+    const fadeLen = Math.min(Math.floor(audioCtx.sampleRate * 0.012), Math.floor(length * 0.25));
+    for (let i = 0; i < fadeLen; i++) {
+      const g = i / fadeLen;
+      out[i] *= g;
+      out[length - 1 - i] *= g;
+    }
+    return { data: out, length, sampleRate: audioCtx.sampleRate };
+  }
+
+  function extractRandomSegment(minSec, maxSec) {
+    const available = Math.min(totalWritten, ringLen);
+    const sr = audioCtx.sampleRate;
+    if (available < sr * 0.08) return null;
+    const maxLen = Math.min(Math.floor(sr * maxSec), available - 1);
+    const minLen = Math.min(Math.floor(sr * minSec), maxLen);
+    const length = minLen + Math.floor(Math.random() * Math.max(1, maxLen - minLen + 1));
+    const backOffset = length + Math.floor(Math.random() * Math.max(1, available - length));
+    return readRing(backOffset, length);
+  }
+
+  function extractSegmentAt(posFrac, lenSec) {
+    const available = Math.min(totalWritten, ringLen);
+    const sr = audioCtx.sampleRate;
+    if (available < sr * 0.05) return null;
+    const length = Math.max(Math.floor(sr * 0.05), Math.min(Math.floor(sr * lenSec), available - 1));
+    const minBack = length;
+    const maxBack = available;
+    const backOffset = Math.floor(minBack + (1 - posFrac) * (maxBack - minBack));
+    return readRing(backOffset, length);
+  }
+
+  // ---------- audio graph --------------------------------------------
+
+  function initAudioGraph() {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-    master = audioCtx.createGain();
-    master.gain.value = 0.85;
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = 0.8;
 
-    const compressor = audioCtx.createDynamicsCompressor();
-    compressor.threshold.value = -18;
-    compressor.ratio.value = 3;
+    const limiter = audioCtx.createDynamicsCompressor();
+    limiter.threshold.value = -8;
+    limiter.knee.value = 0;
+    limiter.ratio.value = 20;
+    limiter.attack.value = 0.003;
+    limiter.release.value = 0.25;
 
-    master.connect(compressor).connect(audioCtx.destination);
+    const shaper = audioCtx.createWaveShaper();
+    shaper.curve = makeSoftClipCurve(4);
+    shaper.oversample = "4x";
 
-    dry = audioCtx.createGain();
-    dry.gain.value = 0.55;
-    dry.connect(master);
+    outputAnalyser = audioCtx.createAnalyser();
+    outputAnalyser.fftSize = 256;
 
-    wet = audioCtx.createGain();
-    wet.gain.value = 0.9;
+    recordDest = audioCtx.createMediaStreamDestination();
 
-    reverbNode = audioCtx.createConvolver();
-    reverbNode.buffer = buildImpulseResponse(audioCtx, 5.5, 3.0);
-    reverbNode.connect(wet);
-    wet.connect(master);
+    masterGain.connect(limiter).connect(shaper);
+    shaper.connect(outputAnalyser);
+    shaper.connect(audioCtx.destination);
+    shaper.connect(recordDest);
 
-    // two non-multiple delay lines, damped feedback, for a soft
-    // shimmering space that never quite settles into a fixed comb
-    delayA = audioCtx.createDelay(2.0);
-    delayA.delayTime.value = 0.372;
-    delayFeedbackA = audioCtx.createGain();
-    delayFeedbackA.gain.value = 0.38;
-    const dampA = audioCtx.createBiquadFilter();
-    dampA.type = "lowpass";
-    dampA.frequency.value = 2200;
-    delayA.connect(dampA).connect(delayFeedbackA).connect(delayA);
-    delayA.connect(wet);
+    const reverb = audioCtx.createConvolver();
+    reverb.buffer = buildImpulseResponse(audioCtx, 2.6, 2.2);
+    const reverbReturn = audioCtx.createGain();
+    reverbReturn.gain.value = 0.6;
+    reverb.connect(reverbReturn).connect(masterGain);
+    reverbInput = reverb;
 
-    delayB = audioCtx.createDelay(2.0);
-    delayB.delayTime.value = 0.551;
-    delayFeedbackB = audioCtx.createGain();
-    delayFeedbackB.gain.value = 0.33;
-    const dampB = audioCtx.createBiquadFilter();
-    dampB.type = "lowpass";
-    dampB.frequency.value = 1800;
-    delayB.connect(dampB).connect(delayFeedbackB).connect(delayB);
-    delayB.connect(wet);
+    ringLen = Math.floor(audioCtx.sampleRate * RING_SECONDS);
+    ringBuffer = new Float32Array(ringLen);
 
-    buildPads();
-    buildBellLayers();
+    buildTrackGraphs();
   }
 
-  function sendToSpace(node, delayAmt, reverbAmt, dryAmt) {
-    const dg = audioCtx.createGain();
-    dg.gain.value = dryAmt;
-    node.connect(dg).connect(dry);
+  function buildTrackGraphs() {
+    tracks.forEach((track) => {
+      const panNode = audioCtx.createStereoPanner();
+      const depthFilter = audioCtx.createBiquadFilter();
+      depthFilter.type = "lowpass";
+      depthFilter.frequency.value = 18000;
+      const depthGain = audioCtx.createGain();
+      depthGain.gain.value = 1;
+      const reverbSend = audioCtx.createGain();
+      reverbSend.gain.value = 0;
+      const fader = audioCtx.createGain();
+      fader.gain.value = 0;
+      const trackAnalyser = audioCtx.createAnalyser();
+      trackAnalyser.fftSize = 256;
 
-    const rg = audioCtx.createGain();
-    rg.gain.value = reverbAmt;
-    node.connect(rg).connect(reverbNode);
+      panNode.connect(depthFilter);
+      depthFilter.connect(depthGain);
+      depthGain.connect(fader);
+      depthGain.connect(reverbSend).connect(reverbInput);
+      fader.connect(masterGain);
+      fader.connect(trackAnalyser);
 
-    const dla = audioCtx.createGain();
-    dla.gain.value = delayAmt;
-    node.connect(dla).connect(delayA);
-    node.connect(dla).connect(delayB);
-  }
+      track.panNode = panNode;
+      track.depthFilter = depthFilter;
+      track.depthGain = depthGain;
+      track.reverbSend = reverbSend;
+      track.fader = fader;
+      track.analyser = trackAnalyser;
 
-  // ---- pad drone layer: slow, cyclic-feeling, never exactly cyclic --
-
-  function buildPads() {
-    padVoices.forEach((v) => v.stopAll && v.stopAll());
-    padVoices = [];
-
-    const intervals = [0, 7, 12, 16]; // root, fifth, octave, tenth-ish
-    intervals.forEach((iv, i) => {
-      const osc = audioCtx.createOscillator();
-      osc.type = i % 2 === 0 ? "sine" : "triangle";
-      const detune = (Math.random() * 2 - 1) * 6;
-      osc.detune.value = detune;
-
-      const gain = audioCtx.createGain();
-      gain.gain.value = 0;
-
-      const filter = audioCtx.createBiquadFilter();
-      filter.type = "lowpass";
-      filter.frequency.value = 900;
-      filter.Q.value = 0.4;
-
-      osc.connect(filter).connect(gain);
-      sendToSpace(gain, 0.5, 0.8, 0.25);
-
-      osc.start();
-
-      // each voice's filter LFO period is an irrational-ish multiple
-      // of the others, so the ensemble never repeats a combined shape
-      const lfoPeriod = 17 + i * 6.28 + Math.random() * 4;
-      padVoices.push({
-        osc, gain, filter, interval: iv,
-        lfoPeriod, phase: Math.random() * Math.PI * 2,
-        targetGain: 0.05 + Math.random() * 0.03,
-        stopAll() { try { osc.stop(); } catch (e) {} },
-      });
+      // Carry over any slider values the user touched before the mic
+      // (and therefore the audio graph) was started.
+      if (track.el.fader) fader.gain.value = (+track.el.fader.value / 100) * 0.85;
+      if (track.el.panSlider) panNode.pan.value = +track.el.panSlider.value / 100;
+      if (track.el.depthSlider) applyDepth(track, +track.el.depthSlider.value / 100);
     });
-
-    crossfadePadsToPalette(4);
   }
 
-  function crossfadePadsToPalette(rampSeconds) {
+  // ---------- loop voice playback -------------------------------------
+
+  function playSegmentOnTrack(track, seg) {
+    if (!seg) return;
+    const buffer = audioCtx.createBuffer(1, seg.length, seg.sampleRate);
+    buffer.copyToChannel(seg.data, 0);
+
+    const source = audioCtx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    source.playbackRate.value = semitonesToRatio(track.pitchSemitones);
+
+    const voiceGain = audioCtx.createGain();
+    voiceGain.gain.value = 0;
+    source.connect(voiceGain).connect(track.panNode);
+
     const now = audioCtx.currentTime;
-    padVoices.forEach((v) => {
-      const freq = midiToFreq(palette.root + v.interval);
-      v.osc.frequency.cancelScheduledValues(now);
-      v.osc.frequency.setValueAtTime(v.osc.frequency.value || freq, now);
-      v.osc.frequency.linearRampToValueAtTime(freq, now + rampSeconds);
+    voiceGain.gain.linearRampToValueAtTime(1, now + VOICE_FADE);
+    source.start();
 
-      v.gain.gain.cancelScheduledValues(now);
-      v.gain.gain.setValueAtTime(v.gain.gain.value, now);
-      v.gain.gain.linearRampToValueAtTime(0, now + rampSeconds * 0.5);
-      v.gain.gain.linearRampToValueAtTime(v.targetGain, now + rampSeconds * 2);
-    });
-  }
+    const old = track.voice;
+    track.voice = { source, gain: voiceGain };
 
-  function updatePads(t) {
-    padVoices.forEach((v) => {
-      const lfo = Math.sin((t / v.lfoPeriod) * Math.PI * 2 + v.phase);
-      const tone = +toneSlider.value / 100;
-      const base = 500 + tone * 1400;
-      v.filter.frequency.setTargetAtTime(base + lfo * 260, audioCtx.currentTime, 0.6);
-    });
-  }
-
-  // ---- sparse melodic "bell" layers ----------------------------------
-  // Each layer keeps its own clock. On every tick it may or may not
-  // fire, governed by a probability that random-walks between a low
-  // and high bound — the swerve control widens or narrows that walk.
-
-  function buildBellLayers() {
-    bellLayers = [
-      { octave: 1, baseInterval: 2.6, gain: 0.16, decayMin: 1.8, decayMax: 4.5,
-        prob: makeDrift(0.15, 0.7, 0.4), jitter: makeDrift(-1, 1, 0), nextTime: 0 },
-      { octave: 2, baseInterval: 1.7, gain: 0.11, decayMin: 1.2, decayMax: 3.0,
-        prob: makeDrift(0.1, 0.65, 0.3), jitter: makeDrift(-1, 1, 0), nextTime: 0 },
-      { octave: 3, baseInterval: 4.1, gain: 0.09, decayMin: 2.0, decayMax: 5.5,
-        prob: makeDrift(0.08, 0.5, 0.2), jitter: makeDrift(-1, 1, 0), nextTime: 0 },
-    ];
-    const now = audioCtx.currentTime;
-    bellLayers.forEach((l, i) => { l.nextTime = now + 1 + i * 0.7; });
-  }
-
-  function triggerBell(layer, time) {
-    const midi = pickDegree(layer);
-    const freq = midiToFreq(midi);
-    const decay = layer.decayMin + Math.random() * (layer.decayMax - layer.decayMin);
-
-    const osc = audioCtx.createOscillator();
-    osc.type = "sine";
-    osc.frequency.value = freq;
-
-    const partial = audioCtx.createOscillator();
-    partial.type = "sine";
-    partial.frequency.value = freq * 2.01;
-    const partialGain = audioCtx.createGain();
-    partialGain.gain.value = 0.18;
-
-    const env = audioCtx.createGain();
-    env.gain.setValueAtTime(0, time);
-    env.gain.linearRampToValueAtTime(layer.gain, time + 0.03);
-    env.gain.exponentialRampToValueAtTime(0.0005, time + decay);
-
-    const filter = audioCtx.createBiquadFilter();
-    filter.type = "lowpass";
-    const tone = +toneSlider.value / 100;
-    filter.frequency.value = 700 + tone * 3500;
-    filter.Q.value = 0.6;
-
-    const panner = audioCtx.createStereoPanner();
-    panner.pan.value = (Math.random() * 2 - 1) * 0.7;
-
-    osc.connect(filter);
-    partial.connect(partialGain).connect(filter);
-    filter.connect(env).connect(panner);
-
-    sendToSpace(panner, 0.55, 0.7, 0.35);
-
-    osc.start(time);
-    partial.start(time);
-    osc.stop(time + decay + 0.2);
-    partial.stop(time + decay + 0.2);
-
-    spawnParticle(midi, panner.pan.value, decay);
-  }
-
-  function scheduleBells() {
-    const now = audioCtx.currentTime;
-    const lookahead = 0.25;
-    const density = +densitySlider.value / 100;
-    const swerve = +swerveSlider.value / 100;
-
-    bellLayers.forEach((layer) => {
-      while (layer.nextTime < now + lookahead) {
-        const t = layer.nextTime;
-
-        // probability itself drifts — this is the "dodge the
-        // prediction just before it forms" mechanism
-        const walkRate = 0.05 + swerve * 0.25;
-        const p = layer.prob.tick(walkRate);
-        const effectiveP = Math.min(0.95, p + density * 0.35);
-
-        if (Math.random() < effectiveP) {
-          triggerBell(layer, t);
-        }
-
-        const jitterAmt = layer.jitter.tick(0.15) * (0.15 + swerve * 0.35);
-        const interval = layer.baseInterval * (1 + jitterAmt) / (0.4 + density * 0.9);
-        layer.nextTime = t + Math.max(0.35, interval);
-      }
-    });
-  }
-
-  // ---- transport -------------------------------------------------
-
-  let lastPadUpdate = 0;
-
-  function schedulerLoop() {
-    if (!running) return;
-    scheduleBells();
-    const t = audioCtx.currentTime;
-    if (t - lastPadUpdate > 0.08) {
-      updatePads(t);
-      lastPadUpdate = t;
-    }
-    schedulerTimer = setTimeout(schedulerLoop, 60);
-  }
-
-  function start() {
-    if (!audioCtx) initAudio();
-    if (audioCtx.state === "suspended") audioCtx.resume();
-    running = true;
-    schedulerLoop();
-    playBtn.textContent = "停止";
-    playBtn.classList.add("playing");
-  }
-
-  function stop() {
-    running = false;
-    clearTimeout(schedulerTimer);
-    if (audioCtx) {
-      const now = audioCtx.currentTime;
-      master.gain.setTargetAtTime(0, now, 0.3);
+    if (old) {
+      old.gain.gain.cancelScheduledValues(now);
+      old.gain.gain.setValueAtTime(old.gain.gain.value, now);
+      old.gain.gain.linearRampToValueAtTime(0, now + VOICE_FADE);
+      const oldSource = old.source;
       setTimeout(() => {
-        if (!running) master.gain.setTargetAtTime(0.85, audioCtx.currentTime, 0.01);
-      }, 1200);
+        try { oldSource.stop(); } catch (e) {}
+      }, (VOICE_FADE + 0.05) * 1000);
     }
-    playBtn.textContent = "再生";
-    playBtn.classList.remove("playing");
+
+    track.el.status.textContent = "再生中";
+    track.el.status.classList.add("live");
   }
 
-  playBtn.addEventListener("click", () => {
-    if (running) stop(); else start();
+  function triggerRandomLoop(track) {
+    if (!audioCtx) return;
+    const seg = extractRandomSegment(0.08, track.loopMaxSec);
+    if (!seg) return;
+    playSegmentOnTrack(track, seg);
+  }
+
+  function triggerManualLoop(track) {
+    if (!audioCtx) return;
+    const posFrac = +track.el.posSlider.value / 100;
+    const seg = extractSegmentAt(posFrac, track.loopMaxSec);
+    if (!seg) return;
+    playSegmentOnTrack(track, seg);
+  }
+
+  // ---------- auto-regeneration & pitch drift -------------------------
+
+  function scheduleAutoLoop(track) {
+    if (track.autoTimer) clearTimeout(track.autoTimer);
+    if (!track.auto || track.lock) return;
+    triggerRandomLoop(track);
+    const wait = 1500 + Math.random() * 3500;
+    track.autoTimer = setTimeout(() => scheduleAutoLoop(track), wait);
+  }
+
+  function applyPitch(track, semitones, glideSec) {
+    track.pitchSemitones = Math.max(-12, Math.min(12, semitones));
+    track.el.pitchSlider.value = String(Math.round(track.pitchSemitones));
+    updatePitchLabel(track);
+    if (track.voice) {
+      const ratio = semitonesToRatio(track.pitchSemitones);
+      const now = audioCtx.currentTime;
+      const p = track.voice.source.playbackRate;
+      p.cancelScheduledValues(now);
+      p.setValueAtTime(p.value, now);
+      p.linearRampToValueAtTime(ratio, now + (glideSec ?? PARAM_GLIDE));
+    }
+  }
+
+  function schedulePitchDrift(track) {
+    if (track.pitchTimer) clearTimeout(track.pitchTimer);
+    if (!track.randomPitch) return;
+    const target = -12 + Math.random() * 24;
+    applyPitch(track, target, 0.5 + Math.random() * 1.2);
+    const wait = 500 + Math.random() * 1800;
+    track.pitchTimer = setTimeout(() => schedulePitchDrift(track), wait);
+  }
+
+  function updatePitchLabel(track) {
+    const st = Math.round(track.pitchSemitones);
+    track.el.pitchLabel.textContent = (st > 0 ? "+" : "") + st + " st";
+  }
+
+  // ---------- depth / pan --------------------------------------------
+
+  function applyDepth(track, depth01) {
+    const now = audioCtx.currentTime;
+    const freq = 800 + (1 - depth01) * 17200; // near = bright, far = dark
+    track.depthFilter.frequency.setTargetAtTime(freq, now, PARAM_GLIDE);
+    const gain = 1 - depth01 * 0.55; // far = quieter
+    track.depthGain.gain.setTargetAtTime(gain, now, PARAM_GLIDE);
+    const send = depth01 * 0.6; // far = more reverb
+    track.reverbSend.gain.setTargetAtTime(send, now, PARAM_GLIDE);
+  }
+
+  // ---------- UI building ---------------------------------------------
+
+  function buildTrackUI(track) {
+    const card = document.createElement("div");
+    card.className = "track-card";
+
+    card.innerHTML = `
+      <div class="track-head">
+        <h2>トラック ${track.index + 1}</h2>
+        <span class="status" data-role="status">停止中</span>
+      </div>
+      <div class="meter track-meter">
+        <div class="meter-track"><div class="meter-fill" data-role="meterFill"></div></div>
+      </div>
+
+      <label class="hslider">
+        <span>音量 <em data-role="volLabel">0</em></span>
+        <input type="range" min="0" max="100" value="0" data-role="fader" />
+      </label>
+
+      <div class="btn-row">
+        <button class="smallBtn" data-role="loopBtn">🎲 ループ</button>
+        <button class="smallBtn" data-role="manualBtn">📍 この位置</button>
+      </div>
+      <div class="btn-row">
+        <button class="toggleBtn" data-role="lockBtn">🔒 固定</button>
+        <button class="toggleBtn" data-role="autoBtn">🔁 自動</button>
+      </div>
+
+      <label class="hslider">
+        <span>ループ長 <em data-role="lenLabel">1.0s</em></span>
+        <input type="range" min="1" max="30" value="10" data-role="lenSlider" />
+      </label>
+      <label class="hslider">
+        <span>位置(古い←→新しい)</span>
+        <input type="range" min="0" max="100" value="80" data-role="posSlider" />
+      </label>
+
+      <label class="hslider">
+        <span>ピッチ <em data-role="pitchLabel">0 st</em></span>
+        <input type="range" min="-12" max="12" value="0" step="1" data-role="pitchSlider" />
+      </label>
+      <div class="btn-row">
+        <button class="toggleBtn" data-role="randomPitchBtn">🎲 ランダムピッチ</button>
+      </div>
+
+      <label class="hslider">
+        <span>パン</span>
+        <input type="range" min="-100" max="100" value="0" data-role="panSlider" />
+      </label>
+      <label class="hslider">
+        <span>奥行き</span>
+        <input type="range" min="0" max="100" value="0" data-role="depthSlider" />
+      </label>
+    `;
+
+    const el = {};
+    card.querySelectorAll("[data-role]").forEach((node) => {
+      el[node.dataset.role] = node;
+    });
+    track.el = el;
+    track.el.pitchLabel = el.pitchLabel;
+
+    el.fader.addEventListener("input", () => {
+      const v = +el.fader.value;
+      el.volLabel.textContent = v;
+      const now = audioCtx ? audioCtx.currentTime : 0;
+      if (audioCtx) track.fader.gain.setTargetAtTime((v / 100) * 0.85, now, PARAM_GLIDE);
+      card.classList.toggle("armed", v > 0);
+    });
+
+    el.loopBtn.addEventListener("click", () => triggerRandomLoop(track));
+    el.manualBtn.addEventListener("click", () => triggerManualLoop(track));
+
+    el.lockBtn.addEventListener("click", () => {
+      track.lock = !track.lock;
+      el.lockBtn.classList.toggle("active", track.lock);
+      if (!track.lock && track.auto) scheduleAutoLoop(track);
+      else if (track.lock && track.autoTimer) clearTimeout(track.autoTimer);
+    });
+
+    el.autoBtn.addEventListener("click", () => {
+      track.auto = !track.auto;
+      el.autoBtn.classList.toggle("active", track.auto);
+      if (track.auto) scheduleAutoLoop(track);
+      else if (track.autoTimer) clearTimeout(track.autoTimer);
+    });
+
+    el.lenSlider.addEventListener("input", () => {
+      track.loopMaxSec = +el.lenSlider.value / 10;
+      el.lenLabel.textContent = track.loopMaxSec.toFixed(1) + "s";
+    });
+
+    el.pitchSlider.addEventListener("input", () => {
+      track.randomPitch = false;
+      el.randomPitchBtn.classList.remove("active");
+      if (track.pitchTimer) clearTimeout(track.pitchTimer);
+      applyPitch(track, +el.pitchSlider.value, PARAM_GLIDE);
+    });
+
+    el.randomPitchBtn.addEventListener("click", () => {
+      track.randomPitch = !track.randomPitch;
+      el.randomPitchBtn.classList.toggle("active", track.randomPitch);
+      if (track.randomPitch) schedulePitchDrift(track);
+      else if (track.pitchTimer) clearTimeout(track.pitchTimer);
+    });
+
+    el.panSlider.addEventListener("input", () => {
+      if (!audioCtx) return;
+      const now = audioCtx.currentTime;
+      track.panNode.pan.setTargetAtTime(+el.panSlider.value / 100, now, PARAM_GLIDE);
+    });
+
+    el.depthSlider.addEventListener("input", () => {
+      if (!audioCtx) return;
+      applyDepth(track, +el.depthSlider.value / 100);
+    });
+
+    return card;
+  }
+
+  function buildAllTrackUI() {
+    const container = document.getElementById("tracks");
+    tracks.forEach((track) => container.appendChild(buildTrackUI(track)));
+  }
+
+  // ---------- mic / recording ------------------------------------------
+
+  async function startMic() {
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+    } catch (err) {
+      alert("マイクにアクセスできませんでした: " + err.message);
+      return;
+    }
+
+    if (!audioCtx) initAudioGraph();
+    if (audioCtx.state === "suspended") await audioCtx.resume();
+
+    micSource = audioCtx.createMediaStreamSource(micStream);
+
+    try {
+      await audioCtx.audioWorklet.addModule("recorder-worklet.js");
+    } catch (err) {
+      alert("録音用ワークレットの読み込みに失敗しました: " + err.message);
+      return;
+    }
+    recorderNode = new AudioWorkletNode(audioCtx, "recorder-processor");
+    recorderNode.port.onmessage = (e) => writeChunkToRing(e.data);
+
+    inputAnalyser = audioCtx.createAnalyser();
+    inputAnalyser.fftSize = 256;
+
+    micSource.connect(recorderNode);
+    micSource.connect(inputAnalyser);
+
+    const silentSink = audioCtx.createGain();
+    silentSink.gain.value = 0;
+    recorderNode.connect(silentSink).connect(audioCtx.destination);
+
+    micActive = true;
+    document.getElementById("micBtn").textContent = "🎙 マイク停止";
+    document.getElementById("micBtn").classList.add("active");
+    startMeterLoop();
+  }
+
+  function stopMic() {
+    if (micStream) micStream.getTracks().forEach((t) => t.stop());
+    micActive = false;
+    document.getElementById("micBtn").textContent = "🎙 マイク開始";
+    document.getElementById("micBtn").classList.remove("active");
+  }
+
+  function toggleRecord() {
+    if (!recordDest) {
+      alert("先にマイクを開始してください");
+      return;
+    }
+    if (!recording) {
+      recordedChunks = [];
+      const preferred = "audio/webm;codecs=opus";
+      const mime = window.MediaRecorder && MediaRecorder.isTypeSupported(preferred) ? preferred : "";
+      mediaRecorder = mime
+        ? new MediaRecorder(recordDest.stream, { mimeType: mime })
+        : new MediaRecorder(recordDest.stream);
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) recordedChunks.push(e.data);
+      };
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || "audio/webm" });
+        const url = URL.createObjectURL(blob);
+        const audioEl = document.getElementById("recordingAudio");
+        const link = document.getElementById("recordingDownload");
+        audioEl.src = url;
+        link.href = url;
+        const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+        link.download = `loop-session-${stamp}.webm`;
+        document.getElementById("recordingResult").hidden = false;
+      };
+      mediaRecorder.start();
+      recording = true;
+      document.getElementById("recordBtn").textContent = "⏹ 録音停止";
+      document.getElementById("recordBtn").classList.add("active");
+    } else {
+      mediaRecorder.stop();
+      recording = false;
+      document.getElementById("recordBtn").textContent = "⏺ 録音開始";
+      document.getElementById("recordBtn").classList.remove("active");
+    }
+  }
+
+  // ---------- meters ----------------------------------------------------
+
+  function peakLevel(analyser) {
+    if (!analyser) return 0;
+    const data = new Float32Array(analyser.fftSize);
+    analyser.getFloatTimeDomainData(data);
+    let peak = 0;
+    for (let i = 0; i < data.length; i++) {
+      const v = Math.abs(data[i]);
+      if (v > peak) peak = v;
+    }
+    return Math.min(1, peak);
+  }
+
+  function startMeterLoop() {
+    const inputFill = document.getElementById("inputMeterFill");
+    const outputFill = document.getElementById("outputMeterFill");
+
+    function tick() {
+      if (inputAnalyser) inputFill.style.width = Math.round(peakLevel(inputAnalyser) * 100) + "%";
+      if (outputAnalyser) outputFill.style.width = Math.round(peakLevel(outputAnalyser) * 100) + "%";
+      tracks.forEach((track) => {
+        if (track.el.meterFill) {
+          track.el.meterFill.style.width = Math.round(peakLevel(track.analyser) * 100) + "%";
+        }
+      });
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  // ---------- wiring -----------------------------------------------------
+
+  buildAllTrackUI();
+
+  document.getElementById("micBtn").addEventListener("click", () => {
+    if (micActive) stopMic();
+    else startMic();
   });
 
-  paletteBtn.addEventListener("click", () => {
-    palette = makePalette();
-    if (audioCtx) crossfadePadsToPalette(6);
+  document.getElementById("recordBtn").addEventListener("click", toggleRecord);
+
+  document.getElementById("masterVol").addEventListener("input", (e) => {
+    if (!audioCtx) return;
+    masterGain.gain.setTargetAtTime(+e.target.value / 100, audioCtx.currentTime, PARAM_GLIDE);
   });
 
-  // ---- visual: quiet drifting field, loosely tied to note events -----
-
-  let particles = [];
-  let hue = palette.hue;
-
-  function resizeCanvas() {
-    canvas.width = window.innerWidth * devicePixelRatio;
-    canvas.height = window.innerHeight * devicePixelRatio;
-  }
-  window.addEventListener("resize", resizeCanvas);
-  resizeCanvas();
-
-  function spawnParticle(midi, pan, decay) {
-    const w = canvas.width, h = canvas.height;
-    const x = ((midi % 24) / 24) * w * 0.8 + w * 0.1;
-    const y = h * 0.5 - pan * h * 0.32 + (Math.random() - 0.5) * h * 0.15;
-    particles.push({
-      x, y,
-      r: 4 * devicePixelRatio,
-      life: 0,
-      maxLife: Math.max(1.5, decay),
-      vx: (Math.random() - 0.5) * 6,
-      vy: (Math.random() - 0.5) * 6,
+  document.getElementById("randomAllBtn").addEventListener("click", () => {
+    tracks.forEach((track) => {
+      if (+track.el.fader.value === 0) {
+        track.el.fader.value = 70;
+        track.el.fader.dispatchEvent(new Event("input"));
+      }
+      triggerRandomLoop(track);
+      track.randomPitch = true;
+      track.el.randomPitchBtn.classList.add("active");
+      schedulePitchDrift(track);
     });
-    if (particles.length > 120) particles.shift();
-  }
-
-  function draw() {
-    const w = canvas.width, h = canvas.height;
-    hue = (hue + 0.01) % 360;
-    const targetHue = palette.hue;
-    hue += (targetHue - hue) * 0.0015;
-
-    ctx2d.fillStyle = `hsla(${hue}, 30%, 4%, 0.18)`;
-    ctx2d.fillRect(0, 0, w, h);
-
-    particles.forEach((p) => {
-      p.life += 1 / 60;
-      p.x += p.vx * 0.016;
-      p.y += p.vy * 0.016;
-      const t = p.life / p.maxLife;
-      const alpha = Math.max(0, 1 - t) * 0.5;
-      const r = p.r * (1 + t * 8);
-      const grad = ctx2d.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
-      grad.addColorStop(0, `hsla(${hue}, 60%, 75%, ${alpha})`);
-      grad.addColorStop(1, `hsla(${hue}, 60%, 75%, 0)`);
-      ctx2d.fillStyle = grad;
-      ctx2d.beginPath();
-      ctx2d.arc(p.x, p.y, r, 0, Math.PI * 2);
-      ctx2d.fill();
-    });
-    particles = particles.filter((p) => p.life < p.maxLife);
-
-    requestAnimationFrame(draw);
-  }
-  requestAnimationFrame(draw);
+  });
 })();
