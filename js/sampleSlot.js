@@ -35,7 +35,7 @@ export class SampleSlot {
     this.reversedBuffer = null;
     this.region = { start: 0, end: 1 };
     this.loop = { enabled: false, rate: 1, reverse: false };
-    this.chop = { enabled: false, steps: 8, division: "1/16", gate: 0.7, probability: 0.9, jitter: 0.15, order: "forward" };
+    this.chop = { enabled: true, steps: 8, division: "1/16", gate: 0.7, probability: 0.9, jitter: 0.15, order: "forward" };
     this.chopCounter = 0;
     this.chopDir = 1;
     this.nextStepTime = 0;
@@ -78,7 +78,7 @@ export class SampleSlot {
           <canvas></canvas>
           <div class="wave-region"></div>
           <div class="wave-playhead"></div>
-          <div class="wave-empty">サンプル未読込</div>
+          <div class="wave-empty">サンプル未読込<br />ここにドラッグ&amp;ドロップ</div>
         </div>
         <div class="engine-block loop-block">
           <div class="engine-head">
@@ -99,7 +99,7 @@ export class SampleSlot {
         </div>
         <div class="engine-block chop-block">
           <div class="engine-head">
-            <label><input type="checkbox" class="chopEnable" /> CHOP</label>
+            <label><input type="checkbox" class="chopEnable" checked /> CHOP</label>
             <span class="tag">細かく刻む</span>
           </div>
           <div class="engine-grid">
@@ -155,7 +155,18 @@ export class SampleSlot {
     this.playheadEl = this.rootEl.querySelector(".wave-playhead");
     this.emptyEl = this.rootEl.querySelector(".wave-empty");
 
-    this.rootEl.querySelector(".loadBtn").addEventListener("click", () => this._pickFile());
+    this.fileInput = document.createElement("input");
+    this.fileInput.type = "file";
+    this.fileInput.accept = "audio/*";
+    this.fileInput.style.cssText = "position:fixed;left:-9999px;width:1px;height:1px;opacity:0;";
+    this.fileInput.addEventListener("change", () => {
+      const file = this.fileInput.files && this.fileInput.files[0];
+      this.fileInput.value = "";
+      if (file) this._loadFile(file);
+    });
+    document.body.appendChild(this.fileInput);
+
+    this.rootEl.querySelector(".loadBtn").addEventListener("click", () => this.fileInput.click());
     this.rootEl.querySelector(".randBtn").addEventListener("click", () => this.loadDefault());
     this.rootEl.querySelector(".hitBtn").addEventListener("click", () => this.hit());
 
@@ -220,18 +231,15 @@ export class SampleSlot {
     this._bindWaveformDrag();
   }
 
-  async _pickFile() {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "audio/*";
-    input.addEventListener("change", async () => {
-      const file = input.files && input.files[0];
-      if (!file) return;
+  async _loadFile(file) {
+    try {
       const arrayBuffer = await file.arrayBuffer();
       const buffer = await engine.ctx.decodeAudioData(arrayBuffer);
       this._setBuffer(buffer, file.name);
-    });
-    input.click();
+    } catch (err) {
+      console.warn("failed to load sample", err);
+      this.fileLabel.textContent = "読込失敗: 対応形式か確認してください";
+    }
   }
 
   async loadDefault(seedIndex) {
@@ -337,6 +345,25 @@ export class SampleSlot {
       };
       window.addEventListener("mousemove", onMove);
       window.addEventListener("mouseup", onUp);
+    });
+
+    let dragDepth = 0;
+    this.waveWrap.addEventListener("dragenter", (e) => {
+      e.preventDefault();
+      dragDepth++;
+      this.waveWrap.classList.add("wave-dragover");
+    });
+    this.waveWrap.addEventListener("dragover", (e) => e.preventDefault());
+    this.waveWrap.addEventListener("dragleave", () => {
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (dragDepth === 0) this.waveWrap.classList.remove("wave-dragover");
+    });
+    this.waveWrap.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dragDepth = 0;
+      this.waveWrap.classList.remove("wave-dragover");
+      const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (file) this._loadFile(file);
     });
   }
 

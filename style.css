@@ -219,6 +219,11 @@ main {
   border-radius: 8px;
   overflow: hidden;
   cursor: crosshair;
+  transition: border-color 0.15s, background 0.15s;
+}
+.wave-wrap.wave-dragover {
+  border-color: var(--accent);
+  background: rgba(88, 224, 192, 0.08);
 }
 .wave-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .wave-region {
@@ -240,6 +245,8 @@ main {
 .wave-empty {
   position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
+  text-align: center;
+  line-height: 1.6;
   color: var(--ink-dim);
   font-size: 0.68rem;
   letter-spacing: 0.04em;
