@@ -9,6 +9,37 @@
 // matter how many tracks pile up.
 
 (() => {
+  // Inlined as a Blob URL (rather than fetched as a separate .js file) so
+  // the worklet loads even when index.html is opened directly via file://
+  // — Chrome blocks module fetches against the file: scheme, which is the
+  // most common cause of "Unable to load a worklet's module".
+  const RECORDER_WORKLET_SOURCE = `
+    class RecorderProcessor extends AudioWorkletProcessor {
+      constructor() {
+        super();
+        this.chunkSize = 2048;
+        this.buf = new Float32Array(this.chunkSize);
+        this.pos = 0;
+      }
+      process(inputs) {
+        const input = inputs[0];
+        if (input && input.length > 0) {
+          const channel = input[0];
+          for (let i = 0; i < channel.length; i++) {
+            this.buf[this.pos++] = channel[i];
+            if (this.pos >= this.chunkSize) {
+              this.port.postMessage(this.buf);
+              this.buf = new Float32Array(this.chunkSize);
+              this.pos = 0;
+            }
+          }
+        }
+        return true;
+      }
+    }
+    registerProcessor("recorder-processor", RecorderProcessor);
+  `;
+
   const NUM_TRACKS = 4;
   const RING_SECONDS = 10;
   const VOICE_FADE = 0.12; // seconds, crossfade when a loop is replaced
@@ -462,14 +493,22 @@
 
     micSource = audioCtx.createMediaStreamSource(micStream);
 
+    // AudioWorklet is preferred (runs off the main thread) but Chrome
+    // refuses to load worklet modules — even from a Blob URL — when the
+    // page itself was opened as a local file:// document. Fall back to a
+    // ScriptProcessorNode in that case so the app still works without a
+    // local server; it just does its (still cheap) sample copying on the
+    // main thread instead.
     try {
-      await audioCtx.audioWorklet.addModule("recorder-worklet.js");
+      const blob = new Blob([RECORDER_WORKLET_SOURCE], { type: "application/javascript" });
+      const workletUrl = URL.createObjectURL(blob);
+      await audioCtx.audioWorklet.addModule(workletUrl);
+      recorderNode = new AudioWorkletNode(audioCtx, "recorder-processor");
+      recorderNode.port.onmessage = (e) => writeChunkToRing(e.data);
     } catch (err) {
-      alert("録音用ワークレットの読み込みに失敗しました: " + err.message);
-      return;
+      recorderNode = audioCtx.createScriptProcessor(2048, 1, 1);
+      recorderNode.onaudioprocess = (e) => writeChunkToRing(e.inputBuffer.getChannelData(0));
     }
-    recorderNode = new AudioWorkletNode(audioCtx, "recorder-processor");
-    recorderNode.port.onmessage = (e) => writeChunkToRing(e.data);
 
     inputAnalyser = audioCtx.createAnalyser();
     inputAnalyser.fftSize = 256;
