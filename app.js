@@ -41,7 +41,7 @@
   `;
 
   const NUM_TRACKS = 4;
-  const RING_SECONDS = 10;
+  const RING_SECONDS = 25; // long enough to hold a real played-in phrase for looper mode
   const VOICE_FADE = 0.12; // seconds, crossfade when a loop is replaced
   const PARAM_GLIDE = 0.08; // seconds, smoothing for slider-driven params
 
@@ -85,6 +85,8 @@
       auto: false,
       autoTimer: null,
       loopMaxSec: 1.0,
+      looperArmed: false,
+      looperStartTotal: 0,
       el: {},
     });
   }
@@ -130,19 +132,25 @@
     }
   }
 
-  // Reads `length` samples ending `backOffset` samples before "now",
-  // applies a short edge fade so the segment loops without a click.
+  // Reads `length` samples ending `backOffset` samples before "now" and
+  // makes the result loop without a click: rather than fading both edges
+  // to silence (which leaves an audible gap/"click" every time the loop
+  // wraps — the source of the crackling), it crossfades the tail of the
+  // segment into a copy of its own head, so by the time playback wraps
+  // back to sample 0 the waveform already matches it.
   function readRing(backOffset, length) {
     const startIdx = ((writeIndex - backOffset) % ringLen + ringLen * 2) % ringLen;
     const out = new Float32Array(length);
     for (let i = 0; i < length; i++) {
       out[i] = ringBuffer[(startIdx + i) % ringLen];
     }
-    const fadeLen = Math.min(Math.floor(audioCtx.sampleRate * 0.012), Math.floor(length * 0.25));
+    const fadeLen = Math.min(Math.floor(audioCtx.sampleRate * 0.03), Math.floor(length * 0.3));
     for (let i = 0; i < fadeLen; i++) {
-      const g = i / fadeLen;
-      out[i] *= g;
-      out[length - 1 - i] *= g;
+      const t = i / fadeLen;
+      const gainOut = Math.cos((t * Math.PI) / 2);
+      const gainIn = Math.sin((t * Math.PI) / 2);
+      const tailIdx = length - fadeLen + i;
+      out[tailIdx] = out[tailIdx] * gainOut + out[i] * gainIn;
     }
     return { data: out, length, sampleRate: audioCtx.sampleRate };
   }
@@ -185,7 +193,7 @@
     limiter.release.value = 0.25;
 
     const shaper = audioCtx.createWaveShaper();
-    shaper.curve = makeSoftClipCurve(4);
+    shaper.curve = makeSoftClipCurve(2);
     shaper.oversample = "4x";
 
     outputAnalyser = audioCtx.createAnalyser();
@@ -300,6 +308,40 @@
     playSegmentOnTrack(track, seg);
   }
 
+  // Real looper-pedal behavior: press once to mark the start, play, press
+  // again to close the loop — the loop length is exactly however long you
+  // played, not a random slice. Complements (doesn't replace) the random
+  // short-loop mode above.
+  function toggleLooper(track) {
+    if (!audioCtx) {
+      alert("先にマイクを開始してください");
+      return;
+    }
+    if (track.autoTimer) { clearTimeout(track.autoTimer); track.auto = false; track.el.autoBtn.classList.remove("active"); }
+
+    if (!track.looperArmed) {
+      track.looperArmed = true;
+      track.looperStartTotal = totalWritten;
+      track.el.looperBtn.textContent = "⏹ ここまで";
+      track.el.looperBtn.classList.add("active");
+      return;
+    }
+
+    track.looperArmed = false;
+    track.el.looperBtn.textContent = "⏺ ルーパー";
+    track.el.looperBtn.classList.remove("active");
+
+    const sr = audioCtx.sampleRate;
+    const played = totalWritten - track.looperStartTotal;
+    const length = Math.max(Math.floor(sr * 0.05), Math.min(played, ringLen - 1));
+    const seg = readRing(length, length);
+    if (!seg) return;
+    playSegmentOnTrack(track, seg);
+    track.loopMaxSec = length / sr;
+    track.el.lenSlider.value = String(Math.round(track.loopMaxSec * 10));
+    track.el.lenLabel.textContent = track.loopMaxSec.toFixed(1) + "s";
+  }
+
   // ---------- auto-regeneration & pitch drift -------------------------
 
   function scheduleAutoLoop(track) {
@@ -371,7 +413,10 @@
       </label>
 
       <div class="btn-row">
-        <button class="smallBtn" data-role="loopBtn">🎲 ループ</button>
+        <button class="bigTrackBtn" data-role="looperBtn">⏺ ルーパー</button>
+      </div>
+      <div class="btn-row">
+        <button class="smallBtn" data-role="loopBtn">🎲 ランダムループ</button>
         <button class="smallBtn" data-role="manualBtn">📍 この位置</button>
       </div>
       <div class="btn-row">
@@ -380,8 +425,8 @@
       </div>
 
       <label class="hslider">
-        <span>ループ長 <em data-role="lenLabel">1.0s</em></span>
-        <input type="range" min="1" max="30" value="10" data-role="lenSlider" />
+        <span>ループ長(ランダム用上限) <em data-role="lenLabel">1.0s</em></span>
+        <input type="range" min="1" max="250" value="10" data-role="lenSlider" />
       </label>
       <label class="hslider">
         <span>位置(古い←→新しい)</span>
@@ -421,6 +466,7 @@
       card.classList.toggle("armed", v > 0);
     });
 
+    el.looperBtn.addEventListener("click", () => toggleLooper(track));
     el.loopBtn.addEventListener("click", () => triggerRandomLoop(track));
     el.manualBtn.addEventListener("click", () => triggerManualLoop(track));
 
