@@ -31,6 +31,10 @@
           <span>マスター音量</span>
           <input id="masterVol" type="range" min="0" max="100" value="80" />
         </label>
+        <label class="hslider">
+          <span>ドライ/エフェクトMix <em id="dryWetLabel">100(4トラック)</em></span>
+          <input id="dryWetMix" type="range" min="0" max="100" value="100" />
+        </label>
         <button id="recordBtn" class="bigBtn record">⏺ 録音開始</button>
         <button id="randomAllBtn" class="bigBtn ghost">🎲 全トラックランダム</button>
       </div>
@@ -43,7 +47,8 @@
       <p class="hint">
         マイク開始 → 各トラックのフェーダーを上げる。<strong>⏺ルーパー</strong>は1回押して弾き始め、もう1回押すとそこまで弾いた分だけをそのままループします(本物のルーパーペダルと同じ挙動)。
         <strong>🎲ランダムループ</strong>はここまでの録音からランダムな一部を切り出してループする、崩れた質感重視のモードです。
-        「自動」を押すと一定間隔でループ箇所が変わり続け、「固定」でその場のループに留めます。ハウリング防止のためヘッドホン推奨。
+        「自動」を押すと一定間隔でループ箇所が変わり続け、「固定」でその場のループに留めます。
+        <strong>ドライ/エフェクトMix</strong>は0でギター(マイク)の生音のみ、100で4トラックのエフェクト合計のみが出力されます。マイクの生音がスピーカーに乗るとハウリングしやすくなるため、0より上で使う場合は特にヘッドホン推奨。
       </p>
     </section>
 

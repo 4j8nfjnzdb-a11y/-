@@ -51,7 +51,10 @@
   let recorderNode = null;
   let inputAnalyser = null;
   let outputAnalyser = null;
-  let masterGain = null;
+  let masterGain = null; // sum of the 4 tracks + reverb ("wet" / effect bus)
+  let dryGain = null; // raw mic signal, for the dry/wet crossfade
+  let wetMixGain = null; // wet side of the dry/wet crossfade
+  let masterOutGain = null; // overall output volume, post dry/wet mix
   let reverbInput = null;
   let recordDest = null;
   let mediaRecorder = null;
@@ -183,7 +186,19 @@
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
     masterGain = audioCtx.createGain();
-    masterGain.gain.value = 0.8;
+    masterGain.gain.value = 1; // just a summing bus now; track faders set levels
+
+    dryGain = audioCtx.createGain();
+    wetMixGain = audioCtx.createGain();
+    const mixSlider = document.getElementById("dryWetMix");
+    setDryWetMix(mixSlider ? +mixSlider.value : 100, true);
+
+    const mixBus = audioCtx.createGain();
+    mixBus.gain.value = 1;
+
+    masterOutGain = audioCtx.createGain();
+    const volSlider = document.getElementById("masterVol");
+    masterOutGain.gain.value = (volSlider ? +volSlider.value : 80) / 100;
 
     const limiter = audioCtx.createDynamicsCompressor();
     limiter.threshold.value = -8;
@@ -201,7 +216,10 @@
 
     recordDest = audioCtx.createMediaStreamDestination();
 
-    masterGain.connect(limiter).connect(shaper);
+    masterGain.connect(wetMixGain).connect(mixBus);
+    dryGain.connect(mixBus);
+    mixBus.connect(masterOutGain);
+    masterOutGain.connect(limiter).connect(shaper);
     shaper.connect(outputAnalyser);
     shaper.connect(audioCtx.destination);
     shaper.connect(recordDest);
@@ -217,6 +235,22 @@
     ringBuffer = new Float32Array(ringLen);
 
     buildTrackGraphs();
+  }
+
+  // 0 = dry mic only, 100 = the 4 tracks' effect mix only (equal-power
+  // crossfade so the perceived loudness stays steady in between).
+  function setDryWetMix(mixPercent, immediate) {
+    const t = mixPercent / 100;
+    const dry = Math.cos((t * Math.PI) / 2);
+    const wet = Math.sin((t * Math.PI) / 2);
+    if (immediate || !audioCtx) {
+      dryGain.gain.value = dry;
+      wetMixGain.gain.value = wet;
+    } else {
+      const now = audioCtx.currentTime;
+      dryGain.gain.setTargetAtTime(dry, now, PARAM_GLIDE);
+      wetMixGain.gain.setTargetAtTime(wet, now, PARAM_GLIDE);
+    }
   }
 
   function buildTrackGraphs() {
@@ -561,6 +595,7 @@
 
     micSource.connect(recorderNode);
     micSource.connect(inputAnalyser);
+    micSource.connect(dryGain);
 
     const silentSink = audioCtx.createGain();
     silentSink.gain.value = 0;
@@ -661,7 +696,14 @@
 
   document.getElementById("masterVol").addEventListener("input", (e) => {
     if (!audioCtx) return;
-    masterGain.gain.setTargetAtTime(+e.target.value / 100, audioCtx.currentTime, PARAM_GLIDE);
+    masterOutGain.gain.setTargetAtTime(+e.target.value / 100, audioCtx.currentTime, PARAM_GLIDE);
+  });
+
+  document.getElementById("dryWetMix").addEventListener("input", (e) => {
+    const v = +e.target.value;
+    setDryWetMix(v, false);
+    document.getElementById("dryWetLabel").textContent =
+      v === 0 ? "0(ドライのみ)" : v === 100 ? "100(4トラック)" : v;
   });
 
   document.getElementById("randomAllBtn").addEventListener("click", () => {
