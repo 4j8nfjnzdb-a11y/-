@@ -38,6 +38,38 @@
       }
     }
     registerProcessor("recorder-processor", RecorderProcessor);
+
+    // Captures the final (post-limiter) master output in raw PCM chunks so
+    // it can be encoded to a real .wav file on stop — MediaRecorder only
+    // offers compressed formats (webm/opus), never wav.
+    class CaptureProcessor extends AudioWorkletProcessor {
+      constructor() {
+        super();
+        this.chunkSize = 4096;
+        this.bufL = new Float32Array(this.chunkSize);
+        this.bufR = new Float32Array(this.chunkSize);
+        this.pos = 0;
+      }
+      process(inputs) {
+        const input = inputs[0];
+        if (!input || input.length === 0 || !input[0] || input[0].length === 0) return true;
+        const left = input[0];
+        const right = input.length > 1 ? input[1] : input[0];
+        for (let i = 0; i < left.length; i++) {
+          this.bufL[this.pos] = left[i];
+          this.bufR[this.pos] = right[i];
+          this.pos++;
+          if (this.pos >= this.chunkSize) {
+            this.port.postMessage([this.bufL, this.bufR]);
+            this.bufL = new Float32Array(this.chunkSize);
+            this.bufR = new Float32Array(this.chunkSize);
+            this.pos = 0;
+          }
+        }
+        return true;
+      }
+    }
+    registerProcessor("capture-processor", CaptureProcessor);
   `;
 
   const NUM_TRACKS = 4;
@@ -56,9 +88,12 @@
   let wetMixGain = null; // wet side of the dry/wet crossfade
   let masterOutGain = null; // overall output volume, post dry/wet mix
   let reverbInput = null;
-  let recordDest = null;
-  let mediaRecorder = null;
-  let recordedChunks = [];
+  let masterOutputNode = null; // final (post-limiter) node — tap point for recording
+  let captureSilentSink = null;
+  let captureNode = null;
+  let workletSupported = false;
+  let recordChunksL = [];
+  let recordChunksR = [];
   let recording = false;
   let micActive = false;
 
@@ -218,7 +253,9 @@
     outputAnalyser = audioCtx.createAnalyser();
     outputAnalyser.fftSize = 256;
 
-    recordDest = audioCtx.createMediaStreamDestination();
+    captureSilentSink = audioCtx.createGain();
+    captureSilentSink.gain.value = 0;
+    captureSilentSink.connect(audioCtx.destination);
 
     masterGain.connect(wetMixGain).connect(mixBus);
     dryGain.connect(mixBus);
@@ -226,7 +263,7 @@
     masterOutGain.connect(limiter).connect(shaper);
     shaper.connect(outputAnalyser);
     shaper.connect(audioCtx.destination);
-    shaper.connect(recordDest);
+    masterOutputNode = shaper;
 
     const reverb = audioCtx.createConvolver();
     reverb.buffer = buildImpulseResponse(audioCtx, 2.6, 2.2);
@@ -668,9 +705,11 @@
       await audioCtx.audioWorklet.addModule(workletUrl);
       recorderNode = new AudioWorkletNode(audioCtx, "recorder-processor");
       recorderNode.port.onmessage = (e) => writeChunkToRing(e.data);
+      workletSupported = true;
     } catch (err) {
       recorderNode = audioCtx.createScriptProcessor(2048, 1, 1);
       recorderNode.onaudioprocess = (e) => writeChunkToRing(e.inputBuffer.getChannelData(0));
+      workletSupported = false;
     }
 
     inputAnalyser = audioCtx.createAnalyser();
@@ -697,41 +736,89 @@
     document.getElementById("micBtn").classList.remove("active");
   }
 
+  // Encodes raw stereo Float32 PCM as a standard 16-bit .wav file.
+  function encodeWav(left, right, sampleRate) {
+    const numFrames = left.length;
+    const blockAlign = 4; // 2 channels * 16-bit
+    const dataSize = numFrames * blockAlign;
+    const buffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(buffer);
+    const writeStr = (offset, str) => { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); };
+    writeStr(0, "RIFF");
+    view.setUint32(4, 36 + dataSize, true);
+    writeStr(8, "WAVE");
+    writeStr(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true); // PCM
+    view.setUint16(22, 2, true); // stereo
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * blockAlign, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, 16, true);
+    writeStr(36, "data");
+    view.setUint32(40, dataSize, true);
+    let offset = 44;
+    for (let i = 0; i < numFrames; i++) {
+      const l = Math.max(-1, Math.min(1, left[i]));
+      const r = Math.max(-1, Math.min(1, right[i]));
+      view.setInt16(offset, l < 0 ? l * 0x8000 : l * 0x7fff, true); offset += 2;
+      view.setInt16(offset, r < 0 ? r * 0x8000 : r * 0x7fff, true); offset += 2;
+    }
+    return new Blob([view], { type: "audio/wav" });
+  }
+
+  function concatChunks(chunks) {
+    const total = chunks.reduce((n, c) => n + c.length, 0);
+    const out = new Float32Array(total);
+    let offset = 0;
+    for (const c of chunks) { out.set(c, offset); offset += c.length; }
+    return out;
+  }
+
   function toggleRecord() {
-    if (!recordDest) {
+    if (!masterOutputNode) {
       alert("先にマイクを開始してください");
       return;
     }
     if (!recording) {
-      recordedChunks = [];
-      const preferred = "audio/webm;codecs=opus";
-      const mime = window.MediaRecorder && MediaRecorder.isTypeSupported(preferred) ? preferred : "";
-      mediaRecorder = mime
-        ? new MediaRecorder(recordDest.stream, { mimeType: mime })
-        : new MediaRecorder(recordDest.stream);
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) recordedChunks.push(e.data);
-      };
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || "audio/webm" });
-        const url = URL.createObjectURL(blob);
-        const audioEl = document.getElementById("recordingAudio");
-        const link = document.getElementById("recordingDownload");
-        audioEl.src = url;
-        link.href = url;
-        const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-        link.download = `loop-session-${stamp}.webm`;
-        document.getElementById("recordingResult").hidden = false;
-      };
-      mediaRecorder.start();
+      recordChunksL = [];
+      recordChunksR = [];
+      if (workletSupported) {
+        captureNode = new AudioWorkletNode(audioCtx, "capture-processor");
+        captureNode.port.onmessage = (e) => { recordChunksL.push(e.data[0]); recordChunksR.push(e.data[1]); };
+      } else {
+        captureNode = audioCtx.createScriptProcessor(4096, 2, 2);
+        captureNode.onaudioprocess = (e) => {
+          const l = e.inputBuffer.getChannelData(0).slice();
+          const r = (e.inputBuffer.numberOfChannels > 1 ? e.inputBuffer.getChannelData(1) : e.inputBuffer.getChannelData(0)).slice();
+          recordChunksL.push(l); recordChunksR.push(r);
+        };
+      }
+      masterOutputNode.connect(captureNode).connect(captureSilentSink);
       recording = true;
       document.getElementById("recordBtn").textContent = "⏹ 録音停止";
       document.getElementById("recordBtn").classList.add("active");
     } else {
-      mediaRecorder.stop();
+      try { masterOutputNode.disconnect(captureNode); } catch (e) {}
+      try { captureNode.disconnect(); } catch (e) {}
       recording = false;
       document.getElementById("recordBtn").textContent = "⏺ 録音開始";
       document.getElementById("recordBtn").classList.remove("active");
+
+      const left = concatChunks(recordChunksL);
+      const right = concatChunks(recordChunksR);
+      recordChunksL = []; recordChunksR = [];
+      if (left.length === 0) return;
+
+      const blob = encodeWav(left, right, audioCtx.sampleRate);
+      const url = URL.createObjectURL(blob);
+      const audioEl = document.getElementById("recordingAudio");
+      const link = document.getElementById("recordingDownload");
+      audioEl.src = url;
+      link.href = url;
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      link.download = `loop-session-${stamp}.wav`;
+      document.getElementById("recordingResult").hidden = false;
     }
   }
 
