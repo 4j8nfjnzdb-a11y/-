@@ -1,12 +1,20 @@
 // The node editor: drag boxes, drag cables between ports, and rebuild the
 // actual Web Audio graph to match — this is the "回路をつなぎ合わせる"
 // (wire up circuits) part of the app.
+//
+// Two kinds of cable exist. Audio cables (solid) carry sound and are wired
+// straight into the Web Audio graph. Mod cables (dashed, magenta) carry no
+// audio at all — they tell a MOD box's drifting/wandering value to steer
+// one parameter on a target box, blended against whatever the user has that
+// slider set to. That's the self-modulating, "artificial life" layer: once
+// patched, a box's own knob quietly wanders on its own.
 
 import { engine } from "./audioEngine.js";
 import { createBox } from "./boxes.js";
 
 const NS = "http://www.w3.org/2000/svg";
 const SOURCE_COLORS = ["#58e0c0", "#ff7a59", "#c58cff", "#ffd166"];
+const MOD_COLOR = "#f042ff";
 
 function el(html) {
   const t = document.createElement("template");
@@ -19,13 +27,14 @@ export class PatchBay {
     this.canvasEl = canvasEl;
     this.svgEl = svgEl;
     this.slots = slots;
-    this.nodes = new Map(); // id -> { kind:'source'|'master'|'box', el, x, y, box? }
-    this.connections = []; // { from, to }
+    this.nodes = new Map(); // id -> { kind:'source'|'master'|'box', el, output?, input?, box? }
+    this.connections = []; // { from, to, role: 'audio'|'mod' }
     this._pendingConnect = null;
 
     this._buildSourcesAndMaster();
     this._bindGlobalMouse();
     window.addEventListener("resize", () => this.redrawCables());
+    this._modTimer = setInterval(() => this._modTick(), 60);
   }
 
   _buildSourcesAndMaster() {
@@ -35,7 +44,7 @@ export class PatchBay {
         <div class="pbox source" style="left:20px; top:${30 + i * 130}px; border-color:${SOURCE_COLORS[i]}55">
           <div class="pbox-head">SLOT ${i + 1}<span></span></div>
           <div class="pbox-body"><span style="font-size:0.6rem;color:var(--ink-dim)">サンプル出力</span></div>
-          <div class="port out" data-node="${id}" data-port="out"></div>
+          <div class="port out" data-role="audio" data-node="${id}" data-port="out"></div>
         </div>
       `);
       this.canvasEl.appendChild(boxEl);
@@ -48,7 +57,7 @@ export class PatchBay {
       <div class="pbox master" style="left:1220px; top:280px;">
         <div class="pbox-head">MASTER OUT<span></span></div>
         <div class="pbox-body"><span style="font-size:0.6rem;color:var(--ink-dim)">最終出力</span></div>
-        <div class="port in" data-node="master" data-port="in"></div>
+        <div class="port in" data-role="audio" data-node="master" data-port="in"></div>
       </div>
     `);
     this.canvasEl.appendChild(masterEl);
@@ -77,14 +86,27 @@ export class PatchBay {
         </label>`;
     }).join("");
 
+    const audioPorts = box.isModSource
+      ? ""
+      : `<div class="port in" data-role="audio" data-node="${box.id}" data-port="in"></div>
+         <div class="port out" data-role="audio" data-node="${box.id}" data-port="out"></div>`;
+    const modPort = box.isModSource
+      ? `<div class="port modout" data-role="mod" data-node="${box.id}" data-port="out"></div>`
+      : box.modTargetKey
+        ? `<div class="port modin" data-role="mod" data-node="${box.id}" data-port="in"></div>`
+        : "";
+
     const boxEl = el(`
       <div class="pbox type-${box.type}" style="left:${x}px; top:${y}px;">
         <div class="pbox-head">${box.title}<span class="remove" title="削除">✕</span></div>
         <div class="pbox-body">${paramsHtml}</div>
-        <div class="port in" data-node="${box.id}" data-port="in"></div>
-        <div class="port out" data-node="${box.id}" data-port="out"></div>
+        ${audioPorts}
+        ${modPort}
       </div>
     `);
+
+    box._userBase = {};
+    box.paramDefs.forEach((d) => { box._userBase[d.key] = box.getParam(d.key); });
 
     box.paramDefs.forEach((d) => {
       const input = boxEl.querySelector(`[data-key="${d.key}"]`);
@@ -92,6 +114,7 @@ export class PatchBay {
       input.addEventListener("input", () => {
         const v = d.type === "select" ? input.value : +input.value;
         box.setParam(d.key, v);
+        box._userBase[d.key] = v;
         if (showEl) showEl.textContent = d.format ? d.format(v) : v;
       });
     });
@@ -116,22 +139,32 @@ export class PatchBay {
     this.redrawCables();
   }
 
-  connect(from, to) {
+  connect(from, to, role = "audio") {
     if (from === to) return;
     const fromNode = this.nodes.get(from);
     const toNode = this.nodes.get(to);
     if (!fromNode || !toNode) return;
-    if (toNode.kind === "source") return; // sources have no input
-    if (fromNode.kind === "master") return; // master has no output
-    const exists = this.connections.some((c) => c.from === from && c.to === to);
+
+    if (role === "mod") {
+      if (!fromNode.box || !fromNode.box.isModSource) return;
+      if (!toNode.box || !toNode.box.modTargetKey) return;
+      // one mod source per target — a fresh connection replaces the old one
+      this.connections = this.connections.filter((c) => !(c.role === "mod" && c.to === to));
+    } else {
+      if (toNode.kind === "source") return; // sources have no input
+      if (fromNode.kind === "master") return; // master has no output
+      if (fromNode.box && fromNode.box.isModSource) return; // mod boxes carry no audio
+    }
+
+    const exists = this.connections.some((c) => c.from === from && c.to === to && (c.role || "audio") === role);
     if (exists) return;
-    this.connections.push({ from, to });
+    this.connections.push({ from, to, role });
     this.rebuildAudioGraph();
     this.redrawCables();
   }
 
-  disconnectPair(from, to) {
-    this.connections = this.connections.filter((c) => !(c.from === from && c.to === to));
+  disconnectPair(from, to, role = "audio") {
+    this.connections = this.connections.filter((c) => !(c.from === from && c.to === to && (c.role || "audio") === role));
     this.rebuildAudioGraph();
     this.redrawCables();
   }
@@ -152,17 +185,58 @@ export class PatchBay {
     this.connect("slot1", "master");
     this.connect("slot2", "master");
     this.connect("slot3", "master");
+
+    // a slow drifting MOD source wired into the glitch box's probability —
+    // the patch quietly evolves on its own from the moment it exists
+    const modId = this.addBox("mod", 260, 300);
+    this.connect(modId, glitchId, "mod");
   }
 
   rebuildAudioGraph() {
     this.nodes.forEach((n) => {
       if (n.output) { try { n.output.disconnect(); } catch (e) {} }
     });
-    this.connections.forEach(({ from, to }) => {
+    this.connections.forEach(({ from, to, role }) => {
+      if ((role || "audio") !== "audio") return;
       const fromNode = this.nodes.get(from);
       const toNode = this.nodes.get(to);
       if (!fromNode || !toNode) return;
       try { fromNode.output.connect(toNode.input); } catch (e) {}
+    });
+  }
+
+  _modTick() {
+    if (!engine.ctx) return;
+    const t = engine.ctx.currentTime;
+    this.connections.forEach((conn) => {
+      if ((conn.role || "audio") !== "mod") return;
+      const src = this.nodes.get(conn.from);
+      const tgt = this.nodes.get(conn.to);
+      if (!src || !tgt || src.kind !== "box" || tgt.kind !== "box") return;
+      const key = tgt.box.modTargetKey;
+      const def = tgt.box.paramDefs.find((d) => d.key === key);
+      if (!def) return;
+
+      const raw = src.box.getValue(t);
+      const depth = src.box.getParam("depth");
+      const base = tgt.box._userBase && tgt.box._userBase[key] !== undefined ? tgt.box._userBase[key] : tgt.box.getParam(key);
+      const modded = def.min + raw * (def.max - def.min);
+      const value = base * (1 - depth) + modded * depth;
+      tgt.box.setParam(key, value);
+
+      const input = tgt.el.querySelector(`[data-key="${key}"]`);
+      const showEl = tgt.el.querySelector(`[data-show="${key}"]`);
+      if (input) input.value = value;
+      if (showEl) showEl.textContent = def.format ? def.format(value) : value;
+    });
+  }
+
+  _updateModVisuals() {
+    const moddedTargets = new Set(this.connections.filter((c) => (c.role || "audio") === "mod").map((c) => c.to));
+    this.nodes.forEach((n, id) => {
+      if (n.kind !== "box" || !n.box.modTargetKey) return;
+      const label = n.el.querySelector(`[data-key="${n.box.modTargetKey}"]`)?.closest(".param");
+      if (label) label.classList.toggle("modulating", moddedTargets.has(id));
     });
   }
 
@@ -191,13 +265,13 @@ export class PatchBay {
   }
 
   _bindPorts() {
-    this.canvasEl.querySelectorAll(".port.out").forEach((portEl) => {
+    this.canvasEl.querySelectorAll(".port.out, .port.modout").forEach((portEl) => {
       if (portEl.dataset.bound) return;
       portEl.dataset.bound = "1";
       portEl.addEventListener("mousedown", (e) => {
         e.preventDefault();
         e.stopPropagation();
-        this._pendingConnect = { from: portEl.dataset.node, portEl };
+        this._pendingConnect = { from: portEl.dataset.node, role: portEl.dataset.role || "audio", portEl };
         this._dragPath = document.createElementNS(NS, "path");
         this._dragPath.setAttribute("class", "cable-drag");
         this.svgEl.appendChild(this._dragPath);
@@ -217,8 +291,10 @@ export class PatchBay {
     window.addEventListener("mouseup", (e) => {
       if (!this._pendingConnect) return;
       const target = document.elementFromPoint(e.clientX, e.clientY);
-      if (target && target.classList.contains("port") && target.classList.contains("in")) {
-        this.connect(this._pendingConnect.from, target.dataset.node);
+      const role = this._pendingConnect.role;
+      const wantsClass = role === "mod" ? "modin" : "in";
+      if (target && target.classList.contains("port") && target.classList.contains(wantsClass)) {
+        this.connect(this._pendingConnect.from, target.dataset.node, role);
       }
       if (this._dragPath) this._dragPath.remove();
       this._dragPath = null;
@@ -239,19 +315,20 @@ export class PatchBay {
 
   redrawCables() {
     while (this.svgEl.firstChild) this.svgEl.removeChild(this.svgEl.firstChild);
-    this.connections.forEach((conn, i) => {
+    this.connections.forEach((conn) => {
+      const isMod = (conn.role || "audio") === "mod";
       const fromNode = this.nodes.get(conn.from);
       const toNode = this.nodes.get(conn.to);
       if (!fromNode || !toNode) return;
-      const outPort = fromNode.el.querySelector('.port.out');
-      const inPort = toNode.el.querySelector('.port.in');
+      const outPort = fromNode.el.querySelector(isMod ? ".port.modout" : ".port.out");
+      const inPort = toNode.el.querySelector(isMod ? ".port.modin" : ".port.in");
       if (!outPort || !inPort) return;
       const p1 = this._portCenter(outPort);
       const p2 = this._portCenter(inPort);
       const path = document.createElementNS(NS, "path");
-      path.setAttribute("class", "cable");
+      path.setAttribute("class", isMod ? "cable cable-mod" : "cable");
       path.setAttribute("d", this._bezier(p1.x, p1.y, p2.x, p2.y));
-      path.setAttribute("stroke", fromNode.kind === "source" ? (SOURCE_COLORS[Number(conn.from.replace("slot", ""))] || "#58e0c0") : "#8a92a3");
+      path.setAttribute("stroke", isMod ? MOD_COLOR : (fromNode.kind === "source" ? SOURCE_COLORS[Number(conn.from.replace("slot", ""))] || "#58e0c0" : "#8a92a3"));
       this.svgEl.appendChild(path);
 
       const midX = (p1.x + p2.x) / 2, midY = (p1.y + p2.y) / 2;
@@ -264,8 +341,9 @@ export class PatchBay {
       t.textContent = "×";
       g.appendChild(c); g.appendChild(t);
       g.addEventListener("mousedown", (e) => e.stopPropagation());
-      g.addEventListener("click", () => this.disconnectPair(conn.from, conn.to));
+      g.addEventListener("click", () => this.disconnectPair(conn.from, conn.to, conn.role || "audio"));
       this.svgEl.appendChild(g);
     });
+    this._updateModVisuals();
   }
 }

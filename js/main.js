@@ -21,8 +21,8 @@ async function boot() {
   document.querySelectorAll(".addButtons button[data-add]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const type = btn.dataset.add;
-      const x = 500 + (addCascade % 5) * 40;
-      const y = 60 + (addCascade % 6) * 90;
+      const x = 480 + (addCascade % 4) * 220;
+      const y = 60 + Math.floor(addCascade / 4) * 260;
       addCascade++;
       patchBay.addBox(type, x, y);
       patchBay.redrawCables();
@@ -55,6 +55,9 @@ async function boot() {
     if (!engine.running) return;
     const now = engine.ctx.currentTime;
     slots.forEach((s) => s.transportTick(now, LOOKAHEAD));
+    patchBay.nodes.forEach((n) => {
+      if (n.kind === "box" && typeof n.box.tick === "function") n.box.tick(now, LOOKAHEAD);
+    });
     schedulerTimer = setTimeout(schedulerLoop, 30);
   }
 
@@ -62,6 +65,9 @@ async function boot() {
     await resumeEngine();
     engine.running = true;
     slots.forEach((s) => s.onTransportStart());
+    patchBay.nodes.forEach((n) => {
+      if (n.kind === "box" && typeof n.box.onTransportStart === "function") n.box.onTransportStart();
+    });
     schedulerLoop();
     playBtn.textContent = "■ 停止";
     playBtn.classList.add("playing");

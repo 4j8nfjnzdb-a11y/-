@@ -9,6 +9,10 @@
   --accent2: #ff7a59;
   --accent3: #c58cff;
   --warn: #ffb454;
+  --accent5: #4fb8ff;
+  --accent6: #ff5fa2;
+  --accent7: #9be564;
+  --mod: #f042ff;
   --danger: #ff5d6c;
   font-size: 15px;
 }
@@ -342,6 +346,10 @@ main {
 .addButtons button[data-add="filter"] { border-color: var(--accent3); color: var(--accent3); }
 .addButtons button[data-add="crush"] { border-color: var(--warn); color: var(--warn); }
 .addButtons button[data-add="delay"] { border-color: var(--accent2); color: var(--accent2); }
+.addButtons button[data-add="reverb"] { border-color: var(--accent5); color: var(--accent5); }
+.addButtons button[data-add="pitch"] { border-color: var(--accent6); color: var(--accent6); }
+.addButtons button[data-add="gate"] { border-color: var(--accent7); color: var(--accent7); }
+.addButtons button[data-add="mod"] { border-color: var(--mod); color: var(--mod); }
 
 .patchViewport {
   position: relative;
@@ -379,6 +387,10 @@ main {
   stroke: var(--ink-dim);
   stroke-width: 2;
   stroke-dasharray: 4 3;
+}
+.cableLayer path.cable-mod {
+  stroke-dasharray: 5 4;
+  opacity: 0.85;
 }
 .cableDelete {
   pointer-events: all;
@@ -443,12 +455,39 @@ main {
 .port.in { left: -7px; }
 .port:hover, .port.active { border-color: var(--accent); box-shadow: 0 0 8px rgba(88,224,192,0.7); }
 
+.port.modin, .port.modout {
+  width: 11px; height: 11px;
+  border-radius: 2px;
+  border: 2px solid var(--mod);
+  top: auto; bottom: -6px; left: 50%; right: auto;
+  transform: translateX(-50%) rotate(45deg);
+}
+.port.modin:hover, .port.modout:hover, .port.modin.active, .port.modout.active {
+  border-color: var(--mod);
+  box-shadow: 0 0 8px rgba(240,66,255,0.75);
+}
+
 .pbox.type-glitch .pbox-head { color: var(--accent); }
 .pbox.type-filter .pbox-head { color: var(--accent3); }
 .pbox.type-crush .pbox-head { color: var(--warn); }
 .pbox.type-delay .pbox-head { color: var(--accent2); }
+.pbox.type-reverb .pbox-head { color: var(--accent5); }
+.pbox.type-pitch .pbox-head { color: var(--accent6); }
+.pbox.type-gate .pbox-head { color: var(--accent7); }
+.pbox.type-mod .pbox-head { color: var(--mod); }
+.pbox.type-mod { border-color: rgba(240,66,255,0.35); }
 .pbox.source .pbox-head { color: var(--ink); background: rgba(255,255,255,0.03); }
 .pbox.master .pbox-head { color: var(--accent); background: rgba(88,224,192,0.08); }
+
+.param.modulating .valnum { color: var(--mod); }
+.param.modulating input[type="range"] {
+  background: linear-gradient(90deg, rgba(240,66,255,0.4), rgba(240,66,255,0.08));
+}
+.param.modulating input[type="range"]::-webkit-slider-thumb {
+  background: var(--mod);
+  box-shadow: 0 0 8px rgba(240,66,255,0.85);
+}
+.param.modulating input[type="range"]::-moz-range-thumb { background: var(--mod); }
 
 .hint {
   color: var(--ink-dim);

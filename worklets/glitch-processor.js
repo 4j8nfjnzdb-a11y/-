@@ -226,3 +226,73 @@ class CrushProcessor extends AudioWorkletProcessor {
 }
 
 registerProcessor("crush-processor", CrushProcessor);
+
+// PitchProcessor — a granular ("PSOLA-lite") pitch shifter. Two grains,
+// phase-offset by half a window, each read the rolling ring buffer at a
+// sped-up/slowed-down rate and are triangle-windowed so their sum stays
+// roughly constant in loudness across the grain boundary jumps.
+const PITCH_MAX_SECONDS = 1.5;
+
+class PitchProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.bufLen = Math.ceil(sampleRate * PITCH_MAX_SECONDS);
+    this.ring = [new Float32Array(this.bufLen), new Float32Array(this.bufLen)];
+    this.writePos = 0;
+    this.grainSize = Math.round(sampleRate * 0.08);
+    this.age = [0, Math.floor(this.grainSize / 2)];
+    this.readPos = [0, 0];
+    this.params = { semitones: 0, mix: 1 };
+    this.port.onmessage = (e) => Object.assign(this.params, e.data || {});
+  }
+
+  wrap(pos) {
+    const m = this.bufLen;
+    return ((Math.floor(pos) % m) + m) % m;
+  }
+
+  process(inputs, outputs) {
+    const input = inputs[0];
+    const output = outputs[0];
+    if (!output || output.length === 0) return true;
+    const inCh0 = input && input[0] ? input[0] : null;
+    const inCh1 = input && input[1] ? input[1] : inCh0;
+    const frames = output[0].length;
+    const rate = Math.pow(2, this.params.semitones / 12);
+    const g = this.grainSize;
+    const mix = this.params.mix;
+
+    for (let i = 0; i < frames; i++) {
+      const s0 = inCh0 ? inCh0[i] : 0;
+      const s1 = inCh1 ? inCh1[i] : s0;
+      this.ring[0][this.wrap(this.writePos)] = s0;
+      this.ring[1][this.wrap(this.writePos)] = s1;
+
+      let wet0 = 0, wet1 = 0;
+      for (let k = 0; k < 2; k++) {
+        this.age[k] += 1;
+        this.readPos[k] += rate;
+        if (this.age[k] >= g) {
+          this.age[k] = 0;
+          this.readPos[k] = this.writePos - g;
+        }
+        const win = 1 - Math.abs((this.age[k] / g) * 2 - 1);
+        const rp = this.wrap(this.readPos[k]);
+        wet0 += this.ring[0][rp] * win;
+        wet1 += this.ring[1][rp] * win;
+      }
+
+      const out0 = s0 * (1 - mix) + wet0 * mix;
+      const out1 = s1 * (1 - mix) + wet1 * mix;
+      for (let ch = 0; ch < output.length; ch++) {
+        output[ch][i] = ch === 0 ? out0 : out1;
+      }
+
+      this.writePos++;
+    }
+
+    return true;
+  }
+}
+
+registerProcessor("pitch-processor", PitchProcessor);
