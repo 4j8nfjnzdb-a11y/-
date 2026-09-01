@@ -146,6 +146,16 @@ html, body {
   align-items: center;
 }
 
+.track__folderLabel {
+  font-size: 0.6rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.02em;
+  min-height: 1em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 button { font-family: inherit; cursor: pointer; }
 
 .toggleBtn, .cycleBtn, .ghostBtn, .glitchBtn {
@@ -310,6 +320,9 @@ button { font-family: inherit; cursor: pointer; }
   background: linear-gradient(135deg, rgba(220,80,120,0.25), rgba(90,140,220,0.25));
   border: 1px solid rgba(234,230,223,0.35);
   font-weight: 600;
+}
+.glitchBtn--alt {
+  background: linear-gradient(135deg, rgba(90,200,160,0.22), rgba(220,180,80,0.22));
 }
 .glitchBtn:hover {
   border-color: rgba(234,230,223,0.8);

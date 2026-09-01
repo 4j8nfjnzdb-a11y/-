@@ -42,6 +42,11 @@
   function qFromKnob(v) { return 0.25 + v * 14; }
   function delayTimeFromKnob(v) { return 0.03 + v * 0.9; }
 
+  const AUDIO_EXT = /\.(wav|mp3|ogg|oga|flac|m4a|aac|webm|aif|aiff|opus)$/i;
+  function isAudioFile(file) {
+    return (file.type && file.type.startsWith("audio/")) || AUDIO_EXT.test(file.name);
+  }
+
   // ---------------------------------------------------------------- audio engine
 
   let ctx = null;
@@ -236,6 +241,8 @@
       this.recording = false;
       this.mediaRecorder = null;
       this.mediaStream = null;
+      this.folderFiles = [];
+      this.folderName = "";
 
       this.params = {
         mode: "loop",
@@ -352,6 +359,23 @@
     async loadArrayBuffer(arrayBuffer) {
       const buf = await ctx.decodeAudioData(arrayBuffer);
       this.setBuffer(buf);
+    }
+
+    setFolderFiles(files, folderName) {
+      this.folderFiles = files;
+      this.folderName = folderName || "";
+      this.onFolderChanged && this.onFolderChanged();
+    }
+
+    async pickRandomFromFolder() {
+      if (!this.folderFiles.length) return false;
+      const f = this.folderFiles[Math.floor(Math.random() * this.folderFiles.length)];
+      const ab = await f.arrayBuffer();
+      try { await this.loadArrayBuffer(ab); }
+      catch (e) { alert(`"${f.name}" の読み込みに失敗しました: ${e.message}`); return false; }
+      this.lastFolderFileName = f.name;
+      this.onFolderChanged && this.onFolderChanged();
+      return true;
     }
 
     setBuffer(buf) {
@@ -618,6 +642,49 @@
     header.appendChild(transportRow);
     header.appendChild(fileInput);
 
+    // folder-of-samples: separate from the single-file LOAD above
+    const folderRow = document.createElement("div");
+    folderRow.className = "track__transport";
+
+    const folderBtn = document.createElement("button");
+    folderBtn.className = "toggleBtn";
+    folderBtn.textContent = "FOLDER";
+    folderBtn.title = "サンプルの入ったフォルダを割り当てる";
+    const folderInput = document.createElement("input");
+    folderInput.type = "file";
+    folderInput.multiple = true;
+    folderInput.webkitdirectory = true;
+    folderInput.hidden = true;
+    folderBtn.addEventListener("click", () => { ensureAudio(); folderInput.click(); });
+    folderInput.addEventListener("change", async () => {
+      const files = Array.from(folderInput.files).filter(isAudioFile);
+      if (!files.length) { alert("フォルダ内に音声ファイルが見つかりませんでした。"); return; }
+      const first = folderInput.files[0];
+      const folderName = (first.webkitRelativePath || first.name).split("/")[0];
+      track.setFolderFiles(files, folderName);
+      await track.pickRandomFromFolder();
+    });
+
+    const folderRandBtn = document.createElement("button");
+    folderRandBtn.className = "toggleBtn";
+    folderRandBtn.textContent = "🎲📁";
+    folderRandBtn.title = "割り当てたフォルダからランダムに1曲差し替え";
+    folderRandBtn.addEventListener("click", async () => {
+      ensureAudio();
+      if (!track.folderFiles.length) { alert("先に FOLDER でサンプルフォルダを選んでください。"); return; }
+      await track.pickRandomFromFolder();
+    });
+
+    const folderLabel = document.createElement("div");
+    folderLabel.className = "track__folderLabel";
+    folderLabel.textContent = "";
+
+    folderRow.appendChild(folderBtn);
+    folderRow.appendChild(folderRandBtn);
+    header.appendChild(folderRow);
+    header.appendChild(folderLabel);
+    header.appendChild(folderInput);
+
     const modeRow = document.createElement("div");
     modeRow.className = "track__modeRow";
     const modeBtn = document.createElement("button");
@@ -851,6 +918,12 @@
       recBtn.textContent = rec ? "● STOP" : "● REC";
     };
     track.onBufferChanged = () => { drawWaveform(track); };
+    track.onFolderChanged = () => {
+      const count = track.folderFiles.length;
+      if (!count) { folderLabel.textContent = ""; return; }
+      const name = track.folderName ? track.folderName + " — " : "";
+      folderLabel.textContent = `${name}${count}曲` + (track.lastFolderFileName ? ` / now: ${track.lastFolderFileName}` : "");
+    };
 
     return el;
   }
@@ -875,6 +948,20 @@
   function randomizeAll() {
     ensureAudio();
     tracks.forEach((t) => randomizeTrack(t));
+  }
+
+  // pick a random subset (1..N) of tracks that have a folder assigned,
+  // and load a new random sample from each of their own folders
+  function randomizeSamplesFromFolders() {
+    ensureAudio();
+    const eligible = tracks.filter((t) => t.folderFiles.length > 0);
+    if (!eligible.length) {
+      alert("フォルダが割り当てられたトラックがありません。各トラックの FOLDER ボタンで先にサンプルフォルダを選んでください。");
+      return;
+    }
+    const shuffled = eligible.slice().sort(() => Math.random() - 0.5);
+    const count = 1 + Math.floor(Math.random() * shuffled.length);
+    shuffled.slice(0, count).forEach((t) => t.pickRandomFromFolder());
   }
 
   // ---------------------------------------------------------------- waveform / visuals
@@ -1049,6 +1136,7 @@
       tracks.forEach((t) => t.stop());
     });
     document.getElementById("randomAllBtn").addEventListener("click", randomizeAll);
+    document.getElementById("randomSamplesBtn").addEventListener("click", randomizeSamplesFromFolders);
 
     startBtn.addEventListener("click", () => {
       ensureAudio();
