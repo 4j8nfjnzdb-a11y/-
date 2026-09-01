@@ -19,7 +19,6 @@
   // ---------------------------------------------------------------- utils
 
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-  const lerp = (a, b, t) => a + (b - a) * t;
   const rand = (lo, hi) => lo + Math.random() * (hi - lo);
   const semitoneToRate = (s) => Math.pow(2, s / 12);
 
@@ -116,20 +115,23 @@
     const defaultValue = v;
 
     const el = document.createElement("div");
-    el.className = "knob";
-
-    const dial = document.createElement("div");
-    dial.className = "knob__dial";
-    const pointer = document.createElement("div");
-    pointer.className = "knob__pointer";
-    dial.appendChild(pointer);
+    el.className = "fader";
 
     const labelEl = document.createElement("div");
-    labelEl.className = "knob__label";
+    labelEl.className = "fader__label";
     labelEl.textContent = label;
 
-    const valueEl = document.createElement("div");
-    valueEl.className = "knob__value";
+    const body = document.createElement("div");
+    body.className = "fader__body";
+
+    const track = document.createElement("div");
+    track.className = "fader__track";
+    const fill = document.createElement("div");
+    fill.className = "fader__fill";
+    const cap = document.createElement("div");
+    cap.className = "fader__cap";
+    track.appendChild(fill);
+    track.appendChild(cap);
 
     const dice_btn = document.createElement("button");
     dice_btn.className = "dieBtn";
@@ -137,13 +139,14 @@
     dice_btn.title = "randomize " + label;
     dice_btn.textContent = "🎲";
 
-    const row = document.createElement("div");
-    row.className = "knob__row";
-    row.appendChild(dial);
-    row.appendChild(dice_btn);
+    body.appendChild(track);
+    body.appendChild(dice_btn);
+
+    const valueEl = document.createElement("div");
+    valueEl.className = "fader__value";
 
     el.appendChild(labelEl);
-    el.appendChild(row);
+    el.appendChild(body);
     el.appendChild(valueEl);
 
     function fmt(val) {
@@ -153,9 +156,8 @@
 
     function render() {
       const t = (v - min) / (max - min);
-      const deg = lerp(-135, 135, t);
-      pointer.style.transform = `rotate(${deg}deg)`;
-      dial.style.setProperty("--pct", t);
+      fill.style.height = `${t * 100}%`;
+      cap.style.bottom = `${t * 100}%`;
       valueEl.textContent = fmt(v);
     }
 
@@ -165,28 +167,31 @@
       if (!silent && onChange) onChange(v);
     }
 
-    // drag interaction
-    let dragging = false, startY = 0, startV = 0;
-    dial.addEventListener("pointerdown", (e) => {
+    // drag interaction: the cap tracks the pointer 1:1, so grabbing
+    // anywhere on the track jumps straight to that value (like a real
+    // mixer fader) instead of a rotary knob's confusing diagonal drag
+    let dragging = false;
+    function valueFromClientY(clientY) {
+      const rect = track.getBoundingClientRect();
+      const t = clamp(1 - (clientY - rect.top) / rect.height, 0, 1);
+      return min + t * (max - min);
+    }
+    track.addEventListener("pointerdown", (e) => {
       if (disabled && disabled()) return;
       dragging = true;
-      startY = e.clientY;
-      startV = v;
-      dial.setPointerCapture(e.pointerId);
-      dial.classList.add("dragging");
+      track.setPointerCapture(e.pointerId);
+      track.classList.add("dragging");
+      setValue(valueFromClientY(e.clientY));
     });
-    dial.addEventListener("pointermove", (e) => {
+    track.addEventListener("pointermove", (e) => {
       if (!dragging) return;
-      const dy = startY - e.clientY;
-      const range = max - min;
-      const sensitivity = e.shiftKey ? 600 : 160;
-      setValue(startV + (dy / sensitivity) * range);
+      setValue(valueFromClientY(e.clientY));
     });
-    const endDrag = () => { dragging = false; dial.classList.remove("dragging"); };
-    dial.addEventListener("pointerup", endDrag);
-    dial.addEventListener("pointercancel", endDrag);
-    dial.addEventListener("dblclick", () => setValue(defaultValue));
-    dial.addEventListener("wheel", (e) => {
+    const endDrag = () => { dragging = false; track.classList.remove("dragging"); };
+    track.addEventListener("pointerup", endDrag);
+    track.addEventListener("pointercancel", endDrag);
+    track.addEventListener("dblclick", () => setValue(defaultValue));
+    track.addEventListener("wheel", (e) => {
       e.preventDefault();
       const range = max - min;
       setValue(v + (e.deltaY < 0 ? 1 : -1) * range * 0.02);
