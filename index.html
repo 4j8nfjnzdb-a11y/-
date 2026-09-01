@@ -3,41 +3,65 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>kizashi — generative ambient</title>
-<link rel="stylesheet" href="style.css" />
+<title>atelier — app gallery &amp; mixer</title>
+<link rel="stylesheet" href="gallery.css" />
 </head>
 <body>
-  <canvas id="bg"></canvas>
+  <div class="stage" id="stage">
+    <div class="world" id="world"></div>
+    <div class="floor" id="floor" aria-hidden="true"></div>
+  </div>
 
-  <main class="ui">
-    <header>
-      <h1>kizashi <span class="sub">きざし</span></h1>
-      <p class="tagline">反復に見せかけて、予測の像を結ぶ寸前でかわし続けるアンビエント。</p>
-    </header>
+  <header class="hud">
+    <h1>atelier <span class="sub">アトリエ</span></h1>
+    <p class="tagline">作ったものを並べて、奥行きの中で重ねてミックスする場所。</p>
+  </header>
 
-    <div class="transport">
-      <button id="playBtn" class="playBtn">再生</button>
-      <button id="paletteBtn" class="ghostBtn">配色を変える</button>
+  <div class="toolbar">
+    <button id="addBtn" class="pill">＋ 追加</button>
+    <button id="shuffleBtn" class="pill ghost">シャッフル</button>
+    <button id="resetViewBtn" class="pill ghost">視点リセット</button>
+  </div>
+
+  <p class="hint">
+    背景ドラッグで移動 / ホイールで空間ズーム / カードにホイールで奥行き調整
+  </p>
+
+  <div class="modal-backdrop" id="modalBackdrop" hidden>
+    <div class="modal" role="dialog" aria-label="アイテムを追加">
+      <div class="modal-tabs">
+        <button class="tab active" data-tab="builtin">作ったアプリ</button>
+        <button class="tab" data-tab="html">コードを貼る</button>
+        <button class="tab" data-tab="url">URLを追加</button>
+      </div>
+
+      <div class="tab-panel" data-panel="builtin">
+        <p class="modal-hint">これまでこの場所に加えたアプリから選ぶ。</p>
+        <div id="builtinList" class="builtin-list"></div>
+      </div>
+
+      <div class="tab-panel" data-panel="html" hidden>
+        <p class="modal-hint">アーティファクトの HTML をそのまま貼り付けると、1枚のカードになる。</p>
+        <textarea id="htmlInput" placeholder="&lt;!doctype html&gt;..."></textarea>
+        <div class="modal-actions">
+          <input id="htmlTitle" type="text" placeholder="タイトル(任意)" />
+          <button id="htmlAddBtn" class="pill">追加</button>
+        </div>
+      </div>
+
+      <div class="tab-panel" data-panel="url" hidden>
+        <p class="modal-hint">埋め込み可能な URL を指定する(サイト側の設定で拒否される場合あり)。</p>
+        <input id="urlInput" type="url" placeholder="https://..." />
+        <div class="modal-actions">
+          <input id="urlTitle" type="text" placeholder="タイトル(任意)" />
+          <button id="urlAddBtn" class="pill">追加</button>
+        </div>
+      </div>
+
+      <button id="modalCloseBtn" class="modal-close" aria-label="閉じる">×</button>
     </div>
+  </div>
 
-    <div class="controls">
-      <label class="slider">
-        <span>密度 <em>density</em></span>
-        <input id="density" type="range" min="0" max="100" value="42" />
-      </label>
-      <label class="slider">
-        <span>明暗 <em>tone</em></span>
-        <input id="tone" type="range" min="0" max="100" value="50" />
-      </label>
-      <label class="slider">
-        <span>揺らぎ <em>swerve</em></span>
-        <input id="swerve" type="range" min="0" max="100" value="55" />
-      </label>
-    </div>
-
-    <p class="hint">音は毎回、一度きりのものです。同じ配列は二度と戻ってきません。</p>
-  </main>
-
-  <script src="app.js"></script>
+  <script src="gallery.js"></script>
 </body>
 </html>
