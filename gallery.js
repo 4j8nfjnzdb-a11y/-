@@ -22,6 +22,13 @@
       w: 480,
       h: 640,
     },
+    {
+      appId: "hibana",
+      title: "hibana",
+      src: "apps/hibana/index.html",
+      w: 480,
+      h: 640,
+    },
   ];
 
   const stage = document.getElementById("stage");
