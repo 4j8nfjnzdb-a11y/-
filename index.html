@@ -3,39 +3,41 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>kizashi — generative ambient</title>
+<title>torso — 4 track sound sculpture</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <canvas id="bg"></canvas>
 
-  <main class="ui">
-    <header>
-      <h1>kizashi <span class="sub">きざし</span></h1>
-      <p class="tagline">反復に見せかけて、予測の像を結ぶ寸前でかわし続けるアンビエント。</p>
+  <div id="startOverlay" class="startOverlay">
+    <div class="startBox">
+      <h1>torso</h1>
+      <p>4 track sound sculpture / ambient granular mixer</p>
+      <button id="startBtn">tap to begin</button>
+    </div>
+  </div>
+
+  <main class="app" id="app" hidden>
+    <header class="appHeader">
+      <h1>torso <span class="sub">4track sculpture</span></h1>
+      <p class="tagline">4本のトラックそれぞれが独立した時間軸を持ち、サンプルの中を漂いながら、削れ、遅延し、反射していく。</p>
     </header>
 
-    <div class="transport">
-      <button id="playBtn" class="playBtn">再生</button>
-      <button id="paletteBtn" class="ghostBtn">配色を変える</button>
-    </div>
+    <div id="tracks" class="tracks"></div>
 
-    <div class="controls">
-      <label class="slider">
-        <span>密度 <em>density</em></span>
-        <input id="density" type="range" min="0" max="100" value="42" />
-      </label>
-      <label class="slider">
-        <span>明暗 <em>tone</em></span>
-        <input id="tone" type="range" min="0" max="100" value="50" />
-      </label>
-      <label class="slider">
-        <span>揺らぎ <em>swerve</em></span>
-        <input id="swerve" type="range" min="0" max="100" value="55" />
-      </label>
-    </div>
-
-    <p class="hint">音は毎回、一度きりのものです。同じ配列は二度と戻ってきません。</p>
+    <footer class="globalPanel">
+      <div class="globalSection">
+        <div class="knobSlot" id="masterKnobSlot"></div>
+      </div>
+      <div class="globalSection globalButtons">
+        <button id="playAllBtn" class="ghostBtn">▶ all</button>
+        <button id="stopAllBtn" class="ghostBtn">■ all</button>
+      </div>
+      <div class="globalSection">
+        <button id="randomAllBtn" class="glitchBtn">⚄ RANDOMIZE ALL / GLITCH</button>
+      </div>
+    </footer>
+    <p class="hint">各ノブ横の 🎲 でそのパラメータだけをランダム化。各トラックの ⚄ でトラック全体をランダム化。一番下の大きなボタンで全トラックを一気に揺さぶる。</p>
   </main>
 
   <script src="app.js"></script>
