@@ -31,6 +31,40 @@ async function boot() {
   document.getElementById("clearPatchBtn").addEventListener("click", () => {
     patchBay.resetDefaultPatch();
   });
+  document.getElementById("randomPatchBtn").addEventListener("click", () => {
+    patchBay.randomizePatch();
+  });
+
+  // 暴走モード — every tick, grab a random handful of every range-type
+  // knob on screen (slot faders + box params) and jump it to a new random
+  // value by dispatching a real "input" event, so it flows through each
+  // control's own existing update logic instead of duplicating it here.
+  const chaosBtn = document.getElementById("chaosBtn");
+  let chaosTimer = null;
+  function chaosTick() {
+    const pool = Array.from(document.querySelectorAll(".slot input[type=range], .pbox .pbox-body input[type=range]"));
+    if (!pool.length) return;
+    const n = Math.min(pool.length, 1 + Math.floor(Math.random() * 4));
+    pool.sort(() => Math.random() - 0.5).slice(0, n).forEach((input) => {
+      const min = parseFloat(input.min), max = parseFloat(input.max);
+      const step = parseFloat(input.step) || 0.01;
+      const raw = min + Math.random() * (max - min);
+      input.value = Math.round(raw / step) * step;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  }
+  chaosBtn.addEventListener("click", () => {
+    if (chaosTimer) {
+      clearInterval(chaosTimer);
+      chaosTimer = null;
+      chaosBtn.classList.remove("active");
+      chaosBtn.textContent = "🌀 暴走モード";
+    } else {
+      chaosTimer = setInterval(chaosTick, 450);
+      chaosBtn.classList.add("active");
+      chaosBtn.textContent = "⏹ 暴走停止";
+    }
+  });
 
   const playBtn = document.getElementById("playBtn");
   const bpmInput = document.getElementById("bpm");

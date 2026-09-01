@@ -257,7 +257,7 @@ function makePitchBox() {
       })
     : ctx.createGain();
 
-  const state = { semitones: 0, mix: 1 };
+  const state = { semitones: 5, mix: 1 };
   function push() {
     if (!(node instanceof AudioWorkletNode)) return;
     node.port.postMessage(state);
@@ -284,7 +284,7 @@ function makeGateBox() {
   const ctx = engine.ctx;
   const gainNode = ctx.createGain();
   gainNode.gain.value = 1;
-  const state = { division: "1/8", probability: 0.6, smooth: 8 };
+  const state = { division: "1/8", probability: 0.45, smooth: 8 };
   let nextStepTime = 0;
   let started = false;
 

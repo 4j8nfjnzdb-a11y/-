@@ -31,6 +31,8 @@ export class PatchBay {
     this.connections = []; // { from, to, role: 'audio'|'mod' }
     this._pendingConnect = null;
 
+    this._topZ = 10;
+
     this._buildSourcesAndMaster();
     this._bindGlobalMouse();
     window.addEventListener("resize", () => this.redrawCables());
@@ -98,7 +100,7 @@ export class PatchBay {
 
     const boxEl = el(`
       <div class="pbox type-${box.type}" style="left:${x}px; top:${y}px;">
-        <div class="pbox-head">${box.title}<span class="remove" title="削除">✕</span></div>
+        <div class="pbox-head"><span class="pbox-title">${box.title}</span><span class="remove" title="削除">✕</span></div>
         <div class="pbox-body">${paramsHtml}</div>
         ${audioPorts}
         ${modPort}
@@ -125,6 +127,7 @@ export class PatchBay {
     this.nodes.set(box.id, { kind: "box", el: boxEl, box, input: box.input, output: box.output });
     this._bindBoxDrag([boxEl]);
     this._bindPorts();
+    this._relabelBoxes();
     return box.id;
   }
 
@@ -137,6 +140,27 @@ export class PatchBay {
     this.connections = this.connections.filter((c) => c.from !== id && c.to !== id);
     this.rebuildAudioGraph();
     this.redrawCables();
+    this._relabelBoxes();
+  }
+
+  // Same-type boxes (e.g. two GLITCHes) are otherwise indistinguishable —
+  // number them "GLITCH 1" / "GLITCH 2" in creation order the moment a
+  // second one of a type exists, and drop the number if only one remains.
+  _relabelBoxes() {
+    const groups = new Map();
+    this.nodes.forEach((n) => {
+      if (n.kind !== "box") return;
+      const t = n.box.type;
+      if (!groups.has(t)) groups.set(t, []);
+      groups.get(t).push(n);
+    });
+    groups.forEach((list) => {
+      list.forEach((n, i) => {
+        const label = list.length > 1 ? `${n.box.title} ${i + 1}` : n.box.title;
+        const titleEl = n.el.querySelector(".pbox-title");
+        if (titleEl) titleEl.textContent = label;
+      });
+    });
   }
 
   connect(from, to, role = "audio") {
@@ -190,6 +214,50 @@ export class PatchBay {
     // the patch quietly evolves on its own from the moment it exists
     const modId = this.addBox("mod", 260, 460);
     this.connect(modId, glitchId, "mod");
+  }
+
+  // 配線ガチャ — reshuffles the whole patch: each slot gets a random
+  // (possibly empty) chain of 0-2 effect boxes before master, and every
+  // MOD box has a chance of driving a random target. The number of
+  // connections and the shape of the routing differs on every press, but
+  // a live path to master is always guaranteed.
+  randomizePatch() {
+    const boxEntries = [...this.nodes.entries()].filter(([, n]) => n.kind === "box" && !n.box.isModSource);
+    const modEntries = [...this.nodes.entries()].filter(([, n]) => n.kind === "box" && n.box.isModSource);
+    const boxIds = boxEntries.map(([id]) => id);
+    const slotIds = this.slots.map((_, i) => `slot${i}`);
+    const shuffledSlots = [...slotIds].sort(() => Math.random() - 0.5);
+
+    const newConnections = [];
+    let reachesMaster = false;
+
+    shuffledSlots.forEach((sid) => {
+      if (shuffledSlots.length > 1 && Math.random() < 0.15) return; // sometimes leave a slot silent
+      const chainLen = boxIds.length ? Math.floor(Math.random() * Math.min(3, boxIds.length + 1)) : 0;
+      const chain = [...boxIds].sort(() => Math.random() - 0.5).slice(0, chainLen);
+      let prev = sid;
+      chain.forEach((bid) => {
+        newConnections.push({ from: prev, to: bid, role: "audio" });
+        prev = bid;
+      });
+      newConnections.push({ from: prev, to: "master", role: "audio" });
+      reachesMaster = true;
+    });
+
+    if (!reachesMaster) {
+      newConnections.push({ from: shuffledSlots[0], to: "master", role: "audio" });
+    }
+
+    modEntries.forEach(([mid]) => {
+      const targetable = boxIds.filter((id) => this.nodes.get(id).box.modTargetKey);
+      if (!targetable.length || Math.random() < 0.25) return; // some MOD boxes stay unpatched
+      const targetId = targetable[Math.floor(Math.random() * targetable.length)];
+      newConnections.push({ from: mid, to: targetId, role: "mod" });
+    });
+
+    this.connections = newConnections;
+    this.rebuildAudioGraph();
+    this.redrawCables();
   }
 
   rebuildAudioGraph() {
@@ -246,6 +314,7 @@ export class PatchBay {
       head.addEventListener("mousedown", (e) => {
         if (e.target.classList.contains("remove")) return;
         e.preventDefault();
+        boxEl.style.zIndex = ++this._topZ;
         const startX = e.clientX, startY = e.clientY;
         const origLeft = parseFloat(boxEl.style.left) || 0;
         const origTop = parseFloat(boxEl.style.top) || 0;
@@ -271,6 +340,8 @@ export class PatchBay {
       portEl.addEventListener("mousedown", (e) => {
         e.preventDefault();
         e.stopPropagation();
+        const ownerBox = portEl.closest(".pbox");
+        if (ownerBox) ownerBox.style.zIndex = ++this._topZ;
         this._pendingConnect = { from: portEl.dataset.node, role: portEl.dataset.role || "audio", portEl };
         this._dragPath = document.createElementNS(NS, "path");
         this._dragPath.setAttribute("class", "cable-drag");
@@ -290,12 +361,27 @@ export class PatchBay {
 
     window.addEventListener("mouseup", (e) => {
       if (!this._pendingConnect) return;
-      const target = document.elementFromPoint(e.clientX, e.clientY);
       const role = this._pendingConnect.role;
       const wantsClass = role === "mod" ? "modin" : "in";
-      if (target && target.classList.contains("port") && target.classList.contains(wantsClass)) {
-        this.connect(this._pendingConnect.from, target.dataset.node, role);
+      const target = document.elementFromPoint(e.clientX, e.clientY);
+      let targetNode = (target && target.classList.contains("port") && target.classList.contains(wantsClass))
+        ? target.dataset.node
+        : null;
+
+      if (!targetNode) {
+        // Ports are small and can end up visually under another box while
+        // dragging — fall back to whichever matching port is nearest the
+        // drop point, so a slightly-off drop still connects.
+        const selector = role === "mod" ? ".port.modin" : ".port.in";
+        let bestDist = 26;
+        this.canvasEl.querySelectorAll(selector).forEach((p) => {
+          const r = p.getBoundingClientRect();
+          const d = Math.hypot(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2));
+          if (d < bestDist) { bestDist = d; targetNode = p.dataset.node; }
+        });
       }
+
+      if (targetNode) this.connect(this._pendingConnect.from, targetNode, role);
       if (this._dragPath) this._dragPath.remove();
       this._dragPath = null;
       this._pendingConnect = null;
