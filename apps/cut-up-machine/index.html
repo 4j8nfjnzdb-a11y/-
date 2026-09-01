@@ -1,0 +1,1601 @@
+<!doctype html><html><head><!-- frame-runtime --><script>window.__FRAME_PREAMBLE={"v":1,"capabilities":{"artifact":"artifact.DF6_9MzE.js","assets":"assets.8Gk803W0.js","comments":"comments.vw5vQdGA.js","db":"db.h-3sndFg.js","downloads":"downloads.C3GSvEDP.js","embed":"embed.CxGAyc-v.js","mcp":"mcp.Bvma3qD7.js","network":"network.B5UA9Su4.js","notifications":"notifications.ssU4jy7G.js","permissions":"permissions.BNySkLV5.js","room":"room.BMMoe2BY.js","sample":"sample.BW2Uysoh.js","self":"artifact.DF6_9MzE.js","user":"user.BpKav-Rf.js"},"transforms":"_transforms.DSB5x63f.js","comments":"_comments.C6E0cR5g.js","translate":"_translate.5HCW4BJh.js"}</script><script>(function(){"use strict";var te=["light","dark","system"],re=/^[A-Za-z0-9_-]{1,64}$/,$=/^[a-zA-Z_:][a-zA-Z0-9_:.-]{0,127}$/,ne=new Set(["class","hidden","value","checked","style","title","alt","placeholder","lang","dir","role","tabindex","disabled","readonly","contenteditable","open","colspan","rowspan"]);function oe(e){const t=e.toLowerCase();return t.startsWith("data-")||t.startsWith("aria-")||ne.has(t)}var Be="http://www.w3.org/1999/xhtml",se="http://www.w3.org/2000/svg",ae=new Set(["script","style","iframe","noscript","noframes","noembed","xmp","plaintext","template","title","textarea","object","embed"]),ie=new Set(["script","style"]);function ce(e){const t=e.localName.toLowerCase();return e.namespaceURI==="http://www.w3.org/1999/xhtml"?!ae.has(t):e.namespaceURI===se?!ie.has(t):!1}function M(e,t){return e===t||(e===160||e===32)&&(t===160||t===32)}function le(e,t){const r=e.length,n=t.length;let s=0;for(;s<r&&s<n&&M(e.charCodeAt(s),t.charCodeAt(s));)s++;let o=0;for(;o<r-s&&o<n-s&&M(e.charCodeAt(r-1-o),t.charCodeAt(n-1-o));)o++;return{p:s,s:o}}function ue(e,t){const r=e.firstChild;if(e.childNodes.length!==1||r===null||r.nodeType!==Node.TEXT_NODE){e.textContent=t;return}const n=r.data,s=n.length,o=t.length,{p:i,s:c}=le(n,t);i===s&&c===0&&s===o||r.replaceData(i,s-i-c,t.slice(i,o-c));const h=r.data,p=e.ownerDocument.getSelection?.()??null,w=p!==null&&p.rangeCount>0&&(p.anchorNode===r||p.focusNode===r)?{anchor:p.anchorNode,anchorOffset:p.anchorOffset,focus:p.focusNode,focusOffset:p.focusOffset}:null;let m=-1,g=-1;for(let f=0;f<h.length&&f<t.length;f++){const v=h.charCodeAt(f),b=t.charCodeAt(f);v!==b&&M(v,b)&&(m<0&&(m=f),g=f)}const a=m>=0;if(a&&r.replaceData(m,g-m+1,t.slice(m,g+1)),a&&w!==null&&w.anchor!==null&&w.focus!==null)try{p.setBaseAndExtent(w.anchor,w.anchorOffset,w.focus,w.focusOffset)}catch{}}var fe=new Set(["html","head","body","frameset"]);function de(e){return e.namespaceURI==="http://www.w3.org/1999/xhtml"&&fe.has(e.localName)}function pe(e){if(e===null||typeof e!="object")return!1;const t=e;if(typeof t.target!="string"||!re.test(t.target)||t.text!==void 0&&typeof t.text!="string")return!1;if(t.attrsSet!==void 0){if(t.attrsSet===null||typeof t.attrsSet!="object")return!1;for(const[r,n]of Object.entries(t.attrsSet))if(!$.test(r)||typeof n!="string")return!1}if(t.attrsRemoved!==void 0){if(!Array.isArray(t.attrsRemoved))return!1;for(const r of t.attrsRemoved)if(typeof r!="string"||!$.test(r))return!1}return!0}function me(e,t){if(e===null||typeof e!="object")return!1;const{seq:r,elements:n}=e;if(typeof r!="number"||!Number.isSafeInteger(r)||!Array.isArray(n)||n.length===0||n.length>64)return!1;for(let s=0;s<n.length;s++)if(!t(n[s]))return!1;return!0}function he(e){return e===null||typeof e!="object"?!1:me(e.__frame_patch,pe)}function _e(e){if(e===null||typeof e!="object")return!1;const t=e.__frame_init;return t!==null&&typeof t=="object"}function ve(e){return e!==null&&typeof e=="object"&&e.__frame_size_poke===!0}function ye(e){if(e===null||typeof e!="object")return!1;const t=e.__frame_theme;if(t===null||typeof t!="object")return!1;const r=t.theme;return typeof r=="string"&&te.includes(r)}var A=/^[\w.-]+\.js$/;function we(e,t,r){return r?"inert":typeof t=="string"&&A.test(t)?e?[t]:"inert":e?"inert":"framed"}function ge(){return{post(e,t){parent.postMessage(e,t)},on(e){const t=r=>{r.source===parent&&e(r.data,r.origin,r.isTrusted)};return addEventListener("message",t),()=>removeEventListener("message",t)}}}function be(){return{post:()=>{},on:()=>()=>{}}}var j="__frame_scroll",Ee=150,Ae=310,Se=160,Te=3e4;function ke(){let e=0,t=!1,r=!1,n=!1,s=0,o=null;const i=l=>{try{sessionStorage.setItem(j,JSON.stringify({y:l}))}catch{}},c=()=>{if(clearTimeout(e),o===null)return;const l=o;o=null,i(l)},h=()=>{if(t){t=!1;return}r=!0,o=scrollY,clearTimeout(e),e=setTimeout(c,Ee)};try{addEventListener("scroll",h,{passive:!0}),addEventListener("pagehide",c)}catch{}const p=()=>{let l;try{l=sessionStorage.getItem(j)}catch{return null}if(l===null)return null;let _;try{_=JSON.parse(l)}catch{_=null}const d=_?.y;if(!(typeof d=="number"&&Number.isFinite(d)&&d>=0)){try{sessionStorage.removeItem(j)}catch{}return null}return d};let w=!1;const m=l=>{try{const _=scrollY;scrollTo({top:l,left:0,behavior:"instant"}),s=l,n=!0,clearTimeout(e),o=null,i(l);const d=scrollY;d!==_&&(t=!0),d!==l&&!w&&(w=!0,addEventListener("load",()=>{try{if(scrollY===d){const T=p();m(T!==null?T:s)}}catch{}},{once:!0}))}catch{}},g=()=>{try{return!!location.hash}catch{return!0}};let a=!1;const f=()=>{try{if(a||innerWidth>Ae||innerHeight>Se)return;a=!0;const l=Date.now(),_=()=>{try{removeEventListener("resize",_)}catch{}if(Date.now()-l>Te||r||g())return;const d=p();m(d!==null?d:s)};addEventListener("resize",_)}catch{}};let v=!1,b=!1;return{restore(){if(v||(v=!0,g()))return;const l=p();l!==null&&(m(l),f())},promoted(){if(b||(b=!0,g()))return;const l=p();l!==null?(m(l),f()):n&&m(s)}}}function Re(e,t,r,n){let s=null;try{s=window.trustedTypes?.createPolicy("frame-runtime",{createScriptURL:h=>h})??null}catch{}const o=window.Worker,i=o?.prototype,c=Object.freeze({Worker:o,workerOn:i?.addEventListener,workerPost:i?.postMessage,workerTerminate:i?.terminate,fetch:window.fetch.bind(window),preventDefault:Event.prototype.preventDefault,policy:s,origins:t});r(e).then(h=>h?.bootTopLevel?h.bootTopLevel(c,n):n.settle()).catch(()=>n.settle())}var De="modulepreload",Ie=function(e){return"/"+e},Ue={},Le=function(t,r,n){let s=Promise.resolve();function o(i){const c=new Event("vite:preloadError",{cancelable:!0});if(c.payload=i,window.dispatchEvent(c),!c.defaultPrevented)throw i}return s.then(i=>{for(const c of i||[])c.status==="rejected"&&o(c.reason);return t().catch(o)})},Oe=window===top,q=Object.getOwnPropertyDescriptor(window,"claude"),k=we(Oe,window.__FRAME_PREAMBLE?.topLevel,q?.writable===!1),N=typeof k=="object"&&k[0],y=N?be():ge();(function(){const e=Object.defineProperty,t=globalThis,r=["RTCPeerConnection","webkitRTCPeerConnection","RTCDataChannel","RTCIceCandidate","RTCSessionDescription","RTCRtpSender","RTCRtpReceiver"];let n=0;for(let s=0;s<r.length;s++){const o=r[s];try{e(t,o,{value:void 0,writable:!1,configurable:!1})}catch{try{delete t[o]}catch{}try{e(t,o,{value:void 0,writable:!1,configurable:!0})}catch{}}typeof t[o]=="function"&&n++}if(n&&k==="framed")try{y.post({__frame_rtc_lockdown_failed:n},"*")}catch{}})();var Pe=1e4,Y=Object.freeze([...window.__FRAME_PREAMBLE?.origins??["https://claude.ai","https://preview.claude.ai"]]);function X(e){for(const t of Y)if(t.endsWith(":*"))try{const r=new URL(e);if(`${r.protocol}//${r.hostname}:*`===t)return!0}catch{}else if(e===t)return!0;return!1}var R=Object.freeze({...window.__FRAME_PREAMBLE?.capabilities}),B=window.__FRAME_PREAMBLE?.transforms,D=window.__FRAME_PREAMBLE?.comments,I=window.__FRAME_PREAMBLE?.translate;function S(e){return Le(()=>import("/_runtime/"+e),void 0)}function G(e,t){return{contract:e.contract,changes:new Set(e.changes??[]),flags:new Set(e.flags??[]),capabilities:e.capabilities??{},capBudgets:e.capBudgets??{},transforms:new Map,shellOrigin:t,mount:x,hooks:O,pipe:()=>({wrap:(r,n)=>(...s)=>{try{return n(...s)}catch(o){return Promise.reject(o)}}})}}var L=null,E=null;function V(e,t,r){try{Object.defineProperty(e,t,{value:r,writable:!1,configurable:!1,enumerable:!0})}catch{try{Object.defineProperty(e,t,{value:r,writable:!1,configurable:!0,enumerable:!0})}catch{}}}var U=!1,O={editBefore:null,edit:null};function Ce(e,t,r=!1){const n=[];let s;if(r)try{O.editBefore?.(e)}catch{}for(const o of e.elements){const i=document.querySelector(`[data-id="${o.target}"]`);if(!i){s=o.target;break}if([...Object.keys(o.attrsSet??{}),...o.attrsRemoved??[]].some(c=>!oe(c))){s=o.target;break}if(o.text!==void 0&&(!ce(i)||de(i))){s=o.target;break}for(const[c,h]of Object.entries(o.attrsSet??{}))if(!J(i,c)){try{i.setAttribute(c,h)}catch{}Z(i,c,h)}for(const c of o.attrsRemoved??[])J(i,c)||(i.removeAttribute(c),Z(i,c,null));typeof o.text=="string"&&ue(i,o.text),n.push(o.target)}if(r)try{O.edit?.(e.seq,n,s)}catch{}if(s!==void 0){y.post({__frame_patch_miss:{seq:e.seq}},t);return}try{document.dispatchEvent(new CustomEvent("claude:edit",{detail:{seq:e.seq,targets:n}}))}catch{}}function Z(e,t,r){if(!(e instanceof HTMLInputElement))return;const n=t.toLowerCase();n==="checked"?e.checked=r!==null:n==="value"&&e.type!=="file"&&(e.value=r??"")}function J(e,t){const r=t.toLowerCase(),n=e;return r==="data-id"||(r==="value"||r==="checked")&&(n.__artifactSecret===!0||/^(password|hidden|file)$/.test(n.type??"")||/(^|\s)(cc-|one-time-code|current-password|new-password)/i.test(`${e.getAttribute("autocomplete")??""} ${n.autocomplete??""}`))}function Q(e){const t=document.documentElement;e==="light"||e==="dark"?(t.dataset.theme=e,t.style.colorScheme=e,U=!0):U&&(delete t.dataset.theme,t.style.colorScheme="",U=!1)}var P=new Map;function Me(){let e;const t={u:new Promise(r=>{e=r}),r:r=>{t.done=!0,e(r)},done:!1,nulled:!1};return t}function F(){for(const e of P.values())e.done||(e.nulled=!0,e.r(null))}var je=Object.freeze(Object.assign(Object.create(null),{call:Function.prototype.call,apply:Function.prototype.apply,bind:Function.prototype.bind})),x=(e,t)=>{const r=P.get(e);if(!r||r.done){r?.nulled&&E&&y.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:e}},E);return}const n=typeof t=="function"?Object.setPrototypeOf(t,je):Object.assign(Object.create(null),t);typeof n.then=="function"&&delete n.then,r.r(Object.freeze(n))};function ee(){const e=q?.value??{};V(window,"claude",e);for(const t of Object.keys(R)){if(e[t]!==void 0){V(e,t,e[t]);continue}P.set(t,Me())}if(e.use===void 0){const t=r=>{if(typeof r!="string"||!Object.hasOwn(R,r))return Promise.resolve(null);const n=P.get(r);return n?n.u:Promise.resolve(e[r]??null)};try{Object.defineProperty(e,"use",{value:t,writable:!0,configurable:!0,enumerable:!1})}catch{}}}if(k==="framed"){const e=B&&A.test(B)?S(B).catch(()=>{}):Promise.resolve(void 0),t=a=>{if(a.type==="auxclick"&&a.button!==1)return;const f=a.target,v=f&&f.closest?f.closest("a[href],area[href]"):null;if(!v)return;const b=v.getAttribute("href");if(!b)return;let l;try{l=new URL(b,document.baseURI)}catch{return}if((l.protocol==="http:"||l.protocol==="https:")&&l.origin!==location.origin){a.preventDefault();const _=(v.getAttribute("target")??"").toLowerCase(),d=a.type==="auxclick"||a.metaKey||a.ctrlKey||a.shiftKey||a.altKey||!["","_self","_top","_parent"].includes(_);y.post({__frame_nav:!0,url:l.href,newTab:d},"*")}};addEventListener("click",t,!0),addEventListener("auxclick",t,!0);const r={},n=a=>{a.isTrusted&&(r.pointer=!0)},s=a=>{a.isTrusted&&(r.click=!0)};addEventListener("pointermove",n,{capture:!0,passive:!0}),addEventListener("click",s,{capture:!0,passive:!0}),e.then(a=>{a?.wireNav&&(a.wireNav(),removeEventListener("click",t,!0),removeEventListener("auxclick",t,!0),removeEventListener("pointermove",n,!0),removeEventListener("click",s,!0),a.wireEngagement?.(r))});let o=null;try{o=ke()}catch{}ee();let i=null,c=null,h=0;const p=y.on((a,f)=>{X(f)&&_e(a)&&(i=a.__frame_init,E=f,p(),clearTimeout(h),c?.())});y.post({__frame_connect:!0},"*");const w=new Promise(a=>{c=a,h=setTimeout(()=>{p(),a()},Pe)}),m=document.readyState==="loading"?new Promise(a=>document.addEventListener("DOMContentLoaded",()=>a(),{once:!0})):Promise.resolve();m.then(()=>{try{o?.restore()}catch{}});const g={cb:null};y.on((a,f)=>{if(X(f)&&ve(a)){try{o?.promoted()}catch{}g.cb?.()}}),w.then(async()=>{if(!i||!E){F();return}Q(i.theme);const a=E;let f=!1,v=!1;y.on((u,z,C)=>{if(z!==a)return;ye(u)&&Q(u.__frame_theme.theme),he(u)&&Ce(u.__frame_patch,a,C);const H=u?.__fc_mode;H&&typeof H=="object"&&!f&&D&&A.test(D)&&(f=!0,S(D).then(K=>K.install?.(a,H.on===!0)).catch(()=>{}));const W=u?.__ft_cmd;W&&typeof W=="object"&&!v&&I&&A.test(I)&&(v=!0,S(I).then(K=>K.install?.(a,W)).catch(()=>{}))});const b=Object.keys(i.capabilities??{}).filter(u=>Object.hasOwn(R,u)).map(u=>[u,R[u]]).filter(u=>typeof u[1]=="string"&&A.test(u[1])),l=await Promise.allSettled(b.map(([,u])=>S(u))),_=await e,d=E;if(_?.buildBoot||y.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:"_transforms"}},d),_?.buildBoot)try{L=_.buildBoot(i,_.TRANSFORMS??{},{shellOrigin:d,mount:x,hooks:O},u=>y.post({__frame_cap_telemetry:u},d))}catch{y.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:"_transforms"}},d),L=G(i,d)}else L=G(i,d);const T=u=>y.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:u}},d),Ne=L;l.forEach((u,z)=>{const C=b[z][0];if(u.status!=="fulfilled"){T(C);return}try{u.value?.install?.(Ne)}catch{T(C)}}),F(),await m,y.post({__frame_ready:!0},E),e.then(u=>u?.installSizeReporter?.(d,g))})}else N&&(ee(),Re(N,Y,S,{settle:F,mount:x}))})();</script><!-- /frame-runtime --><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style></head><body>
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CUT-UP MACHINE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f5f3ee;
+  --surface: #f5f3ee;
+  --surface-2: #fffefb;
+  --ink: #211f1c;
+  --ink-soft: #726c62;
+  --ink-faint: #a49d90;
+  --line: rgba(33, 31, 28, 0.16);
+  --line-soft: rgba(33, 31, 28, 0.09);
+  --accent: #3c4a63;
+  --accent-soft: rgba(60, 74, 99, 0.09);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 4.5rem 1.5rem 6rem;
+}
+
+.masthead { margin-bottom: 3.2rem; }
+
+.masthead h1 {
+  font-family: "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", serif;
+  font-size: 2.5rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  margin: 0;
+  text-wrap: balance;
+}
+
+.masthead h1 .dot { color: var(--accent); }
+
+.subtitle {
+  display: block;
+  font-size: 0.78rem;
+  letter-spacing: 0.05em;
+  color: var(--ink-faint);
+  font-style: italic;
+  margin-top: 0.6rem;
+}
+
+.tagline {
+  margin: 1.2rem 0 0;
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+  line-height: 1.9;
+  max-width: 32em;
+}
+
+/* ---- source blocks ---- */
+
+.sources {
+  display: flex;
+  flex-direction: column;
+  gap: 1.3rem;
+  margin: 2.6rem 0 1.2rem;
+}
+
+.source-block {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  padding: 1.1rem 1rem 1.2rem;
+}
+
+.source-block .source-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  color: var(--ink-faint);
+  margin-bottom: 0.6rem;
+  text-transform: uppercase;
+}
+
+.source-block textarea {
+  width: 100%;
+  min-height: 110px;
+  resize: vertical;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 0.96rem;
+  line-height: 1.9;
+  color: var(--ink);
+  outline: none;
+}
+
+.source-block textarea::placeholder { color: var(--ink-faint); }
+
+.removeSourceBtn {
+  border: none;
+  background: transparent;
+  color: var(--ink-faint);
+  font-size: 0.68rem;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+}
+.removeSourceBtn:hover { color: var(--accent); }
+
+.sources-actions {
+  margin-bottom: 3.2rem;
+}
+
+.ghostBtn {
+  font-family: inherit;
+  font-size: 0.76rem;
+  letter-spacing: 0.03em;
+  padding: 0;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.ghostBtn:hover { color: var(--accent); border-color: var(--accent); }
+.ghostBtn.small { font-size: 0.74rem; }
+
+/* ---- controls panel ---- */
+
+.panel {
+  border-top: 1px solid var(--line);
+  padding: 2.2rem 0 0;
+}
+
+.panel h2 {
+  font-size: 0.68rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  font-weight: 500;
+  margin: 0 0 1.6rem;
+}
+
+.presets {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 2.1rem;
+  padding-bottom: 1.7rem;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.presetBtn {
+  font-family: inherit;
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+  padding: 0 0 0.2rem;
+  border: none;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.presetBtn:hover { color: var(--ink); }
+.presetBtn.active { color: var(--accent); border-color: var(--accent); font-weight: 700; }
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.6rem;
+  margin-bottom: 1.6rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  font-size: 0.76rem;
+  color: var(--ink-soft);
+  letter-spacing: 0.02em;
+}
+
+.field select {
+  font-family: inherit;
+  font-size: 0.88rem;
+  padding: 0.5rem 0;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  border-radius: 0;
+}
+.field select:focus { outline: none; border-color: var(--accent); }
+
+.field.wide { grid-column: 1 / -1; margin-bottom: 1.6rem; }
+.field-label small,
+.field > small {
+  display: block;
+  font-size: 0.68rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.01em;
+  line-height: 1.7;
+  margin-top: 0.3rem;
+}
+
+.slider {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  font-size: 0.76rem;
+  color: var(--ink-soft);
+  letter-spacing: 0.02em;
+}
+
+.slider.wide { grid-column: 1 / -1; margin-bottom: 1.6rem; }
+.slider small { display: block; font-size: 0.68rem; color: var(--ink-faint); line-height: 1.7; margin-top: 0.25rem; }
+
+.slider em {
+  font-style: normal;
+  color: var(--accent);
+  font-weight: 700;
+  margin-left: 0.2em;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 1px;
+  background: var(--line);
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+}
+
+.toggles {
+  grid-template-columns: 1fr;
+  gap: 0.9rem;
+}
+
+.toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  font-size: 0.84rem;
+  color: var(--ink);
+  cursor: pointer;
+  line-height: 1.55;
+}
+
+.toggle input { accent-color: var(--accent); width: 15px; height: 15px; margin-top: 0.15rem; flex-shrink: 0; }
+
+.cutBtn {
+  display: block;
+  width: 100%;
+  font-family: inherit;
+  font-size: 0.9rem;
+  letter-spacing: 0.12em;
+  padding: 1rem;
+  margin-top: 1.8rem;
+  background: var(--ink);
+  color: var(--bg);
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.08s ease;
+}
+.cutBtn:hover { background: var(--accent); }
+.cutBtn:active { transform: scale(0.99); }
+.cutBtn.cutting { animation: shear 0.4s ease; }
+
+@keyframes shear {
+  0% { clip-path: inset(0 0 0 0); }
+  40% { clip-path: inset(0 0 0 48%); }
+  60% { clip-path: inset(0 48% 0 0); }
+  100% { clip-path: inset(0 0 0 0); }
+}
+
+.hint {
+  font-size: 0.7rem;
+  color: var(--ink-faint);
+  line-height: 1.8;
+  margin: 1rem 0 0;
+}
+
+/* ---- results ---- */
+
+.results {
+  display: flex;
+  flex-direction: column;
+  margin-top: 3.4rem;
+}
+
+.evolve-row { margin-top: 2rem; }
+
+.result-card {
+  padding: 1.7rem 0;
+  border-top: 1px solid var(--line-soft);
+  opacity: 0;
+  transform: translateY(6px);
+  animation: rise 0.5s ease forwards;
+  animation-delay: var(--delay, 0s);
+}
+.result-card:first-child { border-top: 1px solid var(--line); }
+.result-card.kept { border-left: 2px solid var(--accent); padding-left: 1.1rem; }
+
+@keyframes rise {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.result-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  margin-bottom: 0.9rem;
+}
+
+.result-actions { display: flex; gap: 1.1rem; }
+
+.result-actions button {
+  font-family: inherit;
+  font-size: 0.66rem;
+  letter-spacing: 0.05em;
+  border: none;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+  text-transform: uppercase;
+}
+.result-actions button:hover { color: var(--accent); }
+.keepBtn.kept { color: var(--accent); font-weight: 700; }
+
+.result-text {
+  font-family: "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", serif;
+  font-size: 1.1rem;
+  line-height: 2.05;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--ink);
+  outline: none;
+  border-radius: 2px;
+  transition: background 0.15s ease;
+}
+.result-text:hover { background: var(--accent-soft); }
+.result-text:focus { background: var(--accent-soft); box-shadow: 0 0 0 1px var(--line); }
+
+.result-text .frag { display: inline; }
+.result-text .frag.seam::before {
+  content: "·";
+  color: var(--accent);
+  opacity: 0.7;
+  margin: 0 0.18em;
+}
+
+@media (max-width: 520px) {
+  .page { padding: 3rem 1.25rem 4rem; }
+  .masthead h1 { font-size: 1.9rem; }
+  .grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+  <div class="page">
+    <header class="masthead">
+      <h1>CUT-UP<span class="dot">.</span>MACHINE</h1>
+      <span class="subtitle">after William S. Burroughs &amp; Brion Gysin</span>
+      <p class="tagline">テクストを切り分け、切れ目をたどってつなぎ直す。まだ読んだことのない一節をつくる。</p>
+    </header>
+
+    <section class="sources" id="sources">
+      <!-- source blocks injected by script -->
+    </section>
+
+    <div class="sources-actions">
+      <button id="addSourceBtn" class="ghostBtn small">＋ 素材を追加する（フォールドイン用）</button>
+    </div>
+
+    <section class="panel">
+      <h2>切り方の設定</h2>
+
+      <div class="presets" id="presets">
+        <button class="presetBtn" data-preset="medium">ミディアム</button>
+        <button class="presetBtn" data-preset="decompose">分解</button>
+        <button class="presetBtn" data-preset="heavy">ヘビー</button>
+        <button class="presetBtn" data-preset="chaos">カオス</button>
+        <button class="presetBtn" data-preset="chaos2">カオス2</button>
+        <button class="presetBtn" data-preset="chaos3">カオス3</button>
+      </div>
+
+      <div class="grid">
+        <label class="field">
+          <span class="field-label">分割の単位</span>
+          <select id="unit">
+            <option value="char">文字</option>
+            <option value="word" selected>単語（スペース区切り・英文向け）</option>
+            <option value="bunsetsu">文節（助詞の切れ目・日本語向け）</option>
+            <option value="line">行</option>
+            <option value="sentence">文（。！？区切り）</option>
+          </select>
+          <small>日本語は分かち書きしないため「単語」では切れません。日本語文には「文節」か「文字」を。</small>
+        </label>
+
+        <label class="field">
+          <span class="field-label">出力の数</span>
+          <select id="outputCount">
+            <option value="1" selected>少（1）</option>
+            <option value="3">普通（3）</option>
+            <option value="6">多（6）</option>
+            <option value="12">特盛（12）</option>
+          </select>
+        </label>
+      </div>
+
+      <label class="field wide">
+        <span class="field-label">切り方の方式</span>
+        <select id="cutMethod">
+          <option value="standard" selected>シャッフル — 断片を無作為に並べ替える</option>
+          <option value="grid">グリッド — 行/列/対角/スネークで読み順を変える</option>
+          <option value="permutation">総当たり — 強度が高いと重複・欠落も発生する入れ替え</option>
+        </select>
+      </label>
+
+      <label class="field wide">
+        <span class="field-label">音の変換 <small>断片を並べ替えるだけでなく、言葉の中身そのものを変える。モーラ連想はかな部分のみ対象（漢字はそのまま）、音素組み替えはかな・漢字の両方を作り替える</small></span>
+        <select id="soundMode">
+          <option value="none" selected>なし</option>
+          <option value="mora">モーラ連想 — 母音のパターンが似た別の言葉に入れ替える</option>
+          <option value="phoneme">音素組み替え — かなの子音/母音も漢字もばらして全部組み直す</option>
+        </select>
+      </label>
+
+      <div class="grid">
+        <label class="slider">
+          <span>断片の長さ：最小 <em id="chunkMinVal">1</em></span>
+          <input id="chunkMin" type="range" min="1" max="20" value="1" />
+        </label>
+        <label class="slider">
+          <span>断片の長さ：最大 <em id="chunkMaxVal">3</em></span>
+          <input id="chunkMax" type="range" min="1" max="20" value="3" />
+        </label>
+      </div>
+
+      <label class="slider wide">
+        <span>ランダムの強さ <em id="randomnessVal">50</em>% <small>0 = 元の並び／100 = 完全シャッフル</small></span>
+        <input id="randomness" type="range" min="0" max="100" value="50" />
+      </label>
+
+      <div class="grid toggles">
+        <label class="toggle">
+          <input type="checkbox" id="foldIn" />
+          <span>フォールドイン — 素材を半分に折り、次の素材の半分と継ぎ合わせる</span>
+        </label>
+        <label class="toggle">
+          <input type="checkbox" id="keepPunct" checked />
+          <span>句読点・記号を保持する</span>
+        </label>
+        <label class="toggle">
+          <input type="checkbox" id="capRandom" />
+          <span>大文字/小文字をランダムに揺らす（英字）</span>
+        </label>
+      </div>
+
+      <button id="cutBtn" class="cutBtn">THIS HEAT 🔥</button>
+      <p class="hint">押すたびに乱数を生成し直すので、同じ設定でも毎回違う並びになります。★で気に入った結果を残せます。結果の文章はクリックすれば直接編集できます。</p>
+    </section>
+
+    <section class="results" id="results"></section>
+
+    <div class="evolve-row" id="evolveRow" style="display: none;">
+      <button id="evolveBtn" class="ghostBtn small">★を新しい素材にして、そこからまた継ぐ</button>
+    </div>
+  </div>
+
+  <script>
+// CUT-UP MACHINE
+//
+// A generative text tool in the tradition of William Burroughs and
+// Brion Gysin's cut-up technique: take one or more source texts, slice
+// them into fragments (characters / words / lines / sentences), and
+// reassemble the fragments in a new order. "Fold-in" mode interleaves
+// fragments from multiple sources instead of shuffling a single one.
+//
+// The amount of reordering is a first-class control (0 = original
+// order, 100 = full shuffle) rather than fixed, so the effect can be
+// tuned from a light rearrangement to total noise.
+
+(() => {
+  const sourcesEl = document.getElementById("sources");
+  const addSourceBtn = document.getElementById("addSourceBtn");
+  const presetsEl = document.getElementById("presets");
+  const unitEl = document.getElementById("unit");
+  const outputCountEl = document.getElementById("outputCount");
+  const chunkMinEl = document.getElementById("chunkMin");
+  const chunkMaxEl = document.getElementById("chunkMax");
+  const chunkMinVal = document.getElementById("chunkMinVal");
+  const chunkMaxVal = document.getElementById("chunkMaxVal");
+  const randomnessEl = document.getElementById("randomness");
+  const randomnessVal = document.getElementById("randomnessVal");
+  const cutMethodEl = document.getElementById("cutMethod");
+  const soundModeEl = document.getElementById("soundMode");
+  const foldInEl = document.getElementById("foldIn");
+  const keepPunctEl = document.getElementById("keepPunct");
+  const capRandomEl = document.getElementById("capRandom");
+  const cutBtn = document.getElementById("cutBtn");
+  const resultsEl = document.getElementById("results");
+  const evolveRow = document.getElementById("evolveRow");
+  const evolveBtn = document.getElementById("evolveBtn");
+
+  const PLACEHOLDERS = [
+    "ここにテクストを貼り付けてください(複数行OK・目安30行程度)。",
+    "2つ目の素材。ここに別のテクストを入れると、フォールドインで最初の素材と織り交ぜられます。",
+    "3つ目の素材。",
+  ];
+
+  // Each rung uses a different reordering algorithm, not just a different
+  // randomness number — "shuffle a bit more" reads as the same behavior at
+  // a lower volume, but a different algorithm (shuffle -> grid -> full
+  // permutation) reads as a genuinely different kind of cut. 分解 sits
+  // between ミディアム and ヘビー using the plain derangement-shuffle
+  // algorithm (not grid, not permutation) — a third distinct algorithm in
+  // the ladder, not just a number between the other two.
+  // カオス2/3 don't just reorder existing fragments — they replace the
+  // sound of the かな portions with different sounds entirely (漢字 is left
+  // alone; there's no dictionary here to look up its reading). カオス2
+  // swaps a かな word for a different real word chosen by vowel-pattern
+  // resemblance (モーラ連想); カオス3 shreds every かな mora into its
+  // consonant+vowel and rebuilds new mora from a pool gathered across the
+  // whole text, so entirely new syllables can appear that were never in
+  // the source at all.
+  const PRESETS = {
+    medium:    { unit: "bunsetsu", min: 1, max: 3, randomness: 55, cutMethod: "grid", soundMode: "none" },
+    decompose: { unit: "bunsetsu", min: 1, max: 2, randomness: 68, cutMethod: "standard", soundMode: "none" },
+    heavy:     { unit: "bunsetsu", min: 1, max: 2, randomness: 85, cutMethod: "permutation", soundMode: "none" },
+    chaos:     { unit: "char", min: 1, max: 6, randomness: 100, cutMethod: "permutation", soundMode: "none" },
+    chaos2:    { unit: "bunsetsu", min: 1, max: 2, randomness: 90, cutMethod: "permutation", soundMode: "mora" },
+    chaos3:    { unit: "bunsetsu", min: 1, max: 2, randomness: 100, cutMethod: "permutation", soundMode: "phoneme" },
+  };
+
+  let sourceSeq = 0;
+
+  // ---- source blocks --------------------------------------------------
+
+  function addSourceBlock(prefill) {
+    const id = ++sourceSeq;
+    const block = document.createElement("div");
+    block.className = "source-block";
+    block.dataset.id = id;
+
+    const idx = sourcesEl.children.length;
+    block.innerHTML = `
+      <div class="source-head">
+        <span>素材 ${idx + 1}</span>
+        <button class="removeSourceBtn" type="button">取り除く</button>
+      </div>
+      <textarea placeholder="${PLACEHOLDERS[idx] || "追加の素材テクスト。"}"></textarea>
+    `;
+
+    if (prefill) block.querySelector("textarea").value = prefill;
+
+    block.querySelector(".removeSourceBtn").addEventListener("click", () => {
+      if (sourcesEl.children.length <= 1) return;
+      block.remove();
+      renumberSources();
+    });
+
+    sourcesEl.appendChild(block);
+    updateRemoveVisibility();
+  }
+
+  function renumberSources() {
+    [...sourcesEl.children].forEach((block, i) => {
+      block.querySelector(".source-head span").textContent = `素材 ${i + 1}`;
+    });
+    updateRemoveVisibility();
+  }
+
+  function updateRemoveVisibility() {
+    const only = sourcesEl.children.length <= 1;
+    sourcesEl.querySelectorAll(".removeSourceBtn").forEach((btn) => {
+      btn.style.visibility = only ? "hidden" : "visible";
+    });
+  }
+
+  addSourceBtn.addEventListener("click", () => {
+    if (sourcesEl.children.length >= 4) return;
+    addSourceBlock();
+  });
+
+  addSourceBlock();
+
+  // ---- presets & control wiring ----------------------------------------
+
+  function applyPreset(name) {
+    const p = PRESETS[name];
+    if (!p) return;
+    unitEl.value = p.unit;
+    chunkMinEl.value = p.min;
+    chunkMaxEl.value = p.max;
+    randomnessEl.value = p.randomness;
+    cutMethodEl.value = p.cutMethod;
+    soundModeEl.value = p.soundMode || "none";
+    syncLabels();
+    [...presetsEl.children].forEach((b) => b.classList.toggle("active", b.dataset.preset === name));
+  }
+
+  presetsEl.addEventListener("click", (e) => {
+    const btn = e.target.closest(".presetBtn");
+    if (!btn) return;
+    applyPreset(btn.dataset.preset);
+  });
+
+  [unitEl, chunkMinEl, chunkMaxEl, randomnessEl, cutMethodEl, soundModeEl, foldInEl, keepPunctEl, capRandomEl].forEach((el) => {
+    el.addEventListener("input", () => {
+      [...presetsEl.children].forEach((b) => b.classList.remove("active"));
+    });
+  });
+
+  chunkMinEl.addEventListener("input", () => {
+    if (+chunkMinEl.value > +chunkMaxEl.value) chunkMaxEl.value = chunkMinEl.value;
+    syncLabels();
+  });
+  chunkMaxEl.addEventListener("input", () => {
+    if (+chunkMaxEl.value < +chunkMinEl.value) chunkMinEl.value = chunkMaxEl.value;
+    syncLabels();
+  });
+  randomnessEl.addEventListener("input", syncLabels);
+
+  function syncLabels() {
+    chunkMinVal.textContent = chunkMinEl.value;
+    chunkMaxVal.textContent = chunkMaxEl.value;
+    randomnessVal.textContent = randomnessEl.value;
+  }
+  syncLabels();
+  applyPreset("medium");
+
+  // ---- chaos PRNG -----------------------------------------------------------
+  //
+  // A single logistic map is one traceable formula: know r and the seed and
+  // the whole sequence is reconstructible, and a careful reader can start
+  // to sense the shape of it after enough presses. Three chaotic maps from
+  // different families — quadratic (logistic), piecewise-linear (tent),
+  // and transcendental (sine) — each with an independently random seed and
+  // parameter, summed and taken mod 1, have no such single closed form: the
+  // combined sequence isn't any one attractor, it's the interference
+  // pattern between three unrelated ones. A fresh instance is built for
+  // every single cut, so sensitive dependence on initial conditions also
+  // means no two presses share a trajectory.
+
+  function makeChaosRandom() {
+    let x = Math.random() * 0.8 + 0.1;
+    let y = Math.random() * 0.8 + 0.1;
+    let z = Math.random() * 0.8 + 0.1;
+    const rx = 3.9 + Math.random() * 0.099;   // logistic map, chaotic regime
+    const ry = 1.95 + Math.random() * 0.049;  // tent map, near-maximal slope
+    const rz = 0.9 + Math.random() * 0.09;    // sine-map phase offset
+
+    const stepX = () => { x = rx * x * (1 - x); return x; };
+    const stepY = () => { y = y < 0.5 ? ry * y : ry * (1 - y); return y; };
+    const stepZ = () => { z = Math.abs(Math.sin(Math.PI * (rz + z) * 3.7)) % 1; return z; };
+
+    for (let i = 0; i < 40; i++) { stepX(); stepY(); stepZ(); } // discard transient
+
+    return function chaosRandom() {
+      const v = (stepX() + stepY() + stepZ()) % 1;
+      return (v > 0.0001 && v < 0.9999 && !Number.isNaN(v)) ? v : Math.random();
+    };
+  }
+
+  // ---- tokenizers --------------------------------------------------------
+
+  function splitWords(text) {
+    return text.split(/\s+/).filter((t) => t.length > 0);
+  }
+
+  function splitLines(text) {
+    return text.split(/\r?\n/).filter((t) => t.trim().length > 0);
+  }
+
+  function splitSentences(text) {
+    const matches = text.match(/[^。！？.!?]+[。！？.!?]*/g) || [];
+    return matches.map((s) => s.trim()).filter((s) => s.length > 0);
+  }
+
+  // ---- bunsetsu (文節) splitting -------------------------------------------
+  //
+  // Japanese has no whitespace between words, so "単語" (space-split) mode
+  // silently fails on it — a whole unspaced Japanese sentence comes back as
+  // one giant token. The natural cut point in Japanese is the 文節
+  // (bunsetsu): the smallest chunk that still sounds complete on its own,
+  // which almost always ends right where a particle (助詞) or a
+  // conjugated verb/adjective ending closes it off. We don't have a real
+  // morphological analyzer here, so this approximates bunsetsu boundaries
+  // by matching the longest known particle/auxiliary at each position and
+  // cutting immediately after it — imperfect, but a real improvement over
+  // not splitting Japanese at all.
+
+  const BUNSETSU_PARTICLES = [
+    "というものの", "といったら", "といっても", "といえば", "とはいえ",
+    "にとって", "について", "にたいして", "によって", "にわたって", "をめぐって",
+    "からこそ", "でさえ", "さえも", "ばかりか", "のみならず", "というのは", "という",
+    "ては", "では", "には", "とは", "へは", "からは", "までは", "よりは",
+    "でも", "にも", "からも", "とも", "へも",
+    "たり", "ながら", "つつ", "ものの", "ものを", "けれども", "けれど", "けど",
+    "のに", "ので", "から", "まで", "より", "ほど", "くらい", "ぐらい",
+    "ばかり", "だけ", "のみ", "こそ", "さえ", "しか", "なんて", "など", "という",
+    "は", "が", "を", "に", "で", "と", "へ", "の", "や", "も",
+    "な", "よ", "ね", "わ", "さ", "ぞ", "ぜ", "か", "し", "ば",
+  ].sort((a, b) => b.length - a.length);
+
+  // Brackets/quotes were previously invisible to this splitter, so a
+  // parenthetical like "餅（グルーヴ）が" came out as one permanently-glued
+  // atomic fragment no matter how many times you re-cut — it could move
+  // around as a block but never split internally. That fix alone still
+  // treats a bracket pair as structural glue, though: the mark always
+  // travels attached to a neighbor, in effect "preserved" as punctuation
+  // rather than actually decomposed the way any other character is. A 「
+  // or a 。 is orthography, not scaffolding — it should be exactly as
+  // liable to end up loose and disconnected from its partner as any
+  // fragment of the sentence around it. So opening/closing brackets and
+  // sentence punctuation (。、！？) each get a chaos-driven chance of being
+  // split off as their own bare one-character fragment instead of staying
+  // attached to what precedes or encloses them.
+  const OPEN_BRACKETS = "「『【〈《（([{";
+  const CLOSE_BRACKETS = "」』】〉》）)]}";
+  const HARD_PUNCT = /[。、！？.!?]/;
+  const SYMBOL_DETACH_CHANCE = 0.45;
+
+  // Cutting only where a particle happens to sit is a rule, not chance —
+  // anyone who knows a handful of Japanese particles can predict exactly
+  // where every boundary will fall, even though the *reordering* afterward
+  // is chaotic. A real pair of scissors doesn't check grammar first. So on
+  // top of the particle/bracket boundaries, every couple of characters
+  // there's also a small chaos-driven chance of a cut with no grammatical
+  // excuse at all — the "blade slipped" cut a human cutting up a page by
+  // eye would sometimes make, landing mid-word.
+  const WILD_CUT_CHANCE = 0.09;
+
+  function splitBunsetsu(text, rand) {
+    const bunsetsu = [];
+    let current = "";
+    let i = 0;
+    while (i < text.length) {
+      const ch = text[i];
+
+      if (OPEN_BRACKETS.includes(ch)) {
+        if (current.trim().length > 0) bunsetsu.push(current);
+        if (rand() < SYMBOL_DETACH_CHANCE) {
+          bunsetsu.push(ch);
+          current = "";
+        } else {
+          current = ch;
+        }
+        i++;
+        continue;
+      }
+
+      if (ch === "\n") {
+        current += ch;
+        i++;
+        bunsetsu.push(current);
+        current = "";
+        continue;
+      }
+
+      current += ch;
+      i++;
+
+      if (CLOSE_BRACKETS.includes(ch) || HARD_PUNCT.test(ch)) {
+        if (rand() < SYMBOL_DETACH_CHANCE && current.length > 1) {
+          const symbol = current.slice(-1);
+          const body = current.slice(0, -1);
+          if (body.trim().length > 0) bunsetsu.push(body);
+          bunsetsu.push(symbol);
+        } else {
+          bunsetsu.push(current);
+        }
+        current = "";
+        continue;
+      }
+
+      const rest = text.slice(i);
+      let hit = null;
+      for (const p of BUNSETSU_PARTICLES) {
+        if (rest.startsWith(p)) { hit = p; break; }
+      }
+      if (hit) {
+        current += hit;
+        i += hit.length;
+        bunsetsu.push(current);
+        current = "";
+        continue;
+      }
+
+      if (current.length >= 2 && rand() < WILD_CUT_CHANCE) {
+        bunsetsu.push(current);
+        current = "";
+      }
+    }
+    if (current.trim().length > 0) bunsetsu.push(current);
+    return bunsetsu.map((s) => s.trim()).filter((s) => s.length > 0);
+  }
+
+  // ---- mora/phoneme engine: カオス2・カオス3 -------------------------------
+  //
+  // Everything above only rearranges fragments that already existed in the
+  // source. These two modes actually replace the *sound* of a fragment —
+  // カオス2 swaps a かな word for an unrelated real word chosen because its
+  // vowels rhyme; カオス3 shreds every mora into a bare consonant+vowel
+  // pair and rebuilds new mora from a pool gathered across the whole
+  // piece, so syllables can appear that were never in the source text at
+  // all. There's no dictionary here to convert 漢字 to a reading, so both
+  // only touch spans that are already かな — 漢字 passes through untouched.
+
+  const GOJUON_ROWS = [
+    { cons: "",  a: "あ", i: "い", u: "う", e: "え", o: "お" },
+    { cons: "k", a: "か", i: "き", u: "く", e: "け", o: "こ" },
+    { cons: "s", a: "さ", i: "し", u: "す", e: "せ", o: "そ" },
+    { cons: "t", a: "た", i: "ち", u: "つ", e: "て", o: "と" },
+    { cons: "n", a: "な", i: "に", u: "ぬ", e: "ね", o: "の" },
+    { cons: "h", a: "は", i: "ひ", u: "ふ", e: "へ", o: "ほ" },
+    { cons: "m", a: "ま", i: "み", u: "む", e: "め", o: "も" },
+    { cons: "y", a: "や", u: "ゆ", o: "よ" },
+    { cons: "r", a: "ら", i: "り", u: "る", e: "れ", o: "ろ" },
+    { cons: "w", a: "わ", o: "を" },
+    { cons: "g", a: "が", i: "ぎ", u: "ぐ", e: "げ", o: "ご" },
+    { cons: "z", a: "ざ", i: "じ", u: "ず", e: "ぜ", o: "ぞ" },
+    { cons: "d", a: "だ", i: "ぢ", u: "づ", e: "で", o: "ど" },
+    { cons: "b", a: "ば", i: "び", u: "ぶ", e: "べ", o: "ぼ" },
+    { cons: "p", a: "ぱ", i: "ぴ", u: "ぷ", e: "ぺ", o: "ぽ" },
+  ];
+  const KATA_ROWS = [
+    { cons: "",  a: "ア", i: "イ", u: "ウ", e: "エ", o: "オ" },
+    { cons: "k", a: "カ", i: "キ", u: "ク", e: "ケ", o: "コ" },
+    { cons: "s", a: "サ", i: "シ", u: "ス", e: "セ", o: "ソ" },
+    { cons: "t", a: "タ", i: "チ", u: "ツ", e: "テ", o: "ト" },
+    { cons: "n", a: "ナ", i: "ニ", u: "ヌ", e: "ネ", o: "ノ" },
+    { cons: "h", a: "ハ", i: "ヒ", u: "フ", e: "ヘ", o: "ホ" },
+    { cons: "m", a: "マ", i: "ミ", u: "ム", e: "メ", o: "モ" },
+    { cons: "y", a: "ヤ", u: "ユ", o: "ヨ" },
+    { cons: "r", a: "ラ", i: "リ", u: "ル", e: "レ", o: "ロ" },
+    { cons: "w", a: "ワ", o: "ヲ" },
+    { cons: "g", a: "ガ", i: "ギ", u: "グ", e: "ゲ", o: "ゴ" },
+    { cons: "z", a: "ザ", i: "ジ", u: "ズ", e: "ゼ", o: "ゾ" },
+    { cons: "d", a: "ダ", i: "ヂ", u: "ヅ", e: "デ", o: "ド" },
+    { cons: "b", a: "バ", i: "ビ", u: "ブ", e: "ベ", o: "ボ" },
+    { cons: "p", a: "パ", i: "ピ", u: "プ", e: "ペ", o: "ポ" },
+  ];
+  const SMALL_KANA_VOWEL = {
+    "ゃ": "a", "ゅ": "u", "ょ": "o", "ぁ": "a", "ぃ": "i", "ぅ": "u", "ぇ": "e", "ぉ": "o",
+    "ャ": "a", "ュ": "u", "ョ": "o", "ァ": "a", "ィ": "i", "ゥ": "u", "ェ": "e", "ォ": "o",
+  };
+  const KANA_ONLY_RE = /^[぀-ゟー゠-ヿ]+$/;
+
+  const KANA_TO_PHONEME = new Map();
+  const PHONEME_TO_HIRAGANA = new Map();
+  const PHONEME_TO_KATAKANA = new Map();
+  for (const rows of [GOJUON_ROWS, KATA_ROWS]) {
+    const target = rows === GOJUON_ROWS ? PHONEME_TO_HIRAGANA : PHONEME_TO_KATAKANA;
+    for (const row of rows) {
+      for (const v of ["a", "i", "u", "e", "o"]) {
+        const ch = row[v];
+        if (!ch) continue;
+        KANA_TO_PHONEME.set(ch, { cons: row.cons, vowel: v });
+        target.set(row.cons + v, ch);
+      }
+    }
+  }
+
+  // Merge small kana (ゃゅょぁぃぅぇぉ and katakana equivalents) into the
+  // preceding character so a compound sound like きゃ or ファ stays one
+  // mora, and keep っ/ッ/ー as their own unbreakable single-character mora.
+  function toMora(text) {
+    const mora = [];
+    for (const ch of text) {
+      if (SMALL_KANA_VOWEL[ch] && mora.length > 0) {
+        mora[mora.length - 1] += ch;
+      } else {
+        mora.push(ch);
+      }
+    }
+    return mora;
+  }
+
+  function moraPhoneme(mora) {
+    if (mora.length === 1) return KANA_TO_PHONEME.get(mora) || null;
+    if (mora.length === 2) {
+      const base = KANA_TO_PHONEME.get(mora[0]);
+      const smallVowel = SMALL_KANA_VOWEL[mora[1]];
+      if (base && smallVowel) return { cons: base.cons + "y", vowel: smallVowel };
+    }
+    return null;
+  }
+
+  // Katakana was already being decomposed into phonemes correctly on the
+  // way in — a ワ or a タ contributed its consonant/vowel to the shared
+  // pool just like ひらがな did. But reconstruction only ever rebuilt in
+  // ひらがな, so カタカナ was a one-way sink: it fed the chaos but could
+  // never come back out of it. Every rebuild now picks ひらがな or カタカナ
+  // independently at random, so a mora that started as ひらがな can
+  // resurface as カタカナ and vice versa — all three scripts (漢字 included,
+  // via phonemeRecombine's separate kanji pool) are genuinely symmetric
+  // participants in the same chaos now, not two real scripts plus one
+  // that quietly gets flattened away.
+  function reconstructKana(cons, vowel, rand) {
+    const useKatakana = rand() < 0.5;
+    const primary = useKatakana ? PHONEME_TO_KATAKANA : PHONEME_TO_HIRAGANA;
+    const fallback = useKatakana ? PHONEME_TO_HIRAGANA : PHONEME_TO_KATAKANA;
+    return primary.get(cons + vowel) || primary.get(vowel) || fallback.get(cons + vowel) || fallback.get(vowel) || null;
+  }
+
+  // Without a real dictionary there's no way to know how a given 漢字
+  // is actually read, so it can't be phoneme-decomposed the way かな can.
+  // But leaving every 漢字 untouched made カオス3 stop at "the かな parts
+  // are chaos, the 漢字 parts are exactly as written" — still a fixed,
+  // predictable skeleton underneath. Since there's no legitimate reading
+  // to preserve, a 漢字 here is just as liable to become a *different*
+  // 漢字, drawn from a pool of common ones — not a reading-accurate
+  // substitution, but a real decomposition rather than a pass-through.
+  const KANJI_POOL_STR =
+    "日月火水木金土山川田人口手足目耳心天地雨雪風花草林森石砂海空星光音色形声学校本読書字語言葉思考感情夢希望愛恋友家族親兄弟姉妹犬猫鳥魚虫葉根実種赤青白黒緑黄紫桃桜梅竹松雲霧露霜氷波影時朝昼夜今昔先後内外上下左右東西南北春夏秋冬新古大小高低長短強弱重軽速遅明暗静動走飛泳登降回止進戻会別忘念祈歌踊笑泣叫眠起食飲作壊開閉見失育茂香輝揺流溶凍渇潤染響積散" +
+    "一二三四五六七八九十百千万円曜半永久瞬間虚実体魂霊神仏道理然全部無有存在消現去来到達送迎待望求探尋捜集配結束解放縛縄糸布紙筆墨硯机椅窓戸扉壁柱梁屋根床畳団枕毛皮革骨肉血汗涙唾息吸醒幻像創建築修直変移固蒸沸冷加燃点灯線波振循巡往復退浮沈揚落舟船車輪橋塔窯炉煙炎灰塵埃泥岩崖峰谷洞穴巣卵殻羽翼牙爪鱗鰭尾角触感味覚痛快苦甘辛酸渋薫匂臭純潔汚濁溺漂";
+  const KANJI_BANK = [...new Set(KANJI_POOL_STR)];
+  const KANJI_RE = /[一-鿿々〆ヶ]/;
+
+  // Drawing consonant and vowel fully independently every time is
+  // maximally noisy, but that reads as gibberish far more often than it
+  // reads as wordplay. A real pun or rhyme usually keeps *half* the sound
+  // fixed and mutates the other half — a rhyme keeps the vowel and swaps
+  // the consonant (ねこ -> たこ), an echo/alliteration keeps the consonant
+  // and swaps the vowel (さくら -> さそり). So most draws here bias toward
+  // one of those two "keep half, mutate half" moves, with a full
+  // independent redraw as the wildcard case — and the result is retried
+  // (up to 5 times) whenever it would reconstruct the exact original mora,
+  // so "no visible change" is never a possible outcome here.
+  function rhymeOrRandomMora(ph, original, consPool, vowelPool, rand) {
+    let built = original;
+    for (let attempt = 0; attempt < 5 && built === original; attempt++) {
+      const style = rand();
+      let cons, vowel;
+      if (style < 0.4) {
+        cons = consPool[Math.floor(rand() * consPool.length)];
+        vowel = ph.vowel; // rhyme: keep the vowel, mutate the consonant
+      } else if (style < 0.7) {
+        cons = ph.cons;
+        vowel = vowelPool[Math.floor(rand() * vowelPool.length)]; // echo: keep the consonant, mutate the vowel
+      } else {
+        cons = consPool[Math.floor(rand() * consPool.length)];
+        vowel = vowelPool[Math.floor(rand() * vowelPool.length)]; // full noise
+      }
+      built = reconstructKana(cons, vowel, rand) || original;
+    }
+    return built;
+  }
+
+  // カオス3: gather every (子音, 母音) pair used anywhere in the piece,
+  // then rebuild every かな mora from that shared pool via rhyme/echo/
+  // noise mutation above. 漢字 gets the same treatment in spirit — drawn
+  // from its own pool instead of a phoneme one, since there's no reading
+  // to decompose — but with every 漢字 already present in this text
+  // excluded from its own draw pool, so a substitution can never
+  // silently reproduce a character that was already there.
+  function phonemeRecombine(chunks, rand) {
+    const consPool = [];
+    const vowelPool = [];
+    const usedKanji = new Set();
+    chunks.forEach((c) => {
+      for (const m of toMora(c.text)) {
+        const ph = moraPhoneme(m);
+        if (ph) { consPool.push(ph.cons); vowelPool.push(ph.vowel); }
+        else if (KANJI_RE.test(m)) { usedKanji.add(m); }
+      }
+    });
+    if (consPool.length === 0 && usedKanji.size === 0) return chunks;
+
+    const kanjiPool = KANJI_BANK.filter((k) => !usedKanji.has(k));
+    const effectiveKanjiPool = kanjiPool.length > 0 ? kanjiPool : KANJI_BANK;
+
+    return chunks.map((c) => {
+      let out = "";
+      let touched = false;
+      for (const m of toMora(c.text)) {
+        const ph = moraPhoneme(m);
+        if (ph) {
+          touched = true;
+          out += rhymeOrRandomMora(ph, m, consPool, vowelPool, rand);
+          continue;
+        }
+        if (KANJI_RE.test(m)) {
+          touched = true;
+          out += effectiveKanjiPool[Math.floor(rand() * effectiveKanjiPool.length)];
+          continue;
+        }
+        out += m;
+      }
+      return touched ? { ...c, text: out } : c;
+    });
+  }
+
+  // A curated word bank for カオス2 — not the "vast dictionary" a real
+  // implementation would draw from (that needs a server or a multi-
+  // megabyte morphological library, neither of which fits a single
+  // portable HTML file), but enough varied everyday words, spanning a
+  // wide range of mora lengths and vowel patterns, to find a real
+  // resemblance-by-sound rather than picking blindly.
+  const MORA_WORDBANK = [...new Set([
+    "あした", "あさひ", "あかし", "あまり", "あかり", "あるく", "いのち", "いちご",
+    "うみべ", "うつわ", "えがお", "おどり", "おもい", "かぜ", "かがみ", "かなた",
+    "きつね", "きぼう", "くも", "くらし", "けむり", "こころ", "ことり", "さくら",
+    "さかな", "しずく", "しろい", "すずめ", "せかい", "そら", "たいよう", "たから",
+    "たわし", "たわむれ", "タワー", "ちから", "つばめ", "つき", "であい", "てがみ",
+    "とおく", "とり", "ながれ", "なみだ", "にじ", "ぬくもり", "ねがい", "のはら",
+    "はじまり", "はな", "ひかり", "ふゆ", "へや", "ほし", "まち", "みずうみ",
+    "むかし", "めぐり", "もり", "やさしい", "ゆめ", "よあけ", "りんご", "るり",
+    "れきし", "ろうか", "かわ", "きた", "くうき", "けしき", "こおり", "さかい",
+    "しま", "すな", "せみ", "そで", "たき", "ちきゅう", "つち", "てんき",
+    "とびら", "なつ", "にわ", "ぬま", "ねむり", "のぼり", "はる", "ひろば",
+    "ふえ", "へいわ", "ほのお", "まど", "みなと", "むら", "めぐみ", "もみじ",
+    "やま", "ゆき", "よる", "かえで", "きり", "くさ", "こだま", "さと",
+    "しお", "すみれ", "たね", "つばさ", "てら", "とうげ", "なぎさ", "ねいろ",
+    // ここから拡張分
+    "あめ", "うみ", "はやし", "いけ", "いわ", "つゆ", "しも", "ゆうひ",
+    "だいち", "みさき", "たに", "みね", "おか", "のはら", "さばく", "うらべ",
+    "うめ", "たんぽぽ", "ひまわり", "あじさい", "きく", "ばら", "ゆり", "あさがお",
+    "つばき", "まつ", "たけ", "つぼみ", "くき", "め", "このは", "わかば",
+    "いぬ", "ねこ", "たぬき", "うさぎ", "しか", "くま", "さる", "とら",
+    "ぞう", "うま", "ひつじ", "やぎ", "ねずみ", "りす", "かめ", "へび",
+    "かえる", "つばめ", "からす", "はと", "わし", "たか", "ふくろう", "こい",
+    "たい", "いるか", "くじら", "ちょう", "とんぼ", "ほたる", "あり", "はち",
+    "あたま", "かお", "はな", "みみ", "くち", "した", "のど", "くび",
+    "かた", "うで", "ゆび", "むね", "はら", "こし", "ひざ", "かかと",
+    "あさ", "ひる", "ゆうがた", "まよなか", "きのう", "きょう", "あさって", "いつか",
+    "むかし", "いま", "はじめ", "おわり", "とし", "しゅん", "あき",
+    "よろこび", "かなしみ", "いかり", "おそれ", "のぞみ", "まよい", "なやみ", "しあわせ",
+    "さびしさ", "なつかしさ", "いのり", "こい", "あい", "うらみ", "ねたみ", "おどろき",
+    "おもいで", "きおく", "げんき", "まこと", "うそ", "うわさ",
+    "いえ", "かべ", "ゆか", "やね", "みち", "はし", "むら", "えき",
+    "しろ", "かいだん", "いど", "かまど", "つくえ", "いす", "たな", "はこ",
+    "ふくろ", "かご", "さら", "わん", "なべ", "かま", "くつ", "ふく",
+    "ぼうし", "かばん", "かさ", "かげ", "おと", "こえ", "うた", "ものがたり",
+    "えほん", "ことば", "なまえ", "いろ", "かたち", "おもさ", "たかさ", "ひろさ",
+    "はやさ", "つよさ", "やわらかさ", "くろい", "あかい", "あおい", "きいろい", "みどり",
+    "ちいさい", "おおきい", "たかい", "ひくい", "はやい", "おそい", "あたたかい", "つめたい",
+    "あつい", "さむい", "あかるい", "くらい", "しずか", "にぎやか", "きびしい", "うつくしい",
+    "たのしい", "かなしい", "うれしい", "さびしい", "こわい", "あぶない",
+    "はしる", "とぶ", "およぐ", "のぼる", "おりる", "まわる", "とまる", "すすむ",
+    "もどる", "かえる", "であう", "わすれる", "おもいだす", "ねがう", "いのる", "うたう",
+    "おどる", "わらう", "なく", "さけぶ", "ささやく", "ねむる", "おきる", "たべる",
+    "のむ", "つくる", "こわす", "ひらく", "とじる", "みつける", "うしなう", "そだつ",
+    "みのる", "しげる", "かおる", "ひかる", "きらめく", "ゆれる", "ながれる", "とける",
+    "こおる", "かわく", "うるおう", "しみる", "ひびく", "こもる", "つもる", "ちる",
+    // ここから第二次拡張分
+    "ごはん", "みそしる", "うどん", "そば", "すし", "てんぷら", "やきとり", "おにぎり",
+    "もち", "まんじゅう", "だんご", "ようかん", "せんべい", "みかん", "ぶどう", "なし",
+    "もも", "かき", "くり", "すいか", "たまご", "しょうゆ", "さとう", "こめ",
+    "むぎ", "まめ", "やさい", "にく", "ぎゅうにゅう", "おちゃ", "さけ", "みず",
+    "きらきら", "ぎらぎら", "きらり", "ぴかぴか", "ざわざわ", "そよそよ", "しんしん", "しとしと",
+    "ざあざあ", "ひらひら", "ゆらゆら", "ふわふわ", "もこもこ", "さらさら", "ごろごろ", "どきどき",
+    "わくわく", "そわそわ", "うきうき", "しくしく", "こそこそ", "ぐるぐる", "くるくる", "とんとん",
+    "ぱたぱた", "ばたばた", "にこにこ", "にやにや", "げらげら", "しみじみ", "ひっそり", "こっそり",
+    "ひとつ", "ふたつ", "みっつ", "よっつ", "いつつ", "むっつ", "ななつ", "やっつ",
+    "ここのつ", "とお", "はさみ", "えんぴつ", "けしごむ", "ものさし", "はり", "いと",
+    "ぬの", "くし", "ほうき", "ぞうきん", "あみ", "つな", "なわ", "くぎ",
+    "のこぎり", "がっこう", "としょかん", "びょういん", "こうえん", "えいがかん", "どうぶつえん", "うんどうじょう",
+    "しんじつ", "まぼろし", "かげろう", "うつつ", "いつわり", "しるし", "きざし", "よかん",
+    "ひみつ", "なぞ", "ふしぎ", "きせき", "うんめい", "すくい", "つみ", "ばち",
+    "たたり", "まじない", "おまじない", "うらない", "まつり", "おどりば", "ゆうやみ", "しののめ",
+    "たそがれ", "あかつき", "みそら", "あまつぶ", "こぬか", "はなびら", "こずえ", "うろこ",
+    "はばたき", "さえずり", "ぬけがら", "うたかた", "ともしび", "かがりび", "いなずま",
+  ])].map((word) => ({ word, mora: toMora(word) }));
+
+  // カオス2: swap a かな fragment for a wordbank entry with a similar
+  // mora count whose vowels line up in roughly the same pattern — real
+  // words, chosen by resemblance-by-sound rather than meaning, the way a
+  // pun or a mishearing substitutes one word for another.
+  function moraSubstitute(chunks, rand) {
+    return chunks.map((c) => {
+      const trimmed = c.text.trim();
+      if (trimmed.length < 2 || !KANA_ONLY_RE.test(trimmed)) return c;
+
+      const srcMora = toMora(trimmed);
+      const candidates = MORA_WORDBANK.filter((w) => Math.abs(w.mora.length - srcMora.length) <= 1 && w.word !== trimmed);
+      if (candidates.length === 0) return c;
+
+      const scored = candidates.map((w) => {
+        let score = 0;
+        const len = Math.min(w.mora.length, srcMora.length);
+        for (let i = 0; i < len; i++) {
+          const a = moraPhoneme(srcMora[i]);
+          const b = moraPhoneme(w.mora[i]);
+          if (a && b && a.vowel === b.vowel) score++;
+        }
+        const aLast = moraPhoneme(srcMora[srcMora.length - 1]);
+        const bLast = moraPhoneme(w.mora[w.mora.length - 1]);
+        if (aLast && bLast && aLast.vowel === bLast.vowel) score += 2; // rhyme bonus
+        return { w, score };
+      });
+      scored.sort((a, b) => b.score - a.score);
+      const topScore = scored[0].score;
+      const top = topScore > 0 ? scored.filter((s) => s.score >= topScore * 0.6) : scored;
+      const pick = top[Math.floor(rand() * top.length)];
+      return pick ? { ...c, text: pick.w.word } : c;
+    });
+  }
+
+  function groupTokens(tokens, min, max, joinStr, rand) {
+    const chunks = [];
+    let i = 0;
+    while (i < tokens.length) {
+      const size = min === max ? min : min + Math.floor(rand() * (max - min + 1));
+      chunks.push(tokens.slice(i, i + size).join(joinStr));
+      i += size;
+    }
+    return chunks;
+  }
+
+  function tokenizeChars(text, min, max, rand) {
+    const chars = [...text].filter((c) => c.length > 0);
+    const chunks = [];
+    let i = 0;
+    while (i < chars.length) {
+      const size = min === max ? min : min + Math.floor(rand() * (max - min + 1));
+      chunks.push(chars.slice(i, i + size).join(""));
+      i += size;
+    }
+    return chunks.filter((c) => c.trim().length > 0);
+  }
+
+  function tokenize(text, unit, min, max, rand) {
+    switch (unit) {
+      case "char": return tokenizeChars(text, min, max, rand);
+      case "bunsetsu": return groupTokens(splitBunsetsu(text, rand), min, max, "", rand);
+      case "line": return groupTokens(splitLines(text), min, max, "\n", rand);
+      case "sentence": return groupTokens(splitSentences(text), min, max, " ", rand);
+      case "word":
+      default: return groupTokens(splitWords(text), min, max, " ", rand);
+    }
+  }
+
+  // ---- reordering: standard cut-up (guaranteed-visible shuffle) ------------
+  //
+  // Reshuffling by picking N random pairs and swapping them (the previous
+  // approach) is weak: a swap can undo an earlier swap, so at low-to-medium
+  // strength the result often collapses back toward the original order.
+  // Instead we pick a random *subset* of positions sized to the randomness
+  // slider and fully derange just that subset — monotonic in strength, and
+  // guaranteed to differ from the input whenever randomness > 0.
+
+  function sameOrder(a, b) {
+    return a.length === b.length && a.every((v, i) => v.text === b[i].text && v.sourceIndex === b[i].sourceIndex);
+  }
+
+  function subsetShuffle(arr, randomness, rand) {
+    const copy = arr.slice();
+    const n = copy.length;
+    if (randomness <= 0 || n < 2) return copy;
+
+    let k = Math.max(2, Math.round((randomness / 100) * n));
+    k = Math.min(k, n);
+
+    const order = [...Array(n).keys()];
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    const chosen = order.slice(0, k);
+    const values = chosen.map((i) => copy[i]);
+
+    let attempts = 0;
+    do {
+      for (let i = values.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        [values[i], values[j]] = [values[j], values[i]];
+      }
+      attempts++;
+    } while (attempts < 6 && values.every((v, i) => v === copy[chosen[i]]));
+
+    chosen.forEach((idx, i) => { copy[idx] = values[i]; });
+    return copy;
+  }
+
+  // ---- reordering: Gysin's grid cut-up --------------------------------------
+  //
+  // Brion Gysin's grid method lays fragments into a grid and reads them out
+  // along a different axis than they were written. We build the grid in
+  // original order, then read it row-wise / column-wise / diagonally /
+  // snake-wise / or in fully randomized cell order, picking a fresh pattern
+  // every generation.
+
+  function gridReorder(chunks, randomness, rand) {
+    const n = chunks.length;
+    if (n < 4) return subsetShuffle(chunks, randomness, rand);
+
+    const cols = Math.min(6, Math.max(2, Math.round(Math.sqrt(n))));
+    const rows = Math.ceil(n / cols);
+    const grid = [];
+    let k = 0;
+    for (let r = 0; r < rows; r++) {
+      const row = [];
+      for (let c = 0; c < cols; c++) { row.push(k < n ? chunks[k] : null); k++; }
+      grid.push(row);
+    }
+
+    const patterns = ["row", "col", "diagonal", "snake"];
+    if (randomness > 55) patterns.push("random", "random");
+    const pattern = patterns[Math.floor(rand() * patterns.length)];
+
+    let out = [];
+    if (pattern === "row") {
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) if (grid[r][c]) out.push(grid[r][c]);
+    } else if (pattern === "col") {
+      for (let c = 0; c < cols; c++) for (let r = 0; r < rows; r++) if (grid[r][c]) out.push(grid[r][c]);
+    } else if (pattern === "diagonal") {
+      for (let d = 0; d < rows + cols - 1; d++) {
+        for (let r = 0; r < rows; r++) {
+          const c = d - r;
+          if (c >= 0 && c < cols && grid[r][c]) out.push(grid[r][c]);
+        }
+      }
+    } else if (pattern === "snake") {
+      for (let r = 0; r < rows; r++) {
+        const cs = r % 2 === 0 ? [...Array(cols).keys()] : [...Array(cols).keys()].reverse();
+        for (const c of cs) if (grid[r][c]) out.push(grid[r][c]);
+      }
+    } else {
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) if (grid[r][c]) out.push(grid[r][c]);
+      for (let i = out.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        [out[i], out[j]] = [out[j], out[i]];
+      }
+    }
+
+    return subsetShuffle(out, Math.min(100, randomness * 0.5 + 15), rand);
+  }
+
+  // ---- reordering: permutation poem -----------------------------------------
+  //
+  // Burroughs and Gysin also worked with straight permutation of a fixed
+  // set of words/phrases ("I AM THAT I AM" and similar pieces). Below a
+  // high randomness this is a guaranteed full derangement; above it, we
+  // switch to sampling *with replacement* — a chance operation where
+  // fragments can repeat or drop out entirely, which is closer to how
+  // those pieces actually behaved at their most aleatory.
+
+  function permutationReorder(chunks, randomness, rand) {
+    const n = chunks.length;
+    if (n < 2) return chunks.slice();
+
+    if (randomness > 70) {
+      const pool = chunks.map((c) => ({ ...c, _uses: 0 }));
+      const out = [];
+      for (let i = 0; i < n; i++) {
+        const picked = pickWithFatigue(pool, rand);
+        picked._uses++;
+        out.push(picked);
+      }
+      return out;
+    }
+
+    const out = chunks.slice();
+    let attempts = 0;
+    do {
+      for (let i = out.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        [out[i], out[j]] = [out[j], out[i]];
+      }
+      attempts++;
+    } while (attempts < 6 && sameOrder(out, chunks));
+    return out;
+  }
+
+  function reorder(chunks, method, randomness, rand) {
+    switch (method) {
+      case "grid": return gridReorder(chunks, randomness, rand);
+      case "permutation": return permutationReorder(chunks, randomness, rand);
+      case "standard":
+      default: return subsetShuffle(chunks, randomness, rand);
+    }
+  }
+
+  // ---- fold-in: Burroughs & Gysin's actual splicing method ------------------
+  //
+  // The real fold-in technique: take a page, fold it vertically down the
+  // middle, and splice one half against the matching half of a different
+  // page, so the reader crosses from one text into another mid-line. With
+  // only one source we fold that source against its own second half —
+  // Burroughs did this too, folding a page back on itself.
+
+  function foldIn(chunkArrays, rand) {
+    let pages = chunkArrays.map((a) => a.slice());
+    if (pages.length === 1) {
+      const a = pages[0];
+      const mid = Math.max(1, Math.floor(a.length / 2));
+      pages = [a.slice(0, mid), a.slice(mid)];
+    }
+
+    const result = [];
+    let cursor = Math.floor(rand() * pages.length);
+    while (pages.some((p) => p.length)) {
+      let tries = 0;
+      while (!pages[cursor].length && tries < pages.length) {
+        cursor = (cursor + 1) % pages.length;
+        tries++;
+      }
+      if (!pages[cursor].length) break;
+
+      const page = pages[cursor];
+      const fraction = 0.25 + rand() * 0.5; // fold point drifts, not a fixed half
+      const take = Math.max(1, Math.min(page.length, Math.round(page.length * fraction)));
+      for (let i = 0; i < take; i++) result.push(page.shift());
+
+      cursor = (cursor + 1 + Math.floor(rand() * (pages.length - 1 || 1))) % pages.length;
+    }
+    return result;
+  }
+
+  // Picking uniformly at random from a candidate pool means a fragment that
+  // sits in a small pool (a rare junction group) gets drawn again and again
+  // within the same output — mechanical-looking repetition, not chance. Each
+  // pick instead costs the fragment "fatigue": its odds of being drawn again
+  // decay sharply but never hit zero, so a phrase can still recur as an
+  // echo/refrain later on, the way a living system settles into rhythms
+  // without looping — closer to what an unpredictable process should feel
+  // like than a flat uniform draw.
+  function pickWithFatigue(candidates, rand) {
+    if (candidates.length === 1) return candidates[0];
+    let total = 0;
+    const weights = candidates.map((f) => {
+      const w = 1 / Math.pow(1 + (f._uses || 0), 1.7);
+      total += w;
+      return w;
+    });
+    let r = rand() * total;
+    for (let i = 0; i < candidates.length; i++) {
+      r -= weights[i];
+      if (r <= 0) return candidates[i];
+    }
+    return candidates[candidates.length - 1];
+  }
+
+  // ---- post-processing -----------------------------------------------------
+
+  function stripPunct(text) {
+    return text.replace(/[、。！？「」『』・…,.!?;:'"()（）\[\]{}]/g, "");
+  }
+
+  function randomizeCase(text, rand) {
+    return text.replace(/[a-zA-Z]/g, (ch) => (rand() < 0.35
+      ? (ch === ch.toUpperCase() ? ch.toLowerCase() : ch.toUpperCase())
+      : ch));
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  }
+
+  // ---- generation -----------------------------------------------------------
+
+  function readOptions() {
+    return {
+      unit: unitEl.value,
+      min: +chunkMinEl.value,
+      max: +chunkMaxEl.value,
+      randomness: +randomnessEl.value,
+      cutMethod: cutMethodEl.value,
+      soundMode: soundModeEl.value,
+      foldIn: foldInEl.checked,
+      keepPunct: keepPunctEl.checked,
+      capRandom: capRandomEl.checked,
+    };
+  }
+
+  function readSourceTexts() {
+    return [...sourcesEl.querySelectorAll("textarea")]
+      .map((t) => t.value)
+      .filter((t) => t.trim().length > 0);
+  }
+
+  function generateOne(sourceTexts, options) {
+    const rand = makeChaosRandom();
+
+    // "単語" splits on whitespace. Japanese text with no real inter-word
+    // spaces (only line breaks, which \s already treats as separators)
+    // would silently collapse each line into a single unsplit token — it
+    // looks like something is happening because lines still get reordered,
+    // but nothing inside a line ever breaks. Detect that case and fall back
+    // to bunsetsu splitting instead of pretending "word" mode applies.
+    const effectiveUnit = (options.unit === "word" && !sourceTexts.some((t) => /[ \t]/.test(t)))
+      ? "bunsetsu"
+      : options.unit;
+
+    const chunkArrays = sourceTexts.map((text, idx) =>
+      tokenize(text, effectiveUnit, options.min, options.max, rand).map((t) => ({ text: t, sourceIndex: idx }))
+    );
+
+    const multiSource = sourceTexts.length > 1;
+
+    // fold-in can, on rare draws, reassemble back into plain reading order;
+    // when randomness is on, that outcome is rejected and re-cut rather
+    // than shown as if it were a deliberate result.
+    const identity = options.randomness > 0 ? chunksToPlainText(chunkArrays.flat(), effectiveUnit) : null;
+
+    let combined;
+    let attempts = 0;
+    do {
+      if (options.foldIn) {
+        combined = foldIn(chunkArrays, rand);
+        combined = reorder(combined, options.cutMethod, options.randomness * 0.6, rand);
+      } else {
+        combined = chunkArrays.flat();
+        combined = reorder(combined, options.cutMethod, options.randomness, rand);
+      }
+      attempts++;
+    } while (identity !== null && attempts < 5 && chunksToPlainText(combined, effectiveUnit) === identity);
+
+    if (options.soundMode === "mora") {
+      combined = moraSubstitute(combined, rand);
+    } else if (options.soundMode === "phoneme") {
+      combined = phonemeRecombine(combined, rand);
+    }
+
+    if (!options.keepPunct) {
+      combined = combined.map((c) => ({ ...c, text: stripPunct(c.text) }));
+    }
+    if (options.capRandom) {
+      combined = combined.map((c) => ({ ...c, text: randomizeCase(c.text, rand) }));
+    }
+
+    combined = combined.filter((c) => c.text.trim().length > 0 || effectiveUnit === "line");
+    return { chunks: combined, multiSource, renderUnit: effectiveUnit };
+  }
+
+  function chunksToHtml(chunks, unit, multiSource) {
+    const sep = { char: "", bunsetsu: "", word: " ", sentence: " ", line: "\n" }[unit] ?? " ";
+    let html = "";
+    chunks.forEach((c, i) => {
+      const seam = multiSource && i > 0 && c.sourceIndex !== chunks[i - 1].sourceIndex;
+      if (i > 0) html += escapeHtml(sep);
+      html += `<span class="frag${seam ? " seam" : ""}">${escapeHtml(c.text)}</span>`;
+    });
+    return html;
+  }
+
+  function chunksToPlainText(chunks, unit) {
+    const sep = { char: "", bunsetsu: "", word: " ", sentence: " ", line: "\n" }[unit] ?? " ";
+    return chunks.map((c) => c.text).join(sep);
+  }
+
+  function renderCard(index, sourceTexts, options) {
+    const card = document.createElement("div");
+    card.className = "result-card";
+    card.style.setProperty("--delay", `${Math.min(index, 8) * 0.07}s`);
+
+    function paint() {
+      const prev = card.dataset.plain;
+      let chunks, multiSource, renderUnit, plain;
+      let attempts = 0;
+      do {
+        ({ chunks, multiSource, renderUnit } = generateOne(sourceTexts, options));
+        plain = chunksToPlainText(chunks, renderUnit);
+        attempts++;
+      } while (attempts < 4 && options.randomness > 0 && prev !== undefined && plain === prev);
+
+      card.querySelector(".result-text").innerHTML = chunksToHtml(chunks, renderUnit, multiSource);
+      card.dataset.plain = plain;
+    }
+
+    card.innerHTML = `
+      <div class="result-head">
+        <span>CUT #${String(index + 1).padStart(2, "0")}</span>
+        <span class="result-actions">
+          <button type="button" class="keepBtn" title="気に入った結果を残す（次の切り直しで消えません）">★ 残す</button>
+          <button type="button" class="regenBtn">切り直す</button>
+          <button type="button" class="copyBtn">コピー</button>
+        </span>
+      </div>
+      <div class="result-text" contenteditable="true" spellcheck="false" title="クリックして直接編集できます"></div>
+    `;
+
+    card.querySelector(".keepBtn").addEventListener("click", () => {
+      card.classList.toggle("kept");
+      card.querySelector(".keepBtn").classList.toggle("kept");
+      updateEvolveVisibility();
+    });
+
+    card.querySelector(".regenBtn").addEventListener("click", () => {
+      card.classList.remove("kept");
+      card.querySelector(".keepBtn").classList.remove("kept");
+      card.style.animation = "none";
+      void card.offsetWidth;
+      card.style.animation = "";
+      paint();
+      updateEvolveVisibility();
+    });
+
+    card.querySelector(".copyBtn").addEventListener("click", async () => {
+      try {
+        const liveText = card.querySelector(".result-text").innerText;
+        await navigator.clipboard.writeText(liveText || "");
+        const btn = card.querySelector(".copyBtn");
+        const original = btn.textContent;
+        btn.textContent = "コピーした";
+        setTimeout(() => { btn.textContent = original; }, 1200);
+      } catch (e) {
+        // clipboard unavailable; silently ignore
+      }
+    });
+
+    paint();
+    return card;
+  }
+
+  function runCutUp() {
+    const sourceTexts = readSourceTexts();
+    if (sourceTexts.length === 0) {
+      resultsEl.innerHTML = `<p class="hint">まず、上の欄にテクストを入力してください。</p>`;
+      return;
+    }
+
+    const options = readOptions();
+    const count = +outputCountEl.value;
+
+    // ★で残した結果は切り直しても消さない — ドクター・バロウズが体現した
+    // 「ソフトは候補を大量に出すだけ、選ぶのは人間の目」という思想を反映。
+    [...resultsEl.querySelectorAll(".result-card")].forEach((card) => {
+      if (!card.classList.contains("kept")) card.remove();
+    });
+    const startIndex = resultsEl.querySelectorAll(".result-card").length;
+
+    for (let i = 0; i < count; i++) {
+      resultsEl.appendChild(renderCard(startIndex + i, sourceTexts, options));
+    }
+    updateEvolveVisibility();
+  }
+
+  function updateEvolveVisibility() {
+    const anyKept = !!resultsEl.querySelector(".result-card.kept");
+    evolveRow.style.display = anyKept ? "" : "none";
+  }
+
+  // Feeds ★-kept results back in as new source material — selection driving
+  // the next generation, rather than always re-cutting the same original
+  // text. The kept cards themselves are left alone; new source blocks are
+  // added alongside the existing material (up to the 4-source cap).
+  evolveBtn.addEventListener("click", () => {
+    const keptTexts = [...resultsEl.querySelectorAll(".result-card.kept")]
+      .map((c) => c.querySelector(".result-text").innerText)
+      .filter(Boolean);
+    keptTexts.forEach((t) => {
+      if (sourcesEl.children.length < 4) addSourceBlock(t);
+    });
+    sourcesEl.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+
+  cutBtn.addEventListener("click", () => {
+    cutBtn.classList.remove("cutting");
+    void cutBtn.offsetWidth;
+    cutBtn.classList.add("cutting");
+    runCutUp();
+  });
+})();
+  </script>
+</body>
+</html>
+
+</body></html>

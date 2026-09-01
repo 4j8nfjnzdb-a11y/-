@@ -1,0 +1,1103 @@
+<!doctype html><html><head><!-- frame-runtime --><script>window.__FRAME_PREAMBLE={"v":1,"capabilities":{"artifact":"artifact.DF6_9MzE.js","assets":"assets.8Gk803W0.js","comments":"comments.vw5vQdGA.js","db":"db.h-3sndFg.js","downloads":"downloads.C3GSvEDP.js","embed":"embed.CxGAyc-v.js","mcp":"mcp.Bvma3qD7.js","network":"network.B5UA9Su4.js","notifications":"notifications.ssU4jy7G.js","permissions":"permissions.BNySkLV5.js","room":"room.BMMoe2BY.js","sample":"sample.BW2Uysoh.js","self":"artifact.DF6_9MzE.js","user":"user.BpKav-Rf.js"},"transforms":"_transforms.DSB5x63f.js","comments":"_comments.C6E0cR5g.js","translate":"_translate.5HCW4BJh.js"}</script><script>(function(){"use strict";var te=["light","dark","system"],re=/^[A-Za-z0-9_-]{1,64}$/,$=/^[a-zA-Z_:][a-zA-Z0-9_:.-]{0,127}$/,ne=new Set(["class","hidden","value","checked","style","title","alt","placeholder","lang","dir","role","tabindex","disabled","readonly","contenteditable","open","colspan","rowspan"]);function oe(e){const t=e.toLowerCase();return t.startsWith("data-")||t.startsWith("aria-")||ne.has(t)}var Be="http://www.w3.org/1999/xhtml",se="http://www.w3.org/2000/svg",ae=new Set(["script","style","iframe","noscript","noframes","noembed","xmp","plaintext","template","title","textarea","object","embed"]),ie=new Set(["script","style"]);function ce(e){const t=e.localName.toLowerCase();return e.namespaceURI==="http://www.w3.org/1999/xhtml"?!ae.has(t):e.namespaceURI===se?!ie.has(t):!1}function M(e,t){return e===t||(e===160||e===32)&&(t===160||t===32)}function le(e,t){const r=e.length,n=t.length;let s=0;for(;s<r&&s<n&&M(e.charCodeAt(s),t.charCodeAt(s));)s++;let o=0;for(;o<r-s&&o<n-s&&M(e.charCodeAt(r-1-o),t.charCodeAt(n-1-o));)o++;return{p:s,s:o}}function ue(e,t){const r=e.firstChild;if(e.childNodes.length!==1||r===null||r.nodeType!==Node.TEXT_NODE){e.textContent=t;return}const n=r.data,s=n.length,o=t.length,{p:i,s:c}=le(n,t);i===s&&c===0&&s===o||r.replaceData(i,s-i-c,t.slice(i,o-c));const h=r.data,p=e.ownerDocument.getSelection?.()??null,w=p!==null&&p.rangeCount>0&&(p.anchorNode===r||p.focusNode===r)?{anchor:p.anchorNode,anchorOffset:p.anchorOffset,focus:p.focusNode,focusOffset:p.focusOffset}:null;let m=-1,g=-1;for(let f=0;f<h.length&&f<t.length;f++){const v=h.charCodeAt(f),b=t.charCodeAt(f);v!==b&&M(v,b)&&(m<0&&(m=f),g=f)}const a=m>=0;if(a&&r.replaceData(m,g-m+1,t.slice(m,g+1)),a&&w!==null&&w.anchor!==null&&w.focus!==null)try{p.setBaseAndExtent(w.anchor,w.anchorOffset,w.focus,w.focusOffset)}catch{}}var fe=new Set(["html","head","body","frameset"]);function de(e){return e.namespaceURI==="http://www.w3.org/1999/xhtml"&&fe.has(e.localName)}function pe(e){if(e===null||typeof e!="object")return!1;const t=e;if(typeof t.target!="string"||!re.test(t.target)||t.text!==void 0&&typeof t.text!="string")return!1;if(t.attrsSet!==void 0){if(t.attrsSet===null||typeof t.attrsSet!="object")return!1;for(const[r,n]of Object.entries(t.attrsSet))if(!$.test(r)||typeof n!="string")return!1}if(t.attrsRemoved!==void 0){if(!Array.isArray(t.attrsRemoved))return!1;for(const r of t.attrsRemoved)if(typeof r!="string"||!$.test(r))return!1}return!0}function me(e,t){if(e===null||typeof e!="object")return!1;const{seq:r,elements:n}=e;if(typeof r!="number"||!Number.isSafeInteger(r)||!Array.isArray(n)||n.length===0||n.length>64)return!1;for(let s=0;s<n.length;s++)if(!t(n[s]))return!1;return!0}function he(e){return e===null||typeof e!="object"?!1:me(e.__frame_patch,pe)}function _e(e){if(e===null||typeof e!="object")return!1;const t=e.__frame_init;return t!==null&&typeof t=="object"}function ve(e){return e!==null&&typeof e=="object"&&e.__frame_size_poke===!0}function ye(e){if(e===null||typeof e!="object")return!1;const t=e.__frame_theme;if(t===null||typeof t!="object")return!1;const r=t.theme;return typeof r=="string"&&te.includes(r)}var A=/^[\w.-]+\.js$/;function we(e,t,r){return r?"inert":typeof t=="string"&&A.test(t)?e?[t]:"inert":e?"inert":"framed"}function ge(){return{post(e,t){parent.postMessage(e,t)},on(e){const t=r=>{r.source===parent&&e(r.data,r.origin,r.isTrusted)};return addEventListener("message",t),()=>removeEventListener("message",t)}}}function be(){return{post:()=>{},on:()=>()=>{}}}var j="__frame_scroll",Ee=150,Ae=310,Se=160,Te=3e4;function ke(){let e=0,t=!1,r=!1,n=!1,s=0,o=null;const i=l=>{try{sessionStorage.setItem(j,JSON.stringify({y:l}))}catch{}},c=()=>{if(clearTimeout(e),o===null)return;const l=o;o=null,i(l)},h=()=>{if(t){t=!1;return}r=!0,o=scrollY,clearTimeout(e),e=setTimeout(c,Ee)};try{addEventListener("scroll",h,{passive:!0}),addEventListener("pagehide",c)}catch{}const p=()=>{let l;try{l=sessionStorage.getItem(j)}catch{return null}if(l===null)return null;let _;try{_=JSON.parse(l)}catch{_=null}const d=_?.y;if(!(typeof d=="number"&&Number.isFinite(d)&&d>=0)){try{sessionStorage.removeItem(j)}catch{}return null}return d};let w=!1;const m=l=>{try{const _=scrollY;scrollTo({top:l,left:0,behavior:"instant"}),s=l,n=!0,clearTimeout(e),o=null,i(l);const d=scrollY;d!==_&&(t=!0),d!==l&&!w&&(w=!0,addEventListener("load",()=>{try{if(scrollY===d){const T=p();m(T!==null?T:s)}}catch{}},{once:!0}))}catch{}},g=()=>{try{return!!location.hash}catch{return!0}};let a=!1;const f=()=>{try{if(a||innerWidth>Ae||innerHeight>Se)return;a=!0;const l=Date.now(),_=()=>{try{removeEventListener("resize",_)}catch{}if(Date.now()-l>Te||r||g())return;const d=p();m(d!==null?d:s)};addEventListener("resize",_)}catch{}};let v=!1,b=!1;return{restore(){if(v||(v=!0,g()))return;const l=p();l!==null&&(m(l),f())},promoted(){if(b||(b=!0,g()))return;const l=p();l!==null?(m(l),f()):n&&m(s)}}}function Re(e,t,r,n){let s=null;try{s=window.trustedTypes?.createPolicy("frame-runtime",{createScriptURL:h=>h})??null}catch{}const o=window.Worker,i=o?.prototype,c=Object.freeze({Worker:o,workerOn:i?.addEventListener,workerPost:i?.postMessage,workerTerminate:i?.terminate,fetch:window.fetch.bind(window),preventDefault:Event.prototype.preventDefault,policy:s,origins:t});r(e).then(h=>h?.bootTopLevel?h.bootTopLevel(c,n):n.settle()).catch(()=>n.settle())}var De="modulepreload",Ie=function(e){return"/"+e},Ue={},Le=function(t,r,n){let s=Promise.resolve();function o(i){const c=new Event("vite:preloadError",{cancelable:!0});if(c.payload=i,window.dispatchEvent(c),!c.defaultPrevented)throw i}return s.then(i=>{for(const c of i||[])c.status==="rejected"&&o(c.reason);return t().catch(o)})},Oe=window===top,q=Object.getOwnPropertyDescriptor(window,"claude"),k=we(Oe,window.__FRAME_PREAMBLE?.topLevel,q?.writable===!1),N=typeof k=="object"&&k[0],y=N?be():ge();(function(){const e=Object.defineProperty,t=globalThis,r=["RTCPeerConnection","webkitRTCPeerConnection","RTCDataChannel","RTCIceCandidate","RTCSessionDescription","RTCRtpSender","RTCRtpReceiver"];let n=0;for(let s=0;s<r.length;s++){const o=r[s];try{e(t,o,{value:void 0,writable:!1,configurable:!1})}catch{try{delete t[o]}catch{}try{e(t,o,{value:void 0,writable:!1,configurable:!0})}catch{}}typeof t[o]=="function"&&n++}if(n&&k==="framed")try{y.post({__frame_rtc_lockdown_failed:n},"*")}catch{}})();var Pe=1e4,Y=Object.freeze([...window.__FRAME_PREAMBLE?.origins??["https://claude.ai","https://preview.claude.ai"]]);function X(e){for(const t of Y)if(t.endsWith(":*"))try{const r=new URL(e);if(`${r.protocol}//${r.hostname}:*`===t)return!0}catch{}else if(e===t)return!0;return!1}var R=Object.freeze({...window.__FRAME_PREAMBLE?.capabilities}),B=window.__FRAME_PREAMBLE?.transforms,D=window.__FRAME_PREAMBLE?.comments,I=window.__FRAME_PREAMBLE?.translate;function S(e){return Le(()=>import("/_runtime/"+e),void 0)}function G(e,t){return{contract:e.contract,changes:new Set(e.changes??[]),flags:new Set(e.flags??[]),capabilities:e.capabilities??{},capBudgets:e.capBudgets??{},transforms:new Map,shellOrigin:t,mount:x,hooks:O,pipe:()=>({wrap:(r,n)=>(...s)=>{try{return n(...s)}catch(o){return Promise.reject(o)}}})}}var L=null,E=null;function V(e,t,r){try{Object.defineProperty(e,t,{value:r,writable:!1,configurable:!1,enumerable:!0})}catch{try{Object.defineProperty(e,t,{value:r,writable:!1,configurable:!0,enumerable:!0})}catch{}}}var U=!1,O={editBefore:null,edit:null};function Ce(e,t,r=!1){const n=[];let s;if(r)try{O.editBefore?.(e)}catch{}for(const o of e.elements){const i=document.querySelector(`[data-id="${o.target}"]`);if(!i){s=o.target;break}if([...Object.keys(o.attrsSet??{}),...o.attrsRemoved??[]].some(c=>!oe(c))){s=o.target;break}if(o.text!==void 0&&(!ce(i)||de(i))){s=o.target;break}for(const[c,h]of Object.entries(o.attrsSet??{}))if(!J(i,c)){try{i.setAttribute(c,h)}catch{}Z(i,c,h)}for(const c of o.attrsRemoved??[])J(i,c)||(i.removeAttribute(c),Z(i,c,null));typeof o.text=="string"&&ue(i,o.text),n.push(o.target)}if(r)try{O.edit?.(e.seq,n,s)}catch{}if(s!==void 0){y.post({__frame_patch_miss:{seq:e.seq}},t);return}try{document.dispatchEvent(new CustomEvent("claude:edit",{detail:{seq:e.seq,targets:n}}))}catch{}}function Z(e,t,r){if(!(e instanceof HTMLInputElement))return;const n=t.toLowerCase();n==="checked"?e.checked=r!==null:n==="value"&&e.type!=="file"&&(e.value=r??"")}function J(e,t){const r=t.toLowerCase(),n=e;return r==="data-id"||(r==="value"||r==="checked")&&(n.__artifactSecret===!0||/^(password|hidden|file)$/.test(n.type??"")||/(^|\s)(cc-|one-time-code|current-password|new-password)/i.test(`${e.getAttribute("autocomplete")??""} ${n.autocomplete??""}`))}function Q(e){const t=document.documentElement;e==="light"||e==="dark"?(t.dataset.theme=e,t.style.colorScheme=e,U=!0):U&&(delete t.dataset.theme,t.style.colorScheme="",U=!1)}var P=new Map;function Me(){let e;const t={u:new Promise(r=>{e=r}),r:r=>{t.done=!0,e(r)},done:!1,nulled:!1};return t}function F(){for(const e of P.values())e.done||(e.nulled=!0,e.r(null))}var je=Object.freeze(Object.assign(Object.create(null),{call:Function.prototype.call,apply:Function.prototype.apply,bind:Function.prototype.bind})),x=(e,t)=>{const r=P.get(e);if(!r||r.done){r?.nulled&&E&&y.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:e}},E);return}const n=typeof t=="function"?Object.setPrototypeOf(t,je):Object.assign(Object.create(null),t);typeof n.then=="function"&&delete n.then,r.r(Object.freeze(n))};function ee(){const e=q?.value??{};V(window,"claude",e);for(const t of Object.keys(R)){if(e[t]!==void 0){V(e,t,e[t]);continue}P.set(t,Me())}if(e.use===void 0){const t=r=>{if(typeof r!="string"||!Object.hasOwn(R,r))return Promise.resolve(null);const n=P.get(r);return n?n.u:Promise.resolve(e[r]??null)};try{Object.defineProperty(e,"use",{value:t,writable:!0,configurable:!0,enumerable:!1})}catch{}}}if(k==="framed"){const e=B&&A.test(B)?S(B).catch(()=>{}):Promise.resolve(void 0),t=a=>{if(a.type==="auxclick"&&a.button!==1)return;const f=a.target,v=f&&f.closest?f.closest("a[href],area[href]"):null;if(!v)return;const b=v.getAttribute("href");if(!b)return;let l;try{l=new URL(b,document.baseURI)}catch{return}if((l.protocol==="http:"||l.protocol==="https:")&&l.origin!==location.origin){a.preventDefault();const _=(v.getAttribute("target")??"").toLowerCase(),d=a.type==="auxclick"||a.metaKey||a.ctrlKey||a.shiftKey||a.altKey||!["","_self","_top","_parent"].includes(_);y.post({__frame_nav:!0,url:l.href,newTab:d},"*")}};addEventListener("click",t,!0),addEventListener("auxclick",t,!0);const r={},n=a=>{a.isTrusted&&(r.pointer=!0)},s=a=>{a.isTrusted&&(r.click=!0)};addEventListener("pointermove",n,{capture:!0,passive:!0}),addEventListener("click",s,{capture:!0,passive:!0}),e.then(a=>{a?.wireNav&&(a.wireNav(),removeEventListener("click",t,!0),removeEventListener("auxclick",t,!0),removeEventListener("pointermove",n,!0),removeEventListener("click",s,!0),a.wireEngagement?.(r))});let o=null;try{o=ke()}catch{}ee();let i=null,c=null,h=0;const p=y.on((a,f)=>{X(f)&&_e(a)&&(i=a.__frame_init,E=f,p(),clearTimeout(h),c?.())});y.post({__frame_connect:!0},"*");const w=new Promise(a=>{c=a,h=setTimeout(()=>{p(),a()},Pe)}),m=document.readyState==="loading"?new Promise(a=>document.addEventListener("DOMContentLoaded",()=>a(),{once:!0})):Promise.resolve();m.then(()=>{try{o?.restore()}catch{}});const g={cb:null};y.on((a,f)=>{if(X(f)&&ve(a)){try{o?.promoted()}catch{}g.cb?.()}}),w.then(async()=>{if(!i||!E){F();return}Q(i.theme);const a=E;let f=!1,v=!1;y.on((u,z,C)=>{if(z!==a)return;ye(u)&&Q(u.__frame_theme.theme),he(u)&&Ce(u.__frame_patch,a,C);const H=u?.__fc_mode;H&&typeof H=="object"&&!f&&D&&A.test(D)&&(f=!0,S(D).then(K=>K.install?.(a,H.on===!0)).catch(()=>{}));const W=u?.__ft_cmd;W&&typeof W=="object"&&!v&&I&&A.test(I)&&(v=!0,S(I).then(K=>K.install?.(a,W)).catch(()=>{}))});const b=Object.keys(i.capabilities??{}).filter(u=>Object.hasOwn(R,u)).map(u=>[u,R[u]]).filter(u=>typeof u[1]=="string"&&A.test(u[1])),l=await Promise.allSettled(b.map(([,u])=>S(u))),_=await e,d=E;if(_?.buildBoot||y.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:"_transforms"}},d),_?.buildBoot)try{L=_.buildBoot(i,_.TRANSFORMS??{},{shellOrigin:d,mount:x,hooks:O},u=>y.post({__frame_cap_telemetry:u},d))}catch{y.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:"_transforms"}},d),L=G(i,d)}else L=G(i,d);const T=u=>y.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:u}},d),Ne=L;l.forEach((u,z)=>{const C=b[z][0];if(u.status!=="fulfilled"){T(C);return}try{u.value?.install?.(Ne)}catch{T(C)}}),F(),await m,y.post({__frame_ready:!0},E),e.then(u=>u?.installSizeReporter?.(d,g))})}else N&&(ee(),Re(N,Y,S,{settle:F,mount:x}))})();</script><!-- /frame-runtime --><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style></head><body>
+<title>GrainField</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700&family=Barlow+Condensed:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ground: #15100c;
+    --panel: #1e1712;
+    --panel-2: #29201a;
+    --recess: #100b08;
+    --line: #3c2e21;
+    --line-soft: #2a2018;
+    --ink: #f1e7d8;
+    --ink-dim: #a9967f;
+    --ink-faint: #6f6152;
+    --amber: #e8a53c;
+    --amber-dim: #7a5a29;
+    --ember: #ff6b4a;
+    --ember-dim: #5a2e22;
+    --phosphor: #7fd9c4;
+    --phosphor-dim: #3f584f;
+    --t1: #e8a53c;
+    --t2: #6fd6c9;
+    --t3: #e2789a;
+    --t4: #9b8ce0;
+    --font-display: "Big Shoulders Display", "Arial Narrow", sans-serif;
+    --font-label: "Barlow Condensed", "Arial Narrow", sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { background: var(--ground); color: var(--ink); }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: var(--font-label);
+    padding: 28px 16px 60px;
+    background:
+      radial-gradient(ellipse 1000px 500px at 50% -10%, #2a1f16 0%, transparent 60%),
+      var(--ground);
+  }
+
+  .stage { width: 100%; max-width: 980px; margin: 0 auto; }
+
+  .nameplate {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 0 6px 14px;
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  .wordmark {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: clamp(26px, 5vw, 34px);
+    letter-spacing: 0.01em;
+    color: var(--ink);
+    text-wrap: balance;
+  }
+  .wordmark .accent { color: var(--amber); }
+
+  .tagline {
+    font-size: 12px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-left: 12px;
+  }
+
+  .master-row { display: flex; align-items: center; gap: 8px; }
+
+  .engine-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-dim);
+    margin-right: 4px;
+  }
+  .led { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-faint); }
+  .led.on { background: var(--phosphor); box-shadow: 0 0 6px 1px var(--phosphor); }
+
+  button {
+    font-family: var(--font-label);
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    font-size: 12.5px;
+    color: var(--ink);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 9px 13px;
+    cursor: pointer;
+    transition: background 0.12s, transform 0.05s, border-color 0.12s, box-shadow 0.12s;
+  }
+  button:hover { background: #34281f; border-color: #4a3a2b; }
+  button:active { transform: translateY(1px); }
+  button:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+  .btn-icon { font-family: var(--font-mono); font-size: 14px; padding: 9px 12px; }
+  .btn-play { background: var(--amber); border-color: var(--amber); color: #1c1206; font-weight: 700; }
+  .btn-play:hover { background: #f3b657; }
+  .btn-play.is-active { background: #f3b657; }
+
+  label.btn-icon { display: inline-flex; align-items: center; justify-content: center; }
+
+  /* ---- spatial field ---- */
+
+  .field-card {
+    background: linear-gradient(180deg, var(--panel) 0%, #171310 100%);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 14px;
+    margin-bottom: 16px;
+    box-shadow: 0 24px 60px -20px #000000a0, inset 0 1px 0 #ffffff0d;
+  }
+
+  .field-axis-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+  }
+
+  .field-top-labels { display: flex; justify-content: space-between; padding: 0 4px 4px; }
+
+  .field-wrap {
+    position: relative;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--recess);
+    overflow: hidden;
+  }
+
+  #field { display: block; width: 100%; height: 260px; touch-action: none; cursor: grab; }
+
+  .field-bottom-labels { display: flex; justify-content: space-between; padding: 4px 4px 0; }
+
+  .field-side-labels {
+    position: absolute;
+    left: 8px; top: 8px; bottom: 8px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    pointer-events: none;
+  }
+
+  .status-toast {
+    position: absolute;
+    top: 10px; left: 50%;
+    transform: translateX(-50%);
+    max-width: 90%;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--ink);
+    background: #000000c0;
+    border: 1px solid var(--line);
+    padding: 6px 12px;
+    border-radius: 6px;
+    text-align: center;
+    z-index: 5;
+    display: none;
+  }
+  .status-toast.error { color: var(--ember); border-color: var(--ember-dim); }
+  .status-toast.ok { color: var(--phosphor); border-color: var(--phosphor-dim); }
+  .status-toast.show { display: block; }
+
+  /* ---- channel strips ---- */
+
+  .channels {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+
+  .channel {
+    background: linear-gradient(180deg, var(--panel) 0%, #171310 100%);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px;
+    border-top: 3px solid var(--tc, var(--amber));
+  }
+
+  .channel-head { display: flex; align-items: center; gap: 6px; margin-bottom: 9px; }
+
+  .track-badge {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: var(--tc, var(--amber));
+    color: #1c1206;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: 11px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .track-name {
+    flex: 1;
+    min-width: 0;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .channel-head button, .channel-head label { padding: 6px 7px; font-size: 10.5px; }
+
+  .btn-mute.is-muted { background: var(--ember-dim); border-color: var(--ember); color: var(--ember); }
+  .btn-drift.is-active { background: var(--phosphor-dim); border-color: var(--phosphor); color: var(--phosphor); }
+
+  .mini-wave-wrap {
+    position: relative;
+    border: 1px solid var(--line-soft);
+    border-radius: 6px;
+    background: var(--recess);
+    margin-bottom: 8px;
+    overflow: hidden;
+  }
+  .mini-wave { display: block; width: 100%; height: 52px; touch-action: none; cursor: crosshair; }
+  .mini-wave-empty {
+    position: absolute;
+    inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ink-faint);
+    font-size: 10.5px;
+    letter-spacing: 0.03em;
+    text-align: center;
+    padding: 4px;
+    pointer-events: none;
+  }
+
+  .rand-row { display: flex; gap: 6px; margin-bottom: 7px; }
+  .rand-row button { flex: 1; font-size: 10px; padding: 6px 3px; letter-spacing: 0.01em; }
+
+  .trackfx-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 8px; }
+  .trackfx-btn { padding: 7px 0; font-size: 10.5px; border-radius: 6px; }
+  .trackfx-btn.is-active {
+    background: var(--phosphor-dim);
+    border-color: var(--phosphor);
+    color: var(--phosphor);
+    box-shadow: 0 0 10px -3px var(--phosphor);
+  }
+
+  .channel-sliders { display: flex; flex-direction: column; gap: 5px; }
+  .slider-row {
+    display: grid;
+    grid-template-columns: 40px 1fr 32px;
+    align-items: center;
+    gap: 7px;
+  }
+  .slider-row span:first-child {
+    font-size: 10px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .slider-row span:last-child {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    color: var(--ink-dim);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    border-radius: 3px;
+    outline: none;
+    background: repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px 10%);
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 8px; height: 16px;
+    border-radius: 2px;
+    background: var(--tc, var(--amber));
+    cursor: pointer;
+    border: 1px solid #0b0e12;
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 8px; height: 16px;
+    border-radius: 2px;
+    background: var(--tc, var(--amber));
+    cursor: pointer;
+    border: 1px solid #0b0e12;
+  }
+
+  .app-footer {
+    text-align: center;
+    color: var(--ink-faint);
+    font-size: 11.5px;
+    line-height: 1.7;
+    margin-top: 14px;
+  }
+  .app-footer strong { color: var(--ink-dim); font-weight: 600; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+  @media (max-width: 640px) {
+    .channels { grid-template-columns: 1fr; }
+    .master-row { width: 100%; justify-content: space-between; }
+  }
+</style>
+
+<div class="stage">
+  <header class="nameplate">
+    <div>
+      <span class="wordmark">Grain<span class="accent">Field</span></span>
+      <span class="tagline">4-track spatial granular DJ</span>
+    </div>
+    <div class="master-row">
+      <div class="engine-status"><span class="led" id="statusLed"></span><span id="engineStatus">idle</span></div>
+      <button id="btnShuffle" class="btn-icon" title="全トラックの空間配置を今すぐシャッフル">⚄ All</button>
+      <button id="btnMasterPlay" class="btn-icon btn-play" title="全体の再生/停止">▶</button>
+    </div>
+  </header>
+
+  <section class="field-card">
+    <div class="field-top-labels">
+      <span class="field-axis-label">L</span>
+      <span class="field-axis-label">FAR</span>
+      <span class="field-axis-label">R</span>
+    </div>
+    <div class="field-wrap">
+      <canvas id="field"></canvas>
+      <div class="field-side-labels"><span class="field-axis-label" style="writing-mode:vertical-rl">近</span><span class="field-axis-label" style="writing-mode:vertical-rl">遠</span></div>
+      <div class="status-toast" id="statusToast" role="status" aria-live="polite"></div>
+    </div>
+    <div class="field-bottom-labels">
+      <span class="field-axis-label">&nbsp;</span>
+      <span class="field-axis-label">NEAR</span>
+      <span class="field-axis-label">&nbsp;</span>
+    </div>
+  </section>
+
+  <section class="channels" id="channels"></section>
+
+  <p class="app-footer">
+    音声を読み込むと自動再生とドリフト（パン・奥行き・読み出し位置がゆっくりランダムに変化）が始まります。ミニ波形は<strong>ドラッグでループ範囲（開始/終了）を作成・移動</strong>、<strong>🎲Range</strong>でランダム化。フィールドのドット／トラック内の<strong>🎲Space</strong>で空間配置を操作、ドラッグで手動固定（<strong>↻</strong>で再ドリフト）。<strong>F/E/R/C</strong>は各トラック専用のFilter・Echo・Reverb・Crushで、タップで個別にON/OFF。<strong>MUTE</strong>でライブに抜き差し、Glitchフェーダーでクラッシュの荒さを調整できます。<br>
+    このプレビューは非公開です。
+  </p>
+</div>
+
+<script>
+"use strict";
+
+/* ---------------- shared audio graph ---------------- */
+
+let audioCtx = null;
+let masterGain = null;
+let masterDrySum = null;
+let sharedFilterLFO = null;
+let sharedEchoDelay = null, sharedEchoFeedback = null;
+let sharedReverbBus = null, reverbConvolver = null;
+
+let masterPlaying = false;
+let schedulerTimer = null;
+const LOOKAHEAD_MS = 25;
+const SCHEDULE_AHEAD_SEC = 0.15;
+
+const TRACK_COLORS = ["#e8a53c", "#6fd6c9", "#e2789a", "#9b8ce0"];
+
+function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+
+function makeTrack(index) {
+  const spread = [-0.7, -0.22, 0.22, 0.7][index];
+  const depth = 0.25 + Math.random() * 0.25;
+  return {
+    index,
+    color: TRACK_COLORS[index],
+    buffer: null,
+    peaks: null,
+    name: "(no track)",
+    muted: false,
+    drift: true,
+    pan: spread, targetPan: spread,
+    depth, targetDepth: depth,
+    position: 0.5, targetPosition: 0.5,
+    loopStart: 0, loopEnd: 1,
+    nextDriftAt: 0,
+    volume: 0.85,
+    texture: 0.45,
+    glitch: 0.4,
+    fx: { filter: false, echo: false, reverb: false, crush: false },
+    nextGrainTime: 0,
+    nodes: null,
+    dragMode: null,
+    dragOffset: 0,
+  };
+}
+
+const tracks = [0, 1, 2, 3].map(makeTrack);
+
+function setLed(on) { document.getElementById("statusLed").classList.toggle("on", !!on); }
+
+function depthToFreq(depth) { return 18000 - depth * 15500; }
+function depthToGain(depth) { return 1 - depth * 0.65; }
+
+function buildEnvelopeCurve(points) {
+  points = points || 48;
+  const fade = 0.5, slant = 0, ease = 0.28, declick = 0.4;
+  const declickFloor = 0.02 + declick * 0.13;
+  let attackFrac = Math.max(fade * (0.5 - slant * 0.5), declickFloor);
+  let releaseFrac = Math.max(fade * (0.5 + slant * 0.5), declickFloor);
+  let sustainFrac = 1 - attackFrac - releaseFrac;
+  if (sustainFrac < 0) {
+    const scale = 1 / (attackFrac + releaseFrac);
+    attackFrac *= scale; releaseFrac *= scale; sustainFrac = 0;
+  }
+  const exponent = 1 + ease * 4;
+  const curve = new Float32Array(points);
+  for (let i = 0; i < points; i++) {
+    const t = i / (points - 1);
+    let v;
+    if (t < attackFrac) { v = Math.pow(attackFrac > 0 ? t / attackFrac : 1, exponent); }
+    else if (t < attackFrac + sustainFrac) { v = 1; }
+    else { const u = releaseFrac > 0 ? (t - (attackFrac + sustainFrac)) / releaseFrac : 0; v = Math.pow(1 - u, exponent); }
+    curve[i] = Math.max(0.0001, v);
+  }
+  return curve;
+}
+let GRAIN_ENV = null;
+
+function buildImpulseResponse(ctx, duration, decay) {
+  const rate = ctx.sampleRate;
+  const length = Math.floor(rate * duration);
+  const impulse = ctx.createBuffer(2, length, rate);
+  for (let ch = 0; ch < 2; ch++) {
+    const data = impulse.getChannelData(ch);
+    for (let i = 0; i < length; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
+  }
+  return impulse;
+}
+
+function buildCrushCurve(glitch) {
+  const n = 512;
+  const steps = Math.max(2, Math.round(2 + (1 - clamp(glitch, 0, 1)) * 14));
+  const curve = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const x = (i / (n - 1)) * 2 - 1;
+    curve[i] = Math.round(x * steps) / steps;
+  }
+  return curve;
+}
+
+function ensureAudioContext() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  GRAIN_ENV = buildEnvelopeCurve();
+
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.9;
+  masterGain.connect(audioCtx.destination);
+
+  masterDrySum = audioCtx.createGain();
+  masterDrySum.gain.value = 1;
+  masterDrySum.connect(masterGain);
+
+  sharedFilterLFO = audioCtx.createOscillator();
+  sharedFilterLFO.type = "sine";
+  sharedFilterLFO.frequency.value = 0.13;
+  sharedFilterLFO.start();
+
+  sharedEchoDelay = audioCtx.createDelay(1.0);
+  sharedEchoDelay.delayTime.value = 0.28;
+  sharedEchoFeedback = audioCtx.createGain();
+  sharedEchoFeedback.gain.value = 0.4;
+  sharedEchoDelay.connect(sharedEchoFeedback).connect(sharedEchoDelay);
+  sharedEchoDelay.connect(masterGain);
+
+  sharedReverbBus = audioCtx.createGain();
+  sharedReverbBus.gain.value = 1;
+  reverbConvolver = audioCtx.createConvolver();
+  reverbConvolver.buffer = buildImpulseResponse(audioCtx, 2.6, 2.6);
+  const reverbOut = audioCtx.createGain();
+  reverbOut.gain.value = 0.8;
+  sharedReverbBus.connect(reverbConvolver).connect(reverbOut).connect(masterGain);
+
+  tracks.forEach(initTrackAudio);
+  document.getElementById("engineStatus").textContent = audioCtx.sampleRate + "hz";
+  setLed(true);
+}
+
+function initTrackAudio(track) {
+  const input = audioCtx.createGain();
+  input.gain.value = 1;
+  const level = audioCtx.createGain();
+  level.gain.value = track.muted ? 0 : track.volume;
+  const panner = audioCtx.createStereoPanner();
+  panner.pan.value = track.pan;
+  const depthFilter = audioCtx.createBiquadFilter();
+  depthFilter.type = "lowpass";
+  depthFilter.frequency.value = depthToFreq(track.depth);
+  const depthGain = audioCtx.createGain();
+  depthGain.gain.value = depthToGain(track.depth);
+
+  const trackFilter = audioCtx.createBiquadFilter();
+  trackFilter.type = "lowpass";
+  trackFilter.frequency.value = 19000;
+  trackFilter.Q.value = 0.8;
+  const filterLFOGain = audioCtx.createGain();
+  filterLFOGain.gain.value = 0;
+  sharedFilterLFO.connect(filterLFOGain).connect(trackFilter.frequency);
+
+  const crushShaper = audioCtx.createWaveShaper();
+  crushShaper.curve = buildCrushCurve(track.glitch);
+  const crushDry = audioCtx.createGain();
+  crushDry.gain.value = 1;
+  const crushWet = audioCtx.createGain();
+  crushWet.gain.value = 0;
+  const dryOut = audioCtx.createGain();
+  dryOut.gain.value = 1;
+
+  const echoSend = audioCtx.createGain();
+  echoSend.gain.value = 0;
+  const reverbSend = audioCtx.createGain();
+  reverbSend.gain.value = 0;
+
+  input.connect(level).connect(panner).connect(depthFilter).connect(depthGain).connect(trackFilter);
+  trackFilter.connect(crushDry).connect(dryOut);
+  trackFilter.connect(crushShaper).connect(crushWet).connect(dryOut);
+  dryOut.connect(masterDrySum);
+  dryOut.connect(echoSend).connect(sharedEchoDelay);
+  dryOut.connect(reverbSend).connect(sharedReverbBus);
+
+  track.nodes = {
+    input, level, panner, depthFilter, depthGain,
+    trackFilter, filterLFOGain, crushShaper, crushDry, crushWet, dryOut,
+    echoSend, reverbSend,
+  };
+}
+
+function applyLevel(track) {
+  if (!track.nodes) return;
+  const target = track.muted ? 0 : track.volume;
+  track.nodes.level.gain.setTargetAtTime(target, audioCtx.currentTime, 0.03);
+}
+
+function applySpatial(track) {
+  if (!track.nodes) return;
+  track.nodes.panner.pan.value = track.pan;
+  track.nodes.depthFilter.frequency.value = depthToFreq(track.depth);
+  track.nodes.depthGain.gain.value = depthToGain(track.depth);
+  if (track.fx.reverb) track.nodes.reverbSend.gain.value = 0.3 + track.depth * 0.5;
+}
+
+function applyTrackFilterFx(track) {
+  if (!track.nodes) return;
+  const t = audioCtx.currentTime, on = track.fx.filter;
+  track.nodes.filterLFOGain.gain.setTargetAtTime(on ? 1400 : 0, t, 0.25);
+  track.nodes.trackFilter.frequency.setTargetAtTime(on ? 1800 : 19000, t, 0.25);
+}
+function applyTrackCrushFx(track) {
+  if (!track.nodes) return;
+  const t = audioCtx.currentTime, on = track.fx.crush;
+  track.nodes.crushWet.gain.setTargetAtTime(on ? 1 : 0, t, 0.06);
+  track.nodes.crushDry.gain.setTargetAtTime(on ? 0 : 1, t, 0.06);
+}
+function applyTrackEchoFx(track) {
+  if (!track.nodes) return;
+  track.nodes.echoSend.gain.setTargetAtTime(track.fx.echo ? 0.5 : 0, audioCtx.currentTime, 0.15);
+}
+function applyTrackReverbFx(track) {
+  if (!track.nodes) return;
+  const amt = track.fx.reverb ? (0.3 + track.depth * 0.5) : 0;
+  track.nodes.reverbSend.gain.setTargetAtTime(amt, audioCtx.currentTime, 0.25);
+}
+
+/* ---------------- grain scheduling ---------------- */
+
+function textureToDurationSec(t) { return (30 + t * 220) / 1000; }
+function textureToOverlap(t) { return 0.5 + (0.35 + t * 0.55) * 0.45; }
+
+function scheduleGrain(track, time) {
+  const buf = track.buffer;
+  if (!buf) return;
+  const bufDur = buf.duration;
+  let durSec = Math.max(0.02, textureToDurationSec(track.texture));
+  const regionStartSec = track.loopStart * bufDur;
+  const regionEndSec = Math.max(regionStartSec + 0.01, track.loopEnd * bufDur);
+  const regionLen = regionEndSec - regionStartSec;
+  durSec = Math.min(durSec, regionLen);
+  const jitter = (Math.random() * 2 - 1) * Math.min(0.035 * bufDur, regionLen * 0.4);
+  let posSec = track.position * bufDur + jitter;
+  posSec = clamp(posSec, regionStartSec, Math.max(regionStartSec, regionEndSec - durSec));
+
+  const src = audioCtx.createBufferSource();
+  src.buffer = buf;
+  const env = audioCtx.createGain();
+  env.gain.setValueCurveAtTime(GRAIN_ENV, time, durSec);
+  src.connect(env).connect(track.nodes.input);
+  src.start(time, posSec, durSec);
+  src.stop(time + durSec + 0.02);
+  src.onended = () => { src.disconnect(); env.disconnect(); };
+}
+
+function updateDrift(track, now) {
+  if (!track.drift) return;
+  if (now > track.nextDriftAt) {
+    track.targetPan = clamp(track.pan + (Math.random() * 2 - 1) * 0.6, -0.95, 0.95);
+    track.targetDepth = clamp(track.depth + (Math.random() * 2 - 1) * 0.35, 0.05, 0.95);
+    track.targetPosition = clamp(track.loopStart + Math.random() * (track.loopEnd - track.loopStart), track.loopStart, track.loopEnd);
+    track.nextDriftAt = now + 4 + Math.random() * 6;
+  }
+  const lerp = 0.02;
+  track.pan += (track.targetPan - track.pan) * lerp;
+  track.depth += (track.targetDepth - track.depth) * lerp;
+  track.position += (track.targetPosition - track.position) * lerp;
+  track.position = clamp(track.position, track.loopStart, track.loopEnd);
+  applySpatial(track);
+}
+
+function schedulerTick() {
+  if (!audioCtx || !masterPlaying) return;
+  const now = audioCtx.currentTime;
+  for (const track of tracks) {
+    updateDrift(track, now);
+    if (!track.buffer) continue;
+    if (track.nextGrainTime < now) track.nextGrainTime = now;
+    while (track.nextGrainTime < now + SCHEDULE_AHEAD_SEC) {
+      scheduleGrain(track, track.nextGrainTime);
+      const durSec = textureToDurationSec(track.texture);
+      const overlap = textureToOverlap(track.texture);
+      const ioi = Math.max(0.004, durSec * (1 - overlap));
+      track.nextGrainTime += ioi;
+    }
+  }
+  drawField();
+  drawAllMiniWaves();
+}
+
+function startMaster() {
+  ensureAudioContext();
+  if (audioCtx.state === "suspended") audioCtx.resume();
+  masterPlaying = true;
+  for (const t of tracks) t.nextGrainTime = audioCtx.currentTime;
+  if (!schedulerTimer) schedulerTimer = setInterval(schedulerTick, LOOKAHEAD_MS);
+  const btn = document.getElementById("btnMasterPlay");
+  btn.classList.add("is-active");
+  btn.textContent = "❚❚";
+}
+
+function stopMaster() {
+  masterPlaying = false;
+  const btn = document.getElementById("btnMasterPlay");
+  btn.classList.remove("is-active");
+  btn.textContent = "▶";
+}
+
+/* ---------------- status toast ---------------- */
+
+function showStatus(message, kind) {
+  const toast = document.getElementById("statusToast");
+  toast.textContent = message;
+  toast.className = "status-toast show" + (kind ? " " + kind : "");
+  clearTimeout(showStatus._t);
+  if (kind !== "error") showStatus._t = setTimeout(() => toast.classList.remove("show"), 3200);
+}
+
+/* ---------------- channel markup ---------------- */
+
+function buildChannelsMarkup() {
+  const wrap = document.getElementById("channels");
+  wrap.innerHTML = tracks.map((t, i) => `
+    <div class="channel" data-index="${i}" style="--tc:var(--t${i + 1})">
+      <div class="channel-head">
+        <span class="track-badge">${i + 1}</span>
+        <label for="file${i}" class="btn-icon" title="トラック${i + 1}のファイルを開く">📂</label>
+        <span class="track-name" id="name${i}">(no track)</span>
+        <button class="btn-mute" data-index="${i}" title="ミュート">MUTE</button>
+        <button class="btn-drift is-active" data-index="${i}" title="空間ドリフトのON/OFF">↻</button>
+        <input type="file" id="file${i}" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.oga,.flac,.webm,.caf,.aif,.aiff" hidden />
+      </div>
+      <div class="mini-wave-wrap">
+        <canvas class="mini-wave" data-index="${i}"></canvas>
+        <div class="mini-wave-empty" data-index="${i}">タップして音声を読み込み</div>
+      </div>
+      <div class="rand-row">
+        <button class="btn-rand-range" data-index="${i}" title="ループ範囲をランダムに">🎲 Range</button>
+        <button class="btn-rand-space" data-index="${i}" title="空間配置をランダムに">🎲 Space</button>
+      </div>
+      <div class="trackfx-row">
+        <button class="trackfx-btn" data-index="${i}" data-key="filter" title="Filter (このトラックのみ)">F</button>
+        <button class="trackfx-btn" data-index="${i}" data-key="echo" title="Echo (このトラックのみ)">E</button>
+        <button class="trackfx-btn" data-index="${i}" data-key="reverb" title="Reverb (このトラックのみ)">R</button>
+        <button class="trackfx-btn" data-index="${i}" data-key="crush" title="Crush (このトラックのみ)">C</button>
+      </div>
+      <div class="channel-sliders">
+        <label class="slider-row"><span>Vol</span><input type="range" class="p-volume" data-index="${i}" min="0" max="1.2" step="0.01" value="${t.volume}"><span class="v-volume" data-index="${i}">${Math.round(t.volume * 100)}%</span></label>
+        <label class="slider-row"><span>Grain</span><input type="range" class="p-texture" data-index="${i}" min="0" max="1" step="0.01" value="${t.texture}"><span class="v-texture" data-index="${i}">${Math.round(t.texture * 100)}%</span></label>
+        <label class="slider-row"><span>Glitch</span><input type="range" class="p-glitch" data-index="${i}" min="0" max="1" step="0.01" value="${t.glitch}"><span class="v-glitch" data-index="${i}">${Math.round(t.glitch * 100)}%</span></label>
+      </div>
+    </div>
+  `).join("");
+}
+buildChannelsMarkup();
+
+/* ---------------- file loading ---------------- */
+
+async function loadArrayBufferAsAudio(index, arrayBuffer, name) {
+  if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+    showStatus("ファイルが空か読み込めませんでした: " + name, "error");
+    return;
+  }
+  ensureAudioContext();
+  showStatus("トラック" + (index + 1) + " 読み込み中… " + name);
+  try {
+    const decoded = await audioCtx.decodeAudioData(arrayBuffer.slice(0));
+    const track = tracks[index];
+    track.buffer = decoded;
+    track.peaks = null;
+    track.name = name || "(untitled)";
+    track.loopStart = 0.25;
+    track.loopEnd = 0.75;
+    track.position = 0.5;
+    track.targetPosition = 0.5;
+    document.getElementById("name" + index).textContent = track.name;
+    document.querySelector('.mini-wave-empty[data-index="' + index + '"]').style.display = "none";
+    if (!masterPlaying) startMaster();
+    showStatus("トラック" + (index + 1) + " 読み込み完了: " + name + "（" + decoded.duration.toFixed(2) + "秒）", "ok");
+  } catch (err) {
+    showStatus("デコード失敗（トラック" + (index + 1) + " / " + name + "）: " + (err && err.message ? err.message : err), "error");
+  }
+}
+
+function handleFiles(index, files) {
+  const file = files && files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onerror = () => showStatus("ファイルの読み込みに失敗しました: " + file.name, "error");
+  reader.onload = () => loadArrayBufferAsAudio(index, reader.result, file.name);
+  reader.readAsArrayBuffer(file);
+}
+
+for (let i = 0; i < 4; i++) {
+  document.getElementById("file" + i).addEventListener("change", (e) => {
+    handleFiles(i, e.target.files);
+    e.target.value = "";
+  });
+}
+
+/* ---------------- spatial field canvas ---------------- */
+
+const fieldCanvas = document.getElementById("field");
+const fieldCtx = fieldCanvas.getContext("2d");
+let draggingTrackIndex = -1;
+
+function resizeFieldCanvas() {
+  const w = fieldCanvas.clientWidth, h = fieldCanvas.clientHeight;
+  if (fieldCanvas.width !== w || fieldCanvas.height !== h) { fieldCanvas.width = w; fieldCanvas.height = h; }
+}
+
+function drawField() {
+  resizeFieldCanvas();
+  const w = fieldCanvas.clientWidth, h = fieldCanvas.clientHeight;
+  fieldCtx.clearRect(0, 0, w, h);
+
+  fieldCtx.strokeStyle = "#ffffff0c";
+  fieldCtx.lineWidth = 1;
+  fieldCtx.beginPath();
+  fieldCtx.moveTo(w / 2, 0); fieldCtx.lineTo(w / 2, h);
+  fieldCtx.moveTo(0, h / 2); fieldCtx.lineTo(w, h / 2);
+  for (let i = 1; i < 4; i++) { const y = (h / 4) * i; fieldCtx.moveTo(0, y); fieldCtx.lineTo(w, y); }
+  fieldCtx.stroke();
+
+  tracks.forEach((t) => {
+    const x = ((t.pan + 1) / 2) * w;
+    const y = (1 - t.depth) * h;
+    const r = 8 + (1 - t.depth) * 14;
+    const alpha = 0.45 + (1 - t.depth) * 0.55;
+
+    if (t.buffer) {
+      fieldCtx.globalAlpha = alpha * 0.9;
+      fieldCtx.fillStyle = t.color;
+      fieldCtx.beginPath();
+      fieldCtx.arc(x, y, r, 0, Math.PI * 2);
+      fieldCtx.fill();
+      fieldCtx.globalAlpha = 1;
+      fieldCtx.fillStyle = "#15100c";
+      fieldCtx.font = "700 11px 'JetBrains Mono', monospace";
+      fieldCtx.textAlign = "center";
+      fieldCtx.textBaseline = "middle";
+      fieldCtx.fillText(String(t.index + 1), x, y);
+      if (t.muted) {
+        fieldCtx.strokeStyle = "#ff6b4a";
+        fieldCtx.lineWidth = 2;
+        fieldCtx.beginPath();
+        fieldCtx.arc(x, y, r + 4, 0, Math.PI * 2);
+        fieldCtx.stroke();
+      }
+    } else {
+      fieldCtx.globalAlpha = 0.35;
+      fieldCtx.strokeStyle = t.color;
+      fieldCtx.lineWidth = 1.5;
+      fieldCtx.beginPath();
+      fieldCtx.arc(x, y, r, 0, Math.PI * 2);
+      fieldCtx.stroke();
+      fieldCtx.globalAlpha = 1;
+    }
+  });
+}
+
+function pickTrackAt(clientX, clientY) {
+  const rect = fieldCanvas.getBoundingClientRect();
+  const w = rect.width, h = rect.height;
+  const px = clientX - rect.left, py = clientY - rect.top;
+  let best = -1, bestDist = Infinity;
+  tracks.forEach((t) => {
+    const x = ((t.pan + 1) / 2) * w;
+    const y = (1 - t.depth) * h;
+    const d = Math.hypot(px - x, py - y);
+    const r = 8 + (1 - t.depth) * 14;
+    if (d < Math.max(22, r + 10) && d < bestDist) { bestDist = d; best = t.index; }
+  });
+  return best;
+}
+
+function setTrackDrift(index, on) {
+  const track = tracks[index];
+  track.drift = on;
+  const btn = document.querySelector('.btn-drift[data-index="' + index + '"]');
+  if (btn) btn.classList.toggle("is-active", on);
+}
+
+function moveTrackTo(index, clientX, clientY) {
+  const rect = fieldCanvas.getBoundingClientRect();
+  const px = clamp((clientX - rect.left) / rect.width, 0, 1);
+  const py = clamp((clientY - rect.top) / rect.height, 0, 1);
+  const track = tracks[index];
+  track.pan = px * 2 - 1;
+  track.depth = 1 - py;
+  track.targetPan = track.pan;
+  track.targetDepth = track.depth;
+  setTrackDrift(index, false);
+  applySpatial(track);
+  drawField();
+}
+
+fieldCanvas.addEventListener("pointerdown", (e) => {
+  const idx = pickTrackAt(e.clientX, e.clientY);
+  if (idx === -1) return;
+  draggingTrackIndex = idx;
+  moveTrackTo(idx, e.clientX, e.clientY);
+});
+window.addEventListener("pointermove", (e) => {
+  if (draggingTrackIndex === -1) return;
+  moveTrackTo(draggingTrackIndex, e.clientX, e.clientY);
+});
+window.addEventListener("pointerup", () => { draggingTrackIndex = -1; });
+window.addEventListener("resize", () => { drawField(); drawAllMiniWaves(); });
+
+/* ---------------- mini waveforms + loop region ---------------- */
+
+function computePeaks(buffer, targetWidth) {
+  const data = buffer.getChannelData(0);
+  const blockSize = Math.max(1, Math.floor(data.length / targetWidth));
+  const peaks = new Float32Array(targetWidth);
+  for (let i = 0; i < targetWidth; i++) {
+    let max = 0;
+    const start = i * blockSize, end = Math.min(data.length, start + blockSize);
+    for (let j = start; j < end; j++) { const v = Math.abs(data[j]); if (v > max) max = v; }
+    peaks[i] = max;
+  }
+  return peaks;
+}
+
+function drawMiniWave(track, canvas) {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, w, h);
+  const mid = h / 2;
+  if (!track.buffer) return;
+
+  if (!track.peaks || track.peaks.length !== Math.floor(w)) track.peaks = computePeaks(track.buffer, Math.max(1, Math.floor(w)));
+
+  const sx = track.loopStart * w, ex = track.loopEnd * w;
+  ctx.fillStyle = track.color;
+  ctx.globalAlpha = 0.14;
+  ctx.fillRect(sx, 0, Math.max(1, ex - sx), h);
+  ctx.globalAlpha = 1;
+
+  ctx.strokeStyle = track.color;
+  ctx.globalAlpha = 0.85;
+  ctx.beginPath();
+  for (let x = 0; x < track.peaks.length; x++) {
+    const amp = track.peaks[x] * (h * 0.42);
+    ctx.moveTo(x + 0.5, mid - amp);
+    ctx.lineTo(x + 0.5, mid + amp);
+  }
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  ctx.strokeStyle = track.color;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(sx, 0); ctx.lineTo(sx, h);
+  ctx.moveTo(ex, 0); ctx.lineTo(ex, h);
+  ctx.stroke();
+
+  const px = track.position * w;
+  ctx.strokeStyle = "#f1e7d8";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(px, 0); ctx.lineTo(px, h);
+  ctx.stroke();
+}
+
+function drawAllMiniWaves() {
+  document.querySelectorAll(".mini-wave").forEach((canvas) => {
+    const idx = parseInt(canvas.dataset.index, 10);
+    drawMiniWave(tracks[idx], canvas);
+  });
+}
+
+function wireMiniWave(canvas) {
+  const idx = parseInt(canvas.dataset.index, 10);
+  const HANDLE_PX = 10;
+  const MIN_WIDTH = 0.015;
+
+  function pointerDown(e) {
+    const track = tracks[idx];
+    if (!track.buffer) return;
+    const rect = canvas.getBoundingClientRect();
+    const xPx = e.clientX - rect.left;
+    const xFrac = clamp(xPx / rect.width, 0, 1);
+    const startPx = track.loopStart * rect.width, endPx = track.loopEnd * rect.width;
+    if (Math.abs(xPx - startPx) < HANDLE_PX) { track.dragMode = "start"; }
+    else if (Math.abs(xPx - endPx) < HANDLE_PX) { track.dragMode = "end"; }
+    else if (xPx > startPx && xPx < endPx) { track.dragMode = "move"; track.dragOffset = xFrac - track.loopStart; }
+    else { track.dragMode = "create"; track.loopStart = xFrac; track.loopEnd = xFrac; }
+    track.drift = false;
+    setTrackDrift(idx, false);
+    drawMiniWave(track, canvas);
+  }
+
+  function pointerMove(e) {
+    const track = tracks[idx];
+    if (!track.dragMode) return;
+    const rect = canvas.getBoundingClientRect();
+    const xFrac = clamp((e.clientX - rect.left) / rect.width, 0, 1);
+    if (track.dragMode === "start") {
+      track.loopStart = clamp(Math.min(xFrac, track.loopEnd - MIN_WIDTH), 0, 1 - MIN_WIDTH);
+    } else if (track.dragMode === "end") {
+      track.loopEnd = clamp(Math.max(xFrac, track.loopStart + MIN_WIDTH), MIN_WIDTH, 1);
+    } else if (track.dragMode === "move") {
+      const width = track.loopEnd - track.loopStart;
+      const newStart = clamp(xFrac - track.dragOffset, 0, 1 - width);
+      track.loopStart = newStart; track.loopEnd = newStart + width;
+    } else if (track.dragMode === "create") {
+      if (xFrac < track.loopStart) { track.loopEnd = track.loopStart; track.loopStart = xFrac; }
+      else { track.loopEnd = Math.max(xFrac, track.loopStart + 0.005); }
+    }
+    track.position = clamp(track.position, track.loopStart, track.loopEnd);
+    track.targetPosition = track.position;
+    drawMiniWave(track, canvas);
+  }
+
+  function pointerUp() { tracks[idx].dragMode = null; }
+
+  canvas.addEventListener("pointerdown", pointerDown);
+  window.addEventListener("pointermove", pointerMove);
+  window.addEventListener("pointerup", pointerUp);
+}
+document.querySelectorAll(".mini-wave").forEach(wireMiniWave);
+
+/* ---------------- channel controls ---------------- */
+
+function wireChannelControls() {
+  document.querySelectorAll(".btn-mute").forEach((btn) => {
+    const idx = parseInt(btn.dataset.index, 10);
+    btn.addEventListener("click", () => {
+      const track = tracks[idx];
+      track.muted = !track.muted;
+      btn.classList.toggle("is-muted", track.muted);
+      applyLevel(track);
+      drawField();
+    });
+  });
+
+  document.querySelectorAll(".btn-drift").forEach((btn) => {
+    const idx = parseInt(btn.dataset.index, 10);
+    btn.addEventListener("click", () => {
+      const track = tracks[idx];
+      track.drift = !track.drift;
+      btn.classList.toggle("is-active", track.drift);
+      if (track.drift) track.nextDriftAt = audioCtx ? audioCtx.currentTime : 0;
+    });
+  });
+
+  document.querySelectorAll(".btn-rand-range").forEach((btn) => {
+    const idx = parseInt(btn.dataset.index, 10);
+    btn.addEventListener("click", () => {
+      const track = tracks[idx];
+      if (!track.buffer) return;
+      const width = 0.05 + Math.random() * 0.35;
+      const start = Math.random() * (1 - width);
+      track.loopStart = start;
+      track.loopEnd = start + width;
+      track.position = clamp(track.position, start, start + width);
+      track.targetPosition = track.position;
+      const canvas = document.querySelector('.mini-wave[data-index="' + idx + '"]');
+      drawMiniWave(track, canvas);
+    });
+  });
+
+  document.querySelectorAll(".btn-rand-space").forEach((btn) => {
+    const idx = parseInt(btn.dataset.index, 10);
+    btn.addEventListener("click", () => {
+      ensureAudioContext();
+      const track = tracks[idx];
+      const now = audioCtx.currentTime;
+      track.drift = true;
+      setTrackDrift(idx, true);
+      track.targetPan = clamp((Math.random() * 2 - 1) * 0.9, -0.95, 0.95);
+      track.targetDepth = clamp(0.05 + Math.random() * 0.9, 0.05, 0.95);
+      track.nextDriftAt = now + 4 + Math.random() * 6;
+    });
+  });
+
+  document.querySelectorAll(".trackfx-btn").forEach((btn) => {
+    const idx = parseInt(btn.dataset.index, 10);
+    const key = btn.dataset.key;
+    btn.addEventListener("click", () => {
+      ensureAudioContext();
+      const track = tracks[idx];
+      track.fx[key] = !track.fx[key];
+      btn.classList.toggle("is-active", track.fx[key]);
+      if (key === "filter") applyTrackFilterFx(track);
+      else if (key === "crush") applyTrackCrushFx(track);
+      else if (key === "echo") applyTrackEchoFx(track);
+      else if (key === "reverb") applyTrackReverbFx(track);
+    });
+  });
+
+  document.querySelectorAll(".p-volume").forEach((input) => {
+    const idx = parseInt(input.dataset.index, 10);
+    input.addEventListener("input", () => {
+      const v = parseFloat(input.value);
+      tracks[idx].volume = v;
+      document.querySelector('.v-volume[data-index="' + idx + '"]').textContent = Math.round(v * 100) + "%";
+      applyLevel(tracks[idx]);
+    });
+  });
+
+  document.querySelectorAll(".p-texture").forEach((input) => {
+    const idx = parseInt(input.dataset.index, 10);
+    input.addEventListener("input", () => {
+      const v = parseFloat(input.value);
+      tracks[idx].texture = v;
+      document.querySelector('.v-texture[data-index="' + idx + '"]').textContent = Math.round(v * 100) + "%";
+    });
+  });
+
+  document.querySelectorAll(".p-glitch").forEach((input) => {
+    const idx = parseInt(input.dataset.index, 10);
+    input.addEventListener("input", () => {
+      const v = parseFloat(input.value);
+      const track = tracks[idx];
+      track.glitch = v;
+      document.querySelector('.v-glitch[data-index="' + idx + '"]').textContent = Math.round(v * 100) + "%";
+      if (track.nodes) track.nodes.crushShaper.curve = buildCrushCurve(v);
+    });
+  });
+}
+wireChannelControls();
+
+/* ---------------- master ---------------- */
+
+document.getElementById("btnMasterPlay").addEventListener("click", () => { masterPlaying ? stopMaster() : startMaster(); });
+
+document.getElementById("btnShuffle").addEventListener("click", () => {
+  ensureAudioContext();
+  const now = audioCtx.currentTime;
+  tracks.forEach((t, idx) => {
+    if (!t.drift) return;
+    t.targetPan = clamp((Math.random() * 2 - 1) * 0.85, -0.95, 0.95);
+    t.targetDepth = clamp(0.1 + Math.random() * 0.8, 0.05, 0.95);
+    t.targetPosition = clamp(t.loopStart + Math.random() * (t.loopEnd - t.loopStart), t.loopStart, t.loopEnd);
+    t.nextDriftAt = now + 4 + Math.random() * 6;
+  });
+});
+
+/* ---------------- init ---------------- */
+
+drawField();
+drawAllMiniWaves();
+</script>
+
+</body></html>

@@ -1,0 +1,2563 @@
+<!doctype html><html><head><!-- frame-runtime --><script>window.__FRAME_PREAMBLE={"v":1,"capabilities":{"artifact":"artifact.DF6_9MzE.js","assets":"assets.8Gk803W0.js","comments":"comments.vw5vQdGA.js","db":"db.h-3sndFg.js","downloads":"downloads.C3GSvEDP.js","embed":"embed.CxGAyc-v.js","mcp":"mcp.Bvma3qD7.js","network":"network.B5UA9Su4.js","notifications":"notifications.ssU4jy7G.js","permissions":"permissions.BNySkLV5.js","room":"room.BMMoe2BY.js","sample":"sample.BW2Uysoh.js","self":"artifact.DF6_9MzE.js","user":"user.BpKav-Rf.js"},"transforms":"_transforms.DSB5x63f.js","comments":"_comments.C6E0cR5g.js","translate":"_translate.5HCW4BJh.js"}</script><script>(function(){"use strict";var te=["light","dark","system"],re=/^[A-Za-z0-9_-]{1,64}$/,$=/^[a-zA-Z_:][a-zA-Z0-9_:.-]{0,127}$/,ne=new Set(["class","hidden","value","checked","style","title","alt","placeholder","lang","dir","role","tabindex","disabled","readonly","contenteditable","open","colspan","rowspan"]);function oe(e){const t=e.toLowerCase();return t.startsWith("data-")||t.startsWith("aria-")||ne.has(t)}var Be="http://www.w3.org/1999/xhtml",se="http://www.w3.org/2000/svg",ae=new Set(["script","style","iframe","noscript","noframes","noembed","xmp","plaintext","template","title","textarea","object","embed"]),ie=new Set(["script","style"]);function ce(e){const t=e.localName.toLowerCase();return e.namespaceURI==="http://www.w3.org/1999/xhtml"?!ae.has(t):e.namespaceURI===se?!ie.has(t):!1}function M(e,t){return e===t||(e===160||e===32)&&(t===160||t===32)}function le(e,t){const r=e.length,n=t.length;let s=0;for(;s<r&&s<n&&M(e.charCodeAt(s),t.charCodeAt(s));)s++;let o=0;for(;o<r-s&&o<n-s&&M(e.charCodeAt(r-1-o),t.charCodeAt(n-1-o));)o++;return{p:s,s:o}}function ue(e,t){const r=e.firstChild;if(e.childNodes.length!==1||r===null||r.nodeType!==Node.TEXT_NODE){e.textContent=t;return}const n=r.data,s=n.length,o=t.length,{p:i,s:c}=le(n,t);i===s&&c===0&&s===o||r.replaceData(i,s-i-c,t.slice(i,o-c));const h=r.data,p=e.ownerDocument.getSelection?.()??null,w=p!==null&&p.rangeCount>0&&(p.anchorNode===r||p.focusNode===r)?{anchor:p.anchorNode,anchorOffset:p.anchorOffset,focus:p.focusNode,focusOffset:p.focusOffset}:null;let m=-1,g=-1;for(let f=0;f<h.length&&f<t.length;f++){const v=h.charCodeAt(f),b=t.charCodeAt(f);v!==b&&M(v,b)&&(m<0&&(m=f),g=f)}const a=m>=0;if(a&&r.replaceData(m,g-m+1,t.slice(m,g+1)),a&&w!==null&&w.anchor!==null&&w.focus!==null)try{p.setBaseAndExtent(w.anchor,w.anchorOffset,w.focus,w.focusOffset)}catch{}}var fe=new Set(["html","head","body","frameset"]);function de(e){return e.namespaceURI==="http://www.w3.org/1999/xhtml"&&fe.has(e.localName)}function pe(e){if(e===null||typeof e!="object")return!1;const t=e;if(typeof t.target!="string"||!re.test(t.target)||t.text!==void 0&&typeof t.text!="string")return!1;if(t.attrsSet!==void 0){if(t.attrsSet===null||typeof t.attrsSet!="object")return!1;for(const[r,n]of Object.entries(t.attrsSet))if(!$.test(r)||typeof n!="string")return!1}if(t.attrsRemoved!==void 0){if(!Array.isArray(t.attrsRemoved))return!1;for(const r of t.attrsRemoved)if(typeof r!="string"||!$.test(r))return!1}return!0}function me(e,t){if(e===null||typeof e!="object")return!1;const{seq:r,elements:n}=e;if(typeof r!="number"||!Number.isSafeInteger(r)||!Array.isArray(n)||n.length===0||n.length>64)return!1;for(let s=0;s<n.length;s++)if(!t(n[s]))return!1;return!0}function he(e){return e===null||typeof e!="object"?!1:me(e.__frame_patch,pe)}function _e(e){if(e===null||typeof e!="object")return!1;const t=e.__frame_init;return t!==null&&typeof t=="object"}function ve(e){return e!==null&&typeof e=="object"&&e.__frame_size_poke===!0}function ye(e){if(e===null||typeof e!="object")return!1;const t=e.__frame_theme;if(t===null||typeof t!="object")return!1;const r=t.theme;return typeof r=="string"&&te.includes(r)}var A=/^[\w.-]+\.js$/;function we(e,t,r){return r?"inert":typeof t=="string"&&A.test(t)?e?[t]:"inert":e?"inert":"framed"}function ge(){return{post(e,t){parent.postMessage(e,t)},on(e){const t=r=>{r.source===parent&&e(r.data,r.origin,r.isTrusted)};return addEventListener("message",t),()=>removeEventListener("message",t)}}}function be(){return{post:()=>{},on:()=>()=>{}}}var j="__frame_scroll",Ee=150,Ae=310,Se=160,Te=3e4;function ke(){let e=0,t=!1,r=!1,n=!1,s=0,o=null;const i=l=>{try{sessionStorage.setItem(j,JSON.stringify({y:l}))}catch{}},c=()=>{if(clearTimeout(e),o===null)return;const l=o;o=null,i(l)},h=()=>{if(t){t=!1;return}r=!0,o=scrollY,clearTimeout(e),e=setTimeout(c,Ee)};try{addEventListener("scroll",h,{passive:!0}),addEventListener("pagehide",c)}catch{}const p=()=>{let l;try{l=sessionStorage.getItem(j)}catch{return null}if(l===null)return null;let _;try{_=JSON.parse(l)}catch{_=null}const d=_?.y;if(!(typeof d=="number"&&Number.isFinite(d)&&d>=0)){try{sessionStorage.removeItem(j)}catch{}return null}return d};let w=!1;const m=l=>{try{const _=scrollY;scrollTo({top:l,left:0,behavior:"instant"}),s=l,n=!0,clearTimeout(e),o=null,i(l);const d=scrollY;d!==_&&(t=!0),d!==l&&!w&&(w=!0,addEventListener("load",()=>{try{if(scrollY===d){const T=p();m(T!==null?T:s)}}catch{}},{once:!0}))}catch{}},g=()=>{try{return!!location.hash}catch{return!0}};let a=!1;const f=()=>{try{if(a||innerWidth>Ae||innerHeight>Se)return;a=!0;const l=Date.now(),_=()=>{try{removeEventListener("resize",_)}catch{}if(Date.now()-l>Te||r||g())return;const d=p();m(d!==null?d:s)};addEventListener("resize",_)}catch{}};let v=!1,b=!1;return{restore(){if(v||(v=!0,g()))return;const l=p();l!==null&&(m(l),f())},promoted(){if(b||(b=!0,g()))return;const l=p();l!==null?(m(l),f()):n&&m(s)}}}function Re(e,t,r,n){let s=null;try{s=window.trustedTypes?.createPolicy("frame-runtime",{createScriptURL:h=>h})??null}catch{}const o=window.Worker,i=o?.prototype,c=Object.freeze({Worker:o,workerOn:i?.addEventListener,workerPost:i?.postMessage,workerTerminate:i?.terminate,fetch:window.fetch.bind(window),preventDefault:Event.prototype.preventDefault,policy:s,origins:t});r(e).then(h=>h?.bootTopLevel?h.bootTopLevel(c,n):n.settle()).catch(()=>n.settle())}var De="modulepreload",Ie=function(e){return"/"+e},Ue={},Le=function(t,r,n){let s=Promise.resolve();function o(i){const c=new Event("vite:preloadError",{cancelable:!0});if(c.payload=i,window.dispatchEvent(c),!c.defaultPrevented)throw i}return s.then(i=>{for(const c of i||[])c.status==="rejected"&&o(c.reason);return t().catch(o)})},Oe=window===top,q=Object.getOwnPropertyDescriptor(window,"claude"),k=we(Oe,window.__FRAME_PREAMBLE?.topLevel,q?.writable===!1),N=typeof k=="object"&&k[0],y=N?be():ge();(function(){const e=Object.defineProperty,t=globalThis,r=["RTCPeerConnection","webkitRTCPeerConnection","RTCDataChannel","RTCIceCandidate","RTCSessionDescription","RTCRtpSender","RTCRtpReceiver"];let n=0;for(let s=0;s<r.length;s++){const o=r[s];try{e(t,o,{value:void 0,writable:!1,configurable:!1})}catch{try{delete t[o]}catch{}try{e(t,o,{value:void 0,writable:!1,configurable:!0})}catch{}}typeof t[o]=="function"&&n++}if(n&&k==="framed")try{y.post({__frame_rtc_lockdown_failed:n},"*")}catch{}})();var Pe=1e4,Y=Object.freeze([...window.__FRAME_PREAMBLE?.origins??["https://claude.ai","https://preview.claude.ai"]]);function X(e){for(const t of Y)if(t.endsWith(":*"))try{const r=new URL(e);if(`${r.protocol}//${r.hostname}:*`===t)return!0}catch{}else if(e===t)return!0;return!1}var R=Object.freeze({...window.__FRAME_PREAMBLE?.capabilities}),B=window.__FRAME_PREAMBLE?.transforms,D=window.__FRAME_PREAMBLE?.comments,I=window.__FRAME_PREAMBLE?.translate;function S(e){return Le(()=>import("/_runtime/"+e),void 0)}function G(e,t){return{contract:e.contract,changes:new Set(e.changes??[]),flags:new Set(e.flags??[]),capabilities:e.capabilities??{},capBudgets:e.capBudgets??{},transforms:new Map,shellOrigin:t,mount:x,hooks:O,pipe:()=>({wrap:(r,n)=>(...s)=>{try{return n(...s)}catch(o){return Promise.reject(o)}}})}}var L=null,E=null;function V(e,t,r){try{Object.defineProperty(e,t,{value:r,writable:!1,configurable:!1,enumerable:!0})}catch{try{Object.defineProperty(e,t,{value:r,writable:!1,configurable:!0,enumerable:!0})}catch{}}}var U=!1,O={editBefore:null,edit:null};function Ce(e,t,r=!1){const n=[];let s;if(r)try{O.editBefore?.(e)}catch{}for(const o of e.elements){const i=document.querySelector(`[data-id="${o.target}"]`);if(!i){s=o.target;break}if([...Object.keys(o.attrsSet??{}),...o.attrsRemoved??[]].some(c=>!oe(c))){s=o.target;break}if(o.text!==void 0&&(!ce(i)||de(i))){s=o.target;break}for(const[c,h]of Object.entries(o.attrsSet??{}))if(!J(i,c)){try{i.setAttribute(c,h)}catch{}Z(i,c,h)}for(const c of o.attrsRemoved??[])J(i,c)||(i.removeAttribute(c),Z(i,c,null));typeof o.text=="string"&&ue(i,o.text),n.push(o.target)}if(r)try{O.edit?.(e.seq,n,s)}catch{}if(s!==void 0){y.post({__frame_patch_miss:{seq:e.seq}},t);return}try{document.dispatchEvent(new CustomEvent("claude:edit",{detail:{seq:e.seq,targets:n}}))}catch{}}function Z(e,t,r){if(!(e instanceof HTMLInputElement))return;const n=t.toLowerCase();n==="checked"?e.checked=r!==null:n==="value"&&e.type!=="file"&&(e.value=r??"")}function J(e,t){const r=t.toLowerCase(),n=e;return r==="data-id"||(r==="value"||r==="checked")&&(n.__artifactSecret===!0||/^(password|hidden|file)$/.test(n.type??"")||/(^|\s)(cc-|one-time-code|current-password|new-password)/i.test(`${e.getAttribute("autocomplete")??""} ${n.autocomplete??""}`))}function Q(e){const t=document.documentElement;e==="light"||e==="dark"?(t.dataset.theme=e,t.style.colorScheme=e,U=!0):U&&(delete t.dataset.theme,t.style.colorScheme="",U=!1)}var P=new Map;function Me(){let e;const t={u:new Promise(r=>{e=r}),r:r=>{t.done=!0,e(r)},done:!1,nulled:!1};return t}function F(){for(const e of P.values())e.done||(e.nulled=!0,e.r(null))}var je=Object.freeze(Object.assign(Object.create(null),{call:Function.prototype.call,apply:Function.prototype.apply,bind:Function.prototype.bind})),x=(e,t)=>{const r=P.get(e);if(!r||r.done){r?.nulled&&E&&y.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:e}},E);return}const n=typeof t=="function"?Object.setPrototypeOf(t,je):Object.assign(Object.create(null),t);typeof n.then=="function"&&delete n.then,r.r(Object.freeze(n))};function ee(){const e=q?.value??{};V(window,"claude",e);for(const t of Object.keys(R)){if(e[t]!==void 0){V(e,t,e[t]);continue}P.set(t,Me())}if(e.use===void 0){const t=r=>{if(typeof r!="string"||!Object.hasOwn(R,r))return Promise.resolve(null);const n=P.get(r);return n?n.u:Promise.resolve(e[r]??null)};try{Object.defineProperty(e,"use",{value:t,writable:!0,configurable:!0,enumerable:!1})}catch{}}}if(k==="framed"){const e=B&&A.test(B)?S(B).catch(()=>{}):Promise.resolve(void 0),t=a=>{if(a.type==="auxclick"&&a.button!==1)return;const f=a.target,v=f&&f.closest?f.closest("a[href],area[href]"):null;if(!v)return;const b=v.getAttribute("href");if(!b)return;let l;try{l=new URL(b,document.baseURI)}catch{return}if((l.protocol==="http:"||l.protocol==="https:")&&l.origin!==location.origin){a.preventDefault();const _=(v.getAttribute("target")??"").toLowerCase(),d=a.type==="auxclick"||a.metaKey||a.ctrlKey||a.shiftKey||a.altKey||!["","_self","_top","_parent"].includes(_);y.post({__frame_nav:!0,url:l.href,newTab:d},"*")}};addEventListener("click",t,!0),addEventListener("auxclick",t,!0);const r={},n=a=>{a.isTrusted&&(r.pointer=!0)},s=a=>{a.isTrusted&&(r.click=!0)};addEventListener("pointermove",n,{capture:!0,passive:!0}),addEventListener("click",s,{capture:!0,passive:!0}),e.then(a=>{a?.wireNav&&(a.wireNav(),removeEventListener("click",t,!0),removeEventListener("auxclick",t,!0),removeEventListener("pointermove",n,!0),removeEventListener("click",s,!0),a.wireEngagement?.(r))});let o=null;try{o=ke()}catch{}ee();let i=null,c=null,h=0;const p=y.on((a,f)=>{X(f)&&_e(a)&&(i=a.__frame_init,E=f,p(),clearTimeout(h),c?.())});y.post({__frame_connect:!0},"*");const w=new Promise(a=>{c=a,h=setTimeout(()=>{p(),a()},Pe)}),m=document.readyState==="loading"?new Promise(a=>document.addEventListener("DOMContentLoaded",()=>a(),{once:!0})):Promise.resolve();m.then(()=>{try{o?.restore()}catch{}});const g={cb:null};y.on((a,f)=>{if(X(f)&&ve(a)){try{o?.promoted()}catch{}g.cb?.()}}),w.then(async()=>{if(!i||!E){F();return}Q(i.theme);const a=E;let f=!1,v=!1;y.on((u,z,C)=>{if(z!==a)return;ye(u)&&Q(u.__frame_theme.theme),he(u)&&Ce(u.__frame_patch,a,C);const H=u?.__fc_mode;H&&typeof H=="object"&&!f&&D&&A.test(D)&&(f=!0,S(D).then(K=>K.install?.(a,H.on===!0)).catch(()=>{}));const W=u?.__ft_cmd;W&&typeof W=="object"&&!v&&I&&A.test(I)&&(v=!0,S(I).then(K=>K.install?.(a,W)).catch(()=>{}))});const b=Object.keys(i.capabilities??{}).filter(u=>Object.hasOwn(R,u)).map(u=>[u,R[u]]).filter(u=>typeof u[1]=="string"&&A.test(u[1])),l=await Promise.allSettled(b.map(([,u])=>S(u))),_=await e,d=E;if(_?.buildBoot||y.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:"_transforms"}},d),_?.buildBoot)try{L=_.buildBoot(i,_.TRANSFORMS??{},{shellOrigin:d,mount:x,hooks:O},u=>y.post({__frame_cap_telemetry:u},d))}catch{y.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:"_transforms"}},d),L=G(i,d)}else L=G(i,d);const T=u=>y.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:u}},d),Ne=L;l.forEach((u,z)=>{const C=b[z][0];if(u.status!=="fulfilled"){T(C);return}try{u.value?.install?.(Ne)}catch{T(C)}}),F(),await m,y.post({__frame_ready:!0},E),e.then(u=>u?.installSizeReporter?.(d,g))})}else N&&(ee(),Re(N,Y,S,{settle:F,mount:x}))})();</script><!-- /frame-runtime --><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found]){display:none!important}</style></head><body>
+<meta charset="UTF-8" />
+<title>CIRCUIT CHOP</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" />
+<style>
+:root {
+  --bg: #0a0b0f;
+  --panel: #13161c;
+  --panel2: #191d25;
+  --line: #262b35;
+  --ink: #e9ecf1;
+  --ink-dim: #838da0;
+  --accent: #45d9bd;
+  --accent2: #ff7a5c;
+  --accent3: #b78bff;
+  --accent4: #ffc65c;
+  --accent5: #4fb8ff;
+  --accent6: #ff5fa2;
+  --accent7: #9be564;
+  --mod: #f042ff;
+  --danger: #ff5d72;
+  --font-mono: "IBM Plex Mono", "Noto Sans JP", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-jp: "Noto Sans JP", "Hiragino Sans", "Yu Gothic", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 15px;
+}
+
+* { box-sizing: border-box; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; }
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  color: var(--ink);
+  font-family: var(--font-jp);
+}
+
+body {
+  background:
+    radial-gradient(1100px 560px at 12% -8%, rgba(69, 217, 189, 0.06), transparent 60%),
+    radial-gradient(900px 520px at 102% 6%, rgba(255, 122, 92, 0.045), transparent 55%),
+    radial-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px) 0 0 / 22px 22px,
+    var(--bg);
+  background-attachment: fixed;
+}
+
+button {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.03em;
+  padding: 0.5rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s, transform 0.1s, box-shadow 0.2s;
+}
+button:hover { border-color: var(--accent); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:active { transform: translateY(1px); }
+button.ghostBtn { background: transparent; color: var(--ink-dim); }
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 3px;
+  background: var(--line);
+  border-radius: 999px;
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 11px; height: 11px; border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(69, 217, 189, 0.65);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 11px; height: 11px; border: none; border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+}
+input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+select, input[type="number"] {
+  font-family: var(--font-mono);
+  background: var(--panel2);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.3rem 0.4rem;
+  font-size: 0.75rem;
+}
+select:focus-visible, input[type="number"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* ---- topbar ---- */
+
+.topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1.4rem;
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  background: rgba(10, 11, 15, 0.88);
+  backdrop-filter: blur(8px);
+  z-index: 20;
+}
+
+.topbar h1 {
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+}
+.led {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px 1px rgba(69, 217, 189, 0.9);
+  align-self: center;
+  animation: ledPulse 2.6s ease-in-out infinite;
+  flex: none;
+}
+@keyframes ledPulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 6px 1px rgba(69, 217, 189, 0.9); }
+  50% { opacity: 0.55; box-shadow: 0 0 3px 0px rgba(69, 217, 189, 0.5); }
+}
+.topbar h1 .sub {
+  display: block;
+  font-family: var(--font-jp);
+  font-size: 0.68rem;
+  font-weight: 400;
+  color: var(--ink-dim);
+  margin-top: 0.15rem;
+  letter-spacing: 0.02em;
+}
+
+.transport {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.playBtn {
+  background: rgba(69, 217, 189, 0.14);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+.playBtn.playing {
+  background: rgba(255, 122, 92, 0.14);
+  border-color: var(--accent2);
+  color: var(--accent2);
+}
+
+.bpmField, .mixField {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--ink-dim);
+  letter-spacing: 0.04em;
+}
+.bpmField input { width: 4rem; font-variant-numeric: tabular-nums; }
+.mixField input { width: 7rem; }
+
+.meter {
+  width: 5rem;
+  height: 6px;
+  background: var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.meterBar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent), var(--accent4));
+  transition: width 0.05s linear;
+}
+
+main {
+  padding: 1.2rem 1.4rem 3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.6rem;
+  max-width: 1500px;
+  margin: 0 auto;
+}
+
+/* ---- slots ---- */
+
+.slots {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(260px, 1fr));
+  gap: 0.9rem;
+}
+@media (max-width: 1100px) {
+  .slots { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 620px) {
+  .slots { grid-template-columns: 1fr; }
+}
+
+@keyframes bootIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.slot {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  animation: bootIn 0.5s ease-out both;
+}
+.slot:nth-child(1) { animation-delay: 0.02s; }
+.slot:nth-child(2) { animation-delay: 0.08s; }
+.slot:nth-child(3) { animation-delay: 0.14s; }
+.slot:nth-child(4) { animation-delay: 0.2s; }
+
+.slot-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+.slot-name {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.slot-color-dot {
+  display: inline-block;
+  width: 8px; height: 8px; border-radius: 50%;
+  margin-right: 0.4rem;
+  vertical-align: middle;
+}
+.slot-file {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  color: var(--ink-dim);
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.slot-loadrow {
+  display: flex;
+  gap: 0.4rem;
+}
+.slot-loadrow button { flex: 1; padding: 0.4rem 0.3rem; font-size: 0.68rem; }
+
+.wave-wrap {
+  position: relative;
+  height: 84px;
+  background: #08090c;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: crosshair;
+  transition: border-color 0.15s, background 0.15s;
+}
+.wave-wrap.wave-dragover {
+  border-color: var(--accent);
+  background: rgba(69, 217, 189, 0.08);
+}
+.wave-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.wave-region {
+  position: absolute;
+  top: 0; bottom: 0;
+  background: rgba(69, 217, 189, 0.14);
+  border-left: 2px solid var(--accent);
+  border-right: 2px solid var(--accent);
+  pointer-events: none;
+}
+.wave-playhead {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 2px;
+  background: var(--accent2);
+  pointer-events: none;
+  opacity: 0;
+}
+.wave-empty {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  text-align: center;
+  line-height: 1.6;
+  color: var(--ink-dim);
+  font-family: var(--font-jp);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+}
+
+.engine-block {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.45rem 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.engine-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.engine-head label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+.engine-head .tag {
+  font-family: var(--font-jp);
+  font-size: 0.6rem;
+  color: var(--ink-dim);
+  letter-spacing: 0.04em;
+}
+.engine-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.4rem 0.6rem;
+}
+.param {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-family: var(--font-jp);
+  font-size: 0.62rem;
+  color: var(--ink-dim);
+  letter-spacing: 0.03em;
+}
+.param select, .param input[type=number] { width: 100%; }
+.param .valnum { color: var(--ink); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+.mixer-strip {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0.6rem;
+}
+.mixer-strip .param { align-items: stretch; }
+
+.triggerRow {
+  display: flex;
+  gap: 0.4rem;
+}
+.triggerRow button { flex: 1; font-size: 0.68rem; }
+
+/* ---- patch bay ---- */
+
+.patchSection {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  animation: bootIn 0.5s ease-out both;
+  animation-delay: 0.26s;
+}
+.patchToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+.patchTitle {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.patchTitle .sub {
+  font-family: var(--font-jp);
+  font-weight: 400;
+  color: var(--ink-dim);
+  font-size: 0.66rem;
+  margin-left: 0.6em;
+}
+.addButtons { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.addButtons button[data-add="glitch"] { border-color: var(--accent); color: var(--accent); }
+.addButtons button[data-add="filter"] { border-color: var(--accent3); color: var(--accent3); }
+.addButtons button[data-add="crush"] { border-color: var(--accent4); color: var(--accent4); }
+.addButtons button[data-add="delay"] { border-color: var(--accent2); color: var(--accent2); }
+.addButtons button[data-add="reverb"] { border-color: var(--accent5); color: var(--accent5); }
+.addButtons button[data-add="pitch"] { border-color: var(--accent6); color: var(--accent6); }
+.addButtons button[data-add="gate"] { border-color: var(--accent7); color: var(--accent7); }
+.addButtons button[data-add="mod"] { border-color: var(--mod); color: var(--mod); }
+
+.randomBtn:hover { border-color: var(--accent4); color: var(--accent4); }
+.chaosBtn.active {
+  background: rgba(240, 66, 255, 0.16);
+  border-color: var(--mod);
+  color: var(--mod);
+  animation: chaosPulse 1.1s ease-in-out infinite;
+}
+@keyframes chaosPulse {
+  0%, 100% { box-shadow: 0 0 0 rgba(240, 66, 255, 0); }
+  50% { box-shadow: 0 0 10px rgba(240, 66, 255, 0.55); }
+}
+
+.patchViewport {
+  position: relative;
+  width: 100%;
+  height: 560px;
+  overflow: auto;
+  background:
+    linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px) 0 0 / 24px 24px,
+    #08090c;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.patchCanvas {
+  position: relative;
+  width: 1600px;
+  height: 900px;
+}
+.cableLayer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+.cableLayer path.cable {
+  fill: none;
+  stroke-width: 2.5;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+.cableLayer path.cable-drag {
+  fill: none;
+  stroke: var(--ink-dim);
+  stroke-width: 2;
+  stroke-dasharray: 4 3;
+}
+.cableLayer path.cable-mod {
+  stroke-dasharray: 5 4;
+  opacity: 0.85;
+}
+.cableDelete {
+  pointer-events: all;
+  cursor: pointer;
+}
+.cableDelete circle { fill: #1c2028; stroke: var(--danger); stroke-width: 1.4; }
+.cableDelete text { fill: var(--danger); font-size: 10px; text-anchor: middle; dominant-baseline: central; }
+
+.pbox {
+  position: absolute;
+  width: 190px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+  user-select: none;
+}
+.pbox.source { width: 130px; }
+.pbox.master { width: 150px; border-color: var(--accent); }
+
+.pbox-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 0.55rem;
+  border-bottom: 1px solid var(--line);
+  cursor: grab;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+}
+.pbox-head .remove {
+  cursor: pointer;
+  color: var(--ink-dim);
+  font-size: 0.75rem;
+  line-height: 1;
+}
+.pbox-head .remove:hover { color: var(--danger); }
+
+.pbox-body {
+  padding: 0.5rem 0.55rem 0.65rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.pbox .param { font-size: 0.6rem; }
+
+.port {
+  position: absolute;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: #08090c;
+  border: 2px solid var(--ink-dim);
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: crosshair;
+  z-index: 2;
+}
+.port.out { right: -8px; }
+.port.in { left: -8px; }
+.port:hover, .port.active { border-color: var(--accent); box-shadow: 0 0 8px rgba(69,217,189,0.7); }
+
+.port.modin, .port.modout {
+  width: 13px; height: 13px;
+  border-radius: 2px;
+  border: 2px solid var(--mod);
+  top: auto; bottom: -7px; left: 50%; right: auto;
+  transform: translateX(-50%) rotate(45deg);
+}
+.port.modin:hover, .port.modout:hover, .port.modin.active, .port.modout.active {
+  border-color: var(--mod);
+  box-shadow: 0 0 8px rgba(240,66,255,0.75);
+}
+
+.pbox.type-glitch .pbox-head { color: var(--accent); }
+.pbox.type-filter .pbox-head { color: var(--accent3); }
+.pbox.type-crush .pbox-head { color: var(--accent4); }
+.pbox.type-delay .pbox-head { color: var(--accent2); }
+.pbox.type-reverb .pbox-head { color: var(--accent5); }
+.pbox.type-pitch .pbox-head { color: var(--accent6); }
+.pbox.type-gate .pbox-head { color: var(--accent7); }
+.pbox.type-mod .pbox-head { color: var(--mod); }
+.pbox.type-mod { border-color: rgba(240,66,255,0.35); }
+.pbox.source .pbox-head { color: var(--ink); background: rgba(255,255,255,0.03); }
+.pbox.master .pbox-head { color: var(--accent); background: rgba(69,217,189,0.08); }
+
+.param.modulating .valnum { color: var(--mod); }
+.param.modulating input[type="range"] {
+  background: linear-gradient(90deg, rgba(240,66,255,0.4), rgba(240,66,255,0.08));
+}
+.param.modulating input[type="range"]::-webkit-slider-thumb {
+  background: var(--mod);
+  box-shadow: 0 0 8px rgba(240,66,255,0.85);
+}
+.param.modulating input[type="range"]::-moz-range-thumb { background: var(--mod); }
+
+.hint {
+  color: var(--ink-dim);
+  font-family: var(--font-jp);
+  font-size: 0.68rem;
+  letter-spacing: 0.02em;
+  margin: 0;
+}
+</style>
+
+<header class="topbar">
+  <h1><span class="led" aria-hidden="true"></span>CIRCUIT CHOP <span class="sub">4スロット・モジュラー・ドラムサンプルミキサー</span></h1>
+  <div class="transport">
+    <button id="playBtn" class="playBtn">▶ 再生</button>
+    <label class="bpmField">
+      <span>BPM</span>
+      <input id="bpm" type="number" min="40" max="220" value="120" />
+    </label>
+    <label class="mixField">
+      <span>MASTER</span>
+      <input id="masterVol" type="range" min="0" max="1" step="0.01" value="0.85" />
+    </label>
+    <div class="meter"><div id="meterBar" class="meterBar"></div></div>
+  </div>
+</header>
+
+<main>
+  <section id="slots" class="slots"></section>
+
+  <section class="patchSection">
+    <div class="patchToolbar">
+      <span class="patchTitle">PATCH BAY <span class="sub">中継ボックスをつないで回路を組む</span></span>
+      <div class="addButtons">
+        <button data-add="glitch">+ GLITCH</button>
+        <button data-add="filter">+ FILTER</button>
+        <button data-add="crush">+ CRUSH</button>
+        <button data-add="delay">+ DELAY</button>
+        <button data-add="reverb">+ REVERB</button>
+        <button data-add="pitch">+ PITCH</button>
+        <button data-add="gate">+ GATE</button>
+        <button data-add="mod">+ MOD</button>
+        <button id="clearPatchBtn" class="ghostBtn">配線リセット</button>
+        <button id="randomPatchBtn" class="ghostBtn randomBtn" title="配線を丸ごとランダムに組み替える">🎲 配線ガチャ</button>
+        <button id="chaosBtn" class="ghostBtn chaosBtn" title="あらゆるつまみを自動でランダムに動かし続ける">🌀 暴走モード</button>
+      </div>
+    </div>
+    <div id="patchViewport" class="patchViewport">
+      <div id="patchCanvas" class="patchCanvas">
+        <svg id="cableLayer" class="cableLayer"></svg>
+      </div>
+    </div>
+    <p class="hint">出力ポート（右の丸）をドラッグして、別のボックスの入力ポート（左の丸）へつなげます。ケーブル中央の×で切断。SLOT はそれぞれの出力、MASTER が最終出力です。ひし形（MOD）ポートは制御信号用 — MOD ボックスの出力を、対応するひし形の入力ポートを持つボックスの主要パラメータへつなぐと、その値が自動でゆっくり揺らぎ続けます。</p>
+  </section>
+</main>
+
+<script type="text/plain" id="glitch-worklet-src">
+// GlitchProcessor — a Pure-Data-style live re-slicer.
+//
+// It continuously records its input into a rolling ring buffer, and on
+// every step of an internal clock decides where to read from next,
+// according to `mode`:
+//   through  - plain pass-through (bypass)
+//   chop     - retrigger the most recent window at the start of every step
+//              (classic gated buffer-chop)
+//   stutter  - latch one short window and repeat it, occasionally
+//              relatching to a newer window
+//   random   - jump to a random point in recent history each step,
+//              forward or backward
+//   reverse  - replay the most recent window backwards
+//   freeze   - grab one grain once and loop it until the mode changes
+//
+// Params (sent via port.postMessage({...})): mode, stepSec, gate (0..1
+// audible fraction of the step), probability (0..1 chance a step plays
+// at all), jitter (0..1 randomises the read start point), mix (0..1
+// dry/wet).
+
+const MAX_SECONDS = 2.5;
+const FADE_SAMPLES = 48;
+
+class GlitchProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.bufLen = Math.ceil(sampleRate * MAX_SECONDS);
+    this.ring = [new Float32Array(this.bufLen), new Float32Array(this.bufLen)];
+    this.clock = 0;
+    this.stepSamples = Math.round(sampleRate * 0.125);
+    this.currentStepIndex = -1;
+    this.sliceStart = 0;
+    this.direction = 1;
+    this.stepAudible = true;
+    this.latchOffset = 0;
+    this.hasLatched = false;
+
+    this.params = {
+      mode: "through",
+      gate: 0.85,
+      probability: 1,
+      jitter: 0,
+      mix: 1,
+    };
+    this.prevMode = "through";
+
+    this.port.onmessage = (e) => {
+      const msg = e.data || {};
+      if (typeof msg.stepSec === "number" && msg.stepSec > 0.002) {
+        this.stepSamples = Math.max(64, Math.round(sampleRate * msg.stepSec));
+      }
+      Object.assign(this.params, msg);
+    };
+  }
+
+  wrap(pos) {
+    const m = this.bufLen;
+    return ((Math.floor(pos) % m) + m) % m;
+  }
+
+  onStepBoundary() {
+    const p = this.params;
+    const modeChanged = p.mode !== this.prevMode;
+    this.prevMode = p.mode;
+
+    this.stepAudible = Math.random() < p.probability;
+
+    const jitterSamples = p.jitter * this.stepSamples * 0.5 * (Math.random() * 2 - 1);
+    const recent = this.clock - this.stepSamples;
+    const maxLookback = this.bufLen - this.stepSamples - 8;
+
+    switch (p.mode) {
+      case "stutter": {
+        const shouldRelatch = !this.hasLatched || modeChanged || Math.random() > p.probability + 0.05;
+        if (shouldRelatch) {
+          this.latchOffset = recent + jitterSamples;
+          this.hasLatched = true;
+        }
+        this.sliceStart = this.latchOffset;
+        this.direction = 1;
+        break;
+      }
+      case "chop": {
+        this.sliceStart = recent + jitterSamples;
+        this.direction = 1;
+        break;
+      }
+      case "random": {
+        const lookback = Math.random() * Math.max(1, maxLookback);
+        this.sliceStart = this.clock - this.stepSamples - lookback;
+        this.direction = Math.random() < 0.5 ? -1 : 1;
+        break;
+      }
+      case "reverse": {
+        this.sliceStart = this.clock;
+        this.direction = -1;
+        break;
+      }
+      case "freeze": {
+        if (!this.hasLatched || modeChanged) {
+          this.latchOffset = recent;
+          this.hasLatched = true;
+        }
+        this.sliceStart = this.latchOffset;
+        this.direction = 1;
+        break;
+      }
+      default:
+        this.hasLatched = false;
+        break;
+    }
+  }
+
+  readRing(ch, pos) {
+    return this.ring[ch][this.wrap(pos)];
+  }
+
+  process(inputs, outputs) {
+    const input = inputs[0];
+    const output = outputs[0];
+    if (!output || output.length === 0) return true;
+
+    const chCount = Math.max(1, output.length);
+    const inCh0 = input && input[0] ? input[0] : null;
+    const inCh1 = input && input[1] ? input[1] : inCh0;
+    const frames = output[0].length;
+    const p = this.params;
+
+    for (let i = 0; i < frames; i++) {
+      const stepIndex = Math.floor(this.clock / this.stepSamples);
+      if (stepIndex !== this.currentStepIndex) {
+        this.currentStepIndex = stepIndex;
+        this.onStepBoundary();
+      }
+
+      const s0 = inCh0 ? inCh0[i] : 0;
+      const s1 = inCh1 ? inCh1[i] : s0;
+      this.ring[0][this.wrap(this.clock)] = s0;
+      this.ring[1][this.wrap(this.clock)] = s1;
+
+      let wet0 = s0, wet1 = s1;
+
+      if (p.mode !== "through") {
+        const sampleInStep = this.clock - this.currentStepIndex * this.stepSamples;
+        const gateSamples = this.stepSamples * Math.max(0.02, p.gate);
+        const audible = this.stepAudible && sampleInStep < gateSamples;
+
+        if (audible) {
+          const readPos = this.sliceStart + this.direction * sampleInStep;
+          wet0 = this.readRing(0, readPos);
+          wet1 = this.readRing(1, readPos);
+
+          if (sampleInStep < FADE_SAMPLES) {
+            const g = sampleInStep / FADE_SAMPLES;
+            wet0 *= g; wet1 *= g;
+          } else if (gateSamples - sampleInStep < FADE_SAMPLES) {
+            const g = Math.max(0, (gateSamples - sampleInStep) / FADE_SAMPLES);
+            wet0 *= g; wet1 *= g;
+          }
+        } else {
+          wet0 = 0; wet1 = 0;
+        }
+      }
+
+      const mix = p.mix;
+      const out0 = s0 * (1 - mix) + wet0 * mix;
+      const out1 = s1 * (1 - mix) + wet1 * mix;
+
+      for (let ch = 0; ch < chCount; ch++) {
+        output[ch][i] = ch === 0 ? out0 : out1;
+      }
+
+      this.clock++;
+    }
+
+    return true;
+  }
+}
+
+registerProcessor("glitch-processor", GlitchProcessor);
+
+// CrushProcessor — bit-depth quantization + sample-and-hold rate reduction,
+// the other classic IDM texture: dirty, aliased, stepped.
+class CrushProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.params = { bits: 8, hold: 4, mix: 1 };
+    this.holdCounter = 0;
+    this.held = [0, 0];
+    this.port.onmessage = (e) => Object.assign(this.params, e.data || {});
+  }
+
+  quantize(x) {
+    const levels = Math.pow(2, Math.max(1, Math.min(16, this.params.bits)));
+    return Math.round(x * levels) / levels;
+  }
+
+  process(inputs, outputs) {
+    const input = inputs[0];
+    const output = outputs[0];
+    if (!output || output.length === 0) return true;
+    const inCh0 = input && input[0] ? input[0] : null;
+    const inCh1 = input && input[1] ? input[1] : inCh0;
+    const frames = output[0].length;
+    const hold = Math.max(1, Math.round(this.params.hold));
+    const mix = this.params.mix;
+
+    for (let i = 0; i < frames; i++) {
+      const s0 = inCh0 ? inCh0[i] : 0;
+      const s1 = inCh1 ? inCh1[i] : s0;
+
+      if (this.holdCounter === 0) {
+        this.held[0] = this.quantize(s0);
+        this.held[1] = this.quantize(s1);
+      }
+      this.holdCounter = (this.holdCounter + 1) % hold;
+
+      const out0 = s0 * (1 - mix) + this.held[0] * mix;
+      const out1 = s1 * (1 - mix) + this.held[1] * mix;
+      for (let ch = 0; ch < output.length; ch++) {
+        output[ch][i] = ch === 0 ? out0 : out1;
+      }
+    }
+    return true;
+  }
+}
+
+registerProcessor("crush-processor", CrushProcessor);
+
+// PitchProcessor — a granular ("PSOLA-lite") pitch shifter. Two grains,
+// phase-offset by half a window, each read the rolling ring buffer at a
+// sped-up/slowed-down rate and are triangle-windowed so their sum stays
+// roughly constant in loudness across the grain boundary jumps.
+const PITCH_MAX_SECONDS = 1.5;
+
+class PitchProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.bufLen = Math.ceil(sampleRate * PITCH_MAX_SECONDS);
+    this.ring = [new Float32Array(this.bufLen), new Float32Array(this.bufLen)];
+    this.writePos = 0;
+    this.grainSize = Math.round(sampleRate * 0.08);
+    this.age = [0, Math.floor(this.grainSize / 2)];
+    this.readPos = [0, 0];
+    this.params = { semitones: 0, mix: 1 };
+    this.port.onmessage = (e) => Object.assign(this.params, e.data || {});
+  }
+
+  wrap(pos) {
+    const m = this.bufLen;
+    return ((Math.floor(pos) % m) + m) % m;
+  }
+
+  process(inputs, outputs) {
+    const input = inputs[0];
+    const output = outputs[0];
+    if (!output || output.length === 0) return true;
+    const inCh0 = input && input[0] ? input[0] : null;
+    const inCh1 = input && input[1] ? input[1] : inCh0;
+    const frames = output[0].length;
+    const rate = Math.pow(2, this.params.semitones / 12);
+    const g = this.grainSize;
+    const mix = this.params.mix;
+
+    for (let i = 0; i < frames; i++) {
+      const s0 = inCh0 ? inCh0[i] : 0;
+      const s1 = inCh1 ? inCh1[i] : s0;
+      this.ring[0][this.wrap(this.writePos)] = s0;
+      this.ring[1][this.wrap(this.writePos)] = s1;
+
+      let wet0 = 0, wet1 = 0;
+      for (let k = 0; k < 2; k++) {
+        this.age[k] += 1;
+        this.readPos[k] += rate;
+        if (this.age[k] >= g) {
+          this.age[k] = 0;
+          this.readPos[k] = this.writePos - g;
+        }
+        const win = 1 - Math.abs((this.age[k] / g) * 2 - 1);
+        const rp = this.wrap(this.readPos[k]);
+        wet0 += this.ring[0][rp] * win;
+        wet1 += this.ring[1][rp] * win;
+      }
+
+      const out0 = s0 * (1 - mix) + wet0 * mix;
+      const out1 = s1 * (1 - mix) + wet1 * mix;
+      for (let ch = 0; ch < output.length; ch++) {
+        output[ch][i] = ch === 0 ? out0 : out1;
+      }
+
+      this.writePos++;
+    }
+
+    return true;
+  }
+}
+
+registerProcessor("pitch-processor", PitchProcessor);
+</script>
+
+<script>
+(function () {
+  "use strict";
+
+  // ================= audioEngine =================
+
+  const engine = {
+    ctx: null,
+    master: null,
+    compressor: null,
+    reverbBus: null,
+    reverbNode: null,
+    analyser: null,
+    analyserData: null,
+    glitchWorkletReady: false,
+    bpm: 120,
+    running: false,
+  };
+
+  function buildImpulseResponse(ctx, duration, decay) {
+    const rate = ctx.sampleRate;
+    const length = Math.max(1, Math.floor(rate * duration));
+    const impulse = ctx.createBuffer(2, length, rate);
+    for (let ch = 0; ch < 2; ch++) {
+      const data = impulse.getChannelData(ch);
+      for (let i = 0; i < length; i++) {
+        const t = i / length;
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, decay);
+      }
+    }
+    return impulse;
+  }
+
+  async function initAudioEngine() {
+    if (engine.ctx) return engine;
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    engine.ctx = ctx;
+
+    const master = ctx.createGain();
+    master.gain.value = 0.85;
+    const compressor = ctx.createDynamicsCompressor();
+    compressor.threshold.value = -16;
+    compressor.ratio.value = 3.5;
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 512;
+    engine.analyser = analyser;
+    engine.analyserData = new Float32Array(analyser.fftSize);
+
+    master.connect(compressor).connect(analyser).connect(ctx.destination);
+    engine.master = master;
+    engine.compressor = compressor;
+
+    const reverbBus = ctx.createGain();
+    reverbBus.gain.value = 1;
+    const reverbNode = ctx.createConvolver();
+    reverbNode.buffer = buildImpulseResponse(ctx, 3.2, 2.6);
+    reverbBus.connect(reverbNode).connect(master);
+    engine.reverbBus = reverbBus;
+    engine.reverbNode = reverbNode;
+
+    try {
+      const workletSrc = document.getElementById("glitch-worklet-src").textContent;
+      const blob = new Blob([workletSrc], { type: "application/javascript" });
+      const url = URL.createObjectURL(blob);
+      await ctx.audioWorklet.addModule(url);
+      engine.glitchWorkletReady = true;
+    } catch (err) {
+      console.warn("Glitch worklet failed to load; GLITCH/CRUSH/PITCH boxes will be silent passthrough.", err);
+      engine.glitchWorkletReady = false;
+    }
+
+    return engine;
+  }
+
+  async function resumeEngine() {
+    if (!engine.ctx) await initAudioEngine();
+    if (engine.ctx.state === "suspended") await engine.ctx.resume();
+  }
+
+  function stepSeconds(division) {
+    const beat = 60 / engine.bpm;
+    const map = {
+      "1/4": beat,
+      "1/8": beat / 2,
+      "1/8d": (beat / 2) * 1.5,
+      "1/8t": (beat / 2) * (2 / 3),
+      "1/16": beat / 4,
+      "1/16t": (beat / 4) * (2 / 3),
+      "1/32": beat / 8,
+    };
+    return map[division] ?? beat / 4;
+  }
+
+  function readMeterLevel() {
+    if (!engine.analyser) return 0;
+    engine.analyser.getFloatTimeDomainData(engine.analyserData);
+    let sum = 0;
+    for (let i = 0; i < engine.analyserData.length; i++) {
+      sum += engine.analyserData[i] * engine.analyserData[i];
+    }
+    return Math.sqrt(sum / engine.analyserData.length);
+  }
+
+  // ================= synthSamples =================
+
+  function noiseBuffer(ctx, seconds) {
+    const length = Math.floor(ctx.sampleRate * seconds);
+    const buf = ctx.createBuffer(1, length, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < length; i++) d[i] = Math.random() * 2 - 1;
+    return buf;
+  }
+
+  async function render(seconds, build) {
+    const sr = 44100;
+    const off = new OfflineAudioContext(1, Math.ceil(sr * seconds), sr);
+    build(off);
+    return off.startRendering();
+  }
+
+  async function synthKick() {
+    return render(0.5, (ctx) => {
+      const osc = ctx.createOscillator();
+      osc.type = "sine";
+      const gain = ctx.createGain();
+      osc.frequency.setValueAtTime(150, 0);
+      osc.frequency.exponentialRampToValueAtTime(40, 0.14);
+      gain.gain.setValueAtTime(1, 0);
+      gain.gain.exponentialRampToValueAtTime(0.001, 0.42);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(0);
+      osc.stop(0.45);
+    });
+  }
+
+  async function synthSnare() {
+    return render(0.4, (ctx) => {
+      const src = ctx.createBufferSource();
+      src.buffer = noiseBuffer(ctx, 0.4);
+      const bp = ctx.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.value = 1800;
+      bp.Q.value = 0.6;
+      const ng = ctx.createGain();
+      ng.gain.setValueAtTime(1, 0);
+      ng.gain.exponentialRampToValueAtTime(0.001, 0.22);
+      src.connect(bp).connect(ng).connect(ctx.destination);
+
+      const osc = ctx.createOscillator();
+      osc.type = "triangle";
+      osc.frequency.value = 180;
+      const og = ctx.createGain();
+      og.gain.setValueAtTime(0.6, 0);
+      og.gain.exponentialRampToValueAtTime(0.001, 0.12);
+      osc.connect(og).connect(ctx.destination);
+
+      src.start(0);
+      osc.start(0);
+      osc.stop(0.15);
+    });
+  }
+
+  async function synthHat(open) {
+    const dur = open ? 0.5 : 0.12;
+    return render(dur, (ctx) => {
+      const src = ctx.createBufferSource();
+      src.buffer = noiseBuffer(ctx, dur);
+      const hp = ctx.createBiquadFilter();
+      hp.type = "highpass";
+      hp.frequency.value = 7000;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.9, 0);
+      g.gain.exponentialRampToValueAtTime(0.001, dur);
+      src.connect(hp).connect(g).connect(ctx.destination);
+      src.start(0);
+    });
+  }
+
+  async function synthPerc() {
+    return render(0.35, (ctx) => {
+      const osc = ctx.createOscillator();
+      osc.type = "square";
+      osc.frequency.setValueAtTime(900, 0);
+      osc.frequency.exponentialRampToValueAtTime(220, 0.09);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.5, 0);
+      g.gain.exponentialRampToValueAtTime(0.001, 0.18);
+      const bp = ctx.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.value = 1200;
+      osc.connect(bp).connect(g).connect(ctx.destination);
+      osc.start(0);
+      osc.stop(0.2);
+    });
+  }
+
+  const DEFAULT_SAMPLE_BUILDERS = [
+    { name: "kick.synth", build: synthKick },
+    { name: "snare.synth", build: synthSnare },
+    { name: "hat-closed.synth", build: () => synthHat(false) },
+    { name: "hat-open.synth", build: () => synthHat(true) },
+    { name: "perc.synth", build: synthPerc },
+  ];
+
+  async function makeDefaultSample(index) {
+    const def = DEFAULT_SAMPLE_BUILDERS[index % DEFAULT_SAMPLE_BUILDERS.length];
+    const buffer = await def.build();
+    return { name: def.name, buffer };
+  }
+
+  async function makeRandomDefaultSample() {
+    const i = Math.floor(Math.random() * DEFAULT_SAMPLE_BUILDERS.length);
+    return makeDefaultSample(i);
+  }
+
+  // ================= boxes =================
+
+  let nextBoxId = 1;
+  const DIVISIONS = ["1/4", "1/8", "1/8d", "1/8t", "1/16", "1/16t", "1/32"];
+  const pct = (v) => `${Math.round(v * 100)}%`;
+
+  function makeGlitchBox() {
+    const ctx = engine.ctx;
+    const node = engine.glitchWorkletReady
+      ? new AudioWorkletNode(ctx, "glitch-processor", {
+          numberOfInputs: 1,
+          numberOfOutputs: 1,
+          outputChannelCount: [2],
+          channelCount: 2,
+          channelCountMode: "explicit",
+        })
+      : ctx.createGain();
+
+    const state = { mode: "chop", division: "1/16", gate: 0.8, probability: 1, jitter: 0.15, mix: 1 };
+
+    function push() {
+      if (!(node instanceof AudioWorkletNode)) return;
+      node.port.postMessage({
+        mode: state.mode,
+        stepSec: stepSeconds(state.division),
+        gate: state.gate,
+        probability: state.probability,
+        jitter: state.jitter,
+        mix: state.mix,
+      });
+    }
+    push();
+
+    return {
+      type: "glitch",
+      title: "GLITCH",
+      input: node,
+      output: node,
+      modTargetKey: "probability",
+      paramDefs: [
+        { key: "mode", label: "モード", type: "select", options: ["chop", "stutter", "random", "reverse", "freeze", "through"] },
+        { key: "division", label: "レート", type: "select", options: DIVISIONS },
+        { key: "gate", label: "ゲート", type: "range", min: 0.05, max: 1, step: 0.01, format: pct },
+        { key: "probability", label: "確率", type: "range", min: 0, max: 1, step: 0.01, format: pct },
+        { key: "jitter", label: "ジッター", type: "range", min: 0, max: 1, step: 0.01, format: pct },
+        { key: "mix", label: "MIX", type: "range", min: 0, max: 1, step: 0.01, format: pct },
+      ],
+      getParam: (k) => state[k],
+      setParam(k, v) { state[k] = v; push(); },
+      dispose() { if (node.disconnect) node.disconnect(); },
+    };
+  }
+
+  function makeFilterBox() {
+    const ctx = engine.ctx;
+    const node = ctx.createBiquadFilter();
+    node.type = "lowpass";
+    node.frequency.value = 1800;
+    node.Q.value = 0.7;
+    const state = { filterType: "lowpass", freq: 1800, q: 0.7 };
+
+    return {
+      type: "filter",
+      title: "FILTER",
+      input: node,
+      output: node,
+      modTargetKey: "freq",
+      paramDefs: [
+        { key: "filterType", label: "種類", type: "select", options: ["lowpass", "highpass", "bandpass", "notch"] },
+        { key: "freq", label: "周波数", type: "range", min: 80, max: 12000, step: 10, format: (v) => `${Math.round(v)}Hz` },
+        { key: "q", label: "Q", type: "range", min: 0.1, max: 18, step: 0.1 },
+      ],
+      getParam: (k) => state[k],
+      setParam(k, v) {
+        state[k] = v;
+        if (k === "filterType") node.type = v;
+        if (k === "freq") node.frequency.setTargetAtTime(v, ctx.currentTime, 0.01);
+        if (k === "q") node.Q.setTargetAtTime(v, ctx.currentTime, 0.01);
+      },
+      dispose() { node.disconnect(); },
+    };
+  }
+
+  function makeCrushBox() {
+    const ctx = engine.ctx;
+    const node = engine.glitchWorkletReady
+      ? new AudioWorkletNode(ctx, "crush-processor", {
+          numberOfInputs: 1,
+          numberOfOutputs: 1,
+          outputChannelCount: [2],
+          channelCount: 2,
+          channelCountMode: "explicit",
+        })
+      : ctx.createGain();
+
+    const state = { bits: 6, hold: 6, mix: 1 };
+    function push() {
+      if (!(node instanceof AudioWorkletNode)) return;
+      node.port.postMessage(state);
+    }
+    push();
+
+    return {
+      type: "crush",
+      title: "CRUSH",
+      input: node,
+      output: node,
+      modTargetKey: "hold",
+      paramDefs: [
+        { key: "bits", label: "ビット深度", type: "range", min: 1, max: 16, step: 1, format: (v) => `${v}bit` },
+        { key: "hold", label: "サンプル間引き", type: "range", min: 1, max: 40, step: 1, format: (v) => `x${Math.round(v)}` },
+        { key: "mix", label: "MIX", type: "range", min: 0, max: 1, step: 0.01, format: pct },
+      ],
+      getParam: (k) => state[k],
+      setParam(k, v) { state[k] = v; push(); },
+      dispose() { if (node.disconnect) node.disconnect(); },
+    };
+  }
+
+  function makeDelayBox() {
+    const ctx = engine.ctx;
+    const inputGain = ctx.createGain();
+    const outputGain = ctx.createGain();
+    const dryGain = ctx.createGain();
+    const wetGain = ctx.createGain();
+    const feedbackGain = ctx.createGain();
+    const damp = ctx.createBiquadFilter();
+    damp.type = "lowpass";
+    damp.frequency.value = 3500;
+    const delayNode = ctx.createDelay(2.0);
+    delayNode.delayTime.value = 0.3;
+
+    inputGain.connect(dryGain).connect(outputGain);
+    inputGain.connect(delayNode);
+    delayNode.connect(damp).connect(feedbackGain).connect(delayNode);
+    delayNode.connect(wetGain).connect(outputGain);
+
+    const state = { division: "1/8d", feedback: 0.4, mix: 0.35 };
+    dryGain.gain.value = 1 - state.mix;
+    wetGain.gain.value = state.mix;
+    feedbackGain.gain.value = state.feedback;
+
+    function applyDivision() {
+      delayNode.delayTime.setTargetAtTime(stepSeconds(state.division), ctx.currentTime, 0.01);
+    }
+    applyDivision();
+
+    return {
+      type: "delay",
+      title: "DELAY",
+      input: inputGain,
+      output: outputGain,
+      modTargetKey: "feedback",
+      paramDefs: [
+        { key: "division", label: "レート", type: "select", options: DIVISIONS },
+        { key: "feedback", label: "フィードバック", type: "range", min: 0, max: 0.92, step: 0.01, format: pct },
+        { key: "mix", label: "MIX", type: "range", min: 0, max: 1, step: 0.01, format: pct },
+      ],
+      getParam: (k) => state[k],
+      setParam(k, v) {
+        state[k] = v;
+        if (k === "division") applyDivision();
+        if (k === "feedback") feedbackGain.gain.setTargetAtTime(v, ctx.currentTime, 0.01);
+        if (k === "mix") {
+          dryGain.gain.setTargetAtTime(1 - v, ctx.currentTime, 0.01);
+          wetGain.gain.setTargetAtTime(v, ctx.currentTime, 0.01);
+        }
+      },
+      dispose() {
+        inputGain.disconnect(); outputGain.disconnect(); dryGain.disconnect();
+        wetGain.disconnect(); feedbackGain.disconnect(); damp.disconnect(); delayNode.disconnect();
+      },
+    };
+  }
+
+  function buildReverbImpulse(ctx, duration, decay) {
+    const rate = ctx.sampleRate;
+    const length = Math.max(1, Math.floor(rate * duration));
+    const buf = ctx.createBuffer(2, length, rate);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = buf.getChannelData(ch);
+      for (let i = 0; i < length; i++) {
+        const t = i / length;
+        d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, decay);
+      }
+    }
+    return buf;
+  }
+
+  function makeReverbBox() {
+    const ctx = engine.ctx;
+    const input = ctx.createGain();
+    const output = ctx.createGain();
+    const dry = ctx.createGain();
+    const wet = ctx.createGain();
+    const convolver = ctx.createConvolver();
+    const damp = ctx.createBiquadFilter();
+    damp.type = "lowpass";
+
+    input.connect(dry).connect(output);
+    input.connect(convolver).connect(damp).connect(wet).connect(output);
+
+    const state = { size: 2.2, damp: 4500, mix: 0.4 };
+    dry.gain.value = 1 - state.mix;
+    wet.gain.value = state.mix;
+    damp.frequency.value = state.damp;
+
+    let rebuildTimer = null;
+    function buildImpulse() { convolver.buffer = buildReverbImpulse(ctx, state.size, 2.5); }
+    function scheduleRebuild() { clearTimeout(rebuildTimer); rebuildTimer = setTimeout(buildImpulse, 120); }
+    buildImpulse();
+
+    return {
+      type: "reverb",
+      title: "REVERB",
+      input,
+      output,
+      modTargetKey: "size",
+      paramDefs: [
+        { key: "size", label: "サイズ", type: "range", min: 0.3, max: 6, step: 0.1, format: (v) => `${v.toFixed(1)}s` },
+        { key: "damp", label: "ダンプ", type: "range", min: 800, max: 12000, step: 100, format: (v) => `${Math.round(v)}Hz` },
+        { key: "mix", label: "MIX", type: "range", min: 0, max: 1, step: 0.01, format: pct },
+      ],
+      getParam: (k) => state[k],
+      setParam(k, v) {
+        state[k] = v;
+        if (k === "size") scheduleRebuild();
+        if (k === "damp") damp.frequency.setTargetAtTime(v, ctx.currentTime, 0.01);
+        if (k === "mix") {
+          dry.gain.setTargetAtTime(1 - v, ctx.currentTime, 0.01);
+          wet.gain.setTargetAtTime(v, ctx.currentTime, 0.01);
+        }
+      },
+      dispose() {
+        clearTimeout(rebuildTimer);
+        input.disconnect(); output.disconnect(); dry.disconnect();
+        wet.disconnect(); convolver.disconnect(); damp.disconnect();
+      },
+    };
+  }
+
+  function makePitchBox() {
+    const ctx = engine.ctx;
+    const node = engine.glitchWorkletReady
+      ? new AudioWorkletNode(ctx, "pitch-processor", {
+          numberOfInputs: 1,
+          numberOfOutputs: 1,
+          outputChannelCount: [2],
+          channelCount: 2,
+          channelCountMode: "explicit",
+        })
+      : ctx.createGain();
+
+    const state = { semitones: 5, mix: 1 };
+    function push() {
+      if (!(node instanceof AudioWorkletNode)) return;
+      node.port.postMessage(state);
+    }
+    push();
+
+    return {
+      type: "pitch",
+      title: "PITCH",
+      input: node,
+      output: node,
+      modTargetKey: "semitones",
+      paramDefs: [
+        { key: "semitones", label: "半音", type: "range", min: -12, max: 12, step: 1, format: (v) => `${v >= 0 ? "+" : ""}${Math.round(v)}st` },
+        { key: "mix", label: "MIX", type: "range", min: 0, max: 1, step: 0.01, format: pct },
+      ],
+      getParam: (k) => state[k],
+      setParam(k, v) { state[k] = v; push(); },
+      dispose() { if (node.disconnect) node.disconnect(); },
+    };
+  }
+
+  function makeGateBox() {
+    const ctx = engine.ctx;
+    const gainNode = ctx.createGain();
+    gainNode.gain.value = 1;
+    const state = { division: "1/8", probability: 0.45, smooth: 8 };
+    let nextStepTime = 0;
+    let started = false;
+
+    return {
+      type: "gate",
+      title: "GATE",
+      input: gainNode,
+      output: gainNode,
+      modTargetKey: "probability",
+      paramDefs: [
+        { key: "division", label: "間隔", type: "select", options: DIVISIONS },
+        { key: "probability", label: "開く確率", type: "range", min: 0, max: 1, step: 0.01, format: pct },
+        { key: "smooth", label: "なめらかさ", type: "range", min: 1, max: 40, step: 1, format: (v) => `${v}ms` },
+      ],
+      getParam: (k) => state[k],
+      setParam(k, v) { state[k] = v; },
+      onTransportStart() { started = false; },
+      tick(now, lookahead) {
+        if (!started) { nextStepTime = now + 0.02; started = true; }
+        while (nextStepTime < now + lookahead) {
+          const t = nextStepTime;
+          const open = Math.random() < state.probability;
+          const smoothSec = Math.max(0.001, state.smooth / 1000);
+          gainNode.gain.linearRampToValueAtTime(open ? 1 : 0, t + smoothSec);
+          nextStepTime += Math.max(0.02, stepSeconds(state.division));
+        }
+      },
+      dispose() { gainNode.disconnect(); },
+    };
+  }
+
+  function pseudoRandom(n) {
+    const x = Math.sin(n * 12.9898) * 43758.5453;
+    return x - Math.floor(x);
+  }
+
+  function makeModBox() {
+    const state = { shape: "drift", division: "1/4", depth: 0.6 };
+    let driftValue = Math.random();
+    let driftTarget = driftValue;
+    let lastStepAt = 0;
+
+    function getValue(t) {
+      const period = Math.max(0.05, stepSeconds(state.division) * 4);
+      switch (state.shape) {
+        case "sine":
+          return 0.5 + 0.5 * Math.sin((t / period) * Math.PI * 2);
+        case "pulse":
+          return (t % period) / period < 0.5 ? 1 : 0;
+        case "sh":
+          return pseudoRandom(Math.floor(t / period));
+        default: {
+          if (t - lastStepAt > period * 0.25) {
+            lastStepAt = t;
+            if (Math.random() < 0.3) driftTarget = Math.random();
+          }
+          driftValue += (driftTarget - driftValue) * 0.05;
+          return driftValue;
+        }
+      }
+    }
+
+    return {
+      type: "mod",
+      title: "MOD",
+      input: null,
+      output: null,
+      isModSource: true,
+      paramDefs: [
+        { key: "shape", label: "波形", type: "select", options: ["drift", "sine", "sh", "pulse"] },
+        { key: "division", label: "サイクル", type: "select", options: DIVISIONS },
+        { key: "depth", label: "深さ", type: "range", min: 0, max: 1, step: 0.01, format: pct },
+      ],
+      getParam: (k) => state[k],
+      setParam(k, v) { state[k] = v; },
+      getValue,
+      dispose() {},
+    };
+  }
+
+  const FACTORIES = {
+    glitch: makeGlitchBox,
+    filter: makeFilterBox,
+    crush: makeCrushBox,
+    delay: makeDelayBox,
+    reverb: makeReverbBox,
+    pitch: makePitchBox,
+    gate: makeGateBox,
+    mod: makeModBox,
+  };
+
+  function createBox(type) {
+    const factory = FACTORIES[type];
+    if (!factory) throw new Error(`unknown box type: ${type}`);
+    const box = factory();
+    box.id = `box${nextBoxId++}`;
+    box.defaults = {};
+    box.paramDefs.forEach((d) => { box.defaults[d.key] = box.getParam(d.key); });
+    return box;
+  }
+
+  // ================= sampleSlot =================
+
+  const ORDERS = ["forward", "reverse", "random", "pingpong"];
+  const SLOT_DIVISIONS = ["1/8", "1/8d", "1/16", "1/16t", "1/32"];
+  const COLORS = ["#45d9bd", "#ff7a5c", "#b78bff", "#ffc65c"];
+
+  function el(html) {
+    const t = document.createElement("template");
+    t.innerHTML = html.trim();
+    return t.content.firstElementChild;
+  }
+
+  function reverseBuffer(ctx, buffer) {
+    const rev = ctx.createBuffer(buffer.numberOfChannels, buffer.length, buffer.sampleRate);
+    for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+      const src = buffer.getChannelData(ch);
+      const dst = rev.getChannelData(ch);
+      for (let i = 0; i < src.length; i++) dst[i] = src[src.length - 1 - i];
+    }
+    return rev;
+  }
+
+  class SampleSlot {
+    constructor(index) {
+      this.index = index;
+      this.color = COLORS[index % COLORS.length];
+      this.buffer = null;
+      this.reversedBuffer = null;
+      this.region = { start: 0, end: 1 };
+      this.loop = { enabled: false, rate: 1, reverse: false };
+      this.chop = { enabled: true, steps: 8, division: "1/16", gate: 0.7, probability: 0.9, jitter: 0.15, order: "forward" };
+      this.chopCounter = 0;
+      this.chopDir = 1;
+      this.nextStepTime = 0;
+      this.loopSource = null;
+      this.loopStartedAt = 0;
+
+      this._buildNodes();
+      this._buildUI();
+    }
+
+    _buildNodes() {
+      const ctx = engine.ctx;
+      this.preGain = ctx.createGain();
+      this.preGain.gain.value = 1;
+      this.panner = ctx.createStereoPanner();
+      this.volumeGain = ctx.createGain();
+      this.volumeGain.gain.value = 0.85;
+      this.reverbSend = ctx.createGain();
+      this.reverbSend.gain.value = 0.15;
+      this.outputBus = ctx.createGain();
+
+      this.preGain.connect(this.panner).connect(this.volumeGain);
+      this.volumeGain.connect(this.outputBus);
+      this.volumeGain.connect(this.reverbSend);
+      this.reverbSend.connect(engine.reverbBus);
+    }
+
+    _buildUI() {
+      this.rootEl = el(`
+        <div class="slot" style="border-color:${this.color}22">
+          <div class="slot-head">
+            <span class="slot-name"><span class="slot-color-dot" style="background:${this.color}"></span>SLOT ${this.index + 1}</span>
+            <span class="slot-file">no sample</span>
+          </div>
+          <div class="slot-loadrow">
+            <button class="loadBtn">読込</button>
+            <button class="randBtn">🎲 デフォルト</button>
+          </div>
+          <div class="wave-wrap">
+            <canvas></canvas>
+            <div class="wave-region"></div>
+            <div class="wave-playhead"></div>
+            <div class="wave-empty">サンプル未読込<br />ここにドラッグ&amp;ドロップ</div>
+          </div>
+          <div class="engine-block loop-block">
+            <div class="engine-head">
+              <label><input type="checkbox" class="loopEnable" /> LOOP</label>
+              <span class="tag">大きくループ</span>
+            </div>
+            <div class="engine-grid">
+              <label class="param">RATE <span class="valnum loopRateVal">1.00x</span>
+                <input type="range" class="loopRate" min="0.25" max="4" step="0.01" value="1" />
+              </label>
+              <label class="param">DIRECTION
+                <select class="loopReverse">
+                  <option value="0">forward</option>
+                  <option value="1">reverse</option>
+                </select>
+              </label>
+            </div>
+          </div>
+          <div class="engine-block chop-block">
+            <div class="engine-head">
+              <label><input type="checkbox" class="chopEnable" checked /> CHOP</label>
+              <span class="tag">細かく刻む</span>
+            </div>
+            <div class="engine-grid">
+              <label class="param">STEPS
+                <select class="chopSteps">
+                  <option>4</option><option selected>8</option><option>16</option><option>32</option>
+                </select>
+              </label>
+              <label class="param">RATE
+                <select class="chopDivision">
+                  ${SLOT_DIVISIONS.map((d) => `<option ${d === "1/16" ? "selected" : ""}>${d}</option>`).join("")}
+                </select>
+              </label>
+              <label class="param">ORDER
+                <select class="chopOrder">
+                  ${ORDERS.map((o) => `<option>${o}</option>`).join("")}
+                </select>
+              </label>
+              <label class="param">GATE <span class="valnum gateVal">70%</span>
+                <input type="range" class="chopGate" min="0.05" max="1" step="0.01" value="0.7" />
+              </label>
+              <label class="param">確率 <span class="valnum probVal">90%</span>
+                <input type="range" class="chopProb" min="0" max="1" step="0.01" value="0.9" />
+              </label>
+              <label class="param">ジッター <span class="valnum jitterVal">15%</span>
+                <input type="range" class="chopJitter" min="0" max="1" step="0.01" value="0.15" />
+              </label>
+            </div>
+          </div>
+          <div class="engine-block mixer-block">
+            <div class="mixer-strip">
+              <label class="param">VOL <span class="valnum volVal">85</span>
+                <input type="range" class="volSlider" min="0" max="1.2" step="0.01" value="0.85" />
+              </label>
+              <label class="param">PAN <span class="valnum panVal">C</span>
+                <input type="range" class="panSlider" min="-1" max="1" step="0.01" value="0" />
+              </label>
+              <label class="param">REVERB <span class="valnum revVal">15</span>
+                <input type="range" class="revSlider" min="0" max="1" step="0.01" value="0.15" />
+              </label>
+            </div>
+          </div>
+          <div class="triggerRow">
+            <button class="hitBtn">⚡ HIT</button>
+          </div>
+        </div>
+      `);
+
+      this.fileLabel = this.rootEl.querySelector(".slot-file");
+      this.canvas = this.rootEl.querySelector("canvas");
+      this.waveWrap = this.rootEl.querySelector(".wave-wrap");
+      this.regionEl = this.rootEl.querySelector(".wave-region");
+      this.playheadEl = this.rootEl.querySelector(".wave-playhead");
+      this.emptyEl = this.rootEl.querySelector(".wave-empty");
+
+      this.fileInput = document.createElement("input");
+      this.fileInput.type = "file";
+      this.fileInput.accept = "audio/*";
+      this.fileInput.style.cssText = "position:fixed;left:-9999px;width:1px;height:1px;opacity:0;";
+      this.fileInput.addEventListener("change", () => {
+        const file = this.fileInput.files && this.fileInput.files[0];
+        this.fileInput.value = "";
+        if (file) this._loadFile(file);
+      });
+      document.body.appendChild(this.fileInput);
+
+      this.rootEl.querySelector(".loadBtn").addEventListener("click", () => this.fileInput.click());
+      this.rootEl.querySelector(".randBtn").addEventListener("click", () => this.loadDefault());
+      this.rootEl.querySelector(".hitBtn").addEventListener("click", () => this.hit());
+
+      const loopEnable = this.rootEl.querySelector(".loopEnable");
+      loopEnable.addEventListener("change", () => this.setLoopEnabled(loopEnable.checked));
+
+      const loopRate = this.rootEl.querySelector(".loopRate");
+      const loopRateVal = this.rootEl.querySelector(".loopRateVal");
+      loopRate.addEventListener("input", () => {
+        this.loop.rate = +loopRate.value;
+        loopRateVal.textContent = `${this.loop.rate.toFixed(2)}x`;
+        if (this.loopSource) this.loopSource.playbackRate.setTargetAtTime(this.loop.rate, engine.ctx.currentTime, 0.01);
+      });
+
+      const loopReverse = this.rootEl.querySelector(".loopReverse");
+      loopReverse.addEventListener("change", () => {
+        this.loop.reverse = loopReverse.value === "1";
+        if (this.loop.enabled) this._restartLoop();
+      });
+
+      const chopEnable = this.rootEl.querySelector(".chopEnable");
+      chopEnable.addEventListener("change", () => this.setChopEnabled(chopEnable.checked));
+
+      this.rootEl.querySelector(".chopSteps").addEventListener("change", (e) => { this.chop.steps = +e.target.value; });
+      this.rootEl.querySelector(".chopDivision").addEventListener("change", (e) => { this.chop.division = e.target.value; });
+      this.rootEl.querySelector(".chopOrder").addEventListener("change", (e) => { this.chop.order = e.target.value; this.chopCounter = 0; this.chopDir = 1; });
+
+      const gate = this.rootEl.querySelector(".chopGate");
+      const gateVal = this.rootEl.querySelector(".gateVal");
+      gate.addEventListener("input", () => { this.chop.gate = +gate.value; gateVal.textContent = `${Math.round(this.chop.gate * 100)}%`; });
+
+      const prob = this.rootEl.querySelector(".chopProb");
+      const probVal = this.rootEl.querySelector(".probVal");
+      prob.addEventListener("input", () => { this.chop.probability = +prob.value; probVal.textContent = `${Math.round(this.chop.probability * 100)}%`; });
+
+      const jitter = this.rootEl.querySelector(".chopJitter");
+      const jitterVal = this.rootEl.querySelector(".jitterVal");
+      jitter.addEventListener("input", () => { this.chop.jitter = +jitter.value; jitterVal.textContent = `${Math.round(this.chop.jitter * 100)}%`; });
+
+      const vol = this.rootEl.querySelector(".volSlider");
+      const volVal = this.rootEl.querySelector(".volVal");
+      vol.addEventListener("input", () => {
+        this.volumeGain.gain.setTargetAtTime(+vol.value, engine.ctx.currentTime, 0.01);
+        volVal.textContent = Math.round(+vol.value * 100);
+      });
+
+      const pan = this.rootEl.querySelector(".panSlider");
+      const panVal = this.rootEl.querySelector(".panVal");
+      pan.addEventListener("input", () => {
+        this.panner.pan.setTargetAtTime(+pan.value, engine.ctx.currentTime, 0.01);
+        const v = +pan.value;
+        panVal.textContent = Math.abs(v) < 0.03 ? "C" : v < 0 ? `L${Math.round(-v * 100)}` : `R${Math.round(v * 100)}`;
+      });
+
+      const rev = this.rootEl.querySelector(".revSlider");
+      const revVal = this.rootEl.querySelector(".revVal");
+      rev.addEventListener("input", () => {
+        this.reverbSend.gain.setTargetAtTime(+rev.value, engine.ctx.currentTime, 0.01);
+        revVal.textContent = Math.round(+rev.value * 100);
+      });
+
+      this._bindWaveformDrag();
+    }
+
+    async _loadFile(file) {
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const buffer = await engine.ctx.decodeAudioData(arrayBuffer);
+        this._setBuffer(buffer, file.name);
+      } catch (err) {
+        console.warn("failed to load sample", err);
+        this.fileLabel.textContent = "読込失敗: 対応形式か確認してください";
+      }
+    }
+
+    async loadDefault(seedIndex) {
+      const { name, buffer } = seedIndex === undefined
+        ? await makeRandomDefaultSample()
+        : await makeDefaultSample(seedIndex);
+      this._setBuffer(buffer, name);
+    }
+
+    _setBuffer(buffer, name) {
+      this.buffer = buffer;
+      this.reversedBuffer = reverseBuffer(engine.ctx, buffer);
+      this.region = { start: 0, end: buffer.duration };
+      this.fileLabel.textContent = name;
+      this.fileLabel.title = name;
+      this.emptyEl.style.display = "none";
+      this._drawWaveform();
+      this._drawRegion();
+      if (this.loop.enabled) this._restartLoop();
+    }
+
+    _drawWaveform() {
+      if (!this.buffer) return;
+      const dpr = window.devicePixelRatio || 1;
+      const cssW = this.waveWrap.clientWidth || 240;
+      const cssH = this.waveWrap.clientHeight || 84;
+      const canvas = this.canvas;
+      canvas.width = cssW * dpr;
+      canvas.height = cssH * dpr;
+      const g = canvas.getContext("2d");
+      g.clearRect(0, 0, canvas.width, canvas.height);
+      const data = this.buffer.getChannelData(0);
+      const step = Math.max(1, Math.floor(data.length / canvas.width));
+      const mid = canvas.height / 2;
+      g.strokeStyle = this.color;
+      g.lineWidth = 1;
+      g.beginPath();
+      for (let x = 0; x < canvas.width; x++) {
+        let min = 1, max = -1;
+        const startI = x * step;
+        for (let i = 0; i < step; i++) {
+          const v = data[startI + i] || 0;
+          if (v < min) min = v;
+          if (v > max) max = v;
+        }
+        g.moveTo(x, mid + min * mid * 0.92);
+        g.lineTo(x, mid + max * mid * 0.92);
+      }
+      g.stroke();
+    }
+
+    _drawRegion() {
+      if (!this.buffer) return;
+      const dur = this.buffer.duration;
+      const leftPct = (this.region.start / dur) * 100;
+      const widthPct = ((this.region.end - this.region.start) / dur) * 100;
+      this.regionEl.style.left = `${leftPct}%`;
+      this.regionEl.style.width = `${Math.max(0.5, widthPct)}%`;
+    }
+
+    _bindWaveformDrag() {
+      let dragMode = null;
+      let dragOriginFrac = 0;
+
+      const fracAt = (clientX) => {
+        const rect = this.waveWrap.getBoundingClientRect();
+        return Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+      };
+
+      this.waveWrap.addEventListener("mousedown", (e) => {
+        if (!this.buffer) return;
+        const dur = this.buffer.duration;
+        const frac = fracAt(e.clientX);
+        const startFrac = this.region.start / dur;
+        const endFrac = this.region.end / dur;
+        const px = frac * this.waveWrap.clientWidth;
+        const startPx = startFrac * this.waveWrap.clientWidth;
+        const endPx = endFrac * this.waveWrap.clientWidth;
+
+        if (Math.abs(px - startPx) < 7) dragMode = "start";
+        else if (Math.abs(px - endPx) < 7) dragMode = "end";
+        else { dragMode = "new"; dragOriginFrac = frac; }
+
+        const onMove = (ev) => {
+          const f = fracAt(ev.clientX);
+          if (dragMode === "start") {
+            this.region.start = Math.min(f, endFrac - 0.005) * dur;
+          } else if (dragMode === "end") {
+            this.region.end = Math.max(f, startFrac + 0.005) * dur;
+          } else {
+            this.region.start = Math.min(dragOriginFrac, f) * dur;
+            this.region.end = Math.max(dragOriginFrac, f) * dur;
+          }
+          this._drawRegion();
+        };
+        const onUp = () => {
+          window.removeEventListener("mousemove", onMove);
+          window.removeEventListener("mouseup", onUp);
+          if (this.region.end - this.region.start < 0.02) {
+            this.region.end = Math.min(dur, this.region.start + 0.05);
+          }
+          if (this.loop.enabled) this._restartLoop();
+        };
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+      });
+
+      let dragDepth = 0;
+      this.waveWrap.addEventListener("dragenter", (e) => {
+        e.preventDefault();
+        dragDepth++;
+        this.waveWrap.classList.add("wave-dragover");
+      });
+      this.waveWrap.addEventListener("dragover", (e) => e.preventDefault());
+      this.waveWrap.addEventListener("dragleave", () => {
+        dragDepth = Math.max(0, dragDepth - 1);
+        if (dragDepth === 0) this.waveWrap.classList.remove("wave-dragover");
+      });
+      this.waveWrap.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dragDepth = 0;
+        this.waveWrap.classList.remove("wave-dragover");
+        const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (file) this._loadFile(file);
+      });
+    }
+
+    setLoopEnabled(on) {
+      this.loop.enabled = on;
+      if (on && this.buffer) this._restartLoop();
+      else this._stopLoop();
+    }
+
+    _restartLoop() {
+      this._stopLoop();
+      if (!this.buffer) return;
+      const ctx = engine.ctx;
+      const src = ctx.createBufferSource();
+      const dur = this.buffer.duration;
+      if (this.loop.reverse) {
+        src.buffer = this.reversedBuffer;
+        src.loopStart = dur - this.region.end;
+        src.loopEnd = dur - this.region.start;
+      } else {
+        src.buffer = this.buffer;
+        src.loopStart = this.region.start;
+        src.loopEnd = this.region.end;
+      }
+      src.loop = true;
+      src.playbackRate.value = this.loop.rate;
+      const fadeGain = ctx.createGain();
+      fadeGain.gain.setValueAtTime(0, ctx.currentTime);
+      fadeGain.gain.linearRampToValueAtTime(1, ctx.currentTime + 0.02);
+      src.connect(fadeGain).connect(this.preGain);
+      src.start(ctx.currentTime, this.loop.reverse ? dur - this.region.end : this.region.start);
+      this.loopSource = src;
+      this.loopFadeGain = fadeGain;
+      this.loopStartedAt = ctx.currentTime;
+    }
+
+    _stopLoop() {
+      if (this.loopSource) {
+        try {
+          const ctx = engine.ctx;
+          this.loopFadeGain.gain.setTargetAtTime(0, ctx.currentTime, 0.015);
+          const src = this.loopSource;
+          setTimeout(() => { try { src.stop(); } catch (e) {} }, 80);
+        } catch (e) {}
+        this.loopSource = null;
+      }
+    }
+
+    setChopEnabled(on) {
+      this.chop.enabled = on;
+      if (on) this.nextStepTime = engine.ctx.currentTime + 0.05;
+    }
+
+    _nextChopIndex() {
+      const n = this.chop.steps;
+      switch (this.chop.order) {
+        case "reverse":
+          this.chopCounter = (this.chopCounter + 1) % n;
+          return n - 1 - this.chopCounter;
+        case "random":
+          return Math.floor(Math.random() * n);
+        case "pingpong": {
+          const idx = this.chopCounter;
+          this.chopCounter += this.chopDir;
+          if (this.chopCounter >= n - 1 || this.chopCounter <= 0) this.chopDir *= -1;
+          return Math.max(0, Math.min(n - 1, idx));
+        }
+        default:
+          this.chopCounter = (this.chopCounter + 1) % n;
+          return this.chopCounter;
+      }
+    }
+
+    transportTick(now, lookahead) {
+      if (!this.chop.enabled || !this.buffer) return;
+      const stepDur = stepSeconds(this.chop.division);
+      while (this.nextStepTime < now + lookahead) {
+        const t = this.nextStepTime;
+        if (Math.random() < this.chop.probability) {
+          this._triggerChopSlice(t);
+        }
+        this.nextStepTime += Math.max(0.01, stepDur);
+      }
+    }
+
+    _triggerChopSlice(time) {
+      const ctx = engine.ctx;
+      const dur = this.region.end - this.region.start;
+      const steps = this.chop.steps;
+      const sliceWidth = dur / steps;
+      const idx = this._nextChopIndex();
+      const jitterOffset = (Math.random() * 2 - 1) * this.chop.jitter * sliceWidth * 0.5;
+      let offset = this.region.start + idx * sliceWidth + jitterOffset;
+      offset = Math.min(this.buffer.duration - 0.01, Math.max(0, offset));
+      const playDur = Math.max(0.01, sliceWidth * this.chop.gate);
+      const rateJitter = 1 + (Math.random() * 2 - 1) * this.chop.jitter * 0.12;
+
+      const src = ctx.createBufferSource();
+      src.buffer = this.buffer;
+      src.playbackRate.value = rateJitter;
+
+      const env = ctx.createGain();
+      const attack = Math.min(0.006, playDur * 0.2);
+      env.gain.setValueAtTime(0, time);
+      env.gain.linearRampToValueAtTime(1, time + attack);
+      env.gain.setValueAtTime(1, time + Math.max(attack, playDur - attack));
+      env.gain.linearRampToValueAtTime(0, time + playDur);
+
+      src.connect(env).connect(this.preGain);
+      src.start(time, offset, playDur + 0.02);
+      src.stop(time + playDur + 0.03);
+    }
+
+    hit() {
+      if (!this.buffer) return;
+      const ctx = engine.ctx;
+      const src = ctx.createBufferSource();
+      src.buffer = this.loop.reverse ? this.reversedBuffer : this.buffer;
+      const dur = this.buffer.duration;
+      const offset = this.loop.reverse ? dur - this.region.end : this.region.start;
+      const playDur = this.region.end - this.region.start;
+      const env = ctx.createGain();
+      env.gain.setValueAtTime(0, ctx.currentTime);
+      env.gain.linearRampToValueAtTime(1, ctx.currentTime + 0.005);
+      src.connect(env).connect(this.preGain);
+      src.start(ctx.currentTime, offset, playDur);
+    }
+
+    onTransportStart() {
+      this.nextStepTime = engine.ctx.currentTime + 0.05;
+      if (this.loop.enabled && this.buffer) this._restartLoop();
+    }
+
+    onTransportStop() {
+      this._stopLoop();
+    }
+
+    updatePlayhead() {
+      if (!this.buffer || !this.loop.enabled || !this.loopSource) {
+        this.playheadEl.style.opacity = 0;
+        return;
+      }
+      const ctx = engine.ctx;
+      const dur = this.buffer.duration;
+      const loopStart = this.loop.reverse ? dur - this.region.end : this.region.start;
+      const loopEnd = this.loop.reverse ? dur - this.region.start : this.region.end;
+      const loopLen = Math.max(0.001, loopEnd - loopStart);
+      const elapsed = ((ctx.currentTime - this.loopStartedAt) * this.loop.rate) % loopLen;
+      const posInBuffer = this.loop.reverse ? (dur - (loopStart + elapsed)) : (loopStart + elapsed);
+      const pctPos = (posInBuffer / dur) * 100;
+      this.playheadEl.style.left = `${pctPos}%`;
+      this.playheadEl.style.opacity = 1;
+    }
+  }
+
+  // ================= patchbay =================
+
+  const NS = "http://www.w3.org/2000/svg";
+  const SOURCE_COLORS = ["#45d9bd", "#ff7a5c", "#b78bff", "#ffc65c"];
+  const MOD_COLOR = "#f042ff";
+
+  class PatchBay {
+    constructor(canvasEl, svgEl, slots) {
+      this.canvasEl = canvasEl;
+      this.svgEl = svgEl;
+      this.slots = slots;
+      this.nodes = new Map();
+      this.connections = [];
+      this._pendingConnect = null;
+
+      this._topZ = 10;
+
+      this._buildSourcesAndMaster();
+      this._bindGlobalMouse();
+      window.addEventListener("resize", () => this.redrawCables());
+      this._modTimer = setInterval(() => this._modTick(), 60);
+    }
+
+    _buildSourcesAndMaster() {
+      this.slots.forEach((slot, i) => {
+        const id = `slot${i}`;
+        const boxEl = el(`
+          <div class="pbox source" style="left:20px; top:${30 + i * 130}px; border-color:${SOURCE_COLORS[i]}55">
+            <div class="pbox-head">SLOT ${i + 1}<span></span></div>
+            <div class="pbox-body"><span style="font-size:0.6rem;color:var(--ink-dim)">サンプル出力</span></div>
+            <div class="port out" data-role="audio" data-node="${id}" data-port="out"></div>
+          </div>
+        `);
+        this.canvasEl.appendChild(boxEl);
+        this.nodes.set(id, { kind: "source", el: boxEl, output: slot.outputBus });
+      });
+
+      const masterInput = engine.ctx.createGain();
+      masterInput.connect(engine.master);
+      const masterEl = el(`
+        <div class="pbox master" style="left:1220px; top:280px;">
+          <div class="pbox-head">MASTER OUT<span></span></div>
+          <div class="pbox-body"><span style="font-size:0.6rem;color:var(--ink-dim)">最終出力</span></div>
+          <div class="port in" data-role="audio" data-node="master" data-port="in"></div>
+        </div>
+      `);
+      this.canvasEl.appendChild(masterEl);
+      this.nodes.set("master", { kind: "master", el: masterEl, input: masterInput });
+
+      this._bindBoxDrag(document.querySelectorAll(".pbox"));
+      this._bindPorts();
+    }
+
+    addBox(type, x, y) {
+      const box = createBox(type);
+      const paramsHtml = box.paramDefs.map((d) => {
+        const val = box.getParam(d.key);
+        if (d.type === "select") {
+          return `
+            <label class="param">${d.label}
+              <select data-key="${d.key}">
+                ${d.options.map((o) => `<option value="${o}" ${o === val ? "selected" : ""}>${o}</option>`).join("")}
+              </select>
+            </label>`;
+        }
+        const fmt = d.format ? d.format(val) : val;
+        return `
+          <label class="param">${d.label} <span class="valnum" data-show="${d.key}">${fmt}</span>
+            <input type="range" data-key="${d.key}" min="${d.min}" max="${d.max}" step="${d.step}" value="${val}" />
+          </label>`;
+      }).join("");
+
+      const audioPorts = box.isModSource
+        ? ""
+        : `<div class="port in" data-role="audio" data-node="${box.id}" data-port="in"></div>
+           <div class="port out" data-role="audio" data-node="${box.id}" data-port="out"></div>`;
+      const modPort = box.isModSource
+        ? `<div class="port modout" data-role="mod" data-node="${box.id}" data-port="out"></div>`
+        : box.modTargetKey
+          ? `<div class="port modin" data-role="mod" data-node="${box.id}" data-port="in"></div>`
+          : "";
+
+      const boxEl = el(`
+        <div class="pbox type-${box.type}" style="left:${x}px; top:${y}px;">
+          <div class="pbox-head"><span class="pbox-title">${box.title}</span><span class="remove" title="削除">✕</span></div>
+          <div class="pbox-body">${paramsHtml}</div>
+          ${audioPorts}
+          ${modPort}
+        </div>
+      `);
+
+      box._userBase = {};
+      box.paramDefs.forEach((d) => { box._userBase[d.key] = box.getParam(d.key); });
+
+      box.paramDefs.forEach((d) => {
+        const input = boxEl.querySelector(`[data-key="${d.key}"]`);
+        const showEl = boxEl.querySelector(`[data-show="${d.key}"]`);
+        input.addEventListener("input", () => {
+          const v = d.type === "select" ? input.value : +input.value;
+          box.setParam(d.key, v);
+          box._userBase[d.key] = v;
+          if (showEl) showEl.textContent = d.format ? d.format(v) : v;
+        });
+      });
+
+      boxEl.querySelector(".remove").addEventListener("click", () => this.removeBox(box.id));
+
+      this.canvasEl.appendChild(boxEl);
+      this.nodes.set(box.id, { kind: "box", el: boxEl, box, input: box.input, output: box.output });
+      this._bindBoxDrag([boxEl]);
+      this._bindPorts();
+      this._relabelBoxes();
+      return box.id;
+    }
+
+    removeBox(id) {
+      const node = this.nodes.get(id);
+      if (!node || node.kind !== "box") return;
+      node.box.dispose();
+      node.el.remove();
+      this.nodes.delete(id);
+      this.connections = this.connections.filter((c) => c.from !== id && c.to !== id);
+      this.rebuildAudioGraph();
+      this.redrawCables();
+      this._relabelBoxes();
+    }
+
+    _relabelBoxes() {
+      const groups = new Map();
+      this.nodes.forEach((n) => {
+        if (n.kind !== "box") return;
+        const t = n.box.type;
+        if (!groups.has(t)) groups.set(t, []);
+        groups.get(t).push(n);
+      });
+      groups.forEach((list) => {
+        list.forEach((n, i) => {
+          const label = list.length > 1 ? `${n.box.title} ${i + 1}` : n.box.title;
+          const titleEl = n.el.querySelector(".pbox-title");
+          if (titleEl) titleEl.textContent = label;
+        });
+      });
+    }
+
+    connect(from, to, role = "audio") {
+      if (from === to) return;
+      const fromNode = this.nodes.get(from);
+      const toNode = this.nodes.get(to);
+      if (!fromNode || !toNode) return;
+
+      if (role === "mod") {
+        if (!fromNode.box || !fromNode.box.isModSource) return;
+        if (!toNode.box || !toNode.box.modTargetKey) return;
+        this.connections = this.connections.filter((c) => !(c.role === "mod" && c.to === to));
+      } else {
+        if (toNode.kind === "source") return;
+        if (fromNode.kind === "master") return;
+        if (fromNode.box && fromNode.box.isModSource) return;
+      }
+
+      const exists = this.connections.some((c) => c.from === from && c.to === to && (c.role || "audio") === role);
+      if (exists) return;
+      this.connections.push({ from, to, role });
+      this.rebuildAudioGraph();
+      this.redrawCables();
+    }
+
+    disconnectPair(from, to, role = "audio") {
+      this.connections = this.connections.filter((c) => !(c.from === from && c.to === to && (c.role || "audio") === role));
+      this.rebuildAudioGraph();
+      this.redrawCables();
+    }
+
+    clearConnections() {
+      this.connections = [];
+      this.rebuildAudioGraph();
+      this.redrawCables();
+    }
+
+    resetDefaultPatch() {
+      [...this.nodes.entries()].forEach(([id, n]) => { if (n.kind === "box") this.removeBox(id); });
+      this.connections = [];
+      const glitchId = this.addBox("glitch", 260, 40);
+      this.connect("slot0", glitchId);
+      this.connect(glitchId, "master");
+      this.connect("slot1", "master");
+      this.connect("slot2", "master");
+      this.connect("slot3", "master");
+
+      const modId = this.addBox("mod", 260, 460);
+      this.connect(modId, glitchId, "mod");
+    }
+
+    randomizePatch() {
+      const boxEntries = [...this.nodes.entries()].filter(([, n]) => n.kind === "box" && !n.box.isModSource);
+      const modEntries = [...this.nodes.entries()].filter(([, n]) => n.kind === "box" && n.box.isModSource);
+      const boxIds = boxEntries.map(([id]) => id);
+      const slotIds = this.slots.map((_, i) => `slot${i}`);
+      const shuffledSlots = [...slotIds].sort(() => Math.random() - 0.5);
+
+      const newConnections = [];
+      let reachesMaster = false;
+
+      shuffledSlots.forEach((sid) => {
+        if (shuffledSlots.length > 1 && Math.random() < 0.15) return;
+        const chainLen = boxIds.length ? Math.floor(Math.random() * Math.min(3, boxIds.length + 1)) : 0;
+        const chain = [...boxIds].sort(() => Math.random() - 0.5).slice(0, chainLen);
+        let prev = sid;
+        chain.forEach((bid) => {
+          newConnections.push({ from: prev, to: bid, role: "audio" });
+          prev = bid;
+        });
+        newConnections.push({ from: prev, to: "master", role: "audio" });
+        reachesMaster = true;
+      });
+
+      if (!reachesMaster) {
+        newConnections.push({ from: shuffledSlots[0], to: "master", role: "audio" });
+      }
+
+      modEntries.forEach(([mid]) => {
+        const targetable = boxIds.filter((id) => this.nodes.get(id).box.modTargetKey);
+        if (!targetable.length || Math.random() < 0.25) return;
+        const targetId = targetable[Math.floor(Math.random() * targetable.length)];
+        newConnections.push({ from: mid, to: targetId, role: "mod" });
+      });
+
+      this.connections = newConnections;
+      this.rebuildAudioGraph();
+      this.redrawCables();
+    }
+
+    rebuildAudioGraph() {
+      this.nodes.forEach((n) => {
+        if (n.output) { try { n.output.disconnect(); } catch (e) {} }
+      });
+      this.connections.forEach(({ from, to, role }) => {
+        if ((role || "audio") !== "audio") return;
+        const fromNode = this.nodes.get(from);
+        const toNode = this.nodes.get(to);
+        if (!fromNode || !toNode) return;
+        try { fromNode.output.connect(toNode.input); } catch (e) {}
+      });
+    }
+
+    _modTick() {
+      if (!engine.ctx) return;
+      const t = engine.ctx.currentTime;
+      this.connections.forEach((conn) => {
+        if ((conn.role || "audio") !== "mod") return;
+        const src = this.nodes.get(conn.from);
+        const tgt = this.nodes.get(conn.to);
+        if (!src || !tgt || src.kind !== "box" || tgt.kind !== "box") return;
+        const key = tgt.box.modTargetKey;
+        const def = tgt.box.paramDefs.find((d) => d.key === key);
+        if (!def) return;
+
+        const raw = src.box.getValue(t);
+        const depth = src.box.getParam("depth");
+        const base = tgt.box._userBase && tgt.box._userBase[key] !== undefined ? tgt.box._userBase[key] : tgt.box.getParam(key);
+        const modded = def.min + raw * (def.max - def.min);
+        const value = base * (1 - depth) + modded * depth;
+        tgt.box.setParam(key, value);
+
+        const input = tgt.el.querySelector(`[data-key="${key}"]`);
+        const showEl = tgt.el.querySelector(`[data-show="${key}"]`);
+        if (input) input.value = value;
+        if (showEl) showEl.textContent = def.format ? def.format(value) : value;
+      });
+    }
+
+    _updateModVisuals() {
+      const moddedTargets = new Set(this.connections.filter((c) => (c.role || "audio") === "mod").map((c) => c.to));
+      this.nodes.forEach((n, id) => {
+        if (n.kind !== "box" || !n.box.modTargetKey) return;
+        const label = n.el.querySelector(`[data-key="${n.box.modTargetKey}"]`)?.closest(".param");
+        if (label) label.classList.toggle("modulating", moddedTargets.has(id));
+      });
+    }
+
+    _bindBoxDrag(elements) {
+      elements.forEach((boxEl) => {
+        const head = boxEl.querySelector(".pbox-head");
+        head.addEventListener("mousedown", (e) => {
+          if (e.target.classList.contains("remove")) return;
+          e.preventDefault();
+          boxEl.style.zIndex = ++this._topZ;
+          const startX = e.clientX, startY = e.clientY;
+          const origLeft = parseFloat(boxEl.style.left) || 0;
+          const origTop = parseFloat(boxEl.style.top) || 0;
+          const onMove = (ev) => {
+            boxEl.style.left = `${Math.max(0, origLeft + (ev.clientX - startX))}px`;
+            boxEl.style.top = `${Math.max(0, origTop + (ev.clientY - startY))}px`;
+            this.redrawCables();
+          };
+          const onUp = () => {
+            window.removeEventListener("mousemove", onMove);
+            window.removeEventListener("mouseup", onUp);
+          };
+          window.addEventListener("mousemove", onMove);
+          window.addEventListener("mouseup", onUp);
+        });
+      });
+    }
+
+    _bindPorts() {
+      this.canvasEl.querySelectorAll(".port.out, .port.modout").forEach((portEl) => {
+        if (portEl.dataset.bound) return;
+        portEl.dataset.bound = "1";
+        portEl.addEventListener("mousedown", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const ownerBox = portEl.closest(".pbox");
+          if (ownerBox) ownerBox.style.zIndex = ++this._topZ;
+          this._pendingConnect = { from: portEl.dataset.node, role: portEl.dataset.role || "audio", portEl };
+          this._dragPath = document.createElementNS(NS, "path");
+          this._dragPath.setAttribute("class", "cable-drag");
+          this.svgEl.appendChild(this._dragPath);
+        });
+      });
+    }
+
+    _bindGlobalMouse() {
+      this.canvasEl.addEventListener("mousemove", (e) => {
+        if (!this._pendingConnect) return;
+        const rect = this.canvasEl.getBoundingClientRect();
+        const p1 = this._portCenter(this._pendingConnect.portEl);
+        const x2 = e.clientX - rect.left, y2 = e.clientY - rect.top;
+        this._dragPath.setAttribute("d", this._bezier(p1.x, p1.y, x2, y2));
+      });
+
+      window.addEventListener("mouseup", (e) => {
+        if (!this._pendingConnect) return;
+        const role = this._pendingConnect.role;
+        const wantsClass = role === "mod" ? "modin" : "in";
+        const target = document.elementFromPoint(e.clientX, e.clientY);
+        let targetNode = (target && target.classList.contains("port") && target.classList.contains(wantsClass))
+          ? target.dataset.node
+          : null;
+
+        if (!targetNode) {
+          const selector = role === "mod" ? ".port.modin" : ".port.in";
+          let bestDist = 26;
+          this.canvasEl.querySelectorAll(selector).forEach((p) => {
+            const r = p.getBoundingClientRect();
+            const d = Math.hypot(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2));
+            if (d < bestDist) { bestDist = d; targetNode = p.dataset.node; }
+          });
+        }
+
+        if (targetNode) this.connect(this._pendingConnect.from, targetNode, role);
+        if (this._dragPath) this._dragPath.remove();
+        this._dragPath = null;
+        this._pendingConnect = null;
+      });
+    }
+
+    _portCenter(portEl) {
+      const rect = portEl.getBoundingClientRect();
+      const canvasRect = this.canvasEl.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2 - canvasRect.left, y: rect.top + rect.height / 2 - canvasRect.top };
+    }
+
+    _bezier(x1, y1, x2, y2) {
+      const dx = Math.max(40, Math.abs(x2 - x1) * 0.5);
+      return `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
+    }
+
+    redrawCables() {
+      while (this.svgEl.firstChild) this.svgEl.removeChild(this.svgEl.firstChild);
+      this.connections.forEach((conn) => {
+        const isMod = (conn.role || "audio") === "mod";
+        const fromNode = this.nodes.get(conn.from);
+        const toNode = this.nodes.get(conn.to);
+        if (!fromNode || !toNode) return;
+        const outPort = fromNode.el.querySelector(isMod ? ".port.modout" : ".port.out");
+        const inPort = toNode.el.querySelector(isMod ? ".port.modin" : ".port.in");
+        if (!outPort || !inPort) return;
+        const p1 = this._portCenter(outPort);
+        const p2 = this._portCenter(inPort);
+        const path = document.createElementNS(NS, "path");
+        path.setAttribute("class", isMod ? "cable cable-mod" : "cable");
+        path.setAttribute("d", this._bezier(p1.x, p1.y, p2.x, p2.y));
+        path.setAttribute("stroke", isMod ? MOD_COLOR : (fromNode.kind === "source" ? SOURCE_COLORS[Number(conn.from.replace("slot", ""))] || "#45d9bd" : "#838da0"));
+        this.svgEl.appendChild(path);
+
+        const midX = (p1.x + p2.x) / 2, midY = (p1.y + p2.y) / 2;
+        const g = document.createElementNS(NS, "g");
+        g.setAttribute("class", "cableDelete");
+        g.setAttribute("transform", `translate(${midX},${midY})`);
+        const c = document.createElementNS(NS, "circle");
+        c.setAttribute("r", "8");
+        const t = document.createElementNS(NS, "text");
+        t.textContent = "×";
+        g.appendChild(c); g.appendChild(t);
+        g.addEventListener("mousedown", (e) => e.stopPropagation());
+        g.addEventListener("click", () => this.disconnectPair(conn.from, conn.to, conn.role || "audio"));
+        this.svgEl.appendChild(g);
+      });
+      this._updateModVisuals();
+    }
+  }
+
+  // ================= main / boot =================
+
+  const LOOKAHEAD = 0.15;
+
+  async function boot() {
+    await initAudioEngine();
+
+    const slotsContainer = document.getElementById("slots");
+    const slots = [0, 1, 2, 3].map((i) => new SampleSlot(i));
+    slots.forEach((s) => slotsContainer.appendChild(s.rootEl));
+    await Promise.all(slots.map((s, i) => s.loadDefault(i)));
+
+    const patchCanvas = document.getElementById("patchCanvas");
+    const cableLayer = document.getElementById("cableLayer");
+    const patchBay = new PatchBay(patchCanvas, cableLayer, slots);
+    patchBay.resetDefaultPatch();
+
+    let addCascade = 0;
+    document.querySelectorAll(".addButtons button[data-add]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const type = btn.dataset.add;
+        const x = 480 + (addCascade % 4) * 220;
+        const y = 60 + Math.floor(addCascade / 4) * 260;
+        addCascade++;
+        patchBay.addBox(type, x, y);
+        patchBay.redrawCables();
+      });
+    });
+    document.getElementById("clearPatchBtn").addEventListener("click", () => {
+      patchBay.resetDefaultPatch();
+    });
+    document.getElementById("randomPatchBtn").addEventListener("click", () => {
+      patchBay.randomizePatch();
+    });
+
+    const chaosBtn = document.getElementById("chaosBtn");
+    let chaosTimer = null;
+    function chaosTick() {
+      const pool = Array.from(document.querySelectorAll(".slot input[type=range], .pbox .pbox-body input[type=range]"));
+      if (!pool.length) return;
+      const n = Math.min(pool.length, 1 + Math.floor(Math.random() * 4));
+      pool.sort(() => Math.random() - 0.5).slice(0, n).forEach((input) => {
+        const min = parseFloat(input.min), max = parseFloat(input.max);
+        const step = parseFloat(input.step) || 0.01;
+        const raw = min + Math.random() * (max - min);
+        input.value = Math.round(raw / step) * step;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    }
+    chaosBtn.addEventListener("click", () => {
+      if (chaosTimer) {
+        clearInterval(chaosTimer);
+        chaosTimer = null;
+        chaosBtn.classList.remove("active");
+        chaosBtn.textContent = "🌀 暴走モード";
+      } else {
+        chaosTimer = setInterval(chaosTick, 450);
+        chaosBtn.classList.add("active");
+        chaosBtn.textContent = "⏹ 暴走停止";
+      }
+    });
+
+    const playBtn = document.getElementById("playBtn");
+    const bpmInput = document.getElementById("bpm");
+    const masterVol = document.getElementById("masterVol");
+    const meterBar = document.getElementById("meterBar");
+
+    bpmInput.addEventListener("change", () => {
+      engine.bpm = Math.max(40, Math.min(220, +bpmInput.value || 120));
+      patchBay.nodes.forEach((n) => {
+        if (n.kind !== "box") return;
+        const hasDivision = n.box.paramDefs.some((d) => d.key === "division");
+        if (hasDivision) n.box.setParam("division", n.box.getParam("division"));
+      });
+    });
+
+    masterVol.addEventListener("input", () => {
+      engine.master.gain.setTargetAtTime(+masterVol.value, engine.ctx.currentTime, 0.01);
+    });
+
+    let schedulerTimer = null;
+    function schedulerLoop() {
+      if (!engine.running) return;
+      const now = engine.ctx.currentTime;
+      slots.forEach((s) => s.transportTick(now, LOOKAHEAD));
+      patchBay.nodes.forEach((n) => {
+        if (n.kind === "box" && typeof n.box.tick === "function") n.box.tick(now, LOOKAHEAD);
+      });
+      schedulerTimer = setTimeout(schedulerLoop, 30);
+    }
+
+    async function start() {
+      await resumeEngine();
+      engine.running = true;
+      slots.forEach((s) => s.onTransportStart());
+      patchBay.nodes.forEach((n) => {
+        if (n.kind === "box" && typeof n.box.onTransportStart === "function") n.box.onTransportStart();
+      });
+      schedulerLoop();
+      playBtn.textContent = "■ 停止";
+      playBtn.classList.add("playing");
+    }
+
+    function stop() {
+      engine.running = false;
+      clearTimeout(schedulerTimer);
+      slots.forEach((s) => s.onTransportStop());
+      playBtn.textContent = "▶ 再生";
+      playBtn.classList.remove("playing");
+    }
+
+    playBtn.addEventListener("click", () => {
+      if (engine.running) stop(); else start();
+    });
+
+    function uiLoop() {
+      slots.forEach((s) => s.updatePlayhead());
+      const level = readMeterLevel();
+      meterBar.style.width = `${Math.min(100, level * 260)}%`;
+      requestAnimationFrame(uiLoop);
+    }
+    requestAnimationFrame(uiLoop);
+  }
+
+  boot();
+})();
+</script>
+
+</body></html>

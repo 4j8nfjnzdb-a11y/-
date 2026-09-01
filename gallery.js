@@ -29,6 +29,27 @@
       w: 480,
       h: 640,
     },
+    { appId: "random-pitch-sister", title: "Random Pitch Sister", src: "apps/random-pitch-sister/index.html", w: 640, h: 620 },
+    { appId: "meguri", title: "meguri 巡", src: "apps/meguri/index.html", w: 560, h: 700 },
+    { appId: "fourtrack-looper", title: "Fourtrack Looper", src: "apps/fourtrack-looper/index.html", w: 640, h: 620 },
+    { appId: "circuit-chop", title: "CIRCUIT CHOP", src: "apps/circuit-chop/index.html", w: 680, h: 640 },
+    { appId: "rhythm-box", title: "リズム箱", src: "apps/rhythm-box/index.html", w: 560, h: 620 },
+    { appId: "glitchbox", title: "glitchbox", src: "apps/glitchbox/index.html", w: 560, h: 620 },
+    { appId: "himawari", title: "ひまわり", src: "apps/himawari/index.html", w: 480, h: 640 },
+    { appId: "genetic-drift", title: "Genetic Drift", src: "apps/genetic-drift/index.html", w: 640, h: 600 },
+    { appId: "swerve-sampler", title: "Swerve Sampler", src: "apps/swerve-sampler/index.html", w: 640, h: 620 },
+    { appId: "ikimono", title: "ikimono", src: "apps/ikimono/index.html", w: 620, h: 680 },
+    { appId: "mic-check", title: "Mic Check", src: "apps/mic-check/index.html", w: 480, h: 560 },
+    { appId: "cut-up-machine", title: "CUT-UP MACHINE", src: "apps/cut-up-machine/index.html", w: 560, h: 700 },
+    { appId: "grainfield", title: "GrainField", src: "apps/grainfield/index.html", w: 640, h: 600 },
+    { appId: "cuedeck", title: "Cuedeck", src: "apps/cuedeck/index.html", w: 620, h: 640 },
+    { appId: "senon", title: "線音 SenOn", src: "apps/senon/index.html", w: 480, h: 700 },
+    { appId: "autopoiesis", title: "Autopoiesis", src: "apps/autopoiesis/index.html", w: 640, h: 600 },
+    { appId: "cutup", title: "cutup", src: "apps/cutup/index.html", w: 560, h: 640 },
+    { appId: "dappi", title: "dappi", src: "apps/dappi/index.html", w: 560, h: 640 },
+    { appId: "graindeck", title: "GrainDeck", src: "apps/graindeck/index.html", w: 620, h: 560 },
+    { appId: "mojihoukai", title: "文字崩壊", src: "apps/mojihoukai/index.html", w: 560, h: 640 },
+    { appId: "kirikizami", title: "kirikizami", src: "apps/kirikizami/index.html", w: 560, h: 700 },
   ];
 
   const stage = document.getElementById("stage");
@@ -134,6 +155,7 @@
     body.className = "card-body";
     const iframe = document.createElement("iframe");
     iframe.sandbox = "allow-scripts allow-same-origin allow-forms allow-modals allow-pointer-lock";
+    iframe.allow = "autoplay; microphone; camera; clipboard-read; clipboard-write";
     iframe.loading = "lazy";
     if (card.kind === "html") {
       iframe.srcdoc = card.html;
@@ -417,21 +439,37 @@
 
   // ---- boot -----------------------------------------------------------
 
-  const restored = load();
-  if (!restored) {
-    BUILTIN_APPS.forEach((app, i) => {
+  // Any built-in app not already sitting on the canvas (a fresh gallery,
+  // or one that predates apps added later) gets seeded into a grid so
+  // "everything you've made" is visible without manually adding each one.
+  function seedMissingBuiltins() {
+    const existingSrcs = new Set(cards.filter((c) => c.kind === "app").map((c) => c.src));
+    const missing = BUILTIN_APPS.filter((app) => !existingSrcs.has(app.src));
+    if (missing.length === 0) return;
+
+    const cols = Math.ceil(Math.sqrt(BUILTIN_APPS.length));
+    const rows = Math.ceil(BUILTIN_APPS.length / cols);
+    const spacingX = 600, spacingY = 720;
+
+    missing.forEach((app) => {
+      const idx = BUILTIN_APPS.indexOf(app);
+      const col = idx % cols;
+      const row = Math.floor(idx / cols);
       addCard({
         title: app.title,
         kind: "app",
         src: app.src,
         w: app.w,
         h: app.h,
-        x: (i - (BUILTIN_APPS.length - 1) / 2) * 520,
-        y: 0,
+        x: (col - (cols - 1) / 2) * spacingX,
+        y: (row - (rows - 1) / 2) * spacingY,
         z: 0,
       }, { skipSave: true });
     });
     save();
   }
+
+  load();
+  seedMissingBuiltins();
   applyViewStyle();
 })();

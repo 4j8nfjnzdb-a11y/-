@@ -1,0 +1,635 @@
+<!doctype html><html><head><!-- frame-runtime --><script>window.__FRAME_PREAMBLE={"v":1,"capabilities":{"artifact":"artifact.DF6_9MzE.js","assets":"assets.8Gk803W0.js","comments":"comments.vw5vQdGA.js","db":"db.h-3sndFg.js","downloads":"downloads.C3GSvEDP.js","embed":"embed.CxGAyc-v.js","mcp":"mcp.Bvma3qD7.js","network":"network.B5UA9Su4.js","notifications":"notifications.ssU4jy7G.js","permissions":"permissions.BNySkLV5.js","room":"room.BMMoe2BY.js","sample":"sample.BW2Uysoh.js","self":"artifact.DF6_9MzE.js","user":"user.BpKav-Rf.js"},"transforms":"_transforms.DSB5x63f.js","comments":"_comments.C6E0cR5g.js","translate":"_translate.5HCW4BJh.js"}</script><script>(function(){"use strict";var te=["light","dark","system"],re=/^[A-Za-z0-9_-]{1,64}$/,$=/^[a-zA-Z_:][a-zA-Z0-9_:.-]{0,127}$/,ne=new Set(["class","hidden","value","checked","style","title","alt","placeholder","lang","dir","role","tabindex","disabled","readonly","contenteditable","open","colspan","rowspan"]);function oe(e){const t=e.toLowerCase();return t.startsWith("data-")||t.startsWith("aria-")||ne.has(t)}var Be="http://www.w3.org/1999/xhtml",se="http://www.w3.org/2000/svg",ae=new Set(["script","style","iframe","noscript","noframes","noembed","xmp","plaintext","template","title","textarea","object","embed"]),ie=new Set(["script","style"]);function ce(e){const t=e.localName.toLowerCase();return e.namespaceURI==="http://www.w3.org/1999/xhtml"?!ae.has(t):e.namespaceURI===se?!ie.has(t):!1}function M(e,t){return e===t||(e===160||e===32)&&(t===160||t===32)}function le(e,t){const r=e.length,n=t.length;let s=0;for(;s<r&&s<n&&M(e.charCodeAt(s),t.charCodeAt(s));)s++;let o=0;for(;o<r-s&&o<n-s&&M(e.charCodeAt(r-1-o),t.charCodeAt(n-1-o));)o++;return{p:s,s:o}}function ue(e,t){const r=e.firstChild;if(e.childNodes.length!==1||r===null||r.nodeType!==Node.TEXT_NODE){e.textContent=t;return}const n=r.data,s=n.length,o=t.length,{p:i,s:c}=le(n,t);i===s&&c===0&&s===o||r.replaceData(i,s-i-c,t.slice(i,o-c));const h=r.data,p=e.ownerDocument.getSelection?.()??null,w=p!==null&&p.rangeCount>0&&(p.anchorNode===r||p.focusNode===r)?{anchor:p.anchorNode,anchorOffset:p.anchorOffset,focus:p.focusNode,focusOffset:p.focusOffset}:null;let m=-1,g=-1;for(let f=0;f<h.length&&f<t.length;f++){const v=h.charCodeAt(f),b=t.charCodeAt(f);v!==b&&M(v,b)&&(m<0&&(m=f),g=f)}const a=m>=0;if(a&&r.replaceData(m,g-m+1,t.slice(m,g+1)),a&&w!==null&&w.anchor!==null&&w.focus!==null)try{p.setBaseAndExtent(w.anchor,w.anchorOffset,w.focus,w.focusOffset)}catch{}}var fe=new Set(["html","head","body","frameset"]);function de(e){return e.namespaceURI==="http://www.w3.org/1999/xhtml"&&fe.has(e.localName)}function pe(e){if(e===null||typeof e!="object")return!1;const t=e;if(typeof t.target!="string"||!re.test(t.target)||t.text!==void 0&&typeof t.text!="string")return!1;if(t.attrsSet!==void 0){if(t.attrsSet===null||typeof t.attrsSet!="object")return!1;for(const[r,n]of Object.entries(t.attrsSet))if(!$.test(r)||typeof n!="string")return!1}if(t.attrsRemoved!==void 0){if(!Array.isArray(t.attrsRemoved))return!1;for(const r of t.attrsRemoved)if(typeof r!="string"||!$.test(r))return!1}return!0}function me(e,t){if(e===null||typeof e!="object")return!1;const{seq:r,elements:n}=e;if(typeof r!="number"||!Number.isSafeInteger(r)||!Array.isArray(n)||n.length===0||n.length>64)return!1;for(let s=0;s<n.length;s++)if(!t(n[s]))return!1;return!0}function he(e){return e===null||typeof e!="object"?!1:me(e.__frame_patch,pe)}function _e(e){if(e===null||typeof e!="object")return!1;const t=e.__frame_init;return t!==null&&typeof t=="object"}function ve(e){return e!==null&&typeof e=="object"&&e.__frame_size_poke===!0}function ye(e){if(e===null||typeof e!="object")return!1;const t=e.__frame_theme;if(t===null||typeof t!="object")return!1;const r=t.theme;return typeof r=="string"&&te.includes(r)}var A=/^[\w.-]+\.js$/;function we(e,t,r){return r?"inert":typeof t=="string"&&A.test(t)?e?[t]:"inert":e?"inert":"framed"}function ge(){return{post(e,t){parent.postMessage(e,t)},on(e){const t=r=>{r.source===parent&&e(r.data,r.origin,r.isTrusted)};return addEventListener("message",t),()=>removeEventListener("message",t)}}}function be(){return{post:()=>{},on:()=>()=>{}}}var j="__frame_scroll",Ee=150,Ae=310,Se=160,Te=3e4;function ke(){let e=0,t=!1,r=!1,n=!1,s=0,o=null;const i=l=>{try{sessionStorage.setItem(j,JSON.stringify({y:l}))}catch{}},c=()=>{if(clearTimeout(e),o===null)return;const l=o;o=null,i(l)},h=()=>{if(t){t=!1;return}r=!0,o=scrollY,clearTimeout(e),e=setTimeout(c,Ee)};try{addEventListener("scroll",h,{passive:!0}),addEventListener("pagehide",c)}catch{}const p=()=>{let l;try{l=sessionStorage.getItem(j)}catch{return null}if(l===null)return null;let _;try{_=JSON.parse(l)}catch{_=null}const d=_?.y;if(!(typeof d=="number"&&Number.isFinite(d)&&d>=0)){try{sessionStorage.removeItem(j)}catch{}return null}return d};let w=!1;const m=l=>{try{const _=scrollY;scrollTo({top:l,left:0,behavior:"instant"}),s=l,n=!0,clearTimeout(e),o=null,i(l);const d=scrollY;d!==_&&(t=!0),d!==l&&!w&&(w=!0,addEventListener("load",()=>{try{if(scrollY===d){const T=p();m(T!==null?T:s)}}catch{}},{once:!0}))}catch{}},g=()=>{try{return!!location.hash}catch{return!0}};let a=!1;const f=()=>{try{if(a||innerWidth>Ae||innerHeight>Se)return;a=!0;const l=Date.now(),_=()=>{try{removeEventListener("resize",_)}catch{}if(Date.now()-l>Te||r||g())return;const d=p();m(d!==null?d:s)};addEventListener("resize",_)}catch{}};let v=!1,b=!1;return{restore(){if(v||(v=!0,g()))return;const l=p();l!==null&&(m(l),f())},promoted(){if(b||(b=!0,g()))return;const l=p();l!==null?(m(l),f()):n&&m(s)}}}function Re(e,t,r,n){let s=null;try{s=window.trustedTypes?.createPolicy("frame-runtime",{createScriptURL:h=>h})??null}catch{}const o=window.Worker,i=o?.prototype,c=Object.freeze({Worker:o,workerOn:i?.addEventListener,workerPost:i?.postMessage,workerTerminate:i?.terminate,fetch:window.fetch.bind(window),preventDefault:Event.prototype.preventDefault,policy:s,origins:t});r(e).then(h=>h?.bootTopLevel?h.bootTopLevel(c,n):n.settle()).catch(()=>n.settle())}var De="modulepreload",Ie=function(e){return"/"+e},Ue={},Le=function(t,r,n){let s=Promise.resolve();function o(i){const c=new Event("vite:preloadError",{cancelable:!0});if(c.payload=i,window.dispatchEvent(c),!c.defaultPrevented)throw i}return s.then(i=>{for(const c of i||[])c.status==="rejected"&&o(c.reason);return t().catch(o)})},Oe=window===top,q=Object.getOwnPropertyDescriptor(window,"claude"),k=we(Oe,window.__FRAME_PREAMBLE?.topLevel,q?.writable===!1),N=typeof k=="object"&&k[0],y=N?be():ge();(function(){const e=Object.defineProperty,t=globalThis,r=["RTCPeerConnection","webkitRTCPeerConnection","RTCDataChannel","RTCIceCandidate","RTCSessionDescription","RTCRtpSender","RTCRtpReceiver"];let n=0;for(let s=0;s<r.length;s++){const o=r[s];try{e(t,o,{value:void 0,writable:!1,configurable:!1})}catch{try{delete t[o]}catch{}try{e(t,o,{value:void 0,writable:!1,configurable:!0})}catch{}}typeof t[o]=="function"&&n++}if(n&&k==="framed")try{y.post({__frame_rtc_lockdown_failed:n},"*")}catch{}})();var Pe=1e4,Y=Object.freeze([...window.__FRAME_PREAMBLE?.origins??["https://claude.ai","https://preview.claude.ai"]]);function X(e){for(const t of Y)if(t.endsWith(":*"))try{const r=new URL(e);if(`${r.protocol}//${r.hostname}:*`===t)return!0}catch{}else if(e===t)return!0;return!1}var R=Object.freeze({...window.__FRAME_PREAMBLE?.capabilities}),B=window.__FRAME_PREAMBLE?.transforms,D=window.__FRAME_PREAMBLE?.comments,I=window.__FRAME_PREAMBLE?.translate;function S(e){return Le(()=>import("/_runtime/"+e),void 0)}function G(e,t){return{contract:e.contract,changes:new Set(e.changes??[]),flags:new Set(e.flags??[]),capabilities:e.capabilities??{},capBudgets:e.capBudgets??{},transforms:new Map,shellOrigin:t,mount:x,hooks:O,pipe:()=>({wrap:(r,n)=>(...s)=>{try{return n(...s)}catch(o){return Promise.reject(o)}}})}}var L=null,E=null;function V(e,t,r){try{Object.defineProperty(e,t,{value:r,writable:!1,configurable:!1,enumerable:!0})}catch{try{Object.defineProperty(e,t,{value:r,writable:!1,configurable:!0,enumerable:!0})}catch{}}}var U=!1,O={editBefore:null,edit:null};function Ce(e,t,r=!1){const n=[];let s;if(r)try{O.editBefore?.(e)}catch{}for(const o of e.elements){const i=document.querySelector(`[data-id="${o.target}"]`);if(!i){s=o.target;break}if([...Object.keys(o.attrsSet??{}),...o.attrsRemoved??[]].some(c=>!oe(c))){s=o.target;break}if(o.text!==void 0&&(!ce(i)||de(i))){s=o.target;break}for(const[c,h]of Object.entries(o.attrsSet??{}))if(!J(i,c)){try{i.setAttribute(c,h)}catch{}Z(i,c,h)}for(const c of o.attrsRemoved??[])J(i,c)||(i.removeAttribute(c),Z(i,c,null));typeof o.text=="string"&&ue(i,o.text),n.push(o.target)}if(r)try{O.edit?.(e.seq,n,s)}catch{}if(s!==void 0){y.post({__frame_patch_miss:{seq:e.seq}},t);return}try{document.dispatchEvent(new CustomEvent("claude:edit",{detail:{seq:e.seq,targets:n}}))}catch{}}function Z(e,t,r){if(!(e instanceof HTMLInputElement))return;const n=t.toLowerCase();n==="checked"?e.checked=r!==null:n==="value"&&e.type!=="file"&&(e.value=r??"")}function J(e,t){const r=t.toLowerCase(),n=e;return r==="data-id"||(r==="value"||r==="checked")&&(n.__artifactSecret===!0||/^(password|hidden|file)$/.test(n.type??"")||/(^|\s)(cc-|one-time-code|current-password|new-password)/i.test(`${e.getAttribute("autocomplete")??""} ${n.autocomplete??""}`))}function Q(e){const t=document.documentElement;e==="light"||e==="dark"?(t.dataset.theme=e,t.style.colorScheme=e,U=!0):U&&(delete t.dataset.theme,t.style.colorScheme="",U=!1)}var P=new Map;function Me(){let e;const t={u:new Promise(r=>{e=r}),r:r=>{t.done=!0,e(r)},done:!1,nulled:!1};return t}function F(){for(const e of P.values())e.done||(e.nulled=!0,e.r(null))}var je=Object.freeze(Object.assign(Object.create(null),{call:Function.prototype.call,apply:Function.prototype.apply,bind:Function.prototype.bind})),x=(e,t)=>{const r=P.get(e);if(!r||r.done){r?.nulled&&E&&y.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:e}},E);return}const n=typeof t=="function"?Object.setPrototypeOf(t,je):Object.assign(Object.create(null),t);typeof n.then=="function"&&delete n.then,r.r(Object.freeze(n))};function ee(){const e=q?.value??{};V(window,"claude",e);for(const t of Object.keys(R)){if(e[t]!==void 0){V(e,t,e[t]);continue}P.set(t,Me())}if(e.use===void 0){const t=r=>{if(typeof r!="string"||!Object.hasOwn(R,r))return Promise.resolve(null);const n=P.get(r);return n?n.u:Promise.resolve(e[r]??null)};try{Object.defineProperty(e,"use",{value:t,writable:!0,configurable:!0,enumerable:!1})}catch{}}}if(k==="framed"){const e=B&&A.test(B)?S(B).catch(()=>{}):Promise.resolve(void 0),t=a=>{if(a.type==="auxclick"&&a.button!==1)return;const f=a.target,v=f&&f.closest?f.closest("a[href],area[href]"):null;if(!v)return;const b=v.getAttribute("href");if(!b)return;let l;try{l=new URL(b,document.baseURI)}catch{return}if((l.protocol==="http:"||l.protocol==="https:")&&l.origin!==location.origin){a.preventDefault();const _=(v.getAttribute("target")??"").toLowerCase(),d=a.type==="auxclick"||a.metaKey||a.ctrlKey||a.shiftKey||a.altKey||!["","_self","_top","_parent"].includes(_);y.post({__frame_nav:!0,url:l.href,newTab:d},"*")}};addEventListener("click",t,!0),addEventListener("auxclick",t,!0);const r={},n=a=>{a.isTrusted&&(r.pointer=!0)},s=a=>{a.isTrusted&&(r.click=!0)};addEventListener("pointermove",n,{capture:!0,passive:!0}),addEventListener("click",s,{capture:!0,passive:!0}),e.then(a=>{a?.wireNav&&(a.wireNav(),removeEventListener("click",t,!0),removeEventListener("auxclick",t,!0),removeEventListener("pointermove",n,!0),removeEventListener("click",s,!0),a.wireEngagement?.(r))});let o=null;try{o=ke()}catch{}ee();let i=null,c=null,h=0;const p=y.on((a,f)=>{X(f)&&_e(a)&&(i=a.__frame_init,E=f,p(),clearTimeout(h),c?.())});y.post({__frame_connect:!0},"*");const w=new Promise(a=>{c=a,h=setTimeout(()=>{p(),a()},Pe)}),m=document.readyState==="loading"?new Promise(a=>document.addEventListener("DOMContentLoaded",()=>a(),{once:!0})):Promise.resolve();m.then(()=>{try{o?.restore()}catch{}});const g={cb:null};y.on((a,f)=>{if(X(f)&&ve(a)){try{o?.promoted()}catch{}g.cb?.()}}),w.then(async()=>{if(!i||!E){F();return}Q(i.theme);const a=E;let f=!1,v=!1;y.on((u,z,C)=>{if(z!==a)return;ye(u)&&Q(u.__frame_theme.theme),he(u)&&Ce(u.__frame_patch,a,C);const H=u?.__fc_mode;H&&typeof H=="object"&&!f&&D&&A.test(D)&&(f=!0,S(D).then(K=>K.install?.(a,H.on===!0)).catch(()=>{}));const W=u?.__ft_cmd;W&&typeof W=="object"&&!v&&I&&A.test(I)&&(v=!0,S(I).then(K=>K.install?.(a,W)).catch(()=>{}))});const b=Object.keys(i.capabilities??{}).filter(u=>Object.hasOwn(R,u)).map(u=>[u,R[u]]).filter(u=>typeof u[1]=="string"&&A.test(u[1])),l=await Promise.allSettled(b.map(([,u])=>S(u))),_=await e,d=E;if(_?.buildBoot||y.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:"_transforms"}},d),_?.buildBoot)try{L=_.buildBoot(i,_.TRANSFORMS??{},{shellOrigin:d,mount:x,hooks:O},u=>y.post({__frame_cap_telemetry:u},d))}catch{y.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:"_transforms"}},d),L=G(i,d)}else L=G(i,d);const T=u=>y.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:u}},d),Ne=L;l.forEach((u,z)=>{const C=b[z][0];if(u.status!=="fulfilled"){T(C);return}try{u.value?.install?.(Ne)}catch{T(C)}}),F(),await m,y.post({__frame_ready:!0},E),e.then(u=>u?.installSizeReporter?.(d,g))})}else N&&(ee(),Re(N,Y,S,{settle:F,mount:x}))})();</script><!-- /frame-runtime --><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style></head><body>
+<title>文字崩壊</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;500;600;700;800&family=Zen+Kaku+Gothic+New:wght@300;400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --void:#0b0a08;
+    --void-deep:#040403;
+    --paper:#eae2d0;
+    --paper-dim:#a89f8c;
+    --signal-red:#d4372c;
+    --signal-cyan:#3fb6c4;
+    --ash:#6b6255;
+    --hairline:rgba(234,226,208,0.16);
+    --hairline-strong:rgba(234,226,208,0.32);
+  }
+
+  *{box-sizing:border-box;}
+
+  html,body{
+    margin:0;
+    height:100%;
+    width:100%;
+    overflow:hidden;
+    background:var(--void);
+    color:var(--paper);
+    font-family:"Zen Kaku Gothic New","Hiragino Sans",sans-serif;
+  }
+
+  #stage{
+    position:fixed;
+    inset:0;
+    display:block;
+    background:var(--void);
+    cursor:crosshair;
+  }
+
+  .vignette{
+    position:fixed;
+    inset:0;
+    pointer-events:none;
+    background:
+      radial-gradient(ellipse at 50% 45%, rgba(11,10,8,0) 0%, rgba(11,10,8,0) 45%, rgba(4,4,3,0.65) 100%);
+    mix-blend-mode:normal;
+  }
+
+  .grain{
+    position:fixed;
+    inset:0;
+    pointer-events:none;
+    opacity:0.05;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  }
+
+  .chrome{
+    position:fixed;
+    inset:0;
+    pointer-events:none;
+    display:flex;
+    flex-direction:column;
+    justify-content:space-between;
+    padding:clamp(16px,3vw,34px);
+    font-variant-numeric:tabular-nums;
+  }
+
+  .chrome a, .chrome button, .chrome input{pointer-events:auto;}
+
+  .masthead{max-width:34ch;}
+
+  .eyebrow{
+    font-family:"IBM Plex Mono",monospace;
+    font-size:10px;
+    letter-spacing:0.28em;
+    text-transform:uppercase;
+    color:var(--ash);
+    margin:0 0 10px 0;
+  }
+
+  .title{
+    font-family:"Shippori Mincho",serif;
+    font-weight:700;
+    font-size:clamp(26px,4vw,38px);
+    letter-spacing:0.06em;
+    margin:0 0 10px 0;
+    color:var(--paper);
+    text-shadow:0 0 26px rgba(212,55,44,0.18);
+  }
+
+  .desc{
+    font-size:12.5px;
+    line-height:1.7;
+    color:var(--paper-dim);
+    margin:0;
+    max-width:30ch;
+  }
+
+  .desc .en{
+    display:block;
+    margin-top:6px;
+    font-family:"IBM Plex Mono",monospace;
+    font-size:10px;
+    letter-spacing:0.02em;
+    color:var(--ash);
+  }
+
+  .bottom-row{
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:16px;
+    flex-wrap:wrap;
+  }
+
+  .panel{
+    border:1px solid var(--hairline);
+    background:rgba(5,5,4,0.55);
+    backdrop-filter:blur(6px);
+    padding:14px 18px;
+    display:flex;
+    align-items:stretch;
+    gap:22px;
+    flex-wrap:wrap;
+  }
+
+  .fold-btn{
+    appearance:none;
+    border:1px solid var(--signal-red);
+    background:transparent;
+    color:var(--paper);
+    font-family:"Shippori Mincho",serif;
+    font-size:15px;
+    letter-spacing:0.1em;
+    padding:0 20px;
+    cursor:pointer;
+    transition:background 0.18s ease, color 0.18s ease;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:2px;
+  }
+  .fold-btn:hover{background:var(--signal-red);color:var(--void-deep);}
+  .fold-btn:focus-visible{outline:2px solid var(--signal-cyan);outline-offset:3px;}
+  .fold-btn span.en{
+    font-family:"IBM Plex Mono",monospace;
+    font-size:9px;
+    letter-spacing:0.22em;
+    text-transform:uppercase;
+    opacity:0.75;
+  }
+
+  .control{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    min-width:108px;
+  }
+
+  .control label{
+    font-family:"IBM Plex Mono",monospace;
+    font-size:9.5px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:var(--ash);
+    display:flex;
+    justify-content:space-between;
+  }
+
+  .control label b{
+    font-weight:500;
+    color:var(--paper-dim);
+    letter-spacing:0;
+    font-style:normal;
+  }
+
+  .control .jp{
+    font-family:"Shippori Mincho",serif;
+    font-size:12px;
+    letter-spacing:0.08em;
+    color:var(--paper-dim);
+  }
+
+  input[type="range"]{
+    -webkit-appearance:none;
+    appearance:none;
+    width:100%;
+    height:1px;
+    background:var(--hairline-strong);
+    outline:none;
+    margin:2px 0;
+  }
+  input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    width:9px;
+    height:9px;
+    border-radius:50%;
+    background:var(--signal-red);
+    cursor:pointer;
+    box-shadow:0 0 8px rgba(212,55,44,0.6);
+  }
+  input[type="range"]::-moz-range-thumb{
+    width:9px;height:9px;border-radius:50%;border:none;
+    background:var(--signal-red);cursor:pointer;
+    box-shadow:0 0 8px rgba(212,55,44,0.6);
+  }
+  input[type="range"]:focus-visible::-webkit-slider-thumb{outline:2px solid var(--signal-cyan);}
+
+  .readout{
+    font-family:"IBM Plex Mono",monospace;
+    font-size:10.5px;
+    line-height:1.9;
+    color:var(--ash);
+    text-align:right;
+    letter-spacing:0.02em;
+    white-space:nowrap;
+  }
+  .readout b{color:var(--signal-cyan);font-weight:500;}
+  .readout .lbl{color:var(--ash);}
+
+  @media (max-width:640px){
+    .panel{gap:14px;padding:12px 14px;}
+    .control{min-width:84px;}
+    .readout{display:none;}
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .fold-btn, input[type="range"]::-webkit-slider-thumb{transition:none;}
+  }
+</style>
+
+<canvas id="stage" aria-hidden="true"></canvas>
+<div class="vignette"></div>
+<div class="grain"></div>
+
+<div class="chrome">
+  <div class="masthead">
+    <p class="eyebrow">cut-up generative text / 生成カットアップ</p>
+    <h1 class="title">文字崩壊</h1>
+    <p class="desc">
+      複数言語の断片を二・三・五文字に切り、無作為に継ぎ合わせて浮かび上がらせる。すべての文字はやがて崩れ、また別の言葉として生まれ直す。
+      <span class="en">a burroughs-style cut-up: fragments of 2, 3 and 5 characters, spliced across languages, rising in space until they crumble and reform.</span>
+    </p>
+  </div>
+
+  <div class="bottom-row">
+    <div class="panel">
+      <button class="fold-btn" id="foldBtn" type="button">
+        折る
+        <span class="en">fold-in</span>
+      </button>
+
+      <div class="control">
+        <label><span class="jp">密度</span><b id="densityVal">22</b></label>
+        <input id="density" type="range" min="6" max="42" step="1" value="22">
+      </div>
+
+      <div class="control">
+        <label><span class="jp">速度</span><b id="speedVal">1.0</b></label>
+        <input id="speed" type="range" min="0.3" max="2.4" step="0.1" value="1.0">
+      </div>
+
+      <div class="control">
+        <label><span class="jp">崩壊</span><b id="decayVal">1.0</b></label>
+        <input id="decay" type="range" min="0.2" max="2.4" step="0.1" value="1.0">
+      </div>
+    </div>
+
+    <div class="readout">
+      <div><span class="lbl">GEN</span> <b id="genCount">000000</b></div>
+      <div><span class="lbl">GLYPH</span> <b id="glyphCount">00</b></div>
+      <div><span class="lbl">FOLD</span> <b id="foldCount">00</b></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var REDUCE_MOTION = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var MOTION_K = REDUCE_MOTION ? 0.4 : 1.0;
+
+  var CORPUS_JA = [
+    "時間は皮膚の下で腐敗する",
+    "言葉は電流のように流れていく",
+    "都市は静かに呼吸を止める",
+    "記憶の断片が空中で衝突する",
+    "機械の声が言葉を裏返す",
+    "夜の裏側で文字が溶けていく",
+    "支配の言語は骨まで届く",
+    "静寂は刃のように光る",
+    "肉体は情報の影にすぎない",
+    "未来はすでに腐り始めている",
+    "鏡の中で自我が分裂する",
+    "都市の血管に電波が流れる",
+    "言葉のウイルスが脳を書き換える",
+    "時の断層に落ちていく影",
+    "沈黙は爆発の予感である",
+    "紙の上で世界が切断される",
+    "呼吸のたびに文字がずれていく",
+    "皮膚の内側で都市が発光する",
+    "声帯の奥で機械が回転する",
+    "灰になった言葉が空に浮かぶ"
+  ];
+
+  var CORPUS_OTHER = [
+    "the future leaks through torn wire",
+    "control is a virus of language",
+    "cities breathe static and rust",
+    "memory folds into broken glass",
+    "the body is a tape recorder",
+    "silence cuts before it speaks",
+    "le silence coupe la peau du temps",
+    "la ville respire une fumee grise",
+    "les mots se dissolvent dans le bruit",
+    "die stadt atmet nur noch rauch",
+    "worte zerfallen im leeren raum",
+    "el silencio corta como una hoja"
+  ];
+
+  var GLITCH_CHARS = "アイウエオカキクケコサシスセソタチツテトナニヌネノ光闇影骨血肉錆層膜核弦声鏡壁灰塵器管腔0123456789#%&*+=-_/\\|<>^~".split("");
+
+  var CHUNK_LENS = [2,2,3,3,3,5];
+
+  function pick(arr){ return arr[(Math.random()*arr.length)|0]; }
+
+  function sourcePool(){
+    return Math.random() < 0.62 ? CORPUS_JA : CORPUS_OTHER;
+  }
+
+  function cutFragment(){
+    var src = pick(sourcePool());
+    var len = pick(CHUNK_LENS);
+    if(src.length <= len) return src;
+    var start = (Math.random()*(src.length-len+1))|0;
+    return src.slice(start, start+len);
+  }
+
+  // build one spliced cut-up line from several fragments, marking literal
+  // splice points with a red cut-mark character rendered as isCut
+  function buildLine(){
+    var count = 2 + ((Math.random()*3)|0); // 2..4 fragments
+    var chars = [];
+    for(var i=0;i<count;i++){
+      var frag = cutFragment();
+      for(var j=0;j<frag.length;j++){
+        chars.push({ base:frag[j], corrupted:false, show:frag[j], isCut:false, flip:0 });
+      }
+      if(i < count-1 && Math.random() < 0.45){
+        chars.push({ base:"/", corrupted:false, show:"/", isCut:true, flip:0 });
+      }
+    }
+    return chars;
+  }
+
+  // ---------- canvas / camera ----------
+  var canvas = document.getElementById("stage");
+  var ctx = canvas.getContext("2d");
+  var W=0, H=0, DPR=1;
+
+  function resize(){
+    DPR = Math.min(window.devicePixelRatio||1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W*DPR;
+    canvas.height = H*DPR;
+    canvas.style.width = W+"px";
+    canvas.style.height = H+"px";
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  var mouse = {x:0,y:0,tx:0,ty:0};
+  window.addEventListener("mousemove", function(e){
+    mouse.tx = (e.clientX/W - 0.5) * 2;
+    mouse.ty = (e.clientY/H - 0.5) * 2;
+  });
+  window.addEventListener("touchmove", function(e){
+    if(e.touches && e.touches[0]){
+      mouse.tx = (e.touches[0].clientX/W - 0.5)*2;
+      mouse.ty = (e.touches[0].clientY/H - 0.5)*2;
+    }
+  }, {passive:true});
+
+  // ---------- config (live-tunable) ----------
+  var CONFIG = { density:22, speed:1.0, decay:1.0 };
+
+  var densityEl = document.getElementById("density");
+  var speedEl = document.getElementById("speed");
+  var decayEl = document.getElementById("decay");
+  var densityVal = document.getElementById("densityVal");
+  var speedVal = document.getElementById("speedVal");
+  var decayVal = document.getElementById("decayVal");
+
+  densityEl.addEventListener("input", function(){ CONFIG.density=+densityEl.value; densityVal.textContent=densityEl.value; });
+  speedEl.addEventListener("input", function(){ CONFIG.speed=+speedEl.value; speedVal.textContent=(+speedEl.value).toFixed(1); });
+  decayEl.addEventListener("input", function(){ CONFIG.decay=+decayEl.value; decayVal.textContent=(+decayEl.value).toFixed(1); });
+
+  // ---------- glyph lines ----------
+  var glyphs = [];
+  var fragments = [];
+  var genCount = 0;
+  var foldCount = 0;
+
+  function spawnGlyph(zStart){
+    genCount++;
+    return {
+      chars: buildLine(),
+      xNorm: (Math.random()-0.5)*1.9,
+      yNorm: (Math.random()-0.5)*1.5,
+      z: (zStart!==undefined) ? zStart : 1.1 + Math.random()*0.5,
+      vz: (0.10 + Math.random()*0.09),
+      rot: (Math.random()-0.5)*0.10,
+      rotV: (Math.random()-0.5)*0.012,
+      seed: Math.random()*1000,
+      forcedFold: false
+    };
+  }
+
+  function initGlyphs(){
+    glyphs = [];
+    for(var i=0;i<CONFIG.density;i++){
+      // stagger initial depths so the field doesn't pulse in sync
+      glyphs.push(spawnGlyph(-0.1 + Math.random()*1.5));
+    }
+  }
+  initGlyphs();
+
+  function burst(g, scale, sx, sy){
+    for(var i=0;i<g.chars.length;i++){
+      var c = g.chars[i];
+      if(c.isCut) continue;
+      var ang = Math.random()*Math.PI*2;
+      var sp = 30 + Math.random()*90;
+      fragments.push({
+        ch: c.show,
+        x: sx + (i - g.chars.length/2) * 8 * scale,
+        y: sy,
+        vx: Math.cos(ang)*sp,
+        vy: Math.sin(ang)*sp - 40,
+        rot: Math.random()*Math.PI,
+        rotV: (Math.random()-0.5)*6,
+        life: 1,
+        size: 14*scale + Math.random()*10,
+        color: Math.random()<0.5 ? "var(--signal-red)" : "var(--paper)"
+      });
+    }
+  }
+
+  function foldNow(clickX, clickY){
+    foldCount++;
+    var n = 0;
+    for(var i=0;i<glyphs.length && n<6;i++){
+      if(glyphs[i].z > -0.05 && glyphs[i].z < 0.9){
+        glyphs[i].forcedFold = true;
+        n++;
+      }
+    }
+    if(clickX!==undefined){
+      for(var k=0;k<10;k++){
+        var ang = Math.random()*Math.PI*2, sp=40+Math.random()*120;
+        fragments.push({
+          ch: pick(GLITCH_CHARS),
+          x: clickX, y: clickY,
+          vx: Math.cos(ang)*sp, vy: Math.sin(ang)*sp,
+          rot:0, rotV:(Math.random()-0.5)*8,
+          life:1, size:12+Math.random()*14,
+          color:"var(--signal-cyan)"
+        });
+      }
+    }
+  }
+
+  document.getElementById("foldBtn").addEventListener("click", function(){ foldNow(); });
+  canvas.addEventListener("click", function(e){ foldNow(e.clientX, e.clientY); });
+
+  // ---------- perspective ----------
+  function project(xNorm, yNorm, z, camX, camY){
+    var scale = 0.46 / (z + 0.16);
+    if(scale > 6.4) scale = 6.4;
+    var spread = Math.min(W,H) * 0.62;
+    var sx = W/2 + (xNorm - camX*0.8) * spread * scale;
+    var sy = H/2 + (yNorm - camY*0.6) * spread * scale * 0.7;
+    return { x:sx, y:sy, scale:scale };
+  }
+
+  function depthAlpha(z){
+    if(z > 0.75) return Math.max(0, 1 - (z-0.75)/0.55); // fading in from far
+    if(z < 0.05) return Math.max(0, z/0.05);             // fading right before burst
+    return 1;
+  }
+
+  var glyphCountEl = document.getElementById("glyphCount");
+  var genCountEl = document.getElementById("genCount");
+  var foldCountEl = document.getElementById("foldCount");
+
+  var last = performance.now();
+
+  function frame(now){
+    var dt = Math.min(0.05, (now-last)/1000) * MOTION_K;
+    last = now;
+
+    mouse.x += (mouse.tx - mouse.x)*0.04;
+    mouse.y += (mouse.ty - mouse.y)*0.04;
+
+    // trail wash (afterimage decay)
+    ctx.fillStyle = "rgba(4,4,3,0.20)";
+    ctx.fillRect(0,0,W,H);
+
+    // maintain population
+    while(glyphs.length < CONFIG.density){
+      glyphs.push(spawnGlyph(1.4 + Math.random()*0.3));
+    }
+    if(glyphs.length > CONFIG.density + 6){
+      glyphs.length = CONFIG.density + 6;
+    }
+
+    glyphs.sort(function(a,b){ return b.z - a.z; });
+
+    var speedMul = CONFIG.speed;
+    var decayMul = CONFIG.decay;
+
+    for(var gi=0; gi<glyphs.length; gi++){
+      var g = glyphs[gi];
+      var vz = g.vz * speedMul * (g.forcedFold ? 3.2 : 1);
+      g.z -= vz*dt;
+      g.rot += g.rotV*dt*(1+ (g.forcedFold?4:0));
+
+      var proj = project(g.xNorm, g.yNorm, g.z, mouse.x, mouse.y);
+      var alpha = depthAlpha(g.z);
+      var decaying = g.z < 0.28 || g.forcedFold;
+
+      // per-character glitch flicker, intensifying as it decays
+      var glitchP = (decaying ? 0.10 : 0.006) * decayMul * dt * 60;
+      for(var ci=0; ci<g.chars.length; ci++){
+        var c = g.chars[ci];
+        if(c.isCut) continue;
+        if(Math.random() < glitchP){
+          c.corrupted = !c.corrupted;
+          c.show = c.corrupted ? pick(GLITCH_CHARS) : c.base;
+        }
+      }
+
+      if(g.z <= -0.06 || (g.forcedFold && g.z < 0.35 && Math.random()<0.04)){
+        burst(g, proj.scale, proj.x, proj.y);
+        glyphs.splice(gi,1);
+        gi--;
+        continue;
+      }
+
+      if(proj.x < -400 || proj.x > W+400 || proj.y < -400 || proj.y > H+400){
+        continue; // offscreen, still simulated but skip draw cost
+      }
+
+      drawGlyph(g, proj, alpha, decaying);
+    }
+
+    // fragments
+    ctx.save();
+    for(var fi=0; fi<fragments.length; fi++){
+      var f = fragments[fi];
+      f.x += f.vx*dt;
+      f.y += f.vy*dt;
+      f.vy += 70*dt;
+      f.rot += f.rotV*dt;
+      f.life -= dt*0.7;
+      if(f.life <= 0){ fragments.splice(fi,1); fi--; continue; }
+      ctx.globalAlpha = Math.max(0,f.life);
+      ctx.fillStyle = f.color === "var(--signal-red)" ? "#d4372c" : (f.color==="var(--signal-cyan)" ? "#3fb6c4" : "#eae2d0");
+      ctx.font = f.size.toFixed(1)+"px 'Shippori Mincho', serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.save();
+      ctx.translate(f.x, f.y);
+      ctx.rotate(f.rot);
+      ctx.fillText(f.ch, 0, 0);
+      ctx.restore();
+    }
+    ctx.restore();
+
+    glyphCountEl.textContent = String(glyphs.length).padStart(2,"0");
+    genCountEl.textContent = String(genCount).padStart(6,"0");
+    foldCountEl.textContent = String(foldCount).padStart(2,"0");
+
+    requestAnimationFrame(frame);
+  }
+
+  function drawGlyph(g, proj, alpha, decaying){
+    var fontSize = Math.max(9, Math.min(150, 22*proj.scale));
+    ctx.font = fontSize.toFixed(1)+"px 'Shippori Mincho', serif";
+    ctx.textBaseline = "middle";
+
+    // measure total width to center the line
+    var widths = [];
+    var total = 0;
+    for(var i=0;i<g.chars.length;i++){
+      var w = ctx.measureText(g.chars[i].show).width;
+      widths.push(w);
+      total += w;
+    }
+
+    ctx.save();
+    ctx.translate(proj.x, proj.y);
+    ctx.rotate(g.rot);
+    ctx.translate(-total/2, 0);
+
+    var aberr = decaying ? Math.min(9, (0.28 - Math.min(g.z,0.28))*40 + (g.forcedFold?3:0)) : 0;
+    var x = 0;
+    for(var j=0;j<g.chars.length;j++){
+      var c = g.chars[j];
+      var w = widths[j];
+      var col = c.isCut ? "#d4372c" : (c.corrupted ? (Math.random()<0.5?"#d4372c":"#3fb6c4") : "#eae2d0");
+
+      if(aberr > 0.3){
+        ctx.globalAlpha = alpha*0.4;
+        ctx.fillStyle = "#3fb6c4";
+        ctx.fillText(c.show, x-aberr, 0);
+        ctx.fillStyle = "#d4372c";
+        ctx.fillText(c.show, x+aberr, 0);
+      }
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = col;
+      ctx.fillText(c.show, x, 0);
+      x += w;
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
+  requestAnimationFrame(frame);
+})();
+</script>
+
+</body></html>

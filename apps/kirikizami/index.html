@@ -1,0 +1,960 @@
+<!doctype html><html><head><!-- frame-runtime --><script>window.__FRAME_PREAMBLE={"v":1,"capabilities":{"artifact":"artifact.DF6_9MzE.js","assets":"assets.8Gk803W0.js","comments":"comments.vw5vQdGA.js","db":"db.h-3sndFg.js","downloads":"downloads.C3GSvEDP.js","embed":"embed.CxGAyc-v.js","mcp":"mcp.Bvma3qD7.js","network":"network.B5UA9Su4.js","notifications":"notifications.ssU4jy7G.js","permissions":"permissions.BNySkLV5.js","room":"room.BMMoe2BY.js","sample":"sample.BW2Uysoh.js","self":"artifact.DF6_9MzE.js","user":"user.BpKav-Rf.js"},"transforms":"_transforms.DSB5x63f.js","comments":"_comments.C6E0cR5g.js","translate":"_translate.5HCW4BJh.js"}</script><script>(function(){"use strict";var te=["light","dark","system"],re=/^[A-Za-z0-9_-]{1,64}$/,$=/^[a-zA-Z_:][a-zA-Z0-9_:.-]{0,127}$/,ne=new Set(["class","hidden","value","checked","style","title","alt","placeholder","lang","dir","role","tabindex","disabled","readonly","contenteditable","open","colspan","rowspan"]);function oe(e){const t=e.toLowerCase();return t.startsWith("data-")||t.startsWith("aria-")||ne.has(t)}var Be="http://www.w3.org/1999/xhtml",se="http://www.w3.org/2000/svg",ae=new Set(["script","style","iframe","noscript","noframes","noembed","xmp","plaintext","template","title","textarea","object","embed"]),ie=new Set(["script","style"]);function ce(e){const t=e.localName.toLowerCase();return e.namespaceURI==="http://www.w3.org/1999/xhtml"?!ae.has(t):e.namespaceURI===se?!ie.has(t):!1}function M(e,t){return e===t||(e===160||e===32)&&(t===160||t===32)}function le(e,t){const r=e.length,n=t.length;let s=0;for(;s<r&&s<n&&M(e.charCodeAt(s),t.charCodeAt(s));)s++;let o=0;for(;o<r-s&&o<n-s&&M(e.charCodeAt(r-1-o),t.charCodeAt(n-1-o));)o++;return{p:s,s:o}}function ue(e,t){const r=e.firstChild;if(e.childNodes.length!==1||r===null||r.nodeType!==Node.TEXT_NODE){e.textContent=t;return}const n=r.data,s=n.length,o=t.length,{p:i,s:c}=le(n,t);i===s&&c===0&&s===o||r.replaceData(i,s-i-c,t.slice(i,o-c));const h=r.data,p=e.ownerDocument.getSelection?.()??null,w=p!==null&&p.rangeCount>0&&(p.anchorNode===r||p.focusNode===r)?{anchor:p.anchorNode,anchorOffset:p.anchorOffset,focus:p.focusNode,focusOffset:p.focusOffset}:null;let m=-1,g=-1;for(let f=0;f<h.length&&f<t.length;f++){const v=h.charCodeAt(f),b=t.charCodeAt(f);v!==b&&M(v,b)&&(m<0&&(m=f),g=f)}const a=m>=0;if(a&&r.replaceData(m,g-m+1,t.slice(m,g+1)),a&&w!==null&&w.anchor!==null&&w.focus!==null)try{p.setBaseAndExtent(w.anchor,w.anchorOffset,w.focus,w.focusOffset)}catch{}}var fe=new Set(["html","head","body","frameset"]);function de(e){return e.namespaceURI==="http://www.w3.org/1999/xhtml"&&fe.has(e.localName)}function pe(e){if(e===null||typeof e!="object")return!1;const t=e;if(typeof t.target!="string"||!re.test(t.target)||t.text!==void 0&&typeof t.text!="string")return!1;if(t.attrsSet!==void 0){if(t.attrsSet===null||typeof t.attrsSet!="object")return!1;for(const[r,n]of Object.entries(t.attrsSet))if(!$.test(r)||typeof n!="string")return!1}if(t.attrsRemoved!==void 0){if(!Array.isArray(t.attrsRemoved))return!1;for(const r of t.attrsRemoved)if(typeof r!="string"||!$.test(r))return!1}return!0}function me(e,t){if(e===null||typeof e!="object")return!1;const{seq:r,elements:n}=e;if(typeof r!="number"||!Number.isSafeInteger(r)||!Array.isArray(n)||n.length===0||n.length>64)return!1;for(let s=0;s<n.length;s++)if(!t(n[s]))return!1;return!0}function he(e){return e===null||typeof e!="object"?!1:me(e.__frame_patch,pe)}function _e(e){if(e===null||typeof e!="object")return!1;const t=e.__frame_init;return t!==null&&typeof t=="object"}function ve(e){return e!==null&&typeof e=="object"&&e.__frame_size_poke===!0}function ye(e){if(e===null||typeof e!="object")return!1;const t=e.__frame_theme;if(t===null||typeof t!="object")return!1;const r=t.theme;return typeof r=="string"&&te.includes(r)}var A=/^[\w.-]+\.js$/;function we(e,t,r){return r?"inert":typeof t=="string"&&A.test(t)?e?[t]:"inert":e?"inert":"framed"}function ge(){return{post(e,t){parent.postMessage(e,t)},on(e){const t=r=>{r.source===parent&&e(r.data,r.origin,r.isTrusted)};return addEventListener("message",t),()=>removeEventListener("message",t)}}}function be(){return{post:()=>{},on:()=>()=>{}}}var j="__frame_scroll",Ee=150,Ae=310,Se=160,Te=3e4;function ke(){let e=0,t=!1,r=!1,n=!1,s=0,o=null;const i=l=>{try{sessionStorage.setItem(j,JSON.stringify({y:l}))}catch{}},c=()=>{if(clearTimeout(e),o===null)return;const l=o;o=null,i(l)},h=()=>{if(t){t=!1;return}r=!0,o=scrollY,clearTimeout(e),e=setTimeout(c,Ee)};try{addEventListener("scroll",h,{passive:!0}),addEventListener("pagehide",c)}catch{}const p=()=>{let l;try{l=sessionStorage.getItem(j)}catch{return null}if(l===null)return null;let _;try{_=JSON.parse(l)}catch{_=null}const d=_?.y;if(!(typeof d=="number"&&Number.isFinite(d)&&d>=0)){try{sessionStorage.removeItem(j)}catch{}return null}return d};let w=!1;const m=l=>{try{const _=scrollY;scrollTo({top:l,left:0,behavior:"instant"}),s=l,n=!0,clearTimeout(e),o=null,i(l);const d=scrollY;d!==_&&(t=!0),d!==l&&!w&&(w=!0,addEventListener("load",()=>{try{if(scrollY===d){const T=p();m(T!==null?T:s)}}catch{}},{once:!0}))}catch{}},g=()=>{try{return!!location.hash}catch{return!0}};let a=!1;const f=()=>{try{if(a||innerWidth>Ae||innerHeight>Se)return;a=!0;const l=Date.now(),_=()=>{try{removeEventListener("resize",_)}catch{}if(Date.now()-l>Te||r||g())return;const d=p();m(d!==null?d:s)};addEventListener("resize",_)}catch{}};let v=!1,b=!1;return{restore(){if(v||(v=!0,g()))return;const l=p();l!==null&&(m(l),f())},promoted(){if(b||(b=!0,g()))return;const l=p();l!==null?(m(l),f()):n&&m(s)}}}function Re(e,t,r,n){let s=null;try{s=window.trustedTypes?.createPolicy("frame-runtime",{createScriptURL:h=>h})??null}catch{}const o=window.Worker,i=o?.prototype,c=Object.freeze({Worker:o,workerOn:i?.addEventListener,workerPost:i?.postMessage,workerTerminate:i?.terminate,fetch:window.fetch.bind(window),preventDefault:Event.prototype.preventDefault,policy:s,origins:t});r(e).then(h=>h?.bootTopLevel?h.bootTopLevel(c,n):n.settle()).catch(()=>n.settle())}var De="modulepreload",Ie=function(e){return"/"+e},Ue={},Le=function(t,r,n){let s=Promise.resolve();function o(i){const c=new Event("vite:preloadError",{cancelable:!0});if(c.payload=i,window.dispatchEvent(c),!c.defaultPrevented)throw i}return s.then(i=>{for(const c of i||[])c.status==="rejected"&&o(c.reason);return t().catch(o)})},Oe=window===top,q=Object.getOwnPropertyDescriptor(window,"claude"),k=we(Oe,window.__FRAME_PREAMBLE?.topLevel,q?.writable===!1),N=typeof k=="object"&&k[0],y=N?be():ge();(function(){const e=Object.defineProperty,t=globalThis,r=["RTCPeerConnection","webkitRTCPeerConnection","RTCDataChannel","RTCIceCandidate","RTCSessionDescription","RTCRtpSender","RTCRtpReceiver"];let n=0;for(let s=0;s<r.length;s++){const o=r[s];try{e(t,o,{value:void 0,writable:!1,configurable:!1})}catch{try{delete t[o]}catch{}try{e(t,o,{value:void 0,writable:!1,configurable:!0})}catch{}}typeof t[o]=="function"&&n++}if(n&&k==="framed")try{y.post({__frame_rtc_lockdown_failed:n},"*")}catch{}})();var Pe=1e4,Y=Object.freeze([...window.__FRAME_PREAMBLE?.origins??["https://claude.ai","https://preview.claude.ai"]]);function X(e){for(const t of Y)if(t.endsWith(":*"))try{const r=new URL(e);if(`${r.protocol}//${r.hostname}:*`===t)return!0}catch{}else if(e===t)return!0;return!1}var R=Object.freeze({...window.__FRAME_PREAMBLE?.capabilities}),B=window.__FRAME_PREAMBLE?.transforms,D=window.__FRAME_PREAMBLE?.comments,I=window.__FRAME_PREAMBLE?.translate;function S(e){return Le(()=>import("/_runtime/"+e),void 0)}function G(e,t){return{contract:e.contract,changes:new Set(e.changes??[]),flags:new Set(e.flags??[]),capabilities:e.capabilities??{},capBudgets:e.capBudgets??{},transforms:new Map,shellOrigin:t,mount:x,hooks:O,pipe:()=>({wrap:(r,n)=>(...s)=>{try{return n(...s)}catch(o){return Promise.reject(o)}}})}}var L=null,E=null;function V(e,t,r){try{Object.defineProperty(e,t,{value:r,writable:!1,configurable:!1,enumerable:!0})}catch{try{Object.defineProperty(e,t,{value:r,writable:!1,configurable:!0,enumerable:!0})}catch{}}}var U=!1,O={editBefore:null,edit:null};function Ce(e,t,r=!1){const n=[];let s;if(r)try{O.editBefore?.(e)}catch{}for(const o of e.elements){const i=document.querySelector(`[data-id="${o.target}"]`);if(!i){s=o.target;break}if([...Object.keys(o.attrsSet??{}),...o.attrsRemoved??[]].some(c=>!oe(c))){s=o.target;break}if(o.text!==void 0&&(!ce(i)||de(i))){s=o.target;break}for(const[c,h]of Object.entries(o.attrsSet??{}))if(!J(i,c)){try{i.setAttribute(c,h)}catch{}Z(i,c,h)}for(const c of o.attrsRemoved??[])J(i,c)||(i.removeAttribute(c),Z(i,c,null));typeof o.text=="string"&&ue(i,o.text),n.push(o.target)}if(r)try{O.edit?.(e.seq,n,s)}catch{}if(s!==void 0){y.post({__frame_patch_miss:{seq:e.seq}},t);return}try{document.dispatchEvent(new CustomEvent("claude:edit",{detail:{seq:e.seq,targets:n}}))}catch{}}function Z(e,t,r){if(!(e instanceof HTMLInputElement))return;const n=t.toLowerCase();n==="checked"?e.checked=r!==null:n==="value"&&e.type!=="file"&&(e.value=r??"")}function J(e,t){const r=t.toLowerCase(),n=e;return r==="data-id"||(r==="value"||r==="checked")&&(n.__artifactSecret===!0||/^(password|hidden|file)$/.test(n.type??"")||/(^|\s)(cc-|one-time-code|current-password|new-password)/i.test(`${e.getAttribute("autocomplete")??""} ${n.autocomplete??""}`))}function Q(e){const t=document.documentElement;e==="light"||e==="dark"?(t.dataset.theme=e,t.style.colorScheme=e,U=!0):U&&(delete t.dataset.theme,t.style.colorScheme="",U=!1)}var P=new Map;function Me(){let e;const t={u:new Promise(r=>{e=r}),r:r=>{t.done=!0,e(r)},done:!1,nulled:!1};return t}function F(){for(const e of P.values())e.done||(e.nulled=!0,e.r(null))}var je=Object.freeze(Object.assign(Object.create(null),{call:Function.prototype.call,apply:Function.prototype.apply,bind:Function.prototype.bind})),x=(e,t)=>{const r=P.get(e);if(!r||r.done){r?.nulled&&E&&y.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:e}},E);return}const n=typeof t=="function"?Object.setPrototypeOf(t,je):Object.assign(Object.create(null),t);typeof n.then=="function"&&delete n.then,r.r(Object.freeze(n))};function ee(){const e=q?.value??{};V(window,"claude",e);for(const t of Object.keys(R)){if(e[t]!==void 0){V(e,t,e[t]);continue}P.set(t,Me())}if(e.use===void 0){const t=r=>{if(typeof r!="string"||!Object.hasOwn(R,r))return Promise.resolve(null);const n=P.get(r);return n?n.u:Promise.resolve(e[r]??null)};try{Object.defineProperty(e,"use",{value:t,writable:!0,configurable:!0,enumerable:!1})}catch{}}}if(k==="framed"){const e=B&&A.test(B)?S(B).catch(()=>{}):Promise.resolve(void 0),t=a=>{if(a.type==="auxclick"&&a.button!==1)return;const f=a.target,v=f&&f.closest?f.closest("a[href],area[href]"):null;if(!v)return;const b=v.getAttribute("href");if(!b)return;let l;try{l=new URL(b,document.baseURI)}catch{return}if((l.protocol==="http:"||l.protocol==="https:")&&l.origin!==location.origin){a.preventDefault();const _=(v.getAttribute("target")??"").toLowerCase(),d=a.type==="auxclick"||a.metaKey||a.ctrlKey||a.shiftKey||a.altKey||!["","_self","_top","_parent"].includes(_);y.post({__frame_nav:!0,url:l.href,newTab:d},"*")}};addEventListener("click",t,!0),addEventListener("auxclick",t,!0);const r={},n=a=>{a.isTrusted&&(r.pointer=!0)},s=a=>{a.isTrusted&&(r.click=!0)};addEventListener("pointermove",n,{capture:!0,passive:!0}),addEventListener("click",s,{capture:!0,passive:!0}),e.then(a=>{a?.wireNav&&(a.wireNav(),removeEventListener("click",t,!0),removeEventListener("auxclick",t,!0),removeEventListener("pointermove",n,!0),removeEventListener("click",s,!0),a.wireEngagement?.(r))});let o=null;try{o=ke()}catch{}ee();let i=null,c=null,h=0;const p=y.on((a,f)=>{X(f)&&_e(a)&&(i=a.__frame_init,E=f,p(),clearTimeout(h),c?.())});y.post({__frame_connect:!0},"*");const w=new Promise(a=>{c=a,h=setTimeout(()=>{p(),a()},Pe)}),m=document.readyState==="loading"?new Promise(a=>document.addEventListener("DOMContentLoaded",()=>a(),{once:!0})):Promise.resolve();m.then(()=>{try{o?.restore()}catch{}});const g={cb:null};y.on((a,f)=>{if(X(f)&&ve(a)){try{o?.promoted()}catch{}g.cb?.()}}),w.then(async()=>{if(!i||!E){F();return}Q(i.theme);const a=E;let f=!1,v=!1;y.on((u,z,C)=>{if(z!==a)return;ye(u)&&Q(u.__frame_theme.theme),he(u)&&Ce(u.__frame_patch,a,C);const H=u?.__fc_mode;H&&typeof H=="object"&&!f&&D&&A.test(D)&&(f=!0,S(D).then(K=>K.install?.(a,H.on===!0)).catch(()=>{}));const W=u?.__ft_cmd;W&&typeof W=="object"&&!v&&I&&A.test(I)&&(v=!0,S(I).then(K=>K.install?.(a,W)).catch(()=>{}))});const b=Object.keys(i.capabilities??{}).filter(u=>Object.hasOwn(R,u)).map(u=>[u,R[u]]).filter(u=>typeof u[1]=="string"&&A.test(u[1])),l=await Promise.allSettled(b.map(([,u])=>S(u))),_=await e,d=E;if(_?.buildBoot||y.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:"_transforms"}},d),_?.buildBoot)try{L=_.buildBoot(i,_.TRANSFORMS??{},{shellOrigin:d,mount:x,hooks:O},u=>y.post({__frame_cap_telemetry:u},d))}catch{y.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:"_transforms"}},d),L=G(i,d)}else L=G(i,d);const T=u=>y.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:u}},d),Ne=L;l.forEach((u,z)=>{const C=b[z][0];if(u.status!=="fulfilled"){T(C);return}try{u.value?.install?.(Ne)}catch{T(C)}}),F(),await m,y.post({__frame_ready:!0},E),e.then(u=>u?.installSizeReporter?.(d,g))})}else N&&(ee(),Re(N,Y,S,{settle:F,mount:x}))})();</script><!-- /frame-runtime --><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style></head><body>
+<title>kirikizami — random cut collage</title>
+<style>
+:root {
+  --ink: #eae6df;
+  --ink-dim: rgba(234, 230, 223, 0.55);
+  --bg: #0b0d10;
+  --accent: #e5484d;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Hiragino Sans", "Yu Gothic", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.ui {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 1.8rem;
+  padding: 2.5rem 1.5rem 3.5rem;
+  text-align: center;
+}
+
+header h1 {
+  font-weight: 300;
+  font-size: 2rem;
+  letter-spacing: 0.08em;
+  margin: 0;
+}
+
+header h1 .sub {
+  font-size: 1.1rem;
+  color: var(--ink-dim);
+  margin-left: 0.6em;
+  font-weight: 300;
+}
+
+.tagline {
+  margin: 0.9rem 0 0;
+  color: var(--ink-dim);
+  font-size: 0.9rem;
+  max-width: 32em;
+  line-height: 1.8;
+}
+
+.stageWrap {
+  position: relative;
+  width: 100%;
+  max-width: 900px;
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #000;
+  box-shadow: 0 0 0 1px rgba(234, 230, 223, 0.12), 0 30px 80px rgba(0, 0, 0, 0.5);
+}
+
+#stage {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.stageOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-dim);
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+  background: rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
+.stageOverlay.hidden {
+  opacity: 0;
+}
+
+.slots {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.slot {
+  position: relative;
+  width: 9.5rem;
+}
+
+.slotDrop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: 1px dashed rgba(234, 230, 223, 0.35);
+  border-radius: 8px;
+  padding: 0.6rem;
+  cursor: pointer;
+  transition: border-color 0.3s ease, background 0.3s ease;
+  text-align: center;
+  min-height: 7.5rem;
+}
+
+.slotDrop:hover,
+.slotDrop.dragover {
+  border-color: rgba(234, 230, 223, 0.8);
+  background: rgba(234, 230, 223, 0.05);
+}
+
+.slotDrop.loaded {
+  border-style: solid;
+}
+
+.slotThumb {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 4px;
+  background-size: cover;
+  background-position: center;
+  background-color: rgba(234, 230, 223, 0.06);
+}
+
+.slotLabel {
+  font-size: 0.68rem;
+  letter-spacing: 0.03em;
+  color: var(--ink-dim);
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+.slotLabel em {
+  font-style: normal;
+  opacity: 0.6;
+}
+
+.slotClear {
+  position: absolute;
+  top: -0.4rem;
+  right: -0.4rem;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 50%;
+  border: 1px solid rgba(234, 230, 223, 0.35);
+  background: #0b0d10;
+  color: var(--ink);
+  font-size: 0.65rem;
+  line-height: 1;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.transport {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+button {
+  font-family: inherit;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+  padding: 0.75rem 1.6rem;
+  border-radius: 999px;
+  border: 1px solid rgba(234, 230, 223, 0.35);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.4s ease, border-color 0.4s ease, opacity 0.4s ease, color 0.4s ease;
+}
+
+.playBtn {
+  background: rgba(234, 230, 223, 0.12);
+}
+
+.ghostBtn {
+  font-family: inherit;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+  padding: 0.75rem 1.6rem;
+  border-radius: 999px;
+  border: 1px solid rgba(234, 230, 223, 0.35);
+  background: transparent;
+  color: var(--ink);
+}
+
+.playBtn:hover,
+.ghostBtn:hover {
+  border-color: rgba(234, 230, 223, 0.7);
+}
+
+.playBtn.playing {
+  background: rgba(234, 230, 223, 0.04);
+  opacity: 0.75;
+}
+
+button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.downloadLink {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.recording {
+  border-color: var(--accent);
+  color: #ffb3b6;
+}
+
+.recording::before {
+  content: "";
+  display: inline-block;
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-right: 0.5em;
+  animation: pulse 1s infinite ease-in-out;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+.controls {
+  display: flex;
+  gap: 2.2rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.slider {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  color: var(--ink-dim);
+  width: 9rem;
+}
+
+.slider em {
+  font-style: normal;
+  opacity: 0.6;
+  margin-left: 0.4em;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 2px;
+  background: rgba(234, 230, 223, 0.3);
+  border-radius: 999px;
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--ink);
+  cursor: pointer;
+  box-shadow: 0 0 12px rgba(234, 230, 223, 0.6);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: none;
+  border-radius: 50%;
+  background: var(--ink);
+  cursor: pointer;
+  box-shadow: 0 0 12px rgba(234, 230, 223, 0.6);
+}
+
+.toggles {
+  display: flex;
+  gap: 1.6rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  font-size: 0.75rem;
+  color: var(--ink-dim);
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.toggle input {
+  accent-color: var(--ink);
+}
+
+.hint {
+  color: var(--ink-dim);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  opacity: 0.6;
+  max-width: 26em;
+  margin: 0;
+}
+
+@media (max-width: 480px) {
+  header h1 { font-size: 1.5rem; }
+  .controls { gap: 1.4rem; }
+  .slider { width: 7.5rem; }
+  .slot { width: 7.5rem; }
+}
+</style>
+
+  <main class="ui">
+    <header>
+      <h1>刻切 <span class="sub">kirikizami</span></h1>
+      <p class="tagline">写真と動画の素材を放り込むと、コマ止め・スクラブ・スタッター再生を織り交ぜたカットアップが、素材の断片をシステマチックに組み替え続けます。</p>
+    </header>
+
+    <div class="stageWrap">
+      <canvas id="stage" width="1280" height="720"></canvas>
+      <div class="stageOverlay" id="stageOverlay">
+        <p>素材を読み込んで再生してください</p>
+      </div>
+    </div>
+
+    <div class="slots" id="slots">
+      <div class="slot" id="slot0">
+        <input type="file" id="slotInput0" class="slotInput" accept="image/*,video/*" hidden />
+        <label for="slotInput0" class="slotDrop" id="slotDrop0">
+          <span class="slotThumb" id="slotThumb0"></span>
+          <span class="slotLabel" id="slotLabel0">素材 1<br><em>クリックまたはドロップ</em></span>
+        </label>
+        <button type="button" class="slotClear" id="slotClear0" aria-label="クリア">✕</button>
+      </div>
+      <div class="slot" id="slot1">
+        <input type="file" id="slotInput1" class="slotInput" accept="image/*,video/*" hidden />
+        <label for="slotInput1" class="slotDrop" id="slotDrop1">
+          <span class="slotThumb" id="slotThumb1"></span>
+          <span class="slotLabel" id="slotLabel1">素材 2<br><em>クリックまたはドロップ</em></span>
+        </label>
+        <button type="button" class="slotClear" id="slotClear1" aria-label="クリア">✕</button>
+      </div>
+      <div class="slot" id="slot2">
+        <input type="file" id="slotInput2" class="slotInput" accept="image/*,video/*" hidden />
+        <label for="slotInput2" class="slotDrop" id="slotDrop2">
+          <span class="slotThumb" id="slotThumb2"></span>
+          <span class="slotLabel" id="slotLabel2">素材 3<br><em>クリックまたはドロップ</em></span>
+        </label>
+        <button type="button" class="slotClear" id="slotClear2" aria-label="クリア">✕</button>
+      </div>
+    </div>
+
+    <div class="transport">
+      <button id="playBtn" class="playBtn" disabled>再生</button>
+      <button id="cutBtn" class="ghostBtn" disabled>今すぐ切替</button>
+      <button id="recBtn" class="ghostBtn" disabled>録画開始</button>
+      <a id="downloadLink" class="ghostBtn downloadLink" style="display:none">書き出しを保存</a>
+    </div>
+
+    <div class="controls">
+      <label class="slider">
+        <span>密度 <em>density</em></span>
+        <input id="density" type="range" min="0" max="100" value="60" />
+      </label>
+      <label class="slider">
+        <span>揺らぎ <em>swerve</em></span>
+        <input id="swerve" type="range" min="0" max="100" value="65" />
+      </label>
+      <label class="slider">
+        <span>ズーム <em>zoom</em></span>
+        <input id="zoom" type="range" min="0" max="100" value="40" />
+      </label>
+    </div>
+
+    <div class="toggles">
+      <label class="toggle"><input id="glitchToggle" type="checkbox" checked /> グリッチ演出</label>
+    </div>
+
+    <p class="hint" id="loadHint">写真・動画をあわせて2〜3点、ドラッグ&ドロップか選択して読み込んでください。</p>
+    <p class="hint">録画を使うと、切り刻まれていく映像をwebm動画として書き出せます（音声は含まれません）。</p>
+  </main>
+
+  <script>
+// kirikizami — cut-up glitch collage
+//
+// Load up to three video/photo materials. On play, the app runs a
+// cut-up sequencer: it constantly reassembles very short fragments of
+// the sources — single frozen frames, brief scrubs of motion, and
+// stutter-loops that scratch back and forth over a tiny window of a
+// video — rather than lingering on one continuous clip. Photos get a
+// random crop each cut; density/swerve tune how short and how erratic
+// the cuts get. The composited canvas can be recorded and downloaded
+// as a webm file.
+
+(() => {
+  const canvas = document.getElementById("stage");
+  const ctx = canvas.getContext("2d");
+  const stageOverlay = document.getElementById("stageOverlay");
+
+  const playBtn = document.getElementById("playBtn");
+  const cutBtn = document.getElementById("cutBtn");
+  const recBtn = document.getElementById("recBtn");
+  const downloadLink = document.getElementById("downloadLink");
+
+  const densityEl = document.getElementById("density");
+  const swerveEl = document.getElementById("swerve");
+  const zoomEl = document.getElementById("zoom");
+  const glitchToggle = document.getElementById("glitchToggle");
+
+  const loadHint = document.getElementById("loadHint");
+
+  const SLOT_COUNT = 3;
+  const slots = Array.from({ length: SLOT_COUNT }, (_, i) => ({
+    index: i,
+    type: null,
+    el: null,
+    url: null,
+    name: null,
+    duration: null,
+    ready: false,
+    thumbURL: null,
+    viewFrom: null,
+    viewTo: null,
+    activeStart: 0,
+    activeDuration: 1000,
+    stutter: null,
+  }));
+
+  const slotDoms = Array.from({ length: SLOT_COUNT }, (_, i) => ({
+    root: document.getElementById(`slot${i}`),
+    input: document.getElementById(`slotInput${i}`),
+    drop: document.getElementById(`slotDrop${i}`),
+    thumb: document.getElementById(`slotThumb${i}`),
+    label: document.getElementById(`slotLabel${i}`),
+    clearBtn: document.getElementById(`slotClear${i}`),
+  }));
+
+  let running = false;
+  let recording = false;
+  let currentIndex = -1;
+  let nextSwitchAt = 0;
+  let sliceWindow = null; // { start, end, intensity }
+  let recorder = null;
+  let recordedChunks = [];
+  let lastDownloadUrl = null;
+
+  // ---- helpers ------------------------------------------------------
+
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const smoothstep = (t) => t * t * (3 - 2 * t);
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  }
+
+  function readySlots() {
+    return slots.filter((s) => s.ready);
+  }
+
+  function randomView(zoomAmt) {
+    const scale = 1 + zoomAmt * (0.3 + Math.random() * 1.8);
+    return { scale, cx: Math.random(), cy: Math.random() };
+  }
+
+  // maps a source's natural size + a normalized "view" (scale/cx/cy)
+  // onto a source rect that covers the canvas aspect ratio
+  function computeSourceRect(srcW, srcH, view) {
+    const targetAspect = canvas.width / canvas.height;
+    const srcAspect = srcW / srcH;
+    let coverW, coverH;
+    if (srcAspect > targetAspect) {
+      coverH = srcH;
+      coverW = srcH * targetAspect;
+    } else {
+      coverW = srcW;
+      coverH = srcW / targetAspect;
+    }
+    const coverX0 = (srcW - coverW) / 2;
+    const coverY0 = (srcH - coverH) / 2;
+    const scale = Math.max(1, view.scale);
+    const w = coverW / scale;
+    const h = coverH / scale;
+    const x = coverX0 + (coverW - w) * view.cx;
+    const y = coverY0 + (coverH - h) * view.cy;
+    return { x, y, w, h };
+  }
+
+  // ---- material loading ----------------------------------------------
+
+  function loadFile(index, file) {
+    if (!file) return;
+    const isVideo = file.type.startsWith("video/");
+    const isImage = file.type.startsWith("image/");
+    if (!isVideo && !isImage) {
+      alert("動画か画像ファイルを選んでください");
+      return;
+    }
+
+    const slot = slots[index];
+    if (slot.url) URL.revokeObjectURL(slot.url);
+    if (slot.el && slot.el.tagName === "VIDEO") {
+      slot.el.pause();
+      slot.el.src = "";
+      slot.el.remove();
+    }
+
+    const url = URL.createObjectURL(file);
+    let el;
+
+    if (isVideo) {
+      el = document.createElement("video");
+      // set as literal attributes too — some WebKit/iOS versions only
+      // honor playsinline/muted reliably as HTML attributes on elements
+      // created via document.createElement
+      el.setAttribute("muted", "");
+      el.setAttribute("playsinline", "");
+      el.setAttribute("webkit-playsinline", "");
+      el.muted = true;
+      el.loop = true;
+      el.playsInline = true;
+      el.preload = "auto";
+      // kept attached (but invisible) rather than display:none — some
+      // browsers throttle or stall decoding of detached/hidden video
+      el.style.cssText = "position:fixed; left:0; top:0; width:2px; height:2px; opacity:0; pointer-events:none;";
+      document.body.appendChild(el);
+      el.src = url;
+      el.load();
+      // iOS Safari can ignore preload="auto" (e.g. on cellular data or
+      // Low Power Mode) and simply never start buffering until play()
+      // is actually called — so kick it immediately rather than
+      // waiting for the user to press play, then pause right back
+      const primeKick = el.play();
+      if (primeKick && typeof primeKick.catch === "function") {
+        primeKick.then(() => el.pause()).catch(() => {});
+      }
+
+      el.addEventListener("loadedmetadata", () => {
+        slot.duration = el.duration;
+      });
+      // "ready" is decided by loadeddata (guaranteed once a frame is
+      // decoded) rather than "seeked" — setting currentTime to a value
+      // the video is already at may never fire seeked, which left the
+      // slot stuck in "loading" forever with no error shown
+      const readyTimeout = setTimeout(() => {
+        if (!slot.ready) {
+          alert(`「${file.name}」の読み込みに時間がかかりすぎています。この動画・この環境では再生できない可能性があります。`);
+        }
+      }, 8000);
+      el.addEventListener("loadeddata", () => {
+        clearTimeout(readyTimeout);
+        slot.ready = true;
+        makeThumb(slot);
+        checkReadyState();
+        if (el.duration && isFinite(el.duration) && el.duration > 0.3) {
+          const onSeeked = () => {
+            makeThumb(slot);
+            el.removeEventListener("seeked", onSeeked);
+          };
+          el.addEventListener("seeked", onSeeked);
+          el.currentTime = Math.min(0.15, el.duration / 2);
+        }
+      }, { once: true });
+      el.addEventListener("error", () => {
+        clearTimeout(readyTimeout);
+        alert(`「${file.name}」を読み込めませんでした。対応していない形式の可能性があります。`);
+        clearSlot(index);
+      }, { once: true });
+    } else {
+      el = new Image();
+      el.onload = () => {
+        slot.ready = true;
+        makeThumb(slot);
+        checkReadyState();
+      };
+      el.onerror = () => {
+        alert(`「${file.name}」を読み込めませんでした。対応していない形式の可能性があります。`);
+        clearSlot(index);
+      };
+      el.src = url;
+    }
+
+    slot.type = isVideo ? "video" : "image";
+    slot.el = el;
+    slot.url = url;
+    slot.name = file.name;
+    slot.duration = null;
+    slot.ready = false;
+    slot.viewFrom = null;
+    slot.viewTo = null;
+
+    updateSlotUI(index);
+    checkReadyState();
+  }
+
+  function clearSlot(index) {
+    const slot = slots[index];
+    if (slot.type === "video" && slot.el) {
+      slot.el.pause();
+      slot.el.src = "";
+      slot.el.load();
+      slot.el.remove();
+    }
+    if (slot.url) URL.revokeObjectURL(slot.url);
+    Object.assign(slot, {
+      type: null, el: null, url: null, name: null, duration: null,
+      ready: false, thumbURL: null, viewFrom: null, viewTo: null,
+    });
+    updateSlotUI(index);
+    checkReadyState();
+
+    if (currentIndex === index && running) {
+      const others = readySlots();
+      if (others.length) {
+        activateSlot(others[Math.floor(Math.random() * others.length)].index);
+      } else {
+        stopPlayback();
+      }
+    }
+  }
+
+  function makeThumb(slot) {
+    const srcW = slot.type === "video" ? slot.el.videoWidth : slot.el.naturalWidth;
+    const srcH = slot.type === "video" ? slot.el.videoHeight : slot.el.naturalHeight;
+    if (!srcW || !srcH) return;
+    const tCanvas = document.createElement("canvas");
+    tCanvas.width = 160;
+    tCanvas.height = 90;
+    const tctx = tCanvas.getContext("2d");
+    const r = computeSourceRect(srcW, srcH, { scale: 1, cx: 0.5, cy: 0.5 });
+    tctx.drawImage(slot.el, r.x, r.y, r.w, r.h, 0, 0, 160, 90);
+    slot.thumbURL = tCanvas.toDataURL("image/jpeg", 0.75);
+    updateSlotUI(slot.index);
+  }
+
+  function updateSlotUI(index) {
+    const slot = slots[index];
+    const dom = slotDoms[index];
+    if (slot.ready) {
+      dom.thumb.style.backgroundImage = slot.thumbURL ? `url(${slot.thumbURL})` : "none";
+      dom.label.innerHTML = `${escapeHtml(slot.name)}<br><em>${slot.type === "video" ? "動画" : "写真"}</em>`;
+      dom.clearBtn.style.display = "flex";
+      dom.drop.classList.add("loaded");
+    } else {
+      dom.thumb.style.backgroundImage = "none";
+      dom.label.innerHTML = `素材 ${index + 1}<br><em>クリックまたはドロップ</em>`;
+      dom.clearBtn.style.display = "none";
+      dom.drop.classList.remove("loaded");
+    }
+  }
+
+  function checkReadyState() {
+    const anyReady = readySlots().length > 0;
+    playBtn.disabled = !anyReady;
+    cutBtn.disabled = !running;
+    recBtn.disabled = !running;
+    loadHint.textContent = anyReady
+      ? "準備完了。再生を押すと切り刻みが始まります。"
+      : "写真・動画をあわせて2〜3点、ドラッグ&ドロップか選択して読み込んでください。";
+  }
+
+  slotDoms.forEach((dom, i) => {
+    dom.drop.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dom.drop.classList.add("dragover");
+    });
+    dom.drop.addEventListener("dragleave", () => dom.drop.classList.remove("dragover"));
+    dom.drop.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dom.drop.classList.remove("dragover");
+      const file = e.dataTransfer.files && e.dataTransfer.files[0];
+      if (file) loadFile(i, file);
+    });
+    dom.input.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (file) loadFile(i, file);
+      e.target.value = "";
+    });
+    dom.clearBtn.addEventListener("click", () => clearSlot(i));
+  });
+
+  // ---- scheduling / switching -----------------------------------------
+  //
+  // A cut-up sequencer, not a slideshow: every cut is short, and each
+  // one is independently assigned a kind —
+  //   flash:    a single frozen frame (video paused mid-seek, or a photo
+  //             crop) — the bulk of the cuts, for a rapid-fire montage
+  //   scrub:    the video actually plays forward for the cut's length
+  //   stutter:  a tiny window of video (~50-200ms) that loops/scratches
+  //             back and forth for the whole cut
+  // "density" shortens the average cut; "swerve" both widens the
+  // duration spread and shifts the kind mix toward stutter/flash chaos.
+
+  function pickCutDuration(density, swerve) {
+    const ceiling = 1.9 - density * 1.4; // 1.9s .. 0.5s
+    const floor = 0.05 + swerve * 0.03;
+    // squaring a uniform random skews short: frequent quick cuts,
+    // occasional longer "breath" cuts
+    return Math.max(0.05, floor + Math.random() * Math.random() * ceiling);
+  }
+
+  function activateSlot(index) {
+    const slot = slots[index];
+    if (!slot.ready) return;
+    const now = performance.now();
+    currentIndex = index;
+
+    const density = +densityEl.value / 100;
+    const swerve = +swerveEl.value / 100;
+    const durSec = pickCutDuration(density, swerve);
+
+    let kind = "flash";
+    if (slot.type === "video" && slot.duration) {
+      const roll = Math.random();
+      const stutterProb = durSec > 0.25 ? 0.12 + swerve * 0.28 : 0;
+      const scrubProb = 0.35 - swerve * 0.15;
+      if (roll < stutterProb) kind = "stutter";
+      else if (roll < stutterProb + scrubProb) kind = "scrub";
+      else kind = "flash";
+    }
+
+    if (slot.type === "video" && slot.duration) {
+      const minSeg = 0.15;
+      const maxStart = Math.max(0, slot.duration - minSeg);
+      const t0 = Math.random() * maxStart;
+      slot.el.currentTime = t0;
+      if (kind === "stutter") {
+        const winLen = Math.min(0.05 + Math.random() * 0.15, Math.max(0.02, slot.duration - t0 - 0.01));
+        slot.stutter = { start: t0, len: winLen };
+        slot.el.play().catch(() => {});
+      } else if (kind === "scrub") {
+        slot.stutter = null;
+        slot.el.play().catch(() => {});
+      } else {
+        slot.stutter = null;
+        slot.el.pause();
+      }
+    } else {
+      slot.stutter = null;
+    }
+    slots.forEach((s, i) => {
+      if (i !== index && s.type === "video" && s.el) s.el.pause();
+    });
+
+    const zoomAmt = +zoomEl.value / 100;
+    slot.viewFrom = randomView(zoomAmt);
+    // short cuts have no time to visibly drift — only let the longer
+    // "breath" cuts pan/zoom (Ken Burns)
+    slot.viewTo = durSec > 0.6 ? randomView(zoomAmt) : slot.viewFrom;
+
+    slot.activeStart = now;
+    slot.activeDuration = durSec * 1000;
+    nextSwitchAt = now + durSec * 1000;
+
+    scheduleSliceGlitch(now, durSec * 1000, swerve);
+  }
+
+  function scheduleSliceGlitch(startNow, durMs, swerve) {
+    sliceWindow = null;
+    if (!glitchToggle.checked) return;
+    if (Math.random() < 0.25 + swerve * 0.35) {
+      const start = startNow + Math.random() * durMs * 0.7;
+      const len = Math.min(durMs * 0.6, 50 + Math.random() * 130);
+      sliceWindow = { start, end: start + len, intensity: 0.4 + Math.random() * 0.6 };
+    }
+  }
+
+  function nextRandomIndex(excludeIndex) {
+    const ready = readySlots().map((s) => s.index);
+    if (!ready.length) return -1;
+    const pool = ready.filter((i) => i !== excludeIndex);
+    const candidates = pool.length ? pool : ready;
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  }
+
+  // ---- rendering --------------------------------------------------------
+
+  function drawSlot(slot, now) {
+    if (!slot || !slot.ready) return;
+    const el = slot.el;
+    const srcW = slot.type === "video" ? el.videoWidth : el.naturalWidth;
+    const srcH = slot.type === "video" ? el.videoHeight : el.naturalHeight;
+    if (!srcW || !srcH) return;
+
+    const viewFrom = slot.viewFrom || { scale: 1, cx: 0.5, cy: 0.5 };
+    const viewTo = slot.viewTo || viewFrom;
+    const t = clamp((now - slot.activeStart) / (slot.activeDuration || 1), 0, 1);
+    const eased = smoothstep(t);
+    const view = {
+      scale: lerp(viewFrom.scale, viewTo.scale, eased),
+      cx: lerp(viewFrom.cx, viewTo.cx, eased),
+      cy: lerp(viewFrom.cy, viewTo.cy, eased),
+    };
+    const r = computeSourceRect(srcW, srcH, view);
+    ctx.drawImage(el, r.x, r.y, r.w, r.h, 0, 0, canvas.width, canvas.height);
+  }
+
+  function applySliceGlitch(intensity) {
+    const bands = 2 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < bands; i++) {
+      const bandH = Math.max(2, Math.round(6 + Math.random() * 46));
+      const y = Math.floor(Math.random() * Math.max(1, canvas.height - bandH));
+      const offset = Math.round((Math.random() * 2 - 1) * 44 * intensity);
+      try {
+        const imgData = ctx.getImageData(0, y, canvas.width, bandH);
+        ctx.putImageData(imgData, offset, y);
+      } catch (e) {
+        // ignore
+      }
+    }
+  }
+
+  function frame(now) {
+    requestAnimationFrame(frame);
+    if (!running) return;
+
+    if (now >= nextSwitchAt) {
+      const next = nextRandomIndex(currentIndex);
+      if (next >= 0) activateSlot(next);
+    }
+
+    const active = currentIndex >= 0 ? slots[currentIndex] : null;
+    if (active && active.stutter && active.type === "video" && active.el) {
+      const { start, len } = active.stutter;
+      if (active.el.currentTime >= start + len || active.el.currentTime < start) {
+        active.el.currentTime = start;
+      }
+    }
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (active) drawSlot(active, now);
+
+    if (sliceWindow && now >= sliceWindow.start && now <= sliceWindow.end) {
+      applySliceGlitch(sliceWindow.intensity);
+    }
+  }
+  requestAnimationFrame(frame);
+
+  // ---- transport ----------------------------------------------------
+
+  function startPlayback() {
+    const ready = readySlots();
+    if (!ready.length) return;
+    running = true;
+    playBtn.textContent = "停止";
+    playBtn.classList.add("playing");
+    stageOverlay.classList.add("hidden");
+    checkReadyState();
+    activateSlot(ready[Math.floor(Math.random() * ready.length)].index);
+  }
+
+  function stopPlayback() {
+    running = false;
+    playBtn.textContent = "再生";
+    playBtn.classList.remove("playing");
+    stageOverlay.classList.remove("hidden");
+    slots.forEach((s) => { if (s.type === "video" && s.el) s.el.pause(); });
+    if (recording) stopRecording();
+    checkReadyState();
+  }
+
+  playBtn.addEventListener("click", () => {
+    if (running) stopPlayback(); else startPlayback();
+  });
+
+  cutBtn.addEventListener("click", () => {
+    if (!running) return;
+    const next = nextRandomIndex(currentIndex);
+    if (next >= 0) activateSlot(next);
+  });
+
+  // ---- recording ----------------------------------------------------
+
+  function startRecording() {
+    if (!running) return;
+    let stream;
+    try {
+      stream = canvas.captureStream(30);
+    } catch (e) {
+      alert("この環境では録画に対応していません");
+      return;
+    }
+    let mime = "video/webm;codecs=vp9";
+    if (!MediaRecorder.isTypeSupported(mime)) mime = "video/webm;codecs=vp8";
+    if (!MediaRecorder.isTypeSupported(mime)) mime = "video/webm";
+
+    recordedChunks = [];
+    downloadLink.style.display = "none";
+    if (lastDownloadUrl) {
+      URL.revokeObjectURL(lastDownloadUrl);
+      lastDownloadUrl = null;
+    }
+
+    try {
+      recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 6_000_000 });
+    } catch (e) {
+      alert("録画を開始できませんでした");
+      return;
+    }
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) recordedChunks.push(e.data);
+    };
+    recorder.onstop = () => {
+      const blob = new Blob(recordedChunks, { type: mime });
+      const url = URL.createObjectURL(blob);
+      lastDownloadUrl = url;
+      downloadLink.href = url;
+      downloadLink.download = `kirikizami-${Date.now()}.webm`;
+      downloadLink.style.display = "inline-flex";
+    };
+    recorder.start();
+    recording = true;
+    recBtn.textContent = "録画停止";
+    recBtn.classList.add("recording");
+  }
+
+  function stopRecording() {
+    if (recorder && recorder.state !== "inactive") recorder.stop();
+    recording = false;
+    recBtn.textContent = "録画開始";
+    recBtn.classList.remove("recording");
+  }
+
+  recBtn.addEventListener("click", () => {
+    if (!running) return;
+    if (recording) stopRecording(); else startRecording();
+  });
+
+  checkReadyState();
+})();
+</script>
+
+</body></html>

@@ -1,0 +1,1281 @@
+<!doctype html><html><head><!-- frame-runtime --><script>window.__FRAME_PREAMBLE={"v":1,"capabilities":{"artifact":"artifact.DF6_9MzE.js","assets":"assets.8Gk803W0.js","comments":"comments.vw5vQdGA.js","db":"db.h-3sndFg.js","downloads":"downloads.C3GSvEDP.js","embed":"embed.CxGAyc-v.js","mcp":"mcp.Bvma3qD7.js","network":"network.B5UA9Su4.js","notifications":"notifications.ssU4jy7G.js","permissions":"permissions.BNySkLV5.js","room":"room.BMMoe2BY.js","sample":"sample.BW2Uysoh.js","self":"artifact.DF6_9MzE.js","user":"user.BpKav-Rf.js"},"transforms":"_transforms.DSB5x63f.js","comments":"_comments.C6E0cR5g.js","translate":"_translate.5HCW4BJh.js"}</script><script>(function(){"use strict";var te=["light","dark","system"],re=/^[A-Za-z0-9_-]{1,64}$/,$=/^[a-zA-Z_:][a-zA-Z0-9_:.-]{0,127}$/,ne=new Set(["class","hidden","value","checked","style","title","alt","placeholder","lang","dir","role","tabindex","disabled","readonly","contenteditable","open","colspan","rowspan"]);function oe(e){const t=e.toLowerCase();return t.startsWith("data-")||t.startsWith("aria-")||ne.has(t)}var Be="http://www.w3.org/1999/xhtml",se="http://www.w3.org/2000/svg",ae=new Set(["script","style","iframe","noscript","noframes","noembed","xmp","plaintext","template","title","textarea","object","embed"]),ie=new Set(["script","style"]);function ce(e){const t=e.localName.toLowerCase();return e.namespaceURI==="http://www.w3.org/1999/xhtml"?!ae.has(t):e.namespaceURI===se?!ie.has(t):!1}function M(e,t){return e===t||(e===160||e===32)&&(t===160||t===32)}function le(e,t){const r=e.length,n=t.length;let s=0;for(;s<r&&s<n&&M(e.charCodeAt(s),t.charCodeAt(s));)s++;let o=0;for(;o<r-s&&o<n-s&&M(e.charCodeAt(r-1-o),t.charCodeAt(n-1-o));)o++;return{p:s,s:o}}function ue(e,t){const r=e.firstChild;if(e.childNodes.length!==1||r===null||r.nodeType!==Node.TEXT_NODE){e.textContent=t;return}const n=r.data,s=n.length,o=t.length,{p:i,s:c}=le(n,t);i===s&&c===0&&s===o||r.replaceData(i,s-i-c,t.slice(i,o-c));const h=r.data,p=e.ownerDocument.getSelection?.()??null,w=p!==null&&p.rangeCount>0&&(p.anchorNode===r||p.focusNode===r)?{anchor:p.anchorNode,anchorOffset:p.anchorOffset,focus:p.focusNode,focusOffset:p.focusOffset}:null;let m=-1,g=-1;for(let f=0;f<h.length&&f<t.length;f++){const v=h.charCodeAt(f),b=t.charCodeAt(f);v!==b&&M(v,b)&&(m<0&&(m=f),g=f)}const a=m>=0;if(a&&r.replaceData(m,g-m+1,t.slice(m,g+1)),a&&w!==null&&w.anchor!==null&&w.focus!==null)try{p.setBaseAndExtent(w.anchor,w.anchorOffset,w.focus,w.focusOffset)}catch{}}var fe=new Set(["html","head","body","frameset"]);function de(e){return e.namespaceURI==="http://www.w3.org/1999/xhtml"&&fe.has(e.localName)}function pe(e){if(e===null||typeof e!="object")return!1;const t=e;if(typeof t.target!="string"||!re.test(t.target)||t.text!==void 0&&typeof t.text!="string")return!1;if(t.attrsSet!==void 0){if(t.attrsSet===null||typeof t.attrsSet!="object")return!1;for(const[r,n]of Object.entries(t.attrsSet))if(!$.test(r)||typeof n!="string")return!1}if(t.attrsRemoved!==void 0){if(!Array.isArray(t.attrsRemoved))return!1;for(const r of t.attrsRemoved)if(typeof r!="string"||!$.test(r))return!1}return!0}function me(e,t){if(e===null||typeof e!="object")return!1;const{seq:r,elements:n}=e;if(typeof r!="number"||!Number.isSafeInteger(r)||!Array.isArray(n)||n.length===0||n.length>64)return!1;for(let s=0;s<n.length;s++)if(!t(n[s]))return!1;return!0}function he(e){return e===null||typeof e!="object"?!1:me(e.__frame_patch,pe)}function _e(e){if(e===null||typeof e!="object")return!1;const t=e.__frame_init;return t!==null&&typeof t=="object"}function ve(e){return e!==null&&typeof e=="object"&&e.__frame_size_poke===!0}function ye(e){if(e===null||typeof e!="object")return!1;const t=e.__frame_theme;if(t===null||typeof t!="object")return!1;const r=t.theme;return typeof r=="string"&&te.includes(r)}var A=/^[\w.-]+\.js$/;function we(e,t,r){return r?"inert":typeof t=="string"&&A.test(t)?e?[t]:"inert":e?"inert":"framed"}function ge(){return{post(e,t){parent.postMessage(e,t)},on(e){const t=r=>{r.source===parent&&e(r.data,r.origin,r.isTrusted)};return addEventListener("message",t),()=>removeEventListener("message",t)}}}function be(){return{post:()=>{},on:()=>()=>{}}}var j="__frame_scroll",Ee=150,Ae=310,Se=160,Te=3e4;function ke(){let e=0,t=!1,r=!1,n=!1,s=0,o=null;const i=l=>{try{sessionStorage.setItem(j,JSON.stringify({y:l}))}catch{}},c=()=>{if(clearTimeout(e),o===null)return;const l=o;o=null,i(l)},h=()=>{if(t){t=!1;return}r=!0,o=scrollY,clearTimeout(e),e=setTimeout(c,Ee)};try{addEventListener("scroll",h,{passive:!0}),addEventListener("pagehide",c)}catch{}const p=()=>{let l;try{l=sessionStorage.getItem(j)}catch{return null}if(l===null)return null;let _;try{_=JSON.parse(l)}catch{_=null}const d=_?.y;if(!(typeof d=="number"&&Number.isFinite(d)&&d>=0)){try{sessionStorage.removeItem(j)}catch{}return null}return d};let w=!1;const m=l=>{try{const _=scrollY;scrollTo({top:l,left:0,behavior:"instant"}),s=l,n=!0,clearTimeout(e),o=null,i(l);const d=scrollY;d!==_&&(t=!0),d!==l&&!w&&(w=!0,addEventListener("load",()=>{try{if(scrollY===d){const T=p();m(T!==null?T:s)}}catch{}},{once:!0}))}catch{}},g=()=>{try{return!!location.hash}catch{return!0}};let a=!1;const f=()=>{try{if(a||innerWidth>Ae||innerHeight>Se)return;a=!0;const l=Date.now(),_=()=>{try{removeEventListener("resize",_)}catch{}if(Date.now()-l>Te||r||g())return;const d=p();m(d!==null?d:s)};addEventListener("resize",_)}catch{}};let v=!1,b=!1;return{restore(){if(v||(v=!0,g()))return;const l=p();l!==null&&(m(l),f())},promoted(){if(b||(b=!0,g()))return;const l=p();l!==null?(m(l),f()):n&&m(s)}}}function Re(e,t,r,n){let s=null;try{s=window.trustedTypes?.createPolicy("frame-runtime",{createScriptURL:h=>h})??null}catch{}const o=window.Worker,i=o?.prototype,c=Object.freeze({Worker:o,workerOn:i?.addEventListener,workerPost:i?.postMessage,workerTerminate:i?.terminate,fetch:window.fetch.bind(window),preventDefault:Event.prototype.preventDefault,policy:s,origins:t});r(e).then(h=>h?.bootTopLevel?h.bootTopLevel(c,n):n.settle()).catch(()=>n.settle())}var De="modulepreload",Ie=function(e){return"/"+e},Ue={},Le=function(t,r,n){let s=Promise.resolve();function o(i){const c=new Event("vite:preloadError",{cancelable:!0});if(c.payload=i,window.dispatchEvent(c),!c.defaultPrevented)throw i}return s.then(i=>{for(const c of i||[])c.status==="rejected"&&o(c.reason);return t().catch(o)})},Oe=window===top,q=Object.getOwnPropertyDescriptor(window,"claude"),k=we(Oe,window.__FRAME_PREAMBLE?.topLevel,q?.writable===!1),N=typeof k=="object"&&k[0],y=N?be():ge();(function(){const e=Object.defineProperty,t=globalThis,r=["RTCPeerConnection","webkitRTCPeerConnection","RTCDataChannel","RTCIceCandidate","RTCSessionDescription","RTCRtpSender","RTCRtpReceiver"];let n=0;for(let s=0;s<r.length;s++){const o=r[s];try{e(t,o,{value:void 0,writable:!1,configurable:!1})}catch{try{delete t[o]}catch{}try{e(t,o,{value:void 0,writable:!1,configurable:!0})}catch{}}typeof t[o]=="function"&&n++}if(n&&k==="framed")try{y.post({__frame_rtc_lockdown_failed:n},"*")}catch{}})();var Pe=1e4,Y=Object.freeze([...window.__FRAME_PREAMBLE?.origins??["https://claude.ai","https://preview.claude.ai"]]);function X(e){for(const t of Y)if(t.endsWith(":*"))try{const r=new URL(e);if(`${r.protocol}//${r.hostname}:*`===t)return!0}catch{}else if(e===t)return!0;return!1}var R=Object.freeze({...window.__FRAME_PREAMBLE?.capabilities}),B=window.__FRAME_PREAMBLE?.transforms,D=window.__FRAME_PREAMBLE?.comments,I=window.__FRAME_PREAMBLE?.translate;function S(e){return Le(()=>import("/_runtime/"+e),void 0)}function G(e,t){return{contract:e.contract,changes:new Set(e.changes??[]),flags:new Set(e.flags??[]),capabilities:e.capabilities??{},capBudgets:e.capBudgets??{},transforms:new Map,shellOrigin:t,mount:x,hooks:O,pipe:()=>({wrap:(r,n)=>(...s)=>{try{return n(...s)}catch(o){return Promise.reject(o)}}})}}var L=null,E=null;function V(e,t,r){try{Object.defineProperty(e,t,{value:r,writable:!1,configurable:!1,enumerable:!0})}catch{try{Object.defineProperty(e,t,{value:r,writable:!1,configurable:!0,enumerable:!0})}catch{}}}var U=!1,O={editBefore:null,edit:null};function Ce(e,t,r=!1){const n=[];let s;if(r)try{O.editBefore?.(e)}catch{}for(const o of e.elements){const i=document.querySelector(`[data-id="${o.target}"]`);if(!i){s=o.target;break}if([...Object.keys(o.attrsSet??{}),...o.attrsRemoved??[]].some(c=>!oe(c))){s=o.target;break}if(o.text!==void 0&&(!ce(i)||de(i))){s=o.target;break}for(const[c,h]of Object.entries(o.attrsSet??{}))if(!J(i,c)){try{i.setAttribute(c,h)}catch{}Z(i,c,h)}for(const c of o.attrsRemoved??[])J(i,c)||(i.removeAttribute(c),Z(i,c,null));typeof o.text=="string"&&ue(i,o.text),n.push(o.target)}if(r)try{O.edit?.(e.seq,n,s)}catch{}if(s!==void 0){y.post({__frame_patch_miss:{seq:e.seq}},t);return}try{document.dispatchEvent(new CustomEvent("claude:edit",{detail:{seq:e.seq,targets:n}}))}catch{}}function Z(e,t,r){if(!(e instanceof HTMLInputElement))return;const n=t.toLowerCase();n==="checked"?e.checked=r!==null:n==="value"&&e.type!=="file"&&(e.value=r??"")}function J(e,t){const r=t.toLowerCase(),n=e;return r==="data-id"||(r==="value"||r==="checked")&&(n.__artifactSecret===!0||/^(password|hidden|file)$/.test(n.type??"")||/(^|\s)(cc-|one-time-code|current-password|new-password)/i.test(`${e.getAttribute("autocomplete")??""} ${n.autocomplete??""}`))}function Q(e){const t=document.documentElement;e==="light"||e==="dark"?(t.dataset.theme=e,t.style.colorScheme=e,U=!0):U&&(delete t.dataset.theme,t.style.colorScheme="",U=!1)}var P=new Map;function Me(){let e;const t={u:new Promise(r=>{e=r}),r:r=>{t.done=!0,e(r)},done:!1,nulled:!1};return t}function F(){for(const e of P.values())e.done||(e.nulled=!0,e.r(null))}var je=Object.freeze(Object.assign(Object.create(null),{call:Function.prototype.call,apply:Function.prototype.apply,bind:Function.prototype.bind})),x=(e,t)=>{const r=P.get(e);if(!r||r.done){r?.nulled&&E&&y.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:e}},E);return}const n=typeof t=="function"?Object.setPrototypeOf(t,je):Object.assign(Object.create(null),t);typeof n.then=="function"&&delete n.then,r.r(Object.freeze(n))};function ee(){const e=q?.value??{};V(window,"claude",e);for(const t of Object.keys(R)){if(e[t]!==void 0){V(e,t,e[t]);continue}P.set(t,Me())}if(e.use===void 0){const t=r=>{if(typeof r!="string"||!Object.hasOwn(R,r))return Promise.resolve(null);const n=P.get(r);return n?n.u:Promise.resolve(e[r]??null)};try{Object.defineProperty(e,"use",{value:t,writable:!0,configurable:!0,enumerable:!1})}catch{}}}if(k==="framed"){const e=B&&A.test(B)?S(B).catch(()=>{}):Promise.resolve(void 0),t=a=>{if(a.type==="auxclick"&&a.button!==1)return;const f=a.target,v=f&&f.closest?f.closest("a[href],area[href]"):null;if(!v)return;const b=v.getAttribute("href");if(!b)return;let l;try{l=new URL(b,document.baseURI)}catch{return}if((l.protocol==="http:"||l.protocol==="https:")&&l.origin!==location.origin){a.preventDefault();const _=(v.getAttribute("target")??"").toLowerCase(),d=a.type==="auxclick"||a.metaKey||a.ctrlKey||a.shiftKey||a.altKey||!["","_self","_top","_parent"].includes(_);y.post({__frame_nav:!0,url:l.href,newTab:d},"*")}};addEventListener("click",t,!0),addEventListener("auxclick",t,!0);const r={},n=a=>{a.isTrusted&&(r.pointer=!0)},s=a=>{a.isTrusted&&(r.click=!0)};addEventListener("pointermove",n,{capture:!0,passive:!0}),addEventListener("click",s,{capture:!0,passive:!0}),e.then(a=>{a?.wireNav&&(a.wireNav(),removeEventListener("click",t,!0),removeEventListener("auxclick",t,!0),removeEventListener("pointermove",n,!0),removeEventListener("click",s,!0),a.wireEngagement?.(r))});let o=null;try{o=ke()}catch{}ee();let i=null,c=null,h=0;const p=y.on((a,f)=>{X(f)&&_e(a)&&(i=a.__frame_init,E=f,p(),clearTimeout(h),c?.())});y.post({__frame_connect:!0},"*");const w=new Promise(a=>{c=a,h=setTimeout(()=>{p(),a()},Pe)}),m=document.readyState==="loading"?new Promise(a=>document.addEventListener("DOMContentLoaded",()=>a(),{once:!0})):Promise.resolve();m.then(()=>{try{o?.restore()}catch{}});const g={cb:null};y.on((a,f)=>{if(X(f)&&ve(a)){try{o?.promoted()}catch{}g.cb?.()}}),w.then(async()=>{if(!i||!E){F();return}Q(i.theme);const a=E;let f=!1,v=!1;y.on((u,z,C)=>{if(z!==a)return;ye(u)&&Q(u.__frame_theme.theme),he(u)&&Ce(u.__frame_patch,a,C);const H=u?.__fc_mode;H&&typeof H=="object"&&!f&&D&&A.test(D)&&(f=!0,S(D).then(K=>K.install?.(a,H.on===!0)).catch(()=>{}));const W=u?.__ft_cmd;W&&typeof W=="object"&&!v&&I&&A.test(I)&&(v=!0,S(I).then(K=>K.install?.(a,W)).catch(()=>{}))});const b=Object.keys(i.capabilities??{}).filter(u=>Object.hasOwn(R,u)).map(u=>[u,R[u]]).filter(u=>typeof u[1]=="string"&&A.test(u[1])),l=await Promise.allSettled(b.map(([,u])=>S(u))),_=await e,d=E;if(_?.buildBoot||y.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:"_transforms"}},d),_?.buildBoot)try{L=_.buildBoot(i,_.TRANSFORMS??{},{shellOrigin:d,mount:x,hooks:O},u=>y.post({__frame_cap_telemetry:u},d))}catch{y.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:"_transforms"}},d),L=G(i,d)}else L=G(i,d);const T=u=>y.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:u}},d),Ne=L;l.forEach((u,z)=>{const C=b[z][0];if(u.status!=="fulfilled"){T(C);return}try{u.value?.install?.(Ne)}catch{T(C)}}),F(),await m,y.post({__frame_ready:!0},E),e.then(u=>u?.installSizeReporter?.(d,g))})}else N&&(ee(),Re(N,Y,S,{settle:F,mount:x}))})();</script><!-- /frame-runtime --><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found]){display:none!important}</style></head><body>
+<title>Genetic Drift</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ground:#0d0a07;
+    --panel:#171008;
+    --panel-raised:#1c130a;
+    --line:#332617;
+    --line-soft:#231a10;
+    --tape:#d9863f;
+    --tape-dim:#6b4423;
+    --gene:#57d6c9;
+    --gene-dim:#245a53;
+    --ink:#ece4d6;
+    --ink-dim:#93897a;
+    --ink-faint:#5c5445;
+    --focus:#57d6c9;
+    --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+    --sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{ background:var(--ground); color:var(--ink); font-family:var(--sans); padding:20px; min-height:100vh; }
+  ::selection{ background:var(--tape); color:#1a0d02; }
+  a{ color:var(--gene); }
+
+  .app{ max-width:1180px; margin:0 auto; display:flex; flex-direction:column; gap:14px; }
+
+  .header{
+    display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+    border:1px solid var(--line); background:var(--panel); padding:14px 18px;
+  }
+  .brand{ display:flex; flex-direction:column; gap:2px; }
+  .brand .name{
+    font-family:var(--mono); font-weight:600; font-size:1.5rem; letter-spacing:0.02em;
+    color:var(--tape); text-shadow:0 0 14px rgba(217,134,63,0.25);
+  }
+  .brand .tag{ font-family:var(--mono); font-size:0.72rem; letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-dim); }
+  .transport{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+
+  button{
+    font-family:var(--mono); font-size:0.78rem; letter-spacing:0.05em; text-transform:uppercase;
+    color:var(--ink); background:var(--panel-raised); border:1px solid var(--line);
+    padding:9px 14px; cursor:pointer; transition:border-color 120ms ease, color 120ms ease;
+  }
+  button:hover{ border-color:var(--ink-dim); }
+  button:focus-visible{ outline:2px solid var(--focus); outline-offset:2px; }
+  button.primary{ border-color:var(--tape-dim); color:var(--tape); }
+  button.primary:hover{ border-color:var(--tape); }
+  button.primary.on{ background:var(--tape); color:#1a0d02; border-color:var(--tape); }
+  button.wander{ border-color:var(--gene-dim); color:var(--gene); }
+  button.wander:hover{ border-color:var(--gene); }
+  button.wander.on{ background:var(--gene); color:#04211d; border-color:var(--gene); }
+  button:disabled{ opacity:0.4; cursor:not-allowed; }
+
+  .main{ display:grid; grid-template-columns:minmax(0,2.1fr) minmax(240px,1fr); gap:14px; }
+  @media (max-width:880px){ .main{ grid-template-columns:1fr; } }
+
+  .stage{ border:1px solid var(--line); background:var(--panel); padding:14px; display:flex; flex-direction:column; gap:10px; }
+  .nameplate{
+    font-family:var(--mono); font-size:0.68rem; letter-spacing:0.12em; text-transform:uppercase;
+    color:var(--gene); border-bottom:1px solid var(--line); padding-bottom:8px;
+  }
+  .stage-hint{ font-family:var(--mono); font-size:0.7rem; color:var(--ink-faint); letter-spacing:0.02em; }
+
+  #lanes{ display:flex; flex-direction:column; gap:8px; }
+  .lane{ display:flex; gap:12px; border:1px solid var(--line-soft); background:var(--ground); padding:10px 12px; align-items:center; }
+  .genome{ display:grid; grid-template-columns:repeat(8,7px); grid-template-rows:repeat(2,7px); gap:3px; flex:0 0 auto; }
+  .genome span{ width:7px; height:7px; background:var(--line-soft); }
+  .genome span.lit{ background:var(--gene); box-shadow:0 0 5px rgba(87,214,201,0.6); }
+  .lane-main{ flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:5px; }
+  .lane-head{ display:flex; gap:10px; align-items:baseline; font-family:var(--mono); font-size:0.68rem; letter-spacing:0.04em; }
+  .lname{ color:var(--ink); text-transform:uppercase; }
+  .lrule{ color:var(--ink-faint); }
+  .lstatus{ margin-left:auto; text-transform:uppercase; color:var(--ink-dim); }
+  .lstatus.playing{ color:var(--tape); }
+  .lstatus.dormant{ color:var(--ink-faint); }
+  .lane-track{ height:6px; background:var(--line-soft); position:relative; overflow:hidden; }
+  .lane-fill{ height:100%; width:0%; background:var(--tape); box-shadow:0 0 8px rgba(217,134,63,0.45); }
+  .lane-pan{ height:2px; background:var(--line); position:relative; margin-top:2px; }
+  .lane-pan .dot{ position:absolute; top:-2px; width:6px; height:6px; background:var(--gene); transform:translateX(-50%); transition:left 180ms linear; }
+  .lane-meta{ display:flex; justify-content:space-between; gap:10px; font-family:var(--mono); font-size:0.64rem; color:var(--ink-faint); }
+  .lsample{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:60%; }
+  .ltime{ font-variant-numeric:tabular-nums; flex:0 0 auto; }
+
+  .readout{ border:1px solid var(--line); background:var(--panel); padding:14px; display:flex; flex-direction:column; gap:12px; min-height:0; }
+  .stat-row{ display:flex; justify-content:space-between; align-items:baseline; }
+  .stat-row .k{ font-family:var(--mono); font-size:0.68rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--ink-dim); }
+  .stat-row .v{ font-family:var(--mono); font-size:0.85rem; color:var(--ink); font-variant-numeric:tabular-nums; }
+  .phase-meter{ height:4px; background:var(--line-soft); position:relative; overflow:hidden; }
+  .phase-meter i{ display:block; height:100%; width:0%; background:var(--gene); box-shadow:0 0 8px rgba(87,214,201,0.5); }
+  .log{ font-family:var(--mono); font-size:0.68rem; line-height:1.55; color:var(--ink-dim); height:220px; overflow-y:auto; border-top:1px solid var(--line-soft); padding-top:8px; }
+  .log div{ white-space:pre-wrap; }
+  .log div.phase-line{ color:var(--gene); }
+  .log div.mutate-line{ color:var(--tape); }
+  .log::-webkit-scrollbar{ width:6px; }
+  .log::-webkit-scrollbar-thumb{ background:var(--line); }
+
+  .rack{ display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:14px; }
+  .module{ border:1px solid var(--line); background:var(--panel); padding:14px; display:flex; flex-direction:column; gap:11px; }
+  .control{ display:flex; flex-direction:column; gap:5px; }
+  .control .row{ display:flex; justify-content:space-between; align-items:baseline; }
+  .control label{ font-family:var(--mono); font-size:0.68rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--ink-dim); }
+  .control .val{ font-family:var(--mono); font-size:0.7rem; color:var(--tape); font-variant-numeric:tabular-nums; }
+
+  input[type="range"]{ -webkit-appearance:none; appearance:none; width:100%; height:2px; background:var(--line); outline:none; }
+  input[type="range"]::-webkit-slider-thumb{ -webkit-appearance:none; width:11px; height:11px; background:var(--tape); border:1px solid var(--ground); cursor:pointer; box-shadow:0 0 6px rgba(217,134,63,0.5); }
+  input[type="range"]::-moz-range-thumb{ width:11px; height:11px; border-radius:0; background:var(--tape); border:1px solid var(--ground); cursor:pointer; }
+  input[type="range"]:disabled::-webkit-slider-thumb{ background:var(--gene); box-shadow:0 0 6px rgba(87,214,201,0.5); }
+  input[type="range"]:disabled::-moz-range-thumb{ background:var(--gene); }
+  input[type="range"]:disabled{ opacity:0.75; }
+
+  input[type="checkbox"]{ accent-color:var(--gene); }
+  .checkline{
+    display:flex; align-items:center; gap:8px;
+    font-family:var(--mono); font-size:0.68rem; text-transform:uppercase;
+    letter-spacing:0.05em; color:var(--ink-dim);
+  }
+
+  .wander-caption{ font-size:0.78rem; line-height:1.55; color:var(--ink-dim); }
+
+  .droplist{ display:flex; flex-direction:column; gap:6px; min-height:4px; }
+  .sample-row{ display:flex; align-items:center; gap:8px; border:1px solid var(--line-soft); padding:5px 7px; }
+  .sample-row canvas{ width:64px; height:20px; flex:0 0 auto; }
+  .sample-row .sname{ font-family:var(--mono); font-size:0.68rem; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1 1 auto; }
+  .sample-row .sdur{ font-family:var(--mono); font-size:0.6rem; color:var(--ink-faint); flex:0 0 auto; }
+  .sample-row button{ padding:3px 7px; font-size:0.62rem; }
+
+  .dropzone{
+    border:1px dashed var(--line); padding:16px 10px; text-align:center;
+    font-family:var(--mono); font-size:0.68rem; color:var(--ink-faint); cursor:pointer;
+    transition:border-color 120ms ease, color 120ms ease;
+  }
+  .dropzone:hover, .dropzone.drag{ border-color:var(--gene); color:var(--gene); }
+
+  .mixer{ display:flex; gap:10px; overflow-x:auto; padding-bottom:4px; }
+  .mixch{ display:flex; flex-direction:column; align-items:center; gap:6px; border:1px solid var(--line-soft); background:var(--ground); padding:10px 8px; min-width:84px; flex:0 0 auto; }
+  .mixch-label{ font-family:var(--mono); font-size:0.62rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--ink-dim); }
+  .fader-wrap{ height:110px; width:34px; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .fader-wrap input[type="range"]{ width:100px; transform:rotate(-90deg); }
+  .mixch-val{ font-family:var(--mono); font-size:0.64rem; color:var(--tape); font-variant-numeric:tabular-nums; }
+  .mixch-row{ display:flex; flex-direction:column; align-items:center; gap:2px; width:100%; }
+  .mixch-row label{ font-family:var(--mono); font-size:0.56rem; text-transform:uppercase; color:var(--ink-faint); letter-spacing:0.04em; }
+  .mixch-row input[type="range"]{ width:100%; }
+  .mixch.master{ border-color:var(--gene-dim); }
+  .mixch.master .mixch-label{ color:var(--gene); }
+  .mixch.master .mixch-val{ color:var(--gene); }
+
+  details.about{ border:1px solid var(--line); background:var(--panel); padding:14px 18px; }
+  details.about summary{ font-family:var(--mono); font-size:0.72rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--gene); cursor:pointer; }
+  details.about p{ font-size:0.86rem; line-height:1.65; color:var(--ink-dim); max-width:64ch; margin:10px 0 0; }
+
+  footer{ font-family:var(--mono); font-size:0.64rem; color:var(--ink-faint); text-align:center; letter-spacing:0.04em; padding:6px 0 2px; }
+
+  @media (prefers-reduced-motion:reduce){ button, .dropzone{ transition:none; } .lane-pan .dot{ transition:none; } }
+</style>
+
+<div class="app">
+
+  <div class="header">
+    <div class="brand">
+      <div class="name">GENETIC DRIFT</div>
+      <div class="tag">a population of recordings, drifting</div>
+    </div>
+    <div class="transport">
+      <button id="btnStart" class="primary">Start</button>
+      <button id="btnColony">New Colony</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="stage">
+      <div class="nameplate">Colony — each voice holds one excerpt at a time</div>
+      <div id="lanes"></div>
+      <div class="stage-hint">the strip of dots is each organism's genome — it evolves a little every time the organism finishes playing, and occasionally mutates outright. its state picks the pan, the depth, and how likely it is to fall dormant; the dot on the rail below the bar can drift mid-excerpt if Pan Drift is on.</div>
+    </div>
+
+    <div class="readout">
+      <div class="nameplate">Instrument state</div>
+      <div class="stat-row"><span class="k">Phase</span><span class="v" id="statPhase">—</span></div>
+      <div class="phase-meter"><i id="phaseMeter"></i></div>
+      <div class="stat-row"><span class="k">Excerpt length now</span><span class="v" id="statRange">—</span></div>
+      <div class="stat-row"><span class="k">Excerpts played</span><span class="v" id="statCount">0</span></div>
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+
+  <div class="rack">
+
+    <div class="module">
+      <div class="nameplate">Colony / Time</div>
+      <div class="control">
+        <div class="row"><label>Population</label><span class="val" id="populationVal">5</span></div>
+        <input type="range" id="population" min="2" max="9" value="5" step="1">
+      </div>
+      <div class="control">
+        <div class="row"><label>Mutation rate</label><span class="val" id="mutationRateVal">30%</span></div>
+        <input type="range" id="mutationRate" min="0" max="100" value="30">
+      </div>
+      <div class="control">
+        <div class="row"><label>Phase pace</label><span class="val" id="phasePaceVal">1.0×</span></div>
+        <input type="range" id="phasePace" min="30" max="260" value="100">
+      </div>
+      <div class="control">
+        <div class="row"><label>Duration bias (short↔long)</label><span class="val" id="durationBiasVal">50%</span></div>
+        <input type="range" id="durationBias" min="0" max="100" value="50">
+      </div>
+    </div>
+
+    <div class="module">
+      <div class="nameplate">Space</div>
+      <div class="control">
+        <div class="row"><label>Stereo spread</label><span class="val" id="stereoSpreadVal">100%</span></div>
+        <input type="range" id="stereoSpread" min="0" max="100" value="100">
+      </div>
+      <div class="control">
+        <div class="row"><label>Depth contrast</label><span class="val" id="depthContrastVal">65%</span></div>
+        <input type="range" id="depthContrast" min="10" max="100" value="65">
+      </div>
+      <div class="control">
+        <div class="row"><label>Brightness</label><span class="val" id="brightnessVal">70%</span></div>
+        <input type="range" id="brightness" min="0" max="100" value="70">
+      </div>
+      <label class="checkline"><input type="checkbox" id="panDrift"> pan drift on long excerpts</label>
+    </div>
+
+    <div class="module">
+      <div class="nameplate">Pitch</div>
+      <div class="control">
+        <div class="row"><label>Pitch spread</label><span class="val" id="pitchSpreadVal">±4 st</span></div>
+        <input type="range" id="pitchSpread" min="0" max="24" value="4" step="1">
+      </div>
+      <div class="control">
+        <div class="row"><label>Pitch bias (low↔high)</label><span class="val" id="pitchBiasVal">0</span></div>
+        <input type="range" id="pitchBias" min="-100" max="100" value="0">
+      </div>
+      <label class="checkline"><input type="checkbox" id="wobble"> tape wobble</label>
+    </div>
+
+    <div class="module">
+      <div class="nameplate">Timing</div>
+      <div class="control">
+        <div class="row"><label>Timing chaos</label><span class="val" id="timingChaosVal">25%</span></div>
+        <input type="range" id="timingChaos" min="0" max="100" value="25">
+      </div>
+      <p class="wander-caption">higher values make onsets hesitate, rush in early, or break into a quick stutter of retriggers instead of one clean start.</p>
+    </div>
+
+    <div class="module">
+      <div class="nameplate">Doubles</div>
+      <button id="btnDoubles" class="primary">Doubles: off</button>
+      <div class="control">
+        <div class="row"><label>Twin chance</label><span class="val" id="twinChanceVal">20%</span></div>
+        <input type="range" id="twinChance" min="0" max="100" value="20">
+      </div>
+      <div class="control">
+        <div class="row"><label>Twin offset</label><span class="val" id="twinOffsetVal">2.5s</span></div>
+        <input type="range" id="twinOffset" min="0" max="80" value="25">
+      </div>
+      <div class="control">
+        <div class="row"><label>Twin pitch spread</label><span class="val" id="twinPitchVal">±7 st</span></div>
+        <input type="range" id="twinPitch" min="0" max="24" value="7" step="1">
+      </div>
+      <p class="wander-caption">when on, some excerpts pull a second one along with them — its own sample, its own length, offset or stacked right on top. off, and every voice stays solo.</p>
+    </div>
+
+    <div class="module">
+      <div class="nameplate">GRM Effects</div>
+      <div class="control">
+        <div class="row"><label>Reverb size</label><span class="val" id="reverbSizeVal">50%</span></div>
+        <input type="range" id="reverbSize" min="0" max="100" value="50">
+      </div>
+      <div class="control">
+        <div class="row"><label>Reverb mix</label><span class="val" id="reverbMixVal">75%</span></div>
+        <input type="range" id="reverbMix" min="0" max="100" value="75">
+      </div>
+      <div class="control">
+        <div class="row"><label>Delay feedback</label><span class="val" id="delayFbVal">45%</span></div>
+        <input type="range" id="delayFb" min="0" max="90" value="45">
+      </div>
+      <div class="control">
+        <div class="row"><label>Master volume</label><span class="val" id="masterVolVal">78%</span></div>
+        <input type="range" id="masterVol" min="0" max="100" value="78">
+      </div>
+    </div>
+
+    <div class="module">
+      <div class="nameplate">Samples</div>
+      <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Add sample files">
+        drop recordings here, or click to choose<br>wav / mp3 / any decodable audio — long files welcome
+      </div>
+      <input type="file" id="fileInput" accept="audio/*,.wav,.wave,.mp3,.ogg,.oga,.m4a,.aac,.flac,.aif,.aiff,.webm" multiple style="display:none">
+      <div class="droplist" id="droplist"></div>
+    </div>
+
+    <div class="module">
+      <div class="nameplate">Wander</div>
+      <button id="btnWander" class="wander">Wander: off</button>
+      <div class="control">
+        <div class="row"><label>Wander intensity</label><span class="val" id="wanderIntensityVal">45%</span></div>
+        <input type="range" id="wanderIntensity" min="0" max="100" value="45">
+      </div>
+      <p class="wander-caption">when on, the mix panel above hands itself over — spread, brightness, reverb, delay, and mutation rate all wander on their own, slowly, forever. off, and the controls sit exactly where you leave them.</p>
+    </div>
+
+  </div>
+
+  <div class="module">
+    <div class="nameplate">Mixer</div>
+    <div class="mixer">
+      <div id="mixerChannels" style="display:contents"></div>
+      <div class="mixch master">
+        <div class="mixch-label">master</div>
+        <div class="fader-wrap"><input type="range" id="masterSpeed" min="40" max="220" value="100"></div>
+        <div class="mixch-val" id="masterSpeedVal">1.00×</div>
+        <label class="checkline"><input type="checkbox" id="masterSpeedDrift"> auto</label>
+      </div>
+    </div>
+    <p class="wander-caption">volume, pan, and depth reach into whatever's playing right now on that voice, live. speed takes hold the moment each voice starts its next excerpt — tape-style, pitch rides along with it — and its own "auto" box lets it wander on its own, separately from the big Wander switch above.</p>
+  </div>
+
+  <details class="about">
+    <summary>How this organism works</summary>
+    <p>Load a few long recordings — field recordings, room tone, tape reels, anything. A small population of organisms takes over: each one holds a 16-cell genome and an elementary cellular-automaton rule. When an organism is ready to play, it picks a sample and a random start point, cuts a random-length excerpt from it — anywhere from under a second to several minutes — and fades it into the mix. The moment that excerpt ends, the organism evolves its genome, decides whether to play again or fall dormant for a while, and the cycle continues, unsynchronized from every other voice. The instrument drifts through four structural phases that lean the whole population toward short flickers or long suspended drones; most transitions arrive gradually, some snap without warning. Pitch here moves the way tape pitch always has — speed and pitch travel together — and Timing chaos can make an onset hesitate, rush, or shatter into a quick stutter instead of one clean start. Doubles is the odd one out: switch it on and some excerpts drag a second, independently-timed one along with them. The Mixer at the end gives every organism its own live fader, pan, and depth nudge, plus one master speed control that runs the whole colony faster or slower, tape-style. Nothing here loops — every excerpt is a fresh, independent draw.</p>
+  </details>
+
+  <footer>web audio · mutating population · long-form excerpts</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const randRange = (a, b) => a + Math.random() * (b - a);
+  const pick = (arr) => arr[(Math.random() * arr.length) | 0];
+  const logUniform = (a, b) => Math.exp(lerp(Math.log(a), Math.log(b), Math.random()));
+  const fmtTime = (s) => { if (!isFinite(s) || s < 0) s = 0; const m = Math.floor(s / 60), sec = Math.floor(s % 60); return m + ":" + String(sec).padStart(2, "0"); };
+  const semisToRate = (s) => Math.pow(2, s / 12);
+
+  // ---------------------------------------------------------------
+  // ui state
+  // ---------------------------------------------------------------
+  const ui = {
+    population: 5,
+    mutationRate: 0.30,
+    phasePaceScale: 1.0,
+    durationBias: 0.50,
+    stereoSpread: 1.0,
+    depthContrast: 0.65,
+    brightness: 0.70,
+    panDrift: false,
+    pitchSpread: 4,
+    pitchBias: 0,
+    wobble: false,
+    timingChaos: 0.25,
+    reverbSize: 0.50,
+    reverbMix: 0.75,
+    delayFb: 0.45,
+    masterVol: 0.78,
+    wanderIntensity: 0.45,
+    doublesEnabled: false,
+    twinChance: 0.20,
+    twinOffset: 2.5,
+    twinPitchSpread: 7,
+    masterSpeed: 1.0,
+  };
+
+  let running = false;
+  let excerptCount = 0;
+
+  // ---------------------------------------------------------------
+  // log
+  // ---------------------------------------------------------------
+  function log(msg, cls) {
+    const el = document.getElementById("log");
+    if (!el) return;
+    const line = document.createElement("div");
+    if (cls) line.className = cls;
+    line.textContent = msg;
+    el.appendChild(line);
+    while (el.children.length > 80) el.removeChild(el.firstChild);
+    el.scrollTop = el.scrollHeight;
+  }
+
+  // ---------------------------------------------------------------
+  // audio engine (shared bus, reverb, delay)
+  // ---------------------------------------------------------------
+  let actx = null;
+  let master, busSum, compressor;
+  let convolver, reverbReturn;
+  let delayNode, delayFeedback, delayDamp, delayReturn;
+
+  function makeImpulse(ctx, durationSec, decay) {
+    const rate = ctx.sampleRate;
+    const len = Math.max(1, Math.floor(rate * durationSec));
+    const imp = ctx.createBuffer(2, len, rate);
+    for (let ch = 0; ch < 2; ch++) {
+      const data = imp.getChannelData(ch);
+      for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+    }
+    return imp;
+  }
+
+  function initAudio() {
+    if (actx) return;
+    actx = new (window.AudioContext || window.webkitAudioContext)();
+
+    master = actx.createGain();
+    master.gain.value = ui.masterVol;
+
+    busSum = actx.createGain();
+    compressor = actx.createDynamicsCompressor();
+    compressor.threshold.value = -18;
+    compressor.knee.value = 18;
+    compressor.ratio.value = 3;
+    compressor.attack.value = 0.008;
+    compressor.release.value = 0.25;
+
+    busSum.connect(compressor);
+    compressor.connect(master);
+    master.connect(actx.destination);
+
+    convolver = actx.createConvolver();
+    convolver.buffer = makeImpulse(actx, lerp(1.0, 4.2, ui.reverbSize), 2.2);
+    reverbReturn = actx.createGain();
+    reverbReturn.gain.value = 1.0;
+    convolver.connect(reverbReturn);
+    reverbReturn.connect(busSum);
+
+    delayNode = actx.createDelay(2.5);
+    delayNode.delayTime.value = 0.4;
+    delayFeedback = actx.createGain();
+    delayFeedback.gain.value = ui.delayFb * 0.7;
+    delayDamp = actx.createBiquadFilter();
+    delayDamp.type = "lowpass";
+    delayDamp.frequency.value = 2400;
+    delayReturn = actx.createGain();
+    delayReturn.gain.value = 0.85;
+
+    delayNode.connect(delayDamp);
+    delayDamp.connect(delayFeedback);
+    delayFeedback.connect(delayNode);
+    delayNode.connect(delayReturn);
+    delayReturn.connect(busSum);
+
+    driftDelay();
+  }
+
+  function driftDelay() {
+    if (!actx) return;
+    const target = randRange(0.2, 1.4);
+    const now = actx.currentTime;
+    try { delayNode.delayTime.linearRampToValueAtTime(target, now + 4.5); } catch (e) {}
+    setTimeout(driftDelay, 4800 + Math.random() * 3200);
+  }
+
+  // ---------------------------------------------------------------
+  // samples
+  // ---------------------------------------------------------------
+  const samples = []; // {name, buffer}
+
+  function isAudioFile(file) {
+    if (file.type && file.type.startsWith("audio/")) return true;
+    return /\.(wav|wave|mp3|ogg|oga|m4a|aac|flac|aif|aiff|webm)$/i.test(file.name);
+  }
+
+  function drawWaveform(canvasEl, buffer) {
+    const c = canvasEl.getContext("2d");
+    const w = canvasEl.width, h = canvasEl.height;
+    const data = buffer.getChannelData(0);
+    const step = Math.max(1, Math.floor(data.length / w));
+    c.fillStyle = "#0d0a07";
+    c.fillRect(0, 0, w, h);
+    c.strokeStyle = "#d9863f";
+    c.beginPath();
+    for (let x = 0; x < w; x++) {
+      let min = 1, max = -1;
+      const start = x * step;
+      for (let i = 0; i < step && start + i < data.length; i++) {
+        const v = data[start + i];
+        if (v < min) min = v;
+        if (v > max) max = v;
+      }
+      c.moveTo(x, (0.5 - min * 0.5) * h);
+      c.lineTo(x, (0.5 - max * 0.5) * h);
+    }
+    c.stroke();
+  }
+
+  async function addSampleFile(file) {
+    if (!isAudioFile(file)) { log("skipped (not audio): " + file.name); return; }
+    if (!actx) initAudio();
+    try {
+      const arrBuf = await file.arrayBuffer();
+      const buffer = await new Promise((resolve, reject) => {
+        const maybePromise = actx.decodeAudioData(arrBuf, resolve, reject);
+        if (maybePromise && typeof maybePromise.then === "function") maybePromise.then(resolve, reject);
+      });
+      samples.push({ name: file.name, buffer });
+      renderSampleList();
+      log("loaded: " + file.name + " (" + fmtTime(buffer.duration) + ")");
+    } catch (err) {
+      log("could not decode: " + file.name + (err && err.message ? " (" + err.message + ")" : ""));
+    }
+  }
+
+  function renderSampleList() {
+    const list = document.getElementById("droplist");
+    list.innerHTML = "";
+    samples.forEach((s, i) => {
+      const row = document.createElement("div");
+      row.className = "sample-row";
+      const cv = document.createElement("canvas");
+      cv.width = 128; cv.height = 40;
+      drawWaveform(cv, s.buffer);
+      const name = document.createElement("div");
+      name.className = "sname";
+      name.textContent = s.name;
+      const dur = document.createElement("div");
+      dur.className = "sdur";
+      dur.textContent = fmtTime(s.buffer.duration);
+      const rm = document.createElement("button");
+      rm.textContent = "×";
+      rm.addEventListener("click", () => { samples.splice(i, 1); renderSampleList(); });
+      row.appendChild(cv); row.appendChild(name); row.appendChild(dur); row.appendChild(rm);
+      list.appendChild(row);
+    });
+  }
+
+  const dropzone = document.getElementById("dropzone");
+  const fileInput = document.getElementById("fileInput");
+  dropzone.addEventListener("click", () => fileInput.click());
+  dropzone.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") fileInput.click(); });
+  fileInput.addEventListener("change", () => {
+    Array.from(fileInput.files || []).forEach(addSampleFile);
+    fileInput.value = "";
+  });
+  ["dragover", "dragenter"].forEach(ev => dropzone.addEventListener(ev, (e) => { e.preventDefault(); dropzone.classList.add("drag"); }));
+  ["dragleave", "drop"].forEach(ev => dropzone.addEventListener(ev, (e) => { e.preventDefault(); dropzone.classList.remove("drag"); }));
+  dropzone.addEventListener("drop", (e) => {
+    const all = Array.from(e.dataTransfer.files || []);
+    const files = all.filter(isAudioFile);
+    if (files.length === 0 && all.length > 0) log("no recognized audio files in drop (" + all.map(f => f.name).join(", ") + ")");
+    files.forEach(addSampleFile);
+  });
+
+  // ---------------------------------------------------------------
+  // phases — the piece's changing duration structure
+  // ---------------------------------------------------------------
+  const PHASES = [
+    { name: "Flicker", range: [0.5, 6], dwell: [10, 18], dormantBoost: 0.02 },
+    { name: "Passage", range: [4, 40], dwell: [14, 24], dormantBoost: 0.05 },
+    { name: "Drift", range: [25, 150], dwell: [16, 28], dormantBoost: 0.09 },
+    { name: "Suspension", range: [80, 300], dwell: [14, 22], dormantBoost: 0.20 },
+  ];
+  let phaseIx = 0;
+  let phaseTarget = null;
+  let phaseStart = 0;
+  let phaseDwellMs = 12000;
+  let phaseInterval = null;
+  const durRange = { min: 2, max: 20, dormantBoost: 0.03 };
+
+  function enterPhase(ix, smooth) {
+    phaseIx = ((ix % PHASES.length) + PHASES.length) % PHASES.length;
+    const p = PHASES[phaseIx];
+    phaseTarget = {
+      min: p.range[0] * randRange(0.85, 1.15),
+      max: p.range[1] * randRange(0.85, 1.15),
+      dormantBoost: p.dormantBoost,
+    };
+    phaseDwellMs = randRange(p.dwell[0], p.dwell[1]) * 1000 * ui.phasePaceScale;
+    phaseStart = performance.now();
+    if (!smooth) { durRange.min = phaseTarget.min; durRange.max = phaseTarget.max; durRange.dormantBoost = phaseTarget.dormantBoost; }
+    log((smooth ? "phase → " : "⚡ phase jump → ") + p.name + " (" + fmtTime(phaseTarget.min) + "–" + fmtTime(phaseTarget.max) + ")", "phase-line");
+    const statPhase = document.getElementById("statPhase");
+    if (statPhase) statPhase.textContent = p.name;
+  }
+
+  function tickPhase() {
+    if (!phaseTarget) { enterPhase(0, true); return; }
+    durRange.min = lerp(durRange.min, phaseTarget.min, 0.05);
+    durRange.max = lerp(durRange.max, phaseTarget.max, 0.05);
+    durRange.dormantBoost = lerp(durRange.dormantBoost, phaseTarget.dormantBoost, 0.05);
+    const elapsed = performance.now() - phaseStart;
+    const meter = document.getElementById("phaseMeter");
+    if (meter) meter.style.width = clamp((elapsed / phaseDwellMs) * 100, 0, 100) + "%";
+    const rangeEl = document.getElementById("statRange");
+    if (rangeEl) rangeEl.textContent = fmtTime(durRange.min) + " – " + fmtTime(durRange.max);
+    if (elapsed >= phaseDwellMs) {
+      const jump = Math.random() < 0.20;
+      enterPhase(jump ? phaseIx + 1 + ((Math.random() * (PHASES.length - 1) | 0) + 1) : phaseIx + 1, !jump);
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // organisms — genome + elementary cellular automaton
+  // ---------------------------------------------------------------
+  const REG_LEN = 16;
+  let organisms = [];
+  const laneRefs = {};
+
+  function stepRegister(reg, rule) {
+    const next = new Uint8Array(REG_LEN);
+    for (let i = 0; i < REG_LEN; i++) {
+      const l = reg[(i - 1 + REG_LEN) % REG_LEN];
+      const c = reg[i];
+      const r = reg[(i + 1) % REG_LEN];
+      const pattern = (l << 2) | (c << 1) | r;
+      next[i] = (rule >> pattern) & 1;
+    }
+    return next;
+  }
+  function popcount(reg) { let n = 0; for (let i = 0; i < reg.length; i++) n += reg[i]; return n; }
+  function randomRegister() {
+    const r = new Uint8Array(REG_LEN);
+    for (let i = 0; i < REG_LEN; i++) r[i] = Math.random() < 0.45 ? 1 : 0;
+    return r;
+  }
+  function genomeFeatures(reg) {
+    let evenSum = 0, oddSum = 0, low4 = 0;
+    for (let i = 0; i < REG_LEN; i++) { if (i % 2 === 0) evenSum += reg[i]; else oddSum += reg[i]; }
+    for (let i = 0; i < 4; i++) low4 += reg[i * 4] << i;
+    return {
+      pan: clamp((evenSum - oddSum) / 8, -1, 1),
+      depth: popcount(reg) / REG_LEN,
+      durSkew: low4 / 15,
+    };
+  }
+  function skewedUnit(bias01) {
+    const k = bias01 < 0.5 ? lerp(2.2, 1, bias01 * 2) : lerp(1, 0.45, (bias01 - 0.5) * 2);
+    return Math.pow(Math.random(), k);
+  }
+  function pickWallDuration(reg) {
+    const feat = reg ? genomeFeatures(reg) : { durSkew: 0.5 };
+    const bias01 = clamp(ui.durationBias * 0.7 + feat.durSkew * 0.3, 0, 1);
+    const dur = logUniform(Math.max(0.4, durRange.min), Math.max(durRange.min + 0.2, durRange.max)) * lerp(0.6, 1.4, skewedUnit(bias01));
+    return clamp(dur, 0.35, 300);
+  }
+  function pickPitchSemis() {
+    let s = randRange(-ui.pitchSpread, ui.pitchSpread);
+    s += ui.pitchBias * ui.pitchSpread;
+    return clamp(s, -36, 36);
+  }
+  function fitToBuffer(bufferDuration, wallDurWanted, rate) {
+    let contentDur = wallDurWanted * rate;
+    if (contentDur > bufferDuration) contentDur = bufferDuration;
+    const wallDur = contentDur / rate;
+    return { contentDur, wallDur };
+  }
+
+  function makeOrganism(id) {
+    return {
+      id,
+      register: randomRegister(),
+      rule: (Math.random() * 256) | 0,
+      status: "idle",
+      sampleName: "",
+      pan: 0,
+      depth: 0.5,
+      currentDur: 0,
+      startedAtPerf: 0,
+      timer: null,
+      voice: null,
+      chanGain: null, chanPan: null, chanFilter: null, chanSend: null,
+      chanGainVal: 1, chanPanVal: 0, chanDepthVal: 0,
+    };
+  }
+
+  function fadeStopVoice(org, fadeSec) {
+    if (!org.voice || !actx) { org.voice = null; return; }
+    const { envGain, src } = org.voice;
+    const now = actx.currentTime;
+    try {
+      envGain.gain.cancelScheduledValues(now);
+      envGain.gain.setValueAtTime(envGain.gain.value, now);
+      envGain.gain.linearRampToValueAtTime(0.0001, now + fadeSec);
+    } catch (e) {}
+    try { src.stop(now + fadeSec + 0.05); } catch (e) {}
+    org.voice = null;
+  }
+
+  // ---------------------------------------------------------------
+  // per-organism mixer channel (persistent — every voice from this
+  // organism routes through it, so live fader/pan/depth moves reach
+  // whatever is currently sounding)
+  // ---------------------------------------------------------------
+  function ensureChannel(org) {
+    if (!org || org.chanGain || !actx) return;
+    org.chanGain = actx.createGain(); org.chanGain.gain.value = org.chanGainVal;
+    org.chanPan = actx.createStereoPanner(); org.chanPan.pan.value = org.chanPanVal;
+    org.chanFilter = actx.createBiquadFilter();
+    org.chanFilter.type = "lowpass";
+    org.chanFilter.frequency.value = lerp(20000, 1200, org.chanDepthVal);
+    org.chanSend = actx.createGain(); org.chanSend.gain.value = org.chanDepthVal * 0.35;
+    org.chanGain.connect(org.chanPan);
+    org.chanPan.connect(org.chanFilter);
+    org.chanFilter.connect(busSum);
+    org.chanPan.connect(org.chanSend);
+    org.chanSend.connect(convolver);
+  }
+
+  function teardownChannel(org) {
+    if (!org.chanGain) return;
+    try { org.chanGain.disconnect(); } catch (e) {}
+    try { org.chanPan.disconnect(); } catch (e) {}
+    try { org.chanFilter.disconnect(); } catch (e) {}
+    try { org.chanSend.disconnect(); } catch (e) {}
+    org.chanGain = org.chanPan = org.chanFilter = org.chanSend = null;
+  }
+
+  function buildLanes() {
+    const wrap = document.getElementById("lanes");
+    wrap.innerHTML = "";
+    for (const key of Object.keys(laneRefs)) delete laneRefs[key];
+    organisms.forEach(org => {
+      const row = document.createElement("div"); row.className = "lane";
+      const genome = document.createElement("div"); genome.className = "genome";
+      const cells = [];
+      for (let b = 0; b < REG_LEN; b++) { const c = document.createElement("span"); genome.appendChild(c); cells.push(c); }
+      const main = document.createElement("div"); main.className = "lane-main";
+      const head = document.createElement("div"); head.className = "lane-head";
+      const lname = document.createElement("span"); lname.className = "lname"; lname.textContent = "org " + (org.id + 1);
+      const lrule = document.createElement("span"); lrule.className = "lrule"; lrule.textContent = "R" + org.rule;
+      const lstatus = document.createElement("span"); lstatus.className = "lstatus"; lstatus.textContent = "idle";
+      head.appendChild(lname); head.appendChild(lrule); head.appendChild(lstatus);
+      const track = document.createElement("div"); track.className = "lane-track";
+      const fill = document.createElement("div"); fill.className = "lane-fill";
+      track.appendChild(fill);
+      const panRail = document.createElement("div"); panRail.className = "lane-pan";
+      const dot = document.createElement("i"); dot.className = "dot"; dot.style.left = "50%"; panRail.appendChild(dot);
+      const meta = document.createElement("div"); meta.className = "lane-meta";
+      const sname = document.createElement("span"); sname.className = "lsample"; sname.textContent = "—";
+      const time = document.createElement("span"); time.className = "ltime"; time.textContent = "0:00 / 0:00";
+      meta.appendChild(sname); meta.appendChild(time);
+      main.appendChild(head); main.appendChild(track); main.appendChild(panRail); main.appendChild(meta);
+      row.appendChild(genome); row.appendChild(main);
+      wrap.appendChild(row);
+      laneRefs[org.id] = { cells, lrule, lstatus, fill, dot, sname, time };
+    });
+  }
+
+  function buildMixer() {
+    const wrap = document.getElementById("mixerChannels");
+    wrap.innerHTML = "";
+    organisms.forEach(org => {
+      const ch = document.createElement("div"); ch.className = "mixch";
+      const label = document.createElement("div"); label.className = "mixch-label"; label.textContent = "org " + (org.id + 1);
+      const faderWrap = document.createElement("div"); faderWrap.className = "fader-wrap";
+      const fader = document.createElement("input");
+      fader.type = "range"; fader.className = "mixFader"; fader.dataset.org = String(org.id);
+      fader.min = "0"; fader.max = "140"; fader.value = String(Math.round(org.chanGainVal * 100));
+      faderWrap.appendChild(fader);
+      const volVal = document.createElement("div"); volVal.className = "mixch-val"; volVal.id = "mixVol" + org.id;
+      volVal.textContent = fader.value + "%";
+      const panRow = document.createElement("div"); panRow.className = "mixch-row";
+      const panLabel = document.createElement("label"); panLabel.textContent = "pan";
+      const panInput = document.createElement("input");
+      panInput.type = "range"; panInput.className = "mixPan"; panInput.dataset.org = String(org.id);
+      panInput.min = "-100"; panInput.max = "100"; panInput.value = String(Math.round(org.chanPanVal * 100));
+      panRow.appendChild(panLabel); panRow.appendChild(panInput);
+      const depthRow = document.createElement("div"); depthRow.className = "mixch-row";
+      const depthLabel = document.createElement("label"); depthLabel.textContent = "depth";
+      const depthInput = document.createElement("input");
+      depthInput.type = "range"; depthInput.className = "mixDepth"; depthInput.dataset.org = String(org.id);
+      depthInput.min = "0"; depthInput.max = "100"; depthInput.value = String(Math.round(org.chanDepthVal * 100));
+      depthRow.appendChild(depthLabel); depthRow.appendChild(depthInput);
+      ch.appendChild(label); ch.appendChild(faderWrap); ch.appendChild(volVal); ch.appendChild(panRow); ch.appendChild(depthRow);
+      wrap.appendChild(ch);
+    });
+  }
+
+  document.getElementById("mixerChannels").addEventListener("input", (e) => {
+    const t = e.target;
+    if (!t.dataset || t.dataset.org === undefined) return;
+    const id = +t.dataset.org;
+    const org = organisms.find(o => o.id === id);
+    if (!org) return;
+    if (t.classList.contains("mixFader")) {
+      org.chanGainVal = (+t.value) / 100;
+      const out = document.getElementById("mixVol" + id);
+      if (out) out.textContent = t.value + "%";
+      if (org.chanGain) org.chanGain.gain.setTargetAtTime(org.chanGainVal, actx.currentTime, 0.03);
+    } else if (t.classList.contains("mixPan")) {
+      org.chanPanVal = (+t.value) / 100;
+      if (org.chanPan) org.chanPan.pan.setTargetAtTime(org.chanPanVal, actx.currentTime, 0.03);
+    } else if (t.classList.contains("mixDepth")) {
+      org.chanDepthVal = (+t.value) / 100;
+      if (org.chanFilter) org.chanFilter.frequency.setTargetAtTime(lerp(20000, 1200, org.chanDepthVal), actx.currentTime, 0.05);
+      if (org.chanSend) org.chanSend.gain.setTargetAtTime(org.chanDepthVal * 0.35, actx.currentTime, 0.05);
+    }
+  });
+
+  function updateLaneUI(org) {
+    const ref = laneRefs[org.id];
+    if (!ref) return;
+    for (let b = 0; b < REG_LEN; b++) ref.cells[b].classList.toggle("lit", !!org.register[b]);
+    ref.lrule.textContent = "R" + org.rule;
+    ref.lstatus.textContent = org.status;
+    ref.lstatus.className = "lstatus " + org.status;
+    ref.sname.textContent = org.sampleName || "—";
+    ref.dot.style.left = (org.pan * 50 + 50) + "%";
+    ref.fill.style.opacity = String(lerp(1, 0.4, org.depth));
+    if (org.status !== "playing") {
+      ref.fill.style.width = "0%";
+      ref.time.textContent = org.status === "dormant" ? "sleeping" : "0:00 / 0:00";
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // voice playback — shared by organisms, twins, and stutters
+  // ---------------------------------------------------------------
+  function scheduleWobble(src, baseRate, wallDur, startAt) {
+    const waypoints = 2 + ((Math.random() * 3) | 0);
+    let t = startAt;
+    const step = wallDur / (waypoints + 1);
+    for (let i = 0; i < waypoints; i++) {
+      t += step;
+      const dev = baseRate * randRange(-0.018, 0.018);
+      try { src.playbackRate.linearRampToValueAtTime(baseRate + dev, t); } catch (e) {}
+    }
+    try { src.playbackRate.linearRampToValueAtTime(baseRate, startAt + wallDur); } catch (e) {}
+  }
+
+  function schedulePanDrift(org, panner, basePan, wallDur, startAt) {
+    const waypoints = 2 + ((Math.random() * 2) | 0);
+    let t = startAt;
+    const step = wallDur / (waypoints + 1);
+    for (let i = 0; i < waypoints; i++) {
+      t += step;
+      const target = clamp(basePan + randRange(-0.7, 0.7) * ui.stereoSpread, -1, 1);
+      try { panner.pan.linearRampToValueAtTime(target, t); } catch (e) {}
+      const delayMs = Math.max(0, (t - actx.currentTime) * 1000);
+      setTimeout(() => {
+        org.pan = target;
+        const ref = laneRefs[org.id];
+        if (ref) ref.dot.style.left = (target * 50 + 50) + "%";
+      }, delayMs);
+    }
+  }
+
+  function playExcerpt(sample, contentOffset, contentDur, wallDur, rate, pan, depth, startAt, opts) {
+    opts = opts || {};
+    ensureChannel(opts.org);
+    const now = startAt;
+    const cutoff = clamp(lerp(9000, 700, depth) * (0.55 + ui.brightness * 0.85), 200, 15000);
+    const gainPeak = 0.55 * lerp(1.0, 0.4, depth) * ui.masterVol * (opts.gainScale || 1);
+    const revSend = lerp(0.08, 0.55, depth) * ui.reverbMix;
+    const delSend = lerp(0.04, 0.24, depth) * 0.8;
+
+    const envGain = actx.createGain(); envGain.gain.setValueAtTime(0, now);
+    const filter = actx.createBiquadFilter(); filter.type = "lowpass"; filter.frequency.value = cutoff; filter.Q.value = 0.4;
+    const panner = actx.createStereoPanner(); panner.pan.value = clamp(pan, -1, 1);
+
+    const src = actx.createBufferSource();
+    src.buffer = sample.buffer;
+    src.playbackRate.value = rate;
+
+    src.connect(envGain); envGain.connect(filter); filter.connect(panner);
+    panner.connect(opts.org.chanGain);
+    const sendRev = actx.createGain(); sendRev.gain.value = revSend; panner.connect(sendRev); sendRev.connect(convolver);
+    const sendDel = actx.createGain(); sendDel.gain.value = delSend; panner.connect(sendDel); sendDel.connect(delayNode);
+
+    let fadeIn = clamp(wallDur * 0.12, 0.03, 5);
+    let fadeOut = clamp(wallDur * 0.18, 0.04, 6);
+    if (fadeIn + fadeOut > wallDur * 0.92) {
+      const scale = (wallDur * 0.92) / (fadeIn + fadeOut);
+      fadeIn *= scale; fadeOut *= scale;
+    }
+    envGain.gain.linearRampToValueAtTime(gainPeak, now + fadeIn);
+    envGain.gain.setValueAtTime(gainPeak, now + Math.max(fadeIn, wallDur - fadeOut));
+    envGain.gain.linearRampToValueAtTime(0.0001, now + wallDur);
+
+    src.start(now, contentOffset, contentDur + 0.05);
+    src.stop(now + wallDur + 0.15);
+
+    if (opts.wobble && wallDur > 1.5) scheduleWobble(src, rate, wallDur, now);
+    if (opts.panDrift && wallDur > 3) schedulePanDrift(opts.org, panner, pan, wallDur, now);
+
+    if (opts.trackVoice !== false) {
+      opts.org.voice = { envGain, src };
+      src.onended = () => { if (opts.org.voice && opts.org.voice.src === src) opts.org.voice = null; };
+    }
+
+    excerptCount++;
+    const statCount = document.getElementById("statCount");
+    if (statCount) statCount.textContent = String(excerptCount);
+  }
+
+  function stutterCluster(org, sample) {
+    const hits = 2 + ((Math.random() * 3) | 0);
+    let t = actx.currentTime;
+    for (let h = 0; h < hits; h++) {
+      const contentDur = randRange(0.04, 0.18);
+      const maxStart = Math.max(0, sample.buffer.duration - contentDur);
+      const offset = Math.random() * maxStart;
+      const semis = pickPitchSemis();
+      const rate = semisToRate(semis) * ui.masterSpeed;
+      const wallDur = contentDur / rate;
+      playExcerpt(sample, offset, contentDur, wallDur, rate, org.pan, org.depth, t, { org, trackVoice: false, gainScale: 0.75 });
+      t += wallDur + randRange(0.02, 0.09);
+    }
+    return t - actx.currentTime;
+  }
+
+  function spawnTwin(org, primaryStartAt) {
+    if (samples.length === 0) return;
+    const sample = pick(samples);
+    const wallDurWanted = pickWallDuration(org.register);
+    const semis = clamp(pickPitchSemis() + randRange(-1, 1) * ui.twinPitchSpread, -48, 48);
+    const pitchRate = semisToRate(semis);
+    const fit = fitToBuffer(sample.buffer.duration, wallDurWanted, pitchRate);
+    const finalRate = pitchRate * ui.masterSpeed;
+    const wallDur = fit.wallDur / ui.masterSpeed;
+    const contentDur = fit.contentDur;
+    const maxStart = Math.max(0, sample.buffer.duration - contentDur);
+    const offset = Math.random() * maxStart;
+    const twinPan = clamp(-org.pan * 0.6 + randRange(-0.3, 0.3), -1, 1);
+    const twinDepth = clamp(org.depth + randRange(-0.2, 0.2), 0, 1);
+    const startAt = primaryStartAt + ui.twinOffset * randRange(0.7, 1.3);
+    playExcerpt(sample, offset, contentDur, wallDur, finalRate, twinPan, twinDepth, startAt, { org, trackVoice: false, gainScale: 0.85 });
+    log("↳ twin: " + sample.name + " " + fmtTime(wallDur) + ", " + (semis >= 0 ? "+" : "") + semis.toFixed(1) + "st, +" + ui.twinOffset.toFixed(1) + "s");
+  }
+
+  // ---------------------------------------------------------------
+  // organism lifecycle
+  // ---------------------------------------------------------------
+  function organismTick(org) {
+    if (!running) return;
+    try {
+      organismTickInner(org);
+    } catch (err) {
+      log("org " + (org.id + 1) + " hiccup: " + (err && err.message ? err.message : err));
+      org.status = "idle";
+      updateLaneUI(org);
+      org.timer = setTimeout(() => organismTick(org), 1500);
+    }
+  }
+
+  function organismTickInner(org) {
+    if (Math.random() < 0.03 + (ui.mutationRate * 0.4)) {
+      org.rule = (Math.random() * 256) | 0;
+      log("org " + (org.id + 1) + " mutated → rule " + org.rule, "mutate-line");
+    }
+    const steps = 1 + ((Math.random() * 2) | 0);
+    let reg = org.register;
+    for (let s = 0; s < steps; s++) reg = stepRegister(reg, org.rule);
+    org.register = reg;
+
+    const pc = popcount(reg);
+    const extreme = (pc <= 1 || pc >= REG_LEN - 1) ? 0.35 : 0;
+
+    if (samples.length === 0) {
+      org.status = "idle"; org.sampleName = "";
+      updateLaneUI(org);
+      org.timer = setTimeout(() => organismTick(org), 2000);
+      return;
+    }
+
+    const dormantChance = clamp(0.05 + durRange.dormantBoost + extreme, 0, 0.85);
+    if (Math.random() < dormantChance) {
+      org.status = "dormant";
+      updateLaneUI(org);
+      const sleepDur = logUniform(1.2, 12) / ui.masterSpeed;
+      org.timer = setTimeout(() => organismTick(org), sleepDur * 1000);
+      return;
+    }
+
+    const feat = genomeFeatures(reg);
+    const pan = clamp(feat.pan * ui.stereoSpread + randRange(-0.06, 0.06), -1, 1);
+    const depth = clamp(lerp(0.5, feat.depth, ui.depthContrast * 1.4), 0, 1);
+
+    const chaosRoll = Math.random();
+    const stutterCut = ui.timingChaos * 0.35;
+    const hesitateCut = stutterCut + ui.timingChaos * 0.45;
+
+    if (chaosRoll < stutterCut) {
+      const sample = pick(samples);
+      org.status = "playing";
+      org.sampleName = sample.name + " · stutter";
+      org.pan = pan; org.depth = depth;
+      const totalWall = stutterCluster(org, sample);
+      org.currentDur = totalWall;
+      org.startedAtPerf = performance.now();
+      updateLaneUI(org);
+      org.timer = setTimeout(() => organismTick(org), Math.max(150, totalWall * 1000));
+      return;
+    }
+
+    const extraDelay = chaosRoll < hesitateCut ? randRange(0.15, 2.6) * ui.timingChaos : 0;
+
+    const sample = pick(samples);
+    const semis = pickPitchSemis();
+    const pitchRate = semisToRate(semis);
+    const wallDurWanted = pickWallDuration(reg);
+    const fit = fitToBuffer(sample.buffer.duration, wallDurWanted, pitchRate);
+    const finalRate = pitchRate * ui.masterSpeed;
+    const wallDur = fit.wallDur / ui.masterSpeed;
+    const contentDur = fit.contentDur;
+    const maxStart = Math.max(0, sample.buffer.duration - contentDur);
+    const offset = Math.random() * maxStart;
+    const startAt = actx.currentTime + extraDelay;
+
+    playExcerpt(sample, offset, contentDur, wallDur, finalRate, pan, depth, startAt, {
+      org, trackVoice: true, wobble: ui.wobble, panDrift: ui.panDrift,
+    });
+
+    if (ui.doublesEnabled && Math.random() < ui.twinChance) spawnTwin(org, startAt);
+
+    org.status = "playing";
+    org.sampleName = sample.name;
+    org.pan = pan; org.depth = depth;
+    org.currentDur = extraDelay + wallDur;
+    org.startedAtPerf = performance.now();
+    updateLaneUI(org);
+
+    org.timer = setTimeout(() => organismTick(org), Math.max(150, (extraDelay + wallDur) * 1000));
+  }
+
+  function setPopulation(n) {
+    n = clamp(Math.round(n), 1, 12);
+    if (n > organisms.length) {
+      for (let i = organisms.length; i < n; i++) {
+        const org = makeOrganism(i);
+        organisms.push(org);
+        if (actx) ensureChannel(org);
+      }
+    } else if (n < organisms.length) {
+      for (let i = n; i < organisms.length; i++) {
+        clearTimeout(organisms[i].timer);
+        fadeStopVoice(organisms[i], 0.6);
+        teardownChannel(organisms[i]);
+      }
+      organisms.length = n;
+    }
+    buildLanes();
+    buildMixer();
+    organisms.forEach(org => updateLaneUI(org));
+    if (running) {
+      organisms.forEach((org, i) => {
+        if (!org.timer && !org.voice) org.timer = setTimeout(() => organismTick(org), 200 + i * 260);
+      });
+    }
+  }
+
+  function resetColony() {
+    organisms.forEach(org => { clearTimeout(org.timer); fadeStopVoice(org, 0.6); teardownChannel(org); });
+    organisms = [];
+    for (let i = 0; i < ui.population; i++) {
+      const org = makeOrganism(i);
+      organisms.push(org);
+      if (actx) ensureChannel(org);
+    }
+    buildLanes();
+    buildMixer();
+    organisms.forEach(org => updateLaneUI(org));
+    phaseTarget = null;
+    excerptCount = 0;
+    document.getElementById("statCount").textContent = "0";
+    enterPhase(0, false);
+    log("— new colony —");
+    if (running) organisms.forEach((org, i) => { org.timer = setTimeout(() => organismTick(org), 200 + i * 260); });
+  }
+
+  function stopAll() {
+    organisms.forEach(org => { clearTimeout(org.timer); org.timer = null; fadeStopVoice(org, 1.2); org.status = "idle"; updateLaneUI(org); });
+  }
+
+  // ---------------------------------------------------------------
+  // ui progress loop
+  // ---------------------------------------------------------------
+  function tickUI() {
+    requestAnimationFrame(tickUI);
+    const now = performance.now();
+    organisms.forEach(org => {
+      const ref = laneRefs[org.id];
+      if (!ref) return;
+      if (org.status === "playing") {
+        const elapsed = (now - org.startedAtPerf) / 1000;
+        const pct = clamp(elapsed / org.currentDur, 0, 1) * 100;
+        ref.fill.style.width = pct + "%";
+        ref.time.textContent = fmtTime(elapsed) + " / " + fmtTime(org.currentDur);
+      }
+    });
+  }
+
+  // ---------------------------------------------------------------
+  // control bindings
+  // ---------------------------------------------------------------
+  function bind(id, valId, fmt, setter) {
+    const el = document.getElementById(id);
+    const out = valId ? document.getElementById(valId) : null;
+    const apply = () => {
+      const raw = +el.value;
+      if (out) out.textContent = fmt(raw);
+      setter(raw);
+    };
+    el.addEventListener("input", apply);
+    apply();
+  }
+
+  bind("mutationRate", "mutationRateVal", v => v + "%", v => ui.mutationRate = v / 100);
+  bind("phasePace", "phasePaceVal", v => (v / 100).toFixed(1) + "×", v => ui.phasePaceScale = v / 100);
+  bind("durationBias", "durationBiasVal", v => v + "%", v => ui.durationBias = v / 100);
+  bind("stereoSpread", "stereoSpreadVal", v => v + "%", v => ui.stereoSpread = v / 100);
+  bind("depthContrast", "depthContrastVal", v => v + "%", v => ui.depthContrast = v / 100);
+  bind("brightness", "brightnessVal", v => v + "%", v => ui.brightness = v / 100);
+  bind("pitchSpread", "pitchSpreadVal", v => "±" + v + " st", v => ui.pitchSpread = v);
+  bind("pitchBias", "pitchBiasVal", v => (v > 0 ? "+" : "") + v, v => ui.pitchBias = v / 100);
+  bind("timingChaos", "timingChaosVal", v => v + "%", v => ui.timingChaos = v / 100);
+  bind("twinChance", "twinChanceVal", v => v + "%", v => ui.twinChance = v / 100);
+  bind("twinOffset", "twinOffsetVal", v => (v / 10).toFixed(1) + "s", v => ui.twinOffset = v / 10);
+  bind("twinPitch", "twinPitchVal", v => "±" + v + " st", v => ui.twinPitchSpread = v);
+  bind("reverbMix", "reverbMixVal", v => v + "%", v => ui.reverbMix = v / 100);
+  bind("delayFb", "delayFbVal", v => v + "%", v => {
+    ui.delayFb = v / 100;
+    if (delayFeedback && actx) delayFeedback.gain.setTargetAtTime(ui.delayFb * 0.7, actx.currentTime, 0.05);
+  });
+  bind("masterVol", "masterVolVal", v => v + "%", v => {
+    ui.masterVol = v / 100;
+    if (master && actx) master.gain.setTargetAtTime(ui.masterVol, actx.currentTime, 0.05);
+  });
+  bind("wanderIntensity", "wanderIntensityVal", v => v + "%", v => ui.wanderIntensity = v / 100);
+  bind("masterSpeed", "masterSpeedVal", v => (v / 100).toFixed(2) + "×", v => ui.masterSpeed = v / 100);
+
+  document.getElementById("wobble").addEventListener("change", (e) => { ui.wobble = e.target.checked; });
+  document.getElementById("panDrift").addEventListener("change", (e) => { ui.panDrift = e.target.checked; });
+
+  let reverbDebounce = null;
+  document.getElementById("reverbSize").addEventListener("input", (e) => {
+    ui.reverbSize = (+e.target.value) / 100;
+    document.getElementById("reverbSizeVal").textContent = e.target.value + "%";
+    clearTimeout(reverbDebounce);
+    reverbDebounce = setTimeout(() => {
+      if (convolver && actx) convolver.buffer = makeImpulse(actx, lerp(1.0, 4.2, ui.reverbSize), 2.2);
+    }, 260);
+  });
+
+  document.getElementById("population").addEventListener("input", (e) => {
+    document.getElementById("populationVal").textContent = e.target.value;
+  });
+  document.getElementById("population").addEventListener("change", (e) => {
+    ui.population = +e.target.value;
+    setPopulation(ui.population);
+  });
+
+  const btnDoubles = document.getElementById("btnDoubles");
+  btnDoubles.addEventListener("click", () => {
+    ui.doublesEnabled = !ui.doublesEnabled;
+    btnDoubles.textContent = "Doubles: " + (ui.doublesEnabled ? "on" : "off");
+    btnDoubles.classList.toggle("on", ui.doublesEnabled);
+    log(ui.doublesEnabled ? "— doubles engaged —" : "— doubles released —");
+  });
+
+  // ---------------------------------------------------------------
+  // wander — optional autonomous drift of the mix
+  // ---------------------------------------------------------------
+  const WANDER_IDS = ["stereoSpread", "depthContrast", "brightness", "reverbMix", "reverbSize", "delayFb", "mutationRate"];
+  let wandering = false;
+
+  function walkParam(id) {
+    if (!wandering) return;
+    const el = document.getElementById(id);
+    const min = +el.min, max = +el.max;
+    const target = randRange(min, max);
+    const startVal = +el.value;
+    const startT = performance.now();
+    const speed = randRange(5000, 14000) / (0.35 + ui.wanderIntensity * 1.3);
+    function frame() {
+      if (!wandering) return;
+      const t = clamp((performance.now() - startT) / speed, 0, 1);
+      const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      el.value = String(lerp(startVal, target, eased));
+      el.dispatchEvent(new Event("input"));
+      if (t < 1) requestAnimationFrame(frame);
+      else walkParam(id);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  const btnWander = document.getElementById("btnWander");
+  btnWander.addEventListener("click", () => {
+    wandering = !wandering;
+    btnWander.textContent = "Wander: " + (wandering ? "on" : "off");
+    btnWander.classList.toggle("on", wandering);
+    WANDER_IDS.forEach(id => {
+      const el = document.getElementById(id);
+      el.disabled = wandering;
+      if (wandering) walkParam(id);
+    });
+    log(wandering ? "— wander engaged —" : "— wander released —");
+  });
+
+  // ---------------------------------------------------------------
+  // master speed — its own small, independent auto-drift
+  // ---------------------------------------------------------------
+  let speedDrifting = false;
+  function walkMasterSpeed() {
+    if (!speedDrifting) return;
+    const el = document.getElementById("masterSpeed");
+    const min = +el.min, max = +el.max;
+    const target = randRange(min, max);
+    const startVal = +el.value;
+    const startT = performance.now();
+    const speed = randRange(7000, 18000);
+    function frame() {
+      if (!speedDrifting) return;
+      const t = clamp((performance.now() - startT) / speed, 0, 1);
+      const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      el.value = String(lerp(startVal, target, eased));
+      el.dispatchEvent(new Event("input"));
+      if (t < 1) requestAnimationFrame(frame);
+      else walkMasterSpeed();
+    }
+    requestAnimationFrame(frame);
+  }
+  document.getElementById("masterSpeedDrift").addEventListener("change", (e) => {
+    speedDrifting = e.target.checked;
+    document.getElementById("masterSpeed").disabled = speedDrifting;
+    if (speedDrifting) walkMasterSpeed();
+    log(speedDrifting ? "— master speed drifting —" : "— master speed fixed —");
+  });
+
+  // ---------------------------------------------------------------
+  // transport
+  // ---------------------------------------------------------------
+  const btnStart = document.getElementById("btnStart");
+  const btnColony = document.getElementById("btnColony");
+
+  btnStart.addEventListener("click", async () => {
+    try {
+      if (!actx) initAudio();
+      if (actx.state === "suspended") { try { await actx.resume(); } catch (e) {} }
+      if (actx.state !== "running") {
+        log("audio is blocked by the browser (state: " + actx.state + ") — click Start again, or check this page's sound permission.");
+        return;
+      }
+      organisms.forEach(ensureChannel);
+
+      if (!running) {
+        running = true;
+        btnStart.textContent = "Stop";
+        btnStart.classList.add("on");
+        if (organisms.length === 0) { for (let i = 0; i < ui.population; i++) organisms.push(makeOrganism(i)); buildLanes(); buildMixer(); organisms.forEach(ensureChannel); }
+        if (!phaseTarget) enterPhase(0, false);
+        if (!phaseInterval) phaseInterval = setInterval(tickPhase, 1000);
+        log("— started —");
+        organisms.forEach((org, i) => { org.timer = setTimeout(() => organismTick(org), 200 + i * 260); });
+      } else {
+        running = false;
+        btnStart.textContent = "Start";
+        btnStart.classList.remove("on");
+        clearInterval(phaseInterval); phaseInterval = null;
+        stopAll();
+        log("— stopped —");
+      }
+    } catch (err) {
+      log("start failed: " + (err && err.message ? err.message : err));
+    }
+  });
+
+  btnColony.addEventListener("click", resetColony);
+
+  // ---------------------------------------------------------------
+  // init
+  // ---------------------------------------------------------------
+  for (let i = 0; i < ui.population; i++) organisms.push(makeOrganism(i));
+  buildLanes();
+  buildMixer();
+  organisms.forEach(org => updateLaneUI(org));
+  requestAnimationFrame(tickUI);
+  log("colony dormant — load some recordings, then press Start.");
+})();
+</script>
+
+</body></html>

@@ -1,0 +1,952 @@
+<!doctype html><html><head><!-- frame-runtime --><script>window.__FRAME_PREAMBLE={"v":1,"capabilities":{"artifact":"artifact.DF6_9MzE.js","assets":"assets.8Gk803W0.js","comments":"comments.vw5vQdGA.js","db":"db.h-3sndFg.js","downloads":"downloads.C3GSvEDP.js","embed":"embed.CxGAyc-v.js","mcp":"mcp.Bvma3qD7.js","network":"network.B5UA9Su4.js","notifications":"notifications.ssU4jy7G.js","permissions":"permissions.BNySkLV5.js","room":"room.BMMoe2BY.js","sample":"sample.BW2Uysoh.js","self":"artifact.DF6_9MzE.js","user":"user.BpKav-Rf.js"},"transforms":"_transforms.DSB5x63f.js","comments":"_comments.C6E0cR5g.js","translate":"_translate.5HCW4BJh.js"}</script><script>(function(){"use strict";var te=["light","dark","system"],re=/^[A-Za-z0-9_-]{1,64}$/,$=/^[a-zA-Z_:][a-zA-Z0-9_:.-]{0,127}$/,ne=new Set(["class","hidden","value","checked","style","title","alt","placeholder","lang","dir","role","tabindex","disabled","readonly","contenteditable","open","colspan","rowspan"]);function oe(e){const t=e.toLowerCase();return t.startsWith("data-")||t.startsWith("aria-")||ne.has(t)}var Be="http://www.w3.org/1999/xhtml",se="http://www.w3.org/2000/svg",ae=new Set(["script","style","iframe","noscript","noframes","noembed","xmp","plaintext","template","title","textarea","object","embed"]),ie=new Set(["script","style"]);function ce(e){const t=e.localName.toLowerCase();return e.namespaceURI==="http://www.w3.org/1999/xhtml"?!ae.has(t):e.namespaceURI===se?!ie.has(t):!1}function M(e,t){return e===t||(e===160||e===32)&&(t===160||t===32)}function le(e,t){const r=e.length,n=t.length;let s=0;for(;s<r&&s<n&&M(e.charCodeAt(s),t.charCodeAt(s));)s++;let o=0;for(;o<r-s&&o<n-s&&M(e.charCodeAt(r-1-o),t.charCodeAt(n-1-o));)o++;return{p:s,s:o}}function ue(e,t){const r=e.firstChild;if(e.childNodes.length!==1||r===null||r.nodeType!==Node.TEXT_NODE){e.textContent=t;return}const n=r.data,s=n.length,o=t.length,{p:i,s:c}=le(n,t);i===s&&c===0&&s===o||r.replaceData(i,s-i-c,t.slice(i,o-c));const h=r.data,p=e.ownerDocument.getSelection?.()??null,w=p!==null&&p.rangeCount>0&&(p.anchorNode===r||p.focusNode===r)?{anchor:p.anchorNode,anchorOffset:p.anchorOffset,focus:p.focusNode,focusOffset:p.focusOffset}:null;let m=-1,g=-1;for(let f=0;f<h.length&&f<t.length;f++){const v=h.charCodeAt(f),b=t.charCodeAt(f);v!==b&&M(v,b)&&(m<0&&(m=f),g=f)}const a=m>=0;if(a&&r.replaceData(m,g-m+1,t.slice(m,g+1)),a&&w!==null&&w.anchor!==null&&w.focus!==null)try{p.setBaseAndExtent(w.anchor,w.anchorOffset,w.focus,w.focusOffset)}catch{}}var fe=new Set(["html","head","body","frameset"]);function de(e){return e.namespaceURI==="http://www.w3.org/1999/xhtml"&&fe.has(e.localName)}function pe(e){if(e===null||typeof e!="object")return!1;const t=e;if(typeof t.target!="string"||!re.test(t.target)||t.text!==void 0&&typeof t.text!="string")return!1;if(t.attrsSet!==void 0){if(t.attrsSet===null||typeof t.attrsSet!="object")return!1;for(const[r,n]of Object.entries(t.attrsSet))if(!$.test(r)||typeof n!="string")return!1}if(t.attrsRemoved!==void 0){if(!Array.isArray(t.attrsRemoved))return!1;for(const r of t.attrsRemoved)if(typeof r!="string"||!$.test(r))return!1}return!0}function me(e,t){if(e===null||typeof e!="object")return!1;const{seq:r,elements:n}=e;if(typeof r!="number"||!Number.isSafeInteger(r)||!Array.isArray(n)||n.length===0||n.length>64)return!1;for(let s=0;s<n.length;s++)if(!t(n[s]))return!1;return!0}function he(e){return e===null||typeof e!="object"?!1:me(e.__frame_patch,pe)}function _e(e){if(e===null||typeof e!="object")return!1;const t=e.__frame_init;return t!==null&&typeof t=="object"}function ve(e){return e!==null&&typeof e=="object"&&e.__frame_size_poke===!0}function ye(e){if(e===null||typeof e!="object")return!1;const t=e.__frame_theme;if(t===null||typeof t!="object")return!1;const r=t.theme;return typeof r=="string"&&te.includes(r)}var A=/^[\w.-]+\.js$/;function we(e,t,r){return r?"inert":typeof t=="string"&&A.test(t)?e?[t]:"inert":e?"inert":"framed"}function ge(){return{post(e,t){parent.postMessage(e,t)},on(e){const t=r=>{r.source===parent&&e(r.data,r.origin,r.isTrusted)};return addEventListener("message",t),()=>removeEventListener("message",t)}}}function be(){return{post:()=>{},on:()=>()=>{}}}var j="__frame_scroll",Ee=150,Ae=310,Se=160,Te=3e4;function ke(){let e=0,t=!1,r=!1,n=!1,s=0,o=null;const i=l=>{try{sessionStorage.setItem(j,JSON.stringify({y:l}))}catch{}},c=()=>{if(clearTimeout(e),o===null)return;const l=o;o=null,i(l)},h=()=>{if(t){t=!1;return}r=!0,o=scrollY,clearTimeout(e),e=setTimeout(c,Ee)};try{addEventListener("scroll",h,{passive:!0}),addEventListener("pagehide",c)}catch{}const p=()=>{let l;try{l=sessionStorage.getItem(j)}catch{return null}if(l===null)return null;let _;try{_=JSON.parse(l)}catch{_=null}const d=_?.y;if(!(typeof d=="number"&&Number.isFinite(d)&&d>=0)){try{sessionStorage.removeItem(j)}catch{}return null}return d};let w=!1;const m=l=>{try{const _=scrollY;scrollTo({top:l,left:0,behavior:"instant"}),s=l,n=!0,clearTimeout(e),o=null,i(l);const d=scrollY;d!==_&&(t=!0),d!==l&&!w&&(w=!0,addEventListener("load",()=>{try{if(scrollY===d){const T=p();m(T!==null?T:s)}}catch{}},{once:!0}))}catch{}},g=()=>{try{return!!location.hash}catch{return!0}};let a=!1;const f=()=>{try{if(a||innerWidth>Ae||innerHeight>Se)return;a=!0;const l=Date.now(),_=()=>{try{removeEventListener("resize",_)}catch{}if(Date.now()-l>Te||r||g())return;const d=p();m(d!==null?d:s)};addEventListener("resize",_)}catch{}};let v=!1,b=!1;return{restore(){if(v||(v=!0,g()))return;const l=p();l!==null&&(m(l),f())},promoted(){if(b||(b=!0,g()))return;const l=p();l!==null?(m(l),f()):n&&m(s)}}}function Re(e,t,r,n){let s=null;try{s=window.trustedTypes?.createPolicy("frame-runtime",{createScriptURL:h=>h})??null}catch{}const o=window.Worker,i=o?.prototype,c=Object.freeze({Worker:o,workerOn:i?.addEventListener,workerPost:i?.postMessage,workerTerminate:i?.terminate,fetch:window.fetch.bind(window),preventDefault:Event.prototype.preventDefault,policy:s,origins:t});r(e).then(h=>h?.bootTopLevel?h.bootTopLevel(c,n):n.settle()).catch(()=>n.settle())}var De="modulepreload",Ie=function(e){return"/"+e},Ue={},Le=function(t,r,n){let s=Promise.resolve();function o(i){const c=new Event("vite:preloadError",{cancelable:!0});if(c.payload=i,window.dispatchEvent(c),!c.defaultPrevented)throw i}return s.then(i=>{for(const c of i||[])c.status==="rejected"&&o(c.reason);return t().catch(o)})},Oe=window===top,q=Object.getOwnPropertyDescriptor(window,"claude"),k=we(Oe,window.__FRAME_PREAMBLE?.topLevel,q?.writable===!1),N=typeof k=="object"&&k[0],y=N?be():ge();(function(){const e=Object.defineProperty,t=globalThis,r=["RTCPeerConnection","webkitRTCPeerConnection","RTCDataChannel","RTCIceCandidate","RTCSessionDescription","RTCRtpSender","RTCRtpReceiver"];let n=0;for(let s=0;s<r.length;s++){const o=r[s];try{e(t,o,{value:void 0,writable:!1,configurable:!1})}catch{try{delete t[o]}catch{}try{e(t,o,{value:void 0,writable:!1,configurable:!0})}catch{}}typeof t[o]=="function"&&n++}if(n&&k==="framed")try{y.post({__frame_rtc_lockdown_failed:n},"*")}catch{}})();var Pe=1e4,Y=Object.freeze([...window.__FRAME_PREAMBLE?.origins??["https://claude.ai","https://preview.claude.ai"]]);function X(e){for(const t of Y)if(t.endsWith(":*"))try{const r=new URL(e);if(`${r.protocol}//${r.hostname}:*`===t)return!0}catch{}else if(e===t)return!0;return!1}var R=Object.freeze({...window.__FRAME_PREAMBLE?.capabilities}),B=window.__FRAME_PREAMBLE?.transforms,D=window.__FRAME_PREAMBLE?.comments,I=window.__FRAME_PREAMBLE?.translate;function S(e){return Le(()=>import("/_runtime/"+e),void 0)}function G(e,t){return{contract:e.contract,changes:new Set(e.changes??[]),flags:new Set(e.flags??[]),capabilities:e.capabilities??{},capBudgets:e.capBudgets??{},transforms:new Map,shellOrigin:t,mount:x,hooks:O,pipe:()=>({wrap:(r,n)=>(...s)=>{try{return n(...s)}catch(o){return Promise.reject(o)}}})}}var L=null,E=null;function V(e,t,r){try{Object.defineProperty(e,t,{value:r,writable:!1,configurable:!1,enumerable:!0})}catch{try{Object.defineProperty(e,t,{value:r,writable:!1,configurable:!0,enumerable:!0})}catch{}}}var U=!1,O={editBefore:null,edit:null};function Ce(e,t,r=!1){const n=[];let s;if(r)try{O.editBefore?.(e)}catch{}for(const o of e.elements){const i=document.querySelector(`[data-id="${o.target}"]`);if(!i){s=o.target;break}if([...Object.keys(o.attrsSet??{}),...o.attrsRemoved??[]].some(c=>!oe(c))){s=o.target;break}if(o.text!==void 0&&(!ce(i)||de(i))){s=o.target;break}for(const[c,h]of Object.entries(o.attrsSet??{}))if(!J(i,c)){try{i.setAttribute(c,h)}catch{}Z(i,c,h)}for(const c of o.attrsRemoved??[])J(i,c)||(i.removeAttribute(c),Z(i,c,null));typeof o.text=="string"&&ue(i,o.text),n.push(o.target)}if(r)try{O.edit?.(e.seq,n,s)}catch{}if(s!==void 0){y.post({__frame_patch_miss:{seq:e.seq}},t);return}try{document.dispatchEvent(new CustomEvent("claude:edit",{detail:{seq:e.seq,targets:n}}))}catch{}}function Z(e,t,r){if(!(e instanceof HTMLInputElement))return;const n=t.toLowerCase();n==="checked"?e.checked=r!==null:n==="value"&&e.type!=="file"&&(e.value=r??"")}function J(e,t){const r=t.toLowerCase(),n=e;return r==="data-id"||(r==="value"||r==="checked")&&(n.__artifactSecret===!0||/^(password|hidden|file)$/.test(n.type??"")||/(^|\s)(cc-|one-time-code|current-password|new-password)/i.test(`${e.getAttribute("autocomplete")??""} ${n.autocomplete??""}`))}function Q(e){const t=document.documentElement;e==="light"||e==="dark"?(t.dataset.theme=e,t.style.colorScheme=e,U=!0):U&&(delete t.dataset.theme,t.style.colorScheme="",U=!1)}var P=new Map;function Me(){let e;const t={u:new Promise(r=>{e=r}),r:r=>{t.done=!0,e(r)},done:!1,nulled:!1};return t}function F(){for(const e of P.values())e.done||(e.nulled=!0,e.r(null))}var je=Object.freeze(Object.assign(Object.create(null),{call:Function.prototype.call,apply:Function.prototype.apply,bind:Function.prototype.bind})),x=(e,t)=>{const r=P.get(e);if(!r||r.done){r?.nulled&&E&&y.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:e}},E);return}const n=typeof t=="function"?Object.setPrototypeOf(t,je):Object.assign(Object.create(null),t);typeof n.then=="function"&&delete n.then,r.r(Object.freeze(n))};function ee(){const e=q?.value??{};V(window,"claude",e);for(const t of Object.keys(R)){if(e[t]!==void 0){V(e,t,e[t]);continue}P.set(t,Me())}if(e.use===void 0){const t=r=>{if(typeof r!="string"||!Object.hasOwn(R,r))return Promise.resolve(null);const n=P.get(r);return n?n.u:Promise.resolve(e[r]??null)};try{Object.defineProperty(e,"use",{value:t,writable:!0,configurable:!0,enumerable:!1})}catch{}}}if(k==="framed"){const e=B&&A.test(B)?S(B).catch(()=>{}):Promise.resolve(void 0),t=a=>{if(a.type==="auxclick"&&a.button!==1)return;const f=a.target,v=f&&f.closest?f.closest("a[href],area[href]"):null;if(!v)return;const b=v.getAttribute("href");if(!b)return;let l;try{l=new URL(b,document.baseURI)}catch{return}if((l.protocol==="http:"||l.protocol==="https:")&&l.origin!==location.origin){a.preventDefault();const _=(v.getAttribute("target")??"").toLowerCase(),d=a.type==="auxclick"||a.metaKey||a.ctrlKey||a.shiftKey||a.altKey||!["","_self","_top","_parent"].includes(_);y.post({__frame_nav:!0,url:l.href,newTab:d},"*")}};addEventListener("click",t,!0),addEventListener("auxclick",t,!0);const r={},n=a=>{a.isTrusted&&(r.pointer=!0)},s=a=>{a.isTrusted&&(r.click=!0)};addEventListener("pointermove",n,{capture:!0,passive:!0}),addEventListener("click",s,{capture:!0,passive:!0}),e.then(a=>{a?.wireNav&&(a.wireNav(),removeEventListener("click",t,!0),removeEventListener("auxclick",t,!0),removeEventListener("pointermove",n,!0),removeEventListener("click",s,!0),a.wireEngagement?.(r))});let o=null;try{o=ke()}catch{}ee();let i=null,c=null,h=0;const p=y.on((a,f)=>{X(f)&&_e(a)&&(i=a.__frame_init,E=f,p(),clearTimeout(h),c?.())});y.post({__frame_connect:!0},"*");const w=new Promise(a=>{c=a,h=setTimeout(()=>{p(),a()},Pe)}),m=document.readyState==="loading"?new Promise(a=>document.addEventListener("DOMContentLoaded",()=>a(),{once:!0})):Promise.resolve();m.then(()=>{try{o?.restore()}catch{}});const g={cb:null};y.on((a,f)=>{if(X(f)&&ve(a)){try{o?.promoted()}catch{}g.cb?.()}}),w.then(async()=>{if(!i||!E){F();return}Q(i.theme);const a=E;let f=!1,v=!1;y.on((u,z,C)=>{if(z!==a)return;ye(u)&&Q(u.__frame_theme.theme),he(u)&&Ce(u.__frame_patch,a,C);const H=u?.__fc_mode;H&&typeof H=="object"&&!f&&D&&A.test(D)&&(f=!0,S(D).then(K=>K.install?.(a,H.on===!0)).catch(()=>{}));const W=u?.__ft_cmd;W&&typeof W=="object"&&!v&&I&&A.test(I)&&(v=!0,S(I).then(K=>K.install?.(a,W)).catch(()=>{}))});const b=Object.keys(i.capabilities??{}).filter(u=>Object.hasOwn(R,u)).map(u=>[u,R[u]]).filter(u=>typeof u[1]=="string"&&A.test(u[1])),l=await Promise.allSettled(b.map(([,u])=>S(u))),_=await e,d=E;if(_?.buildBoot||y.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:"_transforms"}},d),_?.buildBoot)try{L=_.buildBoot(i,_.TRANSFORMS??{},{shellOrigin:d,mount:x,hooks:O},u=>y.post({__frame_cap_telemetry:u},d))}catch{y.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:"_transforms"}},d),L=G(i,d)}else L=G(i,d);const T=u=>y.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:u}},d),Ne=L;l.forEach((u,z)=>{const C=b[z][0];if(u.status!=="fulfilled"){T(C);return}try{u.value?.install?.(Ne)}catch{T(C)}}),F(),await m,y.post({__frame_ready:!0},E),e.then(u=>u?.installSizeReporter?.(d,g))})}else N&&(ee(),Re(N,Y,S,{settle:F,mount:x}))})();</script><!-- /frame-runtime --><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style></head><body>
+<title>glitchbox</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bg: #f1ece1;
+    --panel: #e7ded0;
+    --panel-edge: #d9cebb;
+    --ink: #221d16;
+    --ink-dim: rgba(34, 29, 22, 0.62);
+    --ink-faint: rgba(34, 29, 22, 0.34);
+    --accent: #c9481c;
+    --accent-ink: #fff6ef;
+    --signal: #2c8a4c;
+    --fault: #6c4fc4;
+    --line: rgba(34, 29, 22, 0.16);
+    --line-strong: rgba(34, 29, 22, 0.28);
+    --led-off: rgba(34, 29, 22, 0.22);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15120d;
+      --panel: #1d1811;
+      --panel-edge: #2a2318;
+      --ink: #ede5d6;
+      --ink-dim: rgba(237, 229, 214, 0.62);
+      --ink-faint: rgba(237, 229, 214, 0.34);
+      --accent: #ff7a3d;
+      --accent-ink: #1a0f08;
+      --signal: #5fd97e;
+      --fault: #a084ff;
+      --line: rgba(237, 229, 214, 0.14);
+      --line-strong: rgba(237, 229, 214, 0.26);
+      --led-off: rgba(237, 229, 214, 0.18);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #15120d;
+    --panel: #1d1811;
+    --panel-edge: #2a2318;
+    --ink: #ede5d6;
+    --ink-dim: rgba(237, 229, 214, 0.62);
+    --ink-faint: rgba(237, 229, 214, 0.34);
+    --accent: #ff7a3d;
+    --accent-ink: #1a0f08;
+    --signal: #5fd97e;
+    --fault: #a084ff;
+    --line: rgba(237, 229, 214, 0.14);
+    --line-strong: rgba(237, 229, 214, 0.26);
+    --led-off: rgba(237, 229, 214, 0.18);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    min-height: 100%;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", -apple-system, "Hiragino Sans", "Yu Gothic", sans-serif;
+  }
+
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 1.25rem;
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  .mono {
+    font-family: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
+  }
+
+  /* ---------------- fault overlay: the whole room flickers ---------------- */
+
+  #fault {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    pointer-events: none;
+    opacity: 0;
+    mix-blend-mode: var(--fault-blend, normal);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) #fault { --fault-blend: screen; }
+  }
+  :root[data-theme="dark"] #fault { --fault-blend: screen; }
+
+  #fault.flash { animation: faultFlash 220ms steps(4, end); }
+
+  @keyframes faultFlash {
+    0%   { opacity: 0; }
+    12%  { opacity: 0.5; }
+    24%  { opacity: 0.05; }
+    40%  { opacity: 0.32; }
+    52%  { opacity: 0; }
+    68%  { opacity: 0.22; }
+    80%  { opacity: 0; }
+    100% { opacity: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #fault.flash { animation: none; opacity: 0.28; transition: opacity 260ms ease; }
+    .rig.shake { animation: none !important; }
+  }
+
+  /* ---------------- the device ---------------- */
+
+  .rig {
+    position: relative;
+    z-index: 1;
+    width: min(30rem, 100%);
+  }
+
+  .rig.shake { animation: rigShake 240ms linear; }
+  @keyframes rigShake {
+    0%   { transform: translate(0, 0) rotate(0deg); }
+    15%  { transform: translate(-7px, 2px) rotate(-0.6deg); }
+    30%  { transform: translate(5px, -3px) rotate(0.5deg); }
+    45%  { transform: translate(-4px, 3px) rotate(-0.3deg); }
+    60%  { transform: translate(3px, -1px) rotate(0.3deg); }
+    80%  { transform: translate(-2px, 1px) rotate(0deg); }
+    100% { transform: translate(0, 0) rotate(0deg); }
+  }
+
+  .panel {
+    position: relative;
+    background: var(--panel);
+    border: 1px solid var(--panel-edge);
+    border-radius: 6px;
+    padding: 2rem 2rem 1.75rem;
+    box-shadow: 0 1px 0 var(--panel-edge) inset, 0 20px 40px -28px rgba(0,0,0,0.5);
+  }
+
+  .rivet {
+    position: absolute;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--panel-edge);
+  }
+  .rivet::after {
+    content: "";
+    position: absolute;
+    left: 1px;
+    right: 1px;
+    top: 3px;
+    height: 1px;
+    background: var(--ink-faint);
+  }
+  .rivet.tl { top: 0.6rem; left: 0.6rem; }
+  .rivet.tr { top: 0.6rem; right: 0.6rem; }
+  .rivet.bl { bottom: 0.6rem; left: 0.6rem; }
+  .rivet.br { bottom: 0.6rem; right: 0.6rem; }
+
+  .nameplate {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 0.62rem;
+    letter-spacing: 0.14em;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    margin-bottom: 1.1rem;
+  }
+
+  h1 {
+    margin: 0;
+    font-family: "IBM Plex Mono", monospace;
+    font-weight: 700;
+    font-size: 2.1rem;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+
+  h1 sup {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--accent);
+    margin-left: 0.35em;
+    vertical-align: 0.9em;
+  }
+
+  .tagline {
+    margin: 0.7rem 0 0;
+    color: var(--ink-dim);
+    font-size: 0.92rem;
+    line-height: 1.75;
+    max-width: 30em;
+  }
+
+  .warn {
+    margin: 1rem 0 0;
+    font-size: 0.74rem;
+    color: var(--accent);
+    display: flex;
+    gap: 0.4em;
+    align-items: baseline;
+  }
+
+  hr.rule {
+    border: none;
+    border-top: 1px solid var(--line);
+    margin: 1.4rem 0;
+  }
+
+  /* ---- footswitch row ---- */
+
+  .switchRow {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .footswitch {
+    font-family: "IBM Plex Mono", monospace;
+    font-weight: 600;
+    font-size: 0.82rem;
+    letter-spacing: 0.04em;
+    padding: 0.9rem 1.4rem;
+    border-radius: 999px;
+    border: 1.5px solid var(--line-strong);
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  }
+  .footswitch:hover { border-color: var(--accent); }
+  .footswitch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .footswitch.engaged {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-ink);
+  }
+  .footswitch:disabled { opacity: 0.5; cursor: default; }
+
+  .led {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--led-off);
+    flex-shrink: 0;
+    transition: background 0.3s ease, box-shadow 0.3s ease;
+  }
+  .led.on {
+    background: var(--signal);
+    box-shadow: 0 0 8px var(--signal);
+    animation: ledPulse 2.4s ease-in-out infinite;
+  }
+  @keyframes ledPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+  }
+
+  .toggleField {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: auto;
+    font-size: 0.72rem;
+    letter-spacing: 0.05em;
+    color: var(--ink-dim);
+    cursor: pointer;
+    user-select: none;
+  }
+  .toggleField input { accent-color: var(--accent); width: 15px; height: 15px; }
+
+  .status {
+    margin: 0.9rem 0 0;
+    font-size: 0.74rem;
+    color: var(--ink-dim);
+    min-height: 1.2em;
+  }
+  .status.error { color: var(--accent); }
+
+  /* ---- cycle select ---- */
+
+  .fieldLabel {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 0.55rem;
+  }
+
+  .cycleRow {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.5rem;
+  }
+
+  .cycleBtn {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 0.76rem;
+    font-weight: 500;
+    padding: 0.6rem 0.3rem;
+    border-radius: 4px;
+    border: 1px solid var(--line-strong);
+    background: transparent;
+    color: var(--ink-dim);
+    cursor: pointer;
+    text-align: center;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  }
+  .cycleBtn small {
+    display: block;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.06em;
+    opacity: 0.75;
+    margin-top: 0.2rem;
+  }
+  .cycleBtn:hover { border-color: var(--accent); }
+  .cycleBtn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  /* ---- knobs ---- */
+
+  .knobs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.4rem;
+    margin-top: 1.4rem;
+  }
+
+  .knob .fieldLabel { display: flex; justify-content: space-between; }
+  .knob .readout {
+    font-family: "IBM Plex Mono", monospace;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    font-size: 0.68rem;
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 3px;
+    background: var(--line-strong);
+    border-radius: 999px;
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    margin-top: -5px;
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 13px;
+    height: 13px;
+    border: none;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+  input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+
+  /* ---- fault log ---- */
+
+  .log {
+    margin-top: 1.4rem;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.74rem;
+    min-height: 1.4em;
+    color: var(--fault);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  .log.show { opacity: 1; transition: opacity 0.02s ease; }
+  .log::before { content: "> "; opacity: 0.6; }
+
+  .hint {
+    margin-top: 1.1rem;
+    padding-top: 1.1rem;
+    border-top: 1px solid var(--line);
+    color: var(--ink-faint);
+    font-size: 0.7rem;
+    line-height: 1.7;
+  }
+
+  .newtab {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+    background: none;
+    border: none;
+    font: inherit;
+    padding: 0;
+  }
+
+  /* ---- input device select ---- */
+
+  .deviceSelect {
+    width: 100%;
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 0.8rem;
+    color: var(--ink);
+    background: transparent;
+    border: 1px solid var(--line-strong);
+    border-radius: 4px;
+    padding: 0.55rem 0.6rem;
+    cursor: pointer;
+  }
+  .deviceSelect:disabled { opacity: 0.5; cursor: default; }
+  .deviceSelect:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  @media (max-width: 420px) {
+    h1 { font-size: 1.7rem; }
+    .knobs { grid-template-columns: 1fr; }
+    .panel { padding: 1.5rem 1.25rem 1.4rem; }
+  }
+</style>
+
+<div id="fault"></div>
+
+<div class="rig" id="rig">
+  <div class="panel">
+    <span class="rivet tl"></span><span class="rivet tr"></span>
+    <span class="rivet bl"></span><span class="rivet br"></span>
+
+    <div class="nameplate">
+      <span>MODEL GB&#8209;1</span>
+      <span>SIGNAL FAULT GENERATOR</span>
+    </div>
+
+    <h1>glitchbox<sup>MK1</sup></h1>
+    <p class="tagline">
+      ギターの音をそのまま通しながら、不規則な周期でふっとバグを起こす。
+      いつ来るかは分からない — でも完全なランダムでもない。
+    </p>
+    <p class="warn"><span aria-hidden="true">&#9888;</span> ハウリング防止のため、ヘッドホンでの使用を推奨します。</p>
+
+    <hr class="rule" />
+
+    <div class="switchRow">
+      <button id="startBtn" class="footswitch mono">接続 &amp; 開始</button>
+      <span class="led" id="led" aria-hidden="true"></span>
+      <label class="toggleField">
+        <input id="glitchEnabled" type="checkbox" checked />
+        <span>グリッチ有効</span>
+      </label>
+    </div>
+    <p class="status" id="status">停止中</p>
+
+    <div>
+      <div class="fieldLabel">入力デバイス &nbsp;INPUT</div>
+      <select id="deviceSelect" class="deviceSelect mono" disabled>
+        <option value="">接続すると一覧が表示されます</option>
+      </select>
+    </div>
+
+    <hr class="rule" />
+
+    <div>
+      <div class="fieldLabel">発生周期 &nbsp;CYCLE</div>
+      <div class="cycleRow" role="group">
+        <button class="cycleBtn" data-period="frequent">頻繁<small>FAST</small></button>
+        <button class="cycleBtn active" data-period="normal">普通<small>MED</small></button>
+        <button class="cycleBtn" data-period="rare">稀<small>RARE</small></button>
+        <button class="cycleBtn" data-period="auto">自動<small>AUTO</small></button>
+      </div>
+    </div>
+
+    <div class="knobs">
+      <div class="knob">
+        <div class="fieldLabel"><span>強度</span><span class="readout mono" id="intensityReadout">55%</span></div>
+        <input id="intensity" type="range" min="0" max="100" value="55" />
+      </div>
+      <div class="knob">
+        <div class="fieldLabel"><span>出力音量</span><span class="readout mono" id="volumeReadout">80%</span></div>
+        <input id="volume" type="range" min="0" max="100" value="80" />
+      </div>
+    </div>
+
+    <div class="log" id="log" aria-live="polite"></div>
+
+    <p class="hint">
+      同じ周期は二度と繰り返さない。バーストで連発することもあれば、長く何も起きないこともある。
+      マイクが接続できない場合は
+      <button class="newtab" id="newTabBtn" type="button">新しいタブで開く</button>
+      と権限が通ることがあります。
+    </p>
+  </div>
+</div>
+
+<script id="glitch-processor-src" type="text/plain">
+class GlitchProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.ringLen = Math.ceil(sampleRate * 0.75);
+    this.ring = [new Float32Array(this.ringLen), new Float32Array(this.ringLen)];
+    this.writeIdx = 0;
+    this.active = null;
+
+    this.port.onmessage = (e) => {
+      const msg = e.data;
+      if (msg.type === "trigger") this.startGlitch(msg);
+      else if (msg.type === "clear") this.active = null;
+    };
+  }
+
+  startGlitch({ kind, durationSamples, intensity }) {
+    const a = {
+      kind,
+      remaining: durationSamples,
+      total: durationSamples,
+      intensity,
+      crushCounter: 0,
+      crushHold: [0, 0],
+      readPos: 0,
+    };
+
+    if (kind === "stutter") {
+      const lenSec = 0.02 + Math.random() * 0.09 * (0.4 + intensity);
+      a.stutterLen = Math.max(8, Math.floor(lenSec * sampleRate));
+      a.stutterStart = (this.writeIdx - a.stutterLen - 64 + this.ringLen * 4) % this.ringLen;
+    }
+
+    this.active = a;
+  }
+
+  rerollChopGrain(a) {
+    const lenSec = 0.008 + Math.random() * 0.045 * (0.3 + a.intensity);
+    a.chopLen = Math.max(4, Math.floor(lenSec * sampleRate));
+    const back = 120 + Math.floor(Math.random() * (this.ringLen - 400));
+    a.chopStart = (this.writeIdx - back + this.ringLen * 4) % this.ringLen;
+    a.chopReadPos = 0;
+  }
+
+  applyGlitch(xs) {
+    const a = this.active;
+    switch (a.kind) {
+      case "bitcrush": {
+        const holdEvery = 2 + Math.floor(a.intensity * 9);
+        a.crushCounter++;
+        if (a.crushCounter >= holdEvery) {
+          a.crushCounter = 0;
+          a.crushHold = xs.slice();
+        }
+        const bits = Math.max(3, 8 - Math.floor(a.intensity * 4));
+        const levels = Math.pow(2, bits);
+        return a.crushHold.map((v) => Math.round(v * levels) / levels);
+      }
+      case "stutter": {
+        const len = a.stutterLen;
+        const idx = (a.stutterStart + (a.readPos % len) + this.ringLen) % this.ringLen;
+        a.readPos++;
+        return [this.ring[0][idx], this.ring[1][idx]];
+      }
+      case "chop": {
+        if (!a.chopLen || a.chopReadPos >= a.chopLen) this.rerollChopGrain(a);
+        const idx = (a.chopStart + a.chopReadPos + this.ringLen) % this.ringLen;
+        a.chopReadPos++;
+        return [this.ring[0][idx], this.ring[1][idx]];
+      }
+      case "dropout": {
+        return [0, 0];
+      }
+      default:
+        return xs;
+    }
+  }
+
+  process(inputs, outputs) {
+    const input = inputs[0];
+    const output = outputs[0];
+    if (!output || !output[0]) return true;
+    const frames = output[0].length;
+    const nOut = output.length;
+
+    for (let i = 0; i < frames; i++) {
+      const xs = [0, 0];
+      for (let ch = 0; ch < nOut; ch++) {
+        const inCh = input[ch] || input[0];
+        xs[ch] = inCh ? inCh[i] : 0;
+      }
+      if (nOut < 2) xs[1] = xs[0];
+
+      this.ring[0][this.writeIdx] = xs[0];
+      this.ring[1][this.writeIdx] = xs[1];
+
+      let ys = xs;
+      if (this.active) {
+        ys = this.applyGlitch(xs);
+        this.active.remaining--;
+        if (this.active.remaining <= 0) this.active = null;
+      }
+
+      for (let ch = 0; ch < nOut; ch++) output[ch][i] = ys[ch];
+      this.writeIdx = (this.writeIdx + 1) % this.ringLen;
+    }
+    return true;
+  }
+}
+
+registerProcessor("glitch-processor", GlitchProcessor);
+</script>
+
+<script>
+(() => {
+  const startBtn = document.getElementById("startBtn");
+  const glitchEnabledBox = document.getElementById("glitchEnabled");
+  const statusEl = document.getElementById("status");
+  const cycleButtons = Array.from(document.querySelectorAll(".cycleBtn"));
+  const intensitySlider = document.getElementById("intensity");
+  const volumeSlider = document.getElementById("volume");
+  const intensityReadout = document.getElementById("intensityReadout");
+  const volumeReadout = document.getElementById("volumeReadout");
+  const fault = document.getElementById("fault");
+  const rig = document.getElementById("rig");
+  const logEl = document.getElementById("log");
+  const ledEl = document.getElementById("led");
+  const newTabBtn = document.getElementById("newTabBtn");
+  const deviceSelect = document.getElementById("deviceSelect");
+
+  newTabBtn.addEventListener("click", () => {
+    window.open(window.location.href, "_blank", "noopener");
+  });
+
+  // ---- restore per-viewer control preferences (not audio state) ----
+  try {
+    const saved = JSON.parse(localStorage.getItem("glitchbox:prefs") || "{}");
+    if (saved.intensity != null) intensitySlider.value = saved.intensity;
+    if (saved.volume != null) volumeSlider.value = saved.volume;
+    if (saved.period) {
+      cycleButtons.forEach((b) => b.classList.toggle("active", b.dataset.period === saved.period));
+    }
+  } catch (e) {}
+
+  function savePrefs() {
+    try {
+      const active = cycleButtons.find((b) => b.classList.contains("active"));
+      localStorage.setItem("glitchbox:prefs", JSON.stringify({
+        intensity: intensitySlider.value,
+        volume: volumeSlider.value,
+        period: active ? active.dataset.period : "normal",
+      }));
+    } catch (e) {}
+  }
+
+  function syncReadouts() {
+    intensityReadout.textContent = intensitySlider.value + "%";
+    volumeReadout.textContent = volumeSlider.value + "%";
+  }
+  syncReadouts();
+
+  const PERIOD_PRESETS = {
+    frequent: [2.5, 7],
+    normal: [6, 18],
+    rare: [15, 40],
+  };
+  const AUTO_KEYS = ["frequent", "normal", "rare"];
+
+  const GLITCH_KIND_POOL = [
+    "stutter", "stutter", "chop", "chop", "bitcrush", "dropout",
+  ];
+  const KIND_LABEL = {
+    bitcrush: "BITCRUSH",
+    stutter: "STUTTER",
+    chop: "CHOP",
+    dropout: "DROPOUT",
+  };
+  const KIND_DURATION = {
+    bitcrush: [0.12, 0.4],
+    stutter: [0.08, 0.35],
+    chop: [0.15, 0.5],
+    dropout: [0.04, 0.18],
+  };
+  const KIND_COLOR = {
+    bitcrush: "var(--signal)",
+    stutter: "var(--accent)",
+    chop: "var(--fault)",
+    dropout: "var(--ink)",
+  };
+
+  let audioCtx = null;
+  let stream = null;
+  let source = null;
+  let workletNode = null;
+  let outputGain = null;
+  let running = false;
+
+  let periodMode = (cycleButtons.find((b) => b.classList.contains("active")) || {}).dataset
+    ? cycleButtons.find((b) => b.classList.contains("active")).dataset.period
+    : "normal";
+  let autoRangeKey = "normal";
+  let schedulerTimer = null;
+  let autoDriftTimer = null;
+
+  function currentPresetKey() {
+    return periodMode === "auto" ? autoRangeKey : periodMode;
+  }
+
+  function nextIntervalSeconds() {
+    const [min, max] = PERIOD_PRESETS[currentPresetKey()];
+    const r = Math.random();
+    if (r < 0.12) return min * (0.12 + Math.random() * 0.3);
+    if (r < 0.24) return max * (1.3 + Math.random() * 1.1);
+    return min + Math.random() * (max - min);
+  }
+
+  function scheduleNext() {
+    if (!running) return;
+    const waitMs = nextIntervalSeconds() * 1000;
+    schedulerTimer = setTimeout(() => {
+      fireGlitch();
+      scheduleNext();
+    }, waitMs);
+  }
+
+  function pickAutoRange(avoid) {
+    const choices = AUTO_KEYS.filter((k) => k !== avoid);
+    return choices[Math.floor(Math.random() * choices.length)];
+  }
+
+  function scheduleAutoDrift() {
+    clearTimeout(autoDriftTimer);
+    if (periodMode !== "auto" || !running) return;
+    const waitMs = (25 + Math.random() * 45) * 1000;
+    autoDriftTimer = setTimeout(() => {
+      autoRangeKey = pickAutoRange(autoRangeKey);
+      scheduleAutoDrift();
+    }, waitMs);
+  }
+
+  function fireGlitch(forceKind) {
+    if (!running || !workletNode) return;
+    if (!glitchEnabledBox.checked) return;
+
+    const intensity = +intensitySlider.value / 100;
+    const kind = forceKind || GLITCH_KIND_POOL[Math.floor(Math.random() * GLITCH_KIND_POOL.length)];
+    const [dmin, dmax] = KIND_DURATION[kind];
+    const durationSec = dmin + Math.random() * (dmax - dmin);
+
+    workletNode.port.postMessage({
+      type: "trigger",
+      kind,
+      durationSamples: Math.max(1, Math.floor(durationSec * audioCtx.sampleRate)),
+      intensity,
+    });
+
+    flashVisual(kind, durationSec);
+
+    if (Math.random() < 0.12 * intensity) {
+      const kind2 = GLITCH_KIND_POOL[Math.floor(Math.random() * GLITCH_KIND_POOL.length)];
+      setTimeout(() => fireGlitch(kind2), 40 + Math.random() * 140);
+    }
+  }
+
+  function flashVisual(kind, durationSec) {
+    fault.style.background = KIND_COLOR[kind];
+    fault.classList.remove("flash");
+    void fault.offsetWidth;
+    fault.classList.add("flash");
+
+    rig.classList.remove("shake");
+    void rig.offsetWidth;
+    rig.classList.add("shake");
+
+    logEl.textContent = KIND_LABEL[kind] + " " + durationSec.toFixed(2) + "s";
+    logEl.classList.add("show");
+    clearTimeout(flashVisual._t);
+    flashVisual._t = setTimeout(() => {
+      logEl.classList.remove("show");
+    }, Math.max(500, durationSec * 1000 + 250));
+  }
+
+  // deviceId "" means "browser default" — no exact constraint
+  async function openStream(deviceId) {
+    const audioConstraints = {
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+    };
+    if (deviceId) audioConstraints.deviceId = { exact: deviceId };
+    return navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+  }
+
+  async function refreshDeviceList(selectedDeviceId) {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const inputs = devices.filter((d) => d.kind === "audioinput");
+      deviceSelect.innerHTML = "";
+      const defaultOpt = document.createElement("option");
+      defaultOpt.value = "";
+      defaultOpt.textContent = "既定の入力";
+      deviceSelect.appendChild(defaultOpt);
+      inputs.forEach((d, i) => {
+        const opt = document.createElement("option");
+        opt.value = d.deviceId;
+        opt.textContent = d.label || "入力デバイス " + (i + 1);
+        deviceSelect.appendChild(opt);
+      });
+      deviceSelect.value = selectedDeviceId || "";
+      deviceSelect.disabled = false;
+    } catch (e) {}
+  }
+
+  async function switchDevice(deviceId) {
+    if (!running) return;
+    deviceSelect.disabled = true;
+    statusEl.classList.remove("error");
+    statusEl.textContent = "入力デバイスを切り替えています…";
+    try {
+      const newStream = await openStream(deviceId);
+      if (stream) stream.getTracks().forEach((t) => t.stop());
+      if (source) source.disconnect();
+      stream = newStream;
+      source = audioCtx.createMediaStreamSource(stream);
+      source.connect(workletNode);
+      await refreshDeviceList(deviceId);
+      const track = stream.getAudioTracks()[0];
+      statusEl.textContent = "入力中: " + (track ? track.label : "既定の入力");
+    } catch (err) {
+      statusEl.classList.add("error");
+      statusEl.textContent = "デバイスを切り替えられませんでした: " + err.message;
+    } finally {
+      deviceSelect.disabled = false;
+    }
+  }
+
+  async function start() {
+    startBtn.disabled = true;
+    statusEl.classList.remove("error");
+    statusEl.textContent = "マイクへのアクセスを許可してください…";
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)({
+        latencyHint: "interactive",
+      });
+
+      const processorSrc = document.getElementById("glitch-processor-src").textContent;
+      const blobUrl = URL.createObjectURL(new Blob([processorSrc], { type: "text/javascript" }));
+      await audioCtx.audioWorklet.addModule(blobUrl);
+
+      stream = await openStream(deviceSelect.value);
+
+      source = audioCtx.createMediaStreamSource(stream);
+      workletNode = new AudioWorkletNode(audioCtx, "glitch-processor", {
+        numberOfInputs: 1,
+        numberOfOutputs: 1,
+        outputChannelCount: [2],
+      });
+      outputGain = audioCtx.createGain();
+      outputGain.gain.value = +volumeSlider.value / 100;
+
+      source.connect(workletNode).connect(outputGain).connect(audioCtx.destination);
+
+      running = true;
+      scheduleNext();
+      scheduleAutoDrift();
+
+      startBtn.textContent = "停止";
+      startBtn.classList.add("engaged");
+      ledEl.classList.add("on");
+      const track = stream.getAudioTracks()[0];
+      statusEl.textContent = "入力中: " + (track ? track.label || "既定の入力" : "既定の入力");
+
+      await refreshDeviceList(track ? track.getSettings().deviceId : "");
+    } catch (err) {
+      statusEl.classList.add("error");
+      let detail = err.message;
+      if (err.name === "NotAllowedError") {
+        detail = "マイクの使用が許可されていません(ブラウザのサイト設定、またはOSのマイク権限を確認してください)";
+      } else if (err.name === "NotFoundError" || err.name === "OverconstrainedError") {
+        detail = "指定した入力デバイスが見つかりません。オーディオインターフェースの接続を確認してください";
+      } else if (err.name === "NotReadableError") {
+        detail = "他のアプリがこの入力デバイスを使用中の可能性があります";
+      }
+      statusEl.textContent = "マイクに接続できませんでした: " + detail;
+    } finally {
+      startBtn.disabled = false;
+    }
+  }
+
+  function stop() {
+    running = false;
+    clearTimeout(schedulerTimer);
+    clearTimeout(autoDriftTimer);
+    if (stream) stream.getTracks().forEach((t) => t.stop());
+    if (workletNode) workletNode.disconnect();
+    if (source) source.disconnect();
+    if (outputGain) outputGain.disconnect();
+    if (audioCtx) audioCtx.close();
+    audioCtx = null; stream = null; source = null; workletNode = null; outputGain = null;
+
+    startBtn.textContent = "接続 & 開始";
+    startBtn.classList.remove("engaged");
+    ledEl.classList.remove("on");
+    statusEl.classList.remove("error");
+    statusEl.textContent = "停止中";
+    deviceSelect.disabled = true;
+  }
+
+  startBtn.addEventListener("click", () => {
+    if (running) stop(); else start();
+  });
+
+  deviceSelect.addEventListener("change", () => {
+    switchDevice(deviceSelect.value);
+  });
+
+  if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+    navigator.mediaDevices.addEventListener("devicechange", () => {
+      if (running) refreshDeviceList(deviceSelect.value);
+    });
+  }
+
+  intensitySlider.addEventListener("input", () => { syncReadouts(); savePrefs(); });
+  volumeSlider.addEventListener("input", () => {
+    syncReadouts();
+    if (outputGain) outputGain.gain.value = +volumeSlider.value / 100;
+    savePrefs();
+  });
+
+  cycleButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      cycleButtons.forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      periodMode = btn.dataset.period;
+      if (periodMode === "auto") {
+        autoRangeKey = "normal";
+        scheduleAutoDrift();
+      } else {
+        clearTimeout(autoDriftTimer);
+      }
+      savePrefs();
+    });
+  });
+
+  window.addEventListener("beforeunload", () => { if (running) stop(); });
+})();
+</script>
+
+</body></html>
