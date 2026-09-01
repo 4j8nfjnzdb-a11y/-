@@ -146,10 +146,11 @@
     header.innerHTML = `<span class="card-title"></span>`;
     header.querySelector(".card-title").textContent = card.title;
 
-    const frontBtn = mkHeaderBtn("⤒", "手前へ");
-    const backBtn = mkHeaderBtn("⤓", "奥へ");
+    const interactBtn = mkHeaderBtn("操作", "クリックでこのカードの中を直接操作する(もう一度押すと移動モードに戻る)");
+    const shrinkBtn = mkHeaderBtn("－", "小さくする");
+    const growBtn = mkHeaderBtn("＋", "大きくする");
     const removeBtn = mkHeaderBtn("×", "削除");
-    header.append(frontBtn, backBtn, removeBtn);
+    header.append(interactBtn, shrinkBtn, growBtn, removeBtn);
 
     const body = document.createElement("div");
     body.className = "card-body";
@@ -164,11 +165,18 @@
     }
     const shade = document.createElement("div");
     shade.className = "card-shade";
-    body.append(iframe, shade);
+    // Sits over the iframe and, while the card isn't in "interact" mode,
+    // grabs pointer events so touching anywhere on the card moves it —
+    // the iframe would otherwise swallow drags meant for the card itself.
+    const overlay = document.createElement("div");
+    overlay.className = "card-overlay";
+    body.append(iframe, shade, overlay);
 
     const controls = document.createElement("div");
     controls.className = "card-controls";
     controls.innerHTML = `
+      <button type="button" class="frontBtn" title="手前へ">⤒</button>
+      <button type="button" class="backBtn" title="奥へ">⤓</button>
       <span>混ぜ方</span>
       <select class="blendSelect">
         ${["normal", "screen", "multiply", "overlay", "difference", "lighten", "color-dodge"]
@@ -178,6 +186,8 @@
       <span>不透明度</span>
       <input class="opacityRange" type="range" min="0.15" max="1" step="0.05" />
     `;
+    const frontBtn = controls.querySelector(".frontBtn");
+    const backBtn = controls.querySelector(".backBtn");
     const blendSelect = controls.querySelector(".blendSelect");
     const opacityRange = controls.querySelector(".opacityRange");
     blendSelect.value = card.blend;
@@ -189,15 +199,23 @@
     el.append(header, body, controls, resizeHandle);
     world.appendChild(el);
     card.el = el;
+    card.active = false;
+    card.interactBtn = interactBtn;
     cards.push(card);
 
     applyCardStyle(card);
+    setActive(card, false);
 
     // ---- interactions ----
     header.addEventListener("pointerdown", (e) => startDragCard(e, card));
+    overlay.addEventListener("pointerdown", (e) => startDragCard(e, card));
+    overlay.addEventListener("dblclick", () => setActive(card, true));
     resizeHandle.addEventListener("pointerdown", (e) => startResizeCard(e, card));
     el.addEventListener("pointerdown", () => selectCard(card.id));
 
+    interactBtn.addEventListener("click", () => setActive(card, !card.active));
+    shrinkBtn.addEventListener("click", () => resizeCardBy(card, 0.82));
+    growBtn.addEventListener("click", () => resizeCardBy(card, 1.22));
     frontBtn.addEventListener("click", () => { card.z = Math.min(Z_MAX, card.z + 80); applyCardStyle(card); save(); });
     backBtn.addEventListener("click", () => { card.z = Math.max(Z_MIN, card.z - 80); applyCardStyle(card); save(); });
     removeBtn.addEventListener("click", () => removeCard(card.id));
@@ -243,14 +261,41 @@
     cards.forEach((c) => c.el.classList.toggle("selected", c.id === id));
   }
 
+  function setActive(card, active) {
+    card.active = active;
+    card.el.classList.toggle("interacting", active);
+    if (card.interactBtn) card.interactBtn.textContent = active ? "移動" : "操作";
+  }
+
+  function resizeCardBy(card, factor) {
+    card.w = clamp(card.w * factor, 200, 1600);
+    card.h = clamp(card.h * factor, 140, 1600);
+    applyCardStyle(card);
+    save();
+  }
+
   function applyCardStyle(card) {
     const el = card.el;
     el.style.width = card.w + "px";
     el.style.height = card.h + "px";
-    el.style.left = "0px";
-    el.style.top = "0px";
-    el.style.transform =
-      `translate3d(${card.x - card.w / 2}px, ${card.y - card.h / 2}px, ${card.z}px)`;
+
+    // Depth is faked with a plain 2D scale (a real CSS `perspective` +
+    // translateZ scene reads the same to the eye, but its 3D compositing
+    // path can silently break click/drag hit-testing on cards — this
+    // math reproduces the same "closer = bigger" projection without it.
+    //
+    // Position is set via left/top rather than a translate() transform:
+    // a `position:absolute` element nested this deep, combined with a
+    // translate-based transform, can end up with a hit-test region that
+    // doesn't match where it's painted — clicks land but never reach the
+    // element. left/top + a scale()-only transform doesn't have that
+    // problem, and looks identical.
+    const depthScale = PERSPECTIVE / (PERSPECTIVE - card.z);
+    const screenX = card.x * depthScale;
+    const screenY = card.y * depthScale;
+    el.style.left = (screenX - card.w / 2) + "px";
+    el.style.top = (screenY - card.h / 2) + "px";
+    el.style.transform = `scale(${depthScale})`;
     el.style.mixBlendMode = card.blend;
     el.style.opacity = String(card.opacity);
 

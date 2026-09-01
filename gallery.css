@@ -19,12 +19,14 @@ html, body {
   overflow: hidden;
 }
 
-/* ---- stage: the pannable, zoomable, 3D space ---- */
+/* ---- stage: the pannable, zoomable, depth-mixing space ----
+   Depth is faked with plain 2D scale (see applyCardStyle in gallery.js)
+   rather than real CSS perspective/translateZ, since 3D compositing can
+   silently break click/drag hit-testing on the cards. */
 
 .stage {
   position: fixed;
   inset: 0;
-  perspective: 1600px;
   overflow: hidden;
   cursor: grab;
   background:
@@ -51,7 +53,6 @@ html, body {
   top: 50%;
   width: 0;
   height: 0;
-  transform-style: preserve-3d;
 }
 
 /* ---- cards ---- */
@@ -65,13 +66,17 @@ html, body {
   border-radius: 14px;
   box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.7);
   overflow: hidden;
-  transform-style: preserve-3d;
   will-change: transform;
 }
 
 .card.selected {
   border-color: rgba(201, 183, 255, 0.55);
   box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(201, 183, 255, 0.25);
+}
+
+.card.interacting {
+  border-color: rgba(127, 216, 201, 0.6);
+  box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(127, 216, 201, 0.3);
 }
 
 .card-header {
@@ -125,6 +130,16 @@ html, body {
   border: none;
   display: block;
   background: #000;
+  /* Not "interacting": the iframe must not receive pointer events at
+     all, or it can intercept drags meant for the card even while a
+     sibling overlay sits visually above it (iframes get their own
+     compositing surface and can win hit-testing regardless of DOM
+     stacking order, especially inside a 3D-transformed ancestor). */
+  pointer-events: none;
+}
+
+.card.interacting .card-body iframe {
+  pointer-events: auto;
 }
 
 .card-shade {
@@ -132,6 +147,19 @@ html, body {
   inset: 0;
   pointer-events: none;
   background: rgba(11, 13, 16, 0);
+}
+
+.card-overlay {
+  position: absolute;
+  inset: 0;
+  cursor: grab;
+  background: transparent;
+}
+
+.card-overlay:active { cursor: grabbing; }
+
+.card.interacting .card-overlay {
+  pointer-events: none;
 }
 
 .card-controls {
@@ -166,14 +194,37 @@ html, body {
   width: 5rem;
 }
 
+.card-controls button {
+  background: transparent;
+  border: 1px solid rgba(234, 230, 223, 0.2);
+  color: var(--ink-dim);
+  cursor: pointer;
+  font-size: 0.65rem;
+  padding: 0.15rem 0.4rem;
+  line-height: 1.4;
+  border-radius: 6px;
+}
+
+.card-controls button:hover {
+  color: var(--ink);
+  border-color: rgba(234, 230, 223, 0.5);
+}
+
 .resize-handle {
   position: absolute;
   right: 0;
   bottom: 0;
-  width: 16px;
-  height: 16px;
+  width: 22px;
+  height: 22px;
   cursor: nwse-resize;
-  background: linear-gradient(135deg, transparent 50%, rgba(234, 230, 223, 0.3) 50%);
+  background: linear-gradient(135deg, transparent 45%, rgba(234, 230, 223, 0.45) 45%, rgba(234, 230, 223, 0.45) 55%, transparent 55%, transparent 65%, rgba(234, 230, 223, 0.45) 65%, rgba(234, 230, 223, 0.45) 75%, transparent 75%);
+  opacity: 0.5;
+  transition: opacity 0.2s ease;
+}
+
+.card:hover .resize-handle,
+.card.selected .resize-handle {
+  opacity: 1;
 }
 
 /* ---- HUD / chrome ---- */
