@@ -188,7 +188,7 @@ export class PatchBay {
 
     // a slow drifting MOD source wired into the glitch box's probability —
     // the patch quietly evolves on its own from the moment it exists
-    const modId = this.addBox("mod", 260, 300);
+    const modId = this.addBox("mod", 260, 460);
     this.connect(modId, glitchId, "mod");
   }
 
