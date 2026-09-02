@@ -175,7 +175,7 @@
     }, 250);
   }
 
-  function stopMasterRecording() {
+  async function stopMasterRecording() {
     if (!masterRecording) return;
     masterRecording = false;
     clearInterval(recTimerInterval);
@@ -186,20 +186,38 @@
     const blob = encodeWavBlob(recBuffersL, recBuffersR, ctx.sampleRate);
     recBuffersL = [];
     recBuffersR = [];
-    const url = URL.createObjectURL(blob);
     const ts = new Date();
     const pad = (n) => String(n).padStart(2, "0");
     const filename = `torso_${ts.getFullYear()}${pad(ts.getMonth() + 1)}${pad(ts.getDate())}_${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}.wav`;
 
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    // when running inside a capability-aware host (e.g. a published
+    // Artifact), a plain <a download> click is inert — go through the
+    // platform's save prompt instead; otherwise (a normal page load)
+    // trigger a real browser download directly
+    const inHostedFrame = !!(window.claude && typeof window.claude.use === "function");
+    let saved = false;
+    if (inHostedFrame) {
+      try {
+        const dl = await window.claude.use("downloads");
+        if (dl) { await dl.save({ filename, data: blob }); saved = true; }
+      } catch (e) { saved = false; }
+    } else {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+      saved = true;
+    }
 
-    if (masterRecStatus) masterRecStatus.textContent = `saved: ${filename}`;
+    if (masterRecStatus) {
+      masterRecStatus.textContent = saved
+        ? `saved: ${filename}`
+        : "この環境では保存できません（ローカル版でお試しください）";
+    }
   }
 
   function startScheduler() {
