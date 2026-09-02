@@ -296,3 +296,30 @@ class PitchProcessor extends AudioWorkletProcessor {
 }
 
 registerProcessor("pitch-processor", PitchProcessor);
+
+// RecorderProcessor — a silent tap. While armed, it hands each block's raw
+// channel data back to the main thread (as transferable buffers, so no
+// copying) instead of touching the audio itself; the main thread stitches
+// the blocks into one buffer and encodes it as a WAV file on stop.
+class RecorderProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.recording = false;
+    this.port.onmessage = (e) => {
+      if (e.data === "start") this.recording = true;
+      if (e.data === "stop") this.recording = false;
+    };
+  }
+
+  process(inputs) {
+    const input = inputs[0];
+    if (this.recording && input && input[0] && input[0].length) {
+      const ch0 = input[0].slice();
+      const ch1 = (input[1] || input[0]).slice();
+      this.port.postMessage({ ch0, ch1 }, [ch0.buffer, ch1.buffer]);
+    }
+    return true;
+  }
+}
+
+registerProcessor("recorder-processor", RecorderProcessor);

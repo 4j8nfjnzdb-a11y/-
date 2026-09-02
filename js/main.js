@@ -1,6 +1,7 @@
 import { engine, initAudioEngine, resumeEngine, readMeterLevel } from "./audioEngine.js";
 import { SampleSlot } from "./sampleSlot.js";
 import { PatchBay } from "./patchbay.js";
+import { recorderAvailable, isRecording, startRecording, stopRecording } from "./recorder.js";
 
 const LOOKAHEAD = 0.15;
 
@@ -118,6 +119,40 @@ async function boot() {
   playBtn.addEventListener("click", () => {
     if (engine.running) stop(); else start();
   });
+
+  const recBtn = document.getElementById("recBtn");
+  if (!recorderAvailable()) {
+    recBtn.disabled = true;
+    recBtn.title = "録音機能が利用できません（AudioWorklet 非対応）";
+  }
+  recBtn.addEventListener("click", async () => {
+    if (isRecording()) {
+      const result = stopRecording();
+      recBtn.textContent = "● REC";
+      recBtn.classList.remove("recording");
+      if (result) {
+        const ts = new Date().toISOString().replace(/[:T]/g, "-").slice(0, 19);
+        downloadBlob(result.blob, `circuit-chop-${ts}.wav`);
+      }
+    } else {
+      await resumeEngine();
+      if (startRecording()) {
+        recBtn.textContent = "⏹ 停止";
+        recBtn.classList.add("recording");
+      }
+    }
+  });
+
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
 
   function uiLoop() {
     slots.forEach((s) => s.updatePlayhead());
