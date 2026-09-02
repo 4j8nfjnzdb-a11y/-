@@ -329,6 +329,13 @@ button { font-family: inherit; cursor: pointer; }
 }
 .glitchBtn:active { transform: scale(0.97); }
 
+.recStatus {
+  font-size: 0.68rem;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+  min-width: 6em;
+}
+
 @media (max-width: 1100px) {
   .tracks { grid-template-columns: repeat(2, minmax(255px, 1fr)); }
 }

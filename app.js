@@ -53,6 +53,15 @@
   const tracks = [];
   let schedulerTimer = null;
 
+  // master recorder: taps the final mix post-compressor and captures
+  // raw PCM so it can be exported as an actual .wav, not a transcoded
+  // webm/opus recording
+  let masterRecTap = null, masterRecSilence = null;
+  let masterRecording = false;
+  let recBuffersL = [], recBuffersR = [];
+  let recStartTime = 0, recTimerInterval = null;
+  let masterRecBtn = null, masterRecStatus = null;
+
   function buildImpulseResponse(duration, decay) {
     const rate = ctx.sampleRate;
     const length = Math.floor(rate * duration);
@@ -89,8 +98,108 @@
     reverbBusGain.gain.value = 0.9;
     reverbConvolver.connect(reverbBusGain).connect(masterGain);
 
+    setupMasterRecorder();
+
     tracks.forEach((t) => t.buildGraph());
     startScheduler();
+  }
+
+  function setupMasterRecorder() {
+    masterRecTap = ctx.createScriptProcessor(4096, 2, 2);
+    masterRecSilence = ctx.createGain();
+    masterRecSilence.gain.value = 0;
+    // tap the compressed final mix in parallel; route through a silent
+    // gain to destination so the node is actually pulled for processing
+    // without adding an audible duplicate of the signal
+    compressor.connect(masterRecTap);
+    masterRecTap.connect(masterRecSilence).connect(ctx.destination);
+    masterRecTap.onaudioprocess = (e) => {
+      if (!masterRecording) return;
+      const inBuf = e.inputBuffer;
+      recBuffersL.push(inBuf.getChannelData(0).slice());
+      recBuffersR.push((inBuf.numberOfChannels > 1 ? inBuf.getChannelData(1) : inBuf.getChannelData(0)).slice());
+    };
+  }
+
+  function encodeWavBlob(chunksL, chunksR, sampleRate) {
+    const totalLen = chunksL.reduce((s, c) => s + c.length, 0);
+    const left = new Float32Array(totalLen);
+    const right = new Float32Array(totalLen);
+    let offset = 0;
+    for (let i = 0; i < chunksL.length; i++) {
+      left.set(chunksL[i], offset);
+      right.set(chunksR[i], offset);
+      offset += chunksL[i].length;
+    }
+    const numChannels = 2;
+    const blockAlign = numChannels * 2;
+    const dataSize = totalLen * blockAlign;
+    const buffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(buffer);
+    const writeStr = (off, str) => { for (let i = 0; i < str.length; i++) view.setUint8(off + i, str.charCodeAt(i)); };
+    writeStr(0, "RIFF");
+    view.setUint32(4, 36 + dataSize, true);
+    writeStr(8, "WAVE");
+    writeStr(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true); // PCM
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * blockAlign, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, 16, true);
+    writeStr(36, "data");
+    view.setUint32(40, dataSize, true);
+    let pos = 44;
+    for (let i = 0; i < totalLen; i++) {
+      const sL = clamp(left[i], -1, 1);
+      const sR = clamp(right[i], -1, 1);
+      view.setInt16(pos, sL < 0 ? sL * 0x8000 : sL * 0x7fff, true); pos += 2;
+      view.setInt16(pos, sR < 0 ? sR * 0x8000 : sR * 0x7fff, true); pos += 2;
+    }
+    return new Blob([buffer], { type: "audio/wav" });
+  }
+
+  function startMasterRecording() {
+    ensureAudio();
+    if (masterRecording) return;
+    recBuffersL = [];
+    recBuffersR = [];
+    masterRecording = true;
+    recStartTime = performance.now();
+    if (masterRecBtn) { masterRecBtn.classList.add("active"); masterRecBtn.textContent = "■ STOP REC"; }
+    recTimerInterval = setInterval(() => {
+      const sec = (performance.now() - recStartTime) / 1000;
+      const m = Math.floor(sec / 60), s = Math.floor(sec % 60);
+      if (masterRecStatus) masterRecStatus.textContent = `● ${m}:${String(s).padStart(2, "0")}`;
+    }, 250);
+  }
+
+  function stopMasterRecording() {
+    if (!masterRecording) return;
+    masterRecording = false;
+    clearInterval(recTimerInterval);
+    recTimerInterval = null;
+    if (masterRecBtn) { masterRecBtn.classList.remove("active"); masterRecBtn.textContent = "● REC"; }
+    if (!recBuffersL.length) { if (masterRecStatus) masterRecStatus.textContent = ""; return; }
+
+    const blob = encodeWavBlob(recBuffersL, recBuffersR, ctx.sampleRate);
+    recBuffersL = [];
+    recBuffersR = [];
+    const url = URL.createObjectURL(blob);
+    const ts = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    const filename = `torso_${ts.getFullYear()}${pad(ts.getMonth() + 1)}${pad(ts.getDate())}_${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}.wav`;
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+
+    if (masterRecStatus) masterRecStatus.textContent = `saved: ${filename}`;
   }
 
   function startScheduler() {
@@ -1142,6 +1251,12 @@
     });
     document.getElementById("randomAllBtn").addEventListener("click", randomizeAll);
     document.getElementById("randomSamplesBtn").addEventListener("click", randomizeSamplesFromFolders);
+
+    masterRecBtn = document.getElementById("masterRecBtn");
+    masterRecStatus = document.getElementById("masterRecStatus");
+    masterRecBtn.addEventListener("click", () => {
+      if (masterRecording) stopMasterRecording(); else startMasterRecording();
+    });
 
     startBtn.addEventListener("click", () => {
       ensureAudio();
