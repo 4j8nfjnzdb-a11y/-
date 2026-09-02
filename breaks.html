@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>breaks — mutating breakbeat diffuser</title>
+<link rel="stylesheet" href="breaks.css" />
+</head>
+<body>
+  <main class="wrap">
+    <header class="top">
+      <div class="title">
+        <h1>breaks <span class="sub">きざし系列 · mutating breakbeat</span></h1>
+        <p class="tagline">前のループが次のループの種になる。少しずつ壊れ、少しずつ戻る、終わらないブレイクビーツ。</p>
+      </div>
+      <a class="homeLink" href="index.html">← kizashi</a>
+    </header>
+
+    <div class="transport">
+      <button id="playBtn" class="btn primary">再生</button>
+      <button id="freezeBtn" class="btn">ミューテーション停止</button>
+      <button id="reseedBtn" class="btn">再シード</button>
+      <button id="recordBtn" class="btn record">● 録音</button>
+      <span id="recordTime" class="recordTime"></span>
+
+      <label class="field">
+        <span>TEMPO</span>
+        <input id="tempo" type="number" min="60" max="220" value="160" />
+      </label>
+      <label class="field">
+        <span>VOLUME</span>
+        <input id="volume" type="range" min="0" max="100" value="80" />
+      </label>
+    </div>
+
+    <section class="scopePanel">
+      <div class="scope">
+        <div class="scopeLabel">WAVEFORM</div>
+        <canvas id="waveCanvas"></canvas>
+      </div>
+      <div class="scope">
+        <div class="scopeLabel">FREQUENCY DOMAIN</div>
+        <canvas id="freqCanvas"></canvas>
+      </div>
+    </section>
+
+    <div class="statusBar">
+      <span>GENERATION <strong id="genCount">0</strong></span>
+      <span>LOOP <strong id="loopInfo">8 beats</strong></span>
+      <span>NEXT MUTATION <strong id="nextMutInfo">this loop</strong></span>
+      <span>STEP <strong id="stepInfo">1 / 32</strong></span>
+    </div>
+
+    <section class="grid" id="grid"></section>
+
+    <section class="panels">
+      <div class="panel">
+        <h2>SOURCE — prompt word cloud</h2>
+        <p class="panelHint">単語を追加すると、その楽器がミューテーションで増えやすくなる。x で削除、+/- で強さ調整。</p>
+        <div id="wordCloud" class="wordCloud"></div>
+        <div class="addWord">
+          <input id="wordInput" type="text" placeholder="kick, snare, hat, clap, tom, glitch ..." />
+          <button id="addWordBtn" class="btn small">Add</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>GENERATION</h2>
+        <div class="controlsGrid">
+          <label class="field">
+            <span>LOOP BEATS</span>
+            <select id="loopBeats">
+              <option value="4">4</option>
+              <option value="8" selected>8</option>
+              <option value="16">16</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>MUTATION</span>
+            <input id="mutation" type="range" min="0" max="100" value="40" />
+          </label>
+          <label class="field">
+            <span>MUTATION INTERVAL</span>
+            <select id="mutationInterval">
+              <option value="1" selected>Every loop</option>
+              <option value="2">Every 2 loops</option>
+              <option value="4">Every 4 loops</option>
+              <option value="8">Every 8 loops</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>DENSITY</span>
+            <input id="density" type="range" min="0" max="100" value="50" />
+          </label>
+          <label class="field">
+            <span>SWING</span>
+            <input id="swing" type="range" min="0" max="100" value="15" />
+          </label>
+          <label class="field">
+            <span>HUMANIZE</span>
+            <input id="humanize" type="range" min="0" max="100" value="20" />
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel recordings">
+      <h2>RECORDINGS</h2>
+      <p class="panelHint">録音は端末内だけに保存される。ダウンロードして書き出すこと。</p>
+      <div id="recordingsList" class="recordingsList"></div>
+    </section>
+  </main>
+
+  <script src="breaks.js"></script>
+</body>
+</html>
