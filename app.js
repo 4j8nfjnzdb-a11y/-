@@ -1,418 +1,570 @@
-// kizashi — generative ambient
+// PULSAR-23 [SCREW] — glitch drum machine
 //
-// The idea: build a texture that reads as "repetition" (steady pulse,
-// familiar scale, cyclic pads) while every layer runs on its own
-// incommensurate clock and a slowly-drifting probability of firing at
-// all. The listener's short-term predictive model never quite locks in
-// — each layer swerves a little before it would become obvious — but
-// nothing is ever pure noise either. That balance is tuned by the
-// "swerve" and "density" sliders.
+// Every voice is synthesized (no samples). Three forces keep the
+// pattern from ever repeating cleanly:
+//   MUTATE — individual steps randomly flip on/off while it plays
+//   REWIRE — a row's trigger gets replugged to a different voice engine
+//            mid-performance (visible in the patch bay); the pattern you
+//            drew keeps firing, but what comes out of it drifts
+//   SCREW  — per-hit pitch/stutter/skip glitches, plus occasional
+//            turntable-style tempo "stalls" (the chopped & screwed nod)
 
 (() => {
+  const STEPS = 16;
+
+  const TRACKS = [
+    { id: "kick", name: "KICK", abbr: "KIC", color: "#ff3b3b" },
+    { id: "snare", name: "SNARE", abbr: "SNR", color: "#ffb930" },
+    { id: "clap", name: "CLAP", abbr: "CLP", color: "#ffe14d" },
+    { id: "hatc", name: "HAT-C", abbr: "HTC", color: "#4dff9c" },
+    { id: "hato", name: "HAT-O", abbr: "HTO", color: "#4de3ff" },
+    { id: "tom", name: "TOM", abbr: "TOM", color: "#7a8bff" },
+    { id: "perc", name: "PERC", abbr: "PRC", color: "#d16bff" },
+    { id: "noise", name: "FX", abbr: "NSE", color: "#ff6bd6" },
+  ];
+
+  const DEFAULT_PATTERN = [
+    [0, 4, 8, 12],
+    [4, 12],
+    [],
+    [0, 2, 4, 6, 8, 10, 12, 14],
+    [14],
+    [],
+    [6, 13],
+    [],
+  ];
+
+  const pattern = TRACKS.map((_, i) => {
+    const row = new Array(STEPS).fill(0);
+    DEFAULT_PATTERN[i].forEach((s) => (row[s] = 1));
+    return row;
+  });
+
+  const routing = TRACKS.map((_, i) => i); // routing[sourceRow] = voice engine index actually heard
+  const muted = TRACKS.map(() => false);
+  const flashRow = new Array(TRACKS.length).fill(0); // ms timestamp until which cable glows
+
   const playBtn = document.getElementById("playBtn");
-  const paletteBtn = document.getElementById("paletteBtn");
-  const densitySlider = document.getElementById("density");
-  const toneSlider = document.getElementById("tone");
-  const swerveSlider = document.getElementById("swerve");
-  const canvas = document.getElementById("bg");
-  const ctx2d = canvas.getContext("2d");
+  const chaosBtn = document.getElementById("chaosBtn");
+  const randomBtn = document.getElementById("randomBtn");
+  const clearBtn = document.getElementById("clearBtn");
+  const bpmSlider = document.getElementById("bpm");
+  const bpmVal = document.getElementById("bpmVal");
+  const mutateSlider = document.getElementById("mutate");
+  const rewireSlider = document.getElementById("rewire");
+  const screwSlider = document.getElementById("screw");
+  const masterSlider = document.getElementById("master");
+  const seqEl = document.getElementById("sequencer");
+  const patchCanvas = document.getElementById("patchbay");
+  const patchCtx = patchCanvas.getContext("2d");
+
+  const randInt = (min, max) => Math.floor(min + Math.random() * (max - min + 1));
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+  // ---- build sequencer grid ------------------------------------------
+
+  const stepEls = TRACKS.map(() => new Array(STEPS));
+  const routeEls = [];
+
+  TRACKS.forEach((track, r) => {
+    const row = document.createElement("div");
+    row.className = "track-row";
+
+    const label = document.createElement("div");
+    label.className = "track-label";
+
+    const nameEl = document.createElement("div");
+    nameEl.className = "track-name";
+    nameEl.textContent = track.name;
+    nameEl.style.color = track.color;
+
+    const routeEl = document.createElement("div");
+    routeEl.className = "track-route";
+    routeEls.push(routeEl);
+
+    const muteBtn = document.createElement("button");
+    muteBtn.className = "mute-btn";
+    muteBtn.textContent = "M";
+    muteBtn.addEventListener("click", () => {
+      muted[r] = !muted[r];
+      muteBtn.classList.toggle("muted", muted[r]);
+      row.style.opacity = muted[r] ? 0.4 : 1;
+    });
+
+    label.appendChild(nameEl);
+    label.appendChild(routeEl);
+    label.appendChild(muteBtn);
+    row.appendChild(label);
+
+    for (let s = 0; s < STEPS; s++) {
+      const cell = document.createElement("div");
+      cell.className = "step" + (s % 4 === 0 && s !== 0 ? " beat4" : "");
+      cell.style.setProperty("--step-color", track.color);
+      if (pattern[r][s]) cell.classList.add("on");
+      cell.addEventListener("click", () => {
+        pattern[r][s] = pattern[r][s] ? 0 : 1;
+        cell.classList.toggle("on");
+      });
+      row.appendChild(cell);
+      stepEls[r][s] = cell;
+    }
+
+    seqEl.appendChild(row);
+  });
+
+  function updateRouteLabel(r) {
+    const target = routing[r];
+    routeEls[r].textContent = target === r ? "direct" : `→ ${TRACKS[target].name}`;
+    routeEls[r].classList.toggle("rerouted", target !== r);
+  }
+  TRACKS.forEach((_, r) => updateRouteLabel(r));
+
+  // ---- audio engine ----------------------------------------------------
 
   let audioCtx = null;
-  let master, dry, wet, reverbNode, delayA, delayB, delayFeedbackA, delayFeedbackB;
-  let padVoices = [];
-  let bellLayers = [];
-  let running = false;
-  let schedulerTimer = null;
+  let masterGain = null;
+  let trackGains = [];
+  let noiseBuffer = null;
 
-  // ---- musical material -------------------------------------------
-
-  const SCALES = {
-    // semitone offsets from root, chosen to always sound consonant
-    // no matter which degree becomes the melodic center
-    warm: [0, 2, 3, 7, 9, 10],      // dorian-ish, dusky
-    mid: [0, 2, 4, 7, 9, 11],       // major/ionian, open
-    bright: [0, 2, 4, 6, 9, 11],    // lydian-ish, lifted
-  };
-
-  const ROOTS = [48, 50, 53, 55, 57]; // C, D, F, G, A (midi, low register)
-
-  let palette = makePalette();
-
-  function makePalette() {
-    const roots = ROOTS.slice();
-    const root = roots[Math.floor(Math.random() * roots.length)];
-    const hue = Math.random() * 360;
-    return { root, hue };
-  }
-
-  function midiToFreq(m) {
-    return 440 * Math.pow(2, (m - 69) / 12);
-  }
-
-  function scaleForTone(tone) {
-    // tone: 0..100 -> warm..bright
-    if (tone < 33) return SCALES.warm;
-    if (tone < 66) return SCALES.mid;
-    return SCALES.bright;
-  }
-
-  function pickDegree(layer) {
-    const scale = scaleForTone(+toneSlider.value);
-    const degree = scale[Math.floor(Math.random() * scale.length)];
-    return palette.root + degree + layer.octave * 12;
-  }
-
-  // ---- smoothed randomness (organic "swerve", not white noise) -----
-
-  function makeDrift(min, max, start) {
-    let value = start ?? (min + max) / 2;
-    let target = value;
-    return {
-      get value() { return value; },
-      tick(rate) {
-        if (Math.random() < 0.08) {
-          target = min + Math.random() * (max - min);
-        }
-        value += (target - value) * rate;
-        return value;
-      },
-    };
-  }
-
-  // ---- audio graph ---------------------------------------------------
-
-  function buildImpulseResponse(context, duration, decay) {
-    const rate = context.sampleRate;
-    const length = Math.floor(rate * duration);
-    const impulse = context.createBuffer(2, length, rate);
-    for (let ch = 0; ch < 2; ch++) {
-      const data = impulse.getChannelData(ch);
-      for (let i = 0; i < length; i++) {
-        const t = i / length;
-        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, decay);
-      }
-    }
-    return impulse;
+  function buildNoiseBuffer(ctx) {
+    const length = ctx.sampleRate * 2;
+    const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
+    return buffer;
   }
 
   function initAudio() {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = +masterSlider.value / 100;
 
-    master = audioCtx.createGain();
-    master.gain.value = 0.85;
+    const comp = audioCtx.createDynamicsCompressor();
+    comp.threshold.value = -14;
+    comp.ratio.value = 6;
+    masterGain.connect(comp).connect(audioCtx.destination);
 
-    const compressor = audioCtx.createDynamicsCompressor();
-    compressor.threshold.value = -18;
-    compressor.ratio.value = 3;
-
-    master.connect(compressor).connect(audioCtx.destination);
-
-    dry = audioCtx.createGain();
-    dry.gain.value = 0.55;
-    dry.connect(master);
-
-    wet = audioCtx.createGain();
-    wet.gain.value = 0.9;
-
-    reverbNode = audioCtx.createConvolver();
-    reverbNode.buffer = buildImpulseResponse(audioCtx, 5.5, 3.0);
-    reverbNode.connect(wet);
-    wet.connect(master);
-
-    // two non-multiple delay lines, damped feedback, for a soft
-    // shimmering space that never quite settles into a fixed comb
-    delayA = audioCtx.createDelay(2.0);
-    delayA.delayTime.value = 0.372;
-    delayFeedbackA = audioCtx.createGain();
-    delayFeedbackA.gain.value = 0.38;
-    const dampA = audioCtx.createBiquadFilter();
-    dampA.type = "lowpass";
-    dampA.frequency.value = 2200;
-    delayA.connect(dampA).connect(delayFeedbackA).connect(delayA);
-    delayA.connect(wet);
-
-    delayB = audioCtx.createDelay(2.0);
-    delayB.delayTime.value = 0.551;
-    delayFeedbackB = audioCtx.createGain();
-    delayFeedbackB.gain.value = 0.33;
-    const dampB = audioCtx.createBiquadFilter();
-    dampB.type = "lowpass";
-    dampB.frequency.value = 1800;
-    delayB.connect(dampB).connect(delayFeedbackB).connect(delayB);
-    delayB.connect(wet);
-
-    buildPads();
-    buildBellLayers();
-  }
-
-  function sendToSpace(node, delayAmt, reverbAmt, dryAmt) {
-    const dg = audioCtx.createGain();
-    dg.gain.value = dryAmt;
-    node.connect(dg).connect(dry);
-
-    const rg = audioCtx.createGain();
-    rg.gain.value = reverbAmt;
-    node.connect(rg).connect(reverbNode);
-
-    const dla = audioCtx.createGain();
-    dla.gain.value = delayAmt;
-    node.connect(dla).connect(delayA);
-    node.connect(dla).connect(delayB);
-  }
-
-  // ---- pad drone layer: slow, cyclic-feeling, never exactly cyclic --
-
-  function buildPads() {
-    padVoices.forEach((v) => v.stopAll && v.stopAll());
-    padVoices = [];
-
-    const intervals = [0, 7, 12, 16]; // root, fifth, octave, tenth-ish
-    intervals.forEach((iv, i) => {
-      const osc = audioCtx.createOscillator();
-      osc.type = i % 2 === 0 ? "sine" : "triangle";
-      const detune = (Math.random() * 2 - 1) * 6;
-      osc.detune.value = detune;
-
-      const gain = audioCtx.createGain();
-      gain.gain.value = 0;
-
-      const filter = audioCtx.createBiquadFilter();
-      filter.type = "lowpass";
-      filter.frequency.value = 900;
-      filter.Q.value = 0.4;
-
-      osc.connect(filter).connect(gain);
-      sendToSpace(gain, 0.5, 0.8, 0.25);
-
-      osc.start();
-
-      // each voice's filter LFO period is an irrational-ish multiple
-      // of the others, so the ensemble never repeats a combined shape
-      const lfoPeriod = 17 + i * 6.28 + Math.random() * 4;
-      padVoices.push({
-        osc, gain, filter, interval: iv,
-        lfoPeriod, phase: Math.random() * Math.PI * 2,
-        targetGain: 0.05 + Math.random() * 0.03,
-        stopAll() { try { osc.stop(); } catch (e) {} },
-      });
+    trackGains = TRACKS.map(() => {
+      const g = audioCtx.createGain();
+      g.gain.value = 1;
+      g.connect(masterGain);
+      return g;
     });
 
-    crossfadePadsToPalette(4);
+    noiseBuffer = buildNoiseBuffer(audioCtx);
   }
 
-  function crossfadePadsToPalette(rampSeconds) {
-    const now = audioCtx.currentTime;
-    padVoices.forEach((v) => {
-      const freq = midiToFreq(palette.root + v.interval);
-      v.osc.frequency.cancelScheduledValues(now);
-      v.osc.frequency.setValueAtTime(v.osc.frequency.value || freq, now);
-      v.osc.frequency.linearRampToValueAtTime(freq, now + rampSeconds);
-
-      v.gain.gain.cancelScheduledValues(now);
-      v.gain.gain.setValueAtTime(v.gain.gain.value, now);
-      v.gain.gain.linearRampToValueAtTime(0, now + rampSeconds * 0.5);
-      v.gain.gain.linearRampToValueAtTime(v.targetGain, now + rampSeconds * 2);
-    });
+  function noiseSource(rate) {
+    const src = audioCtx.createBufferSource();
+    src.buffer = noiseBuffer;
+    src.loop = true;
+    src.playbackRate.value = rate;
+    return src;
   }
 
-  function updatePads(t) {
-    padVoices.forEach((v) => {
-      const lfo = Math.sin((t / v.lfoPeriod) * Math.PI * 2 + v.phase);
-      const tone = +toneSlider.value / 100;
-      const base = 500 + tone * 1400;
-      v.filter.frequency.setTargetAtTime(base + lfo * 260, audioCtx.currentTime, 0.6);
-    });
-  }
+  // rateMul: pitch/speed multiplier from the current SCREW tempo "stall"
+  // (1 = normal, >1 handled by callers as 1/warp already applied here)
 
-  // ---- sparse melodic "bell" layers ----------------------------------
-  // Each layer keeps its own clock. On every tick it may or may not
-  // fire, governed by a probability that random-walks between a low
-  // and high bound — the swerve control widens or narrows that walk.
-
-  function buildBellLayers() {
-    bellLayers = [
-      { octave: 1, baseInterval: 2.6, gain: 0.16, decayMin: 1.8, decayMax: 4.5,
-        prob: makeDrift(0.15, 0.7, 0.4), jitter: makeDrift(-1, 1, 0), nextTime: 0 },
-      { octave: 2, baseInterval: 1.7, gain: 0.11, decayMin: 1.2, decayMax: 3.0,
-        prob: makeDrift(0.1, 0.65, 0.3), jitter: makeDrift(-1, 1, 0), nextTime: 0 },
-      { octave: 3, baseInterval: 4.1, gain: 0.09, decayMin: 2.0, decayMax: 5.5,
-        prob: makeDrift(0.08, 0.5, 0.2), jitter: makeDrift(-1, 1, 0), nextTime: 0 },
-    ];
-    const now = audioCtx.currentTime;
-    bellLayers.forEach((l, i) => { l.nextTime = now + 1 + i * 0.7; });
-  }
-
-  function triggerBell(layer, time) {
-    const midi = pickDegree(layer);
-    const freq = midiToFreq(midi);
-    const decay = layer.decayMin + Math.random() * (layer.decayMax - layer.decayMin);
-
+  function playKick(t, { rateMul, screwAmt }) {
+    const jitter = 1 + (Math.random() * 2 - 1) * 0.05 * screwAmt;
     const osc = audioCtx.createOscillator();
     osc.type = "sine";
-    osc.frequency.value = freq;
+    const f0 = 150 * rateMul * jitter;
+    const f1 = Math.max(20, 45 * rateMul * jitter);
+    osc.frequency.setValueAtTime(f0, t);
+    osc.frequency.exponentialRampToValueAtTime(f1, t + 0.15 / rateMul);
 
-    const partial = audioCtx.createOscillator();
-    partial.type = "sine";
-    partial.frequency.value = freq * 2.01;
-    const partialGain = audioCtx.createGain();
-    partialGain.gain.value = 0.18;
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(1, t + 0.006);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.32 / rateMul);
 
-    const env = audioCtx.createGain();
-    env.gain.setValueAtTime(0, time);
-    env.gain.linearRampToValueAtTime(layer.gain, time + 0.03);
-    env.gain.exponentialRampToValueAtTime(0.0005, time + decay);
+    osc.connect(gain).connect(trackGains[0]);
+    osc.start(t);
+    osc.stop(t + 0.4 / rateMul);
 
-    const filter = audioCtx.createBiquadFilter();
-    filter.type = "lowpass";
-    const tone = +toneSlider.value / 100;
-    filter.frequency.value = 700 + tone * 3500;
-    filter.Q.value = 0.6;
-
-    const panner = audioCtx.createStereoPanner();
-    panner.pan.value = (Math.random() * 2 - 1) * 0.7;
-
-    osc.connect(filter);
-    partial.connect(partialGain).connect(filter);
-    filter.connect(env).connect(panner);
-
-    sendToSpace(panner, 0.55, 0.7, 0.35);
-
-    osc.start(time);
-    partial.start(time);
-    osc.stop(time + decay + 0.2);
-    partial.stop(time + decay + 0.2);
-
-    spawnParticle(midi, panner.pan.value, decay);
+    const click = noiseSource(1);
+    const hp = audioCtx.createBiquadFilter();
+    hp.type = "highpass";
+    hp.frequency.value = 900;
+    const clickGain = audioCtx.createGain();
+    clickGain.gain.setValueAtTime(0.35, t);
+    clickGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.02);
+    click.connect(hp).connect(clickGain).connect(trackGains[0]);
+    click.start(t);
+    click.stop(t + 0.03);
   }
 
-  function scheduleBells() {
-    const now = audioCtx.currentTime;
-    const lookahead = 0.25;
-    const density = +densitySlider.value / 100;
-    const swerve = +swerveSlider.value / 100;
+  function playSnare(t, { rateMul, screwAmt }) {
+    const jitter = 1 + (Math.random() * 2 - 1) * 0.06 * screwAmt;
+    const noise = noiseSource(rateMul * jitter);
+    const bp = audioCtx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 1800;
+    bp.Q.value = 0.8;
+    const nGain = audioCtx.createGain();
+    nGain.gain.setValueAtTime(0.9, t);
+    nGain.gain.exponentialRampToValueAtTime(0.0005, t + 0.18 / rateMul);
+    noise.connect(bp).connect(nGain).connect(trackGains[1]);
+    noise.start(t);
+    noise.stop(t + 0.25 / rateMul);
 
-    bellLayers.forEach((layer) => {
-      while (layer.nextTime < now + lookahead) {
-        const t = layer.nextTime;
+    const tone = audioCtx.createOscillator();
+    tone.type = "triangle";
+    tone.frequency.value = 190 * rateMul * jitter;
+    const tGain = audioCtx.createGain();
+    tGain.gain.setValueAtTime(0.5, t);
+    tGain.gain.exponentialRampToValueAtTime(0.0005, t + 0.1 / rateMul);
+    tone.connect(tGain).connect(trackGains[1]);
+    tone.start(t);
+    tone.stop(t + 0.15 / rateMul);
+  }
 
-        // probability itself drifts — this is the "dodge the
-        // prediction just before it forms" mechanism
-        const walkRate = 0.05 + swerve * 0.25;
-        const p = layer.prob.tick(walkRate);
-        const effectiveP = Math.min(0.95, p + density * 0.35);
+  function playClap(t, { rateMul, screwAmt }) {
+    const bp = audioCtx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 1500;
+    bp.Q.value = 1.2;
+    const pan = audioCtx.createStereoPanner();
+    pan.pan.value = (Math.random() * 2 - 1) * 0.4;
+    bp.connect(pan).connect(trackGains[2]);
 
-        if (Math.random() < effectiveP) {
-          triggerBell(layer, t);
-        }
+    const bursts = 3;
+    for (let i = 0; i < bursts; i++) {
+      const bt = t + (i * 0.011) / rateMul;
+      const noise = noiseSource(rateMul);
+      const g = audioCtx.createGain();
+      g.gain.setValueAtTime(0.6, bt);
+      g.gain.exponentialRampToValueAtTime(0.0005, bt + 0.03 / rateMul);
+      noise.connect(g).connect(bp);
+      noise.start(bt);
+      noise.stop(bt + 0.05);
+    }
+    const tail = noiseSource(rateMul);
+    const tailGain = audioCtx.createGain();
+    const tailStart = t + 0.03 / rateMul;
+    tailGain.gain.setValueAtTime(0.35, tailStart);
+    tailGain.gain.exponentialRampToValueAtTime(0.0005, tailStart + (0.2 + screwAmt * 0.1) / rateMul);
+    tail.connect(tailGain).connect(bp);
+    tail.start(tailStart);
+    tail.stop(tailStart + 0.35);
+  }
 
-        const jitterAmt = layer.jitter.tick(0.15) * (0.15 + swerve * 0.35);
-        const interval = layer.baseInterval * (1 + jitterAmt) / (0.4 + density * 0.9);
-        layer.nextTime = t + Math.max(0.35, interval);
+  function playHat(t, { rateMul, screwAmt }, open) {
+    const idx = open ? 4 : 3;
+    const noise = noiseSource(rateMul * (1 + (Math.random() * 2 - 1) * 0.04 * screwAmt));
+    const hp = audioCtx.createBiquadFilter();
+    hp.type = "highpass";
+    hp.frequency.value = 7000;
+    const gain = audioCtx.createGain();
+    const decay = (open ? 0.28 : 0.045) / rateMul;
+    gain.gain.setValueAtTime(open ? 0.4 : 0.5, t);
+    gain.gain.exponentialRampToValueAtTime(0.0005, t + decay);
+    const pan = audioCtx.createStereoPanner();
+    pan.pan.value = (Math.random() * 2 - 1) * 0.5;
+    noise.connect(hp).connect(gain).connect(pan).connect(trackGains[idx]);
+    noise.start(t);
+    noise.stop(t + decay + 0.02);
+  }
+
+  function playTom(t, { rateMul, screwAmt }) {
+    const jitter = 1 + (Math.random() * 2 - 1) * 0.05 * screwAmt;
+    const osc = audioCtx.createOscillator();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(210 * rateMul * jitter, t);
+    osc.frequency.exponentialRampToValueAtTime(85 * rateMul * jitter, t + 0.25 / rateMul);
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0.7, t);
+    gain.gain.exponentialRampToValueAtTime(0.0005, t + 0.35 / rateMul);
+    const pan = audioCtx.createStereoPanner();
+    pan.pan.value = (Math.random() * 2 - 1) * 0.3;
+    osc.connect(gain).connect(pan).connect(trackGains[5]);
+    osc.start(t);
+    osc.stop(t + 0.4 / rateMul);
+  }
+
+  function playPerc(t, { rateMul, screwAmt }) {
+    const jitter = 1 + (Math.random() * 2 - 1) * 0.1 * screwAmt;
+    const osc = audioCtx.createOscillator();
+    osc.type = "square";
+    osc.frequency.value = 950 * rateMul * jitter;
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0.25, t);
+    gain.gain.exponentialRampToValueAtTime(0.0005, t + 0.08 / rateMul);
+    const pan = audioCtx.createStereoPanner();
+    pan.pan.value = (Math.random() * 2 - 1) * 0.6;
+    osc.connect(gain).connect(pan).connect(trackGains[6]);
+    osc.start(t);
+    osc.stop(t + 0.1 / rateMul);
+  }
+
+  function playNoiseFX(t, { rateMul, screwAmt }) {
+    const noise = noiseSource(rateMul * (0.6 + Math.random() * 0.8));
+    const bp = audioCtx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 400 + Math.random() * 4000;
+    bp.Q.value = 4 + Math.random() * 8;
+    const gain = audioCtx.createGain();
+    const decay = (0.15 + Math.random() * 0.3 + screwAmt * 0.2) / rateMul;
+    gain.gain.setValueAtTime(0.5, t);
+    gain.gain.exponentialRampToValueAtTime(0.0005, t + decay);
+    const pan = audioCtx.createStereoPanner();
+    pan.pan.value = Math.random() * 2 - 1;
+    noise.connect(bp).connect(gain).connect(pan).connect(trackGains[7]);
+    noise.start(t);
+    noise.stop(t + decay + 0.02);
+  }
+
+  const VOICES = [
+    playKick,
+    playSnare,
+    playClap,
+    (t, o) => playHat(t, o, false),
+    (t, o) => playHat(t, o, true),
+    playTom,
+    playPerc,
+    playNoiseFX,
+  ];
+
+  function playVoice(index, time, opts) {
+    VOICES[index](time, opts);
+    flashRow[index] = performance.now() + 140;
+  }
+
+  // ---- scheduler -------------------------------------------------------
+
+  let running = false;
+  let bpm = +bpmSlider.value;
+  let currentStep = 0;
+  let nextStepTime = 0;
+  let schedulerTimer = null;
+  let warpFactor = 1; // >1 = SCREW tempo "stall" (slower + pitched down)
+  let warpTarget = 1;
+  let glitchTimer = null;
+
+  const LOOKAHEAD_MS = 25;
+  const SCHEDULE_AHEAD = 0.12;
+
+  function stepSeconds() {
+    return ((60 / bpm) / 4) * warpFactor;
+  }
+
+  function flashGlitch(ms) {
+    document.body.classList.add("glitching");
+    clearTimeout(glitchTimer);
+    glitchTimer = setTimeout(() => document.body.classList.remove("glitching"), ms);
+  }
+
+  function doRewireSwap() {
+    const a = randInt(0, TRACKS.length - 1);
+    let b = randInt(0, TRACKS.length - 1);
+    if (a === b) b = (b + 1) % TRACKS.length;
+    const tmp = routing[a];
+    routing[a] = routing[b];
+    routing[b] = tmp;
+    updateRouteLabel(a);
+    updateRouteLabel(b);
+  }
+
+  function mutateRandomStep() {
+    const r = randInt(0, TRACKS.length - 1);
+    const s = randInt(0, STEPS - 1);
+    pattern[r][s] = pattern[r][s] ? 0 : 1;
+    stepEls[r][s].classList.toggle("on", !!pattern[r][s]);
+  }
+
+  function triggerScrewStall(intensityBoost) {
+    const screwAmt = +screwSlider.value / 100;
+    const intensity = clamp(0.2 + screwAmt * 0.7 + intensityBoost, 0.2, 1.6);
+    warpTarget = 1 + intensity;
+    flashGlitch(250 + intensity * 350);
+    setTimeout(() => {
+      warpTarget = 1;
+    }, 450 + intensity * 700);
+  }
+
+  function scheduleStep(step, time) {
+    const mutateAmt = +mutateSlider.value / 100;
+    const rewireAmt = +rewireSlider.value / 100;
+    const screwAmt = +screwSlider.value / 100;
+
+    if (Math.random() < mutateAmt * 0.09) mutateRandomStep();
+    if (Math.random() < rewireAmt * 0.05) doRewireSwap();
+    if (step === 0 && Math.random() < screwAmt * 0.16) triggerScrewStall(0);
+
+    const rateMul = 1 / warpFactor;
+    const hits = [];
+
+    for (let r = 0; r < TRACKS.length; r++) {
+      if (!pattern[r][step]) continue;
+      hits.push({ r, state: "on" });
+      if (muted[r]) continue;
+
+      if (Math.random() < screwAmt * 0.12) {
+        hits[hits.length - 1].state = "skip";
+        continue;
       }
+
+      const voiceIndex = routing[r];
+      playVoice(voiceIndex, time, { rateMul, screwAmt });
+
+      if (Math.random() < screwAmt * 0.15) {
+        const count = 1 + randInt(0, 1);
+        for (let k = 1; k <= count; k++) {
+          const st = time + (k * stepSeconds()) / (count + 1);
+          playVoice(voiceIndex, st, { rateMul, screwAmt: screwAmt * 0.7 });
+        }
+      }
+    }
+
+    const delayMs = Math.max(0, (time - audioCtx.currentTime) * 1000);
+    setTimeout(() => updatePlayheadUI(step, hits), delayMs);
+  }
+
+  let prevStepEls = [];
+  function updatePlayheadUI(step, hits) {
+    prevStepEls.forEach((cell) => cell.classList.remove("playhead", "flash", "skip"));
+    prevStepEls = [];
+    for (let r = 0; r < TRACKS.length; r++) {
+      const cell = stepEls[r][step];
+      cell.classList.add("playhead");
+      prevStepEls.push(cell);
+    }
+    hits.forEach(({ r, state }) => {
+      const cell = stepEls[r][step];
+      if (state === "on") cell.classList.add("flash");
+      if (state === "skip") cell.classList.add("skip");
     });
   }
 
-  // ---- transport -------------------------------------------------
-
-  let lastPadUpdate = 0;
-
-  function schedulerLoop() {
-    if (!running) return;
-    scheduleBells();
-    const t = audioCtx.currentTime;
-    if (t - lastPadUpdate > 0.08) {
-      updatePads(t);
-      lastPadUpdate = t;
+  function scheduler() {
+    while (nextStepTime < audioCtx.currentTime + SCHEDULE_AHEAD) {
+      scheduleStep(currentStep, nextStepTime);
+      nextStepTime += stepSeconds();
+      warpFactor += (warpTarget - warpFactor) * 0.18;
+      currentStep = (currentStep + 1) % STEPS;
     }
-    schedulerTimer = setTimeout(schedulerLoop, 60);
+    schedulerTimer = setTimeout(scheduler, LOOKAHEAD_MS);
   }
 
   function start() {
     if (!audioCtx) initAudio();
     if (audioCtx.state === "suspended") audioCtx.resume();
     running = true;
-    schedulerLoop();
-    playBtn.textContent = "停止";
+    currentStep = 0;
+    nextStepTime = audioCtx.currentTime + 0.05;
+    scheduler();
+    playBtn.textContent = "■ STOP";
     playBtn.classList.add("playing");
   }
 
   function stop() {
     running = false;
     clearTimeout(schedulerTimer);
-    if (audioCtx) {
-      const now = audioCtx.currentTime;
-      master.gain.setTargetAtTime(0, now, 0.3);
-      setTimeout(() => {
-        if (!running) master.gain.setTargetAtTime(0.85, audioCtx.currentTime, 0.01);
-      }, 1200);
-    }
-    playBtn.textContent = "再生";
+    prevStepEls.forEach((cell) => cell.classList.remove("playhead", "flash", "skip"));
+    prevStepEls = [];
+    playBtn.textContent = "▶ RUN";
     playBtn.classList.remove("playing");
   }
 
-  playBtn.addEventListener("click", () => {
-    if (running) stop(); else start();
+  playBtn.addEventListener("click", () => (running ? stop() : start()));
+
+  chaosBtn.addEventListener("click", () => {
+    if (!audioCtx) initAudio();
+    for (let i = 0; i < 6; i++) mutateRandomStep();
+    for (let i = 0; i < 3; i++) doRewireSwap();
+    triggerScrewStall(0.6);
+    flashGlitch(700);
   });
 
-  paletteBtn.addEventListener("click", () => {
-    palette = makePalette();
-    if (audioCtx) crossfadePadsToPalette(6);
+  randomBtn.addEventListener("click", () => {
+    const density = [0.32, 0.22, 0.12, 0.5, 0.12, 0.1, 0.18, 0.1];
+    for (let r = 0; r < TRACKS.length; r++) {
+      for (let s = 0; s < STEPS; s++) {
+        pattern[r][s] = Math.random() < density[r] ? 1 : 0;
+        stepEls[r][s].classList.toggle("on", !!pattern[r][s]);
+      }
+    }
+    flashGlitch(200);
   });
 
-  // ---- visual: quiet drifting field, loosely tied to note events -----
+  clearBtn.addEventListener("click", () => {
+    for (let r = 0; r < TRACKS.length; r++) {
+      for (let s = 0; s < STEPS; s++) {
+        pattern[r][s] = 0;
+        stepEls[r][s].classList.remove("on");
+      }
+    }
+  });
 
-  let particles = [];
-  let hue = palette.hue;
+  bpmSlider.addEventListener("input", () => {
+    bpm = +bpmSlider.value;
+    bpmVal.textContent = bpm;
+  });
 
-  function resizeCanvas() {
-    canvas.width = window.innerWidth * devicePixelRatio;
-    canvas.height = window.innerHeight * devicePixelRatio;
+  masterSlider.addEventListener("input", () => {
+    if (masterGain) masterGain.gain.setTargetAtTime(+masterSlider.value / 100, audioCtx.currentTime, 0.02);
+  });
+
+  // ---- patch bay visualization ------------------------------------------
+
+  const PB_LEFT_X = 30;
+  const PB_RIGHT_X = 190;
+  const PB_TOP = 20;
+  const PB_BOTTOM = 268;
+  const rowY = (i) => PB_TOP + (i * (PB_BOTTOM - PB_TOP)) / (TRACKS.length - 1);
+
+  function drawPatchbay() {
+    const w = patchCanvas.width;
+    const h = patchCanvas.height;
+    patchCtx.clearRect(0, 0, w, h);
+    patchCtx.fillStyle = "#0c0f13";
+    patchCtx.fillRect(0, 0, w, h);
+
+    const now = performance.now();
+
+    // cables first, behind nodes
+    for (let r = 0; r < TRACKS.length; r++) {
+      const y0 = rowY(r);
+      const y1 = rowY(routing[r]);
+      const rerouted = routing[r] !== r;
+      const flashing = now < flashRow[routing[r]];
+      const alpha = flashing ? 1 : rerouted ? 0.85 : 0.4;
+
+      patchCtx.strokeStyle = TRACKS[r].color;
+      patchCtx.globalAlpha = alpha;
+      patchCtx.lineWidth = flashing ? 2.6 : rerouted ? 1.8 : 1.1;
+      patchCtx.beginPath();
+      patchCtx.moveTo(PB_LEFT_X, y0);
+      const midX = (PB_LEFT_X + PB_RIGHT_X) / 2;
+      patchCtx.bezierCurveTo(midX, y0, midX, y1, PB_RIGHT_X, y1);
+      patchCtx.stroke();
+    }
+    patchCtx.globalAlpha = 1;
+
+    // nodes + labels
+    patchCtx.font = "9px monospace";
+    for (let i = 0; i < TRACKS.length; i++) {
+      const y = rowY(i);
+
+      patchCtx.fillStyle = TRACKS[i].color;
+      patchCtx.beginPath();
+      patchCtx.arc(PB_LEFT_X, y, 4, 0, Math.PI * 2);
+      patchCtx.fill();
+      patchCtx.textAlign = "right";
+      patchCtx.fillText(TRACKS[i].abbr, PB_LEFT_X - 8, y + 3);
+
+      const flashing = now < flashRow[i];
+      patchCtx.fillStyle = flashing ? "#ffffff" : TRACKS[i].color;
+      patchCtx.beginPath();
+      patchCtx.arc(PB_RIGHT_X, y, flashing ? 5 : 4, 0, Math.PI * 2);
+      patchCtx.fill();
+      patchCtx.textAlign = "left";
+      patchCtx.fillStyle = TRACKS[i].color;
+      patchCtx.fillText(TRACKS[i].abbr, PB_RIGHT_X + 8, y + 3);
+    }
+
+    requestAnimationFrame(drawPatchbay);
   }
-  window.addEventListener("resize", resizeCanvas);
-  resizeCanvas();
-
-  function spawnParticle(midi, pan, decay) {
-    const w = canvas.width, h = canvas.height;
-    const x = ((midi % 24) / 24) * w * 0.8 + w * 0.1;
-    const y = h * 0.5 - pan * h * 0.32 + (Math.random() - 0.5) * h * 0.15;
-    particles.push({
-      x, y,
-      r: 4 * devicePixelRatio,
-      life: 0,
-      maxLife: Math.max(1.5, decay),
-      vx: (Math.random() - 0.5) * 6,
-      vy: (Math.random() - 0.5) * 6,
-    });
-    if (particles.length > 120) particles.shift();
-  }
-
-  function draw() {
-    const w = canvas.width, h = canvas.height;
-    hue = (hue + 0.01) % 360;
-    const targetHue = palette.hue;
-    hue += (targetHue - hue) * 0.0015;
-
-    ctx2d.fillStyle = `hsla(${hue}, 30%, 4%, 0.18)`;
-    ctx2d.fillRect(0, 0, w, h);
-
-    particles.forEach((p) => {
-      p.life += 1 / 60;
-      p.x += p.vx * 0.016;
-      p.y += p.vy * 0.016;
-      const t = p.life / p.maxLife;
-      const alpha = Math.max(0, 1 - t) * 0.5;
-      const r = p.r * (1 + t * 8);
-      const grad = ctx2d.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
-      grad.addColorStop(0, `hsla(${hue}, 60%, 75%, ${alpha})`);
-      grad.addColorStop(1, `hsla(${hue}, 60%, 75%, 0)`);
-      ctx2d.fillStyle = grad;
-      ctx2d.beginPath();
-      ctx2d.arc(p.x, p.y, r, 0, Math.PI * 2);
-      ctx2d.fill();
-    });
-    particles = particles.filter((p) => p.life < p.maxLife);
-
-    requestAnimationFrame(draw);
-  }
-  requestAnimationFrame(draw);
+  requestAnimationFrame(drawPatchbay);
 })();

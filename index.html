@@ -3,39 +3,64 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>kizashi — generative ambient</title>
+<title>PULSAR-23 — glitch drum machine</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <canvas id="bg"></canvas>
+  <div class="crt"></div>
 
-  <main class="ui">
-    <header>
-      <h1>kizashi <span class="sub">きざし</span></h1>
-      <p class="tagline">反復に見せかけて、予測の像を結ぶ寸前でかわし続けるアンビエント。</p>
+  <main class="rack">
+    <header class="rack-head">
+      <div class="brand">
+        <span class="labtag">SOMA LABORATORY</span>
+        <h1>PULSAR-23 <span class="screw">[SCREW]</span></h1>
+      </div>
+      <p class="tagline">パターンは固定されない。鳴らすたびに配線が組み変わり、崩れ、また揺れ戻る——グリッチ駆動のドラムマシン。</p>
     </header>
 
-    <div class="transport">
-      <button id="playBtn" class="playBtn">再生</button>
-      <button id="paletteBtn" class="ghostBtn">配色を変える</button>
-    </div>
+    <section class="transport">
+      <button id="playBtn" class="btn primary">▶ RUN</button>
+      <button id="chaosBtn" class="btn danger">⚡ CHAOS BURST</button>
+      <button id="randomBtn" class="btn">🎲 RANDOMIZE</button>
+      <button id="clearBtn" class="btn ghost">CLEAR</button>
 
-    <div class="controls">
-      <label class="slider">
-        <span>密度 <em>density</em></span>
-        <input id="density" type="range" min="0" max="100" value="42" />
+      <label class="numctl">
+        <span>BPM</span>
+        <input id="bpm" type="range" min="60" max="188" value="122" />
+        <em id="bpmVal">122</em>
       </label>
-      <label class="slider">
-        <span>明暗 <em>tone</em></span>
-        <input id="tone" type="range" min="0" max="100" value="50" />
-      </label>
-      <label class="slider">
-        <span>揺らぎ <em>swerve</em></span>
-        <input id="swerve" type="range" min="0" max="100" value="55" />
-      </label>
-    </div>
+    </section>
 
-    <p class="hint">音は毎回、一度きりのものです。同じ配列は二度と戻ってきません。</p>
+    <section class="glitch-panel">
+      <label class="slider mutate">
+        <span>MUTATE <em>自己変異</em></span>
+        <input id="mutate" type="range" min="0" max="100" value="22" />
+      </label>
+      <label class="slider rewire">
+        <span>REWIRE <em>結線</em></span>
+        <input id="rewire" type="range" min="0" max="100" value="18" />
+      </label>
+      <label class="slider screw">
+        <span>SCREW <em>歪速</em></span>
+        <input id="screw" type="range" min="0" max="100" value="28" />
+      </label>
+      <label class="slider volume">
+        <span>MASTER</span>
+        <input id="master" type="range" min="0" max="100" value="80" />
+      </label>
+    </section>
+
+    <section class="deck">
+      <div class="sequencer" id="sequencer"></div>
+
+      <aside class="patchbay-wrap">
+        <h2>PATCH BAY</h2>
+        <canvas id="patchbay" width="220" height="288"></canvas>
+        <p class="hint">配線は再生中にランダムへ組み変わります。線が交差した時、そのトラックは別の音を鳴らします。</p>
+      </aside>
+    </section>
+
+    <p class="footer-hint">同じ8小節は二度と鳴りません。CHAOS BURSTで即座に全配線を破壊/再構築します。</p>
   </main>
 
   <script src="app.js"></script>
