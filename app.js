@@ -61,6 +61,20 @@
   let recBuffersL = [], recBuffersR = [];
   let recStartTime = 0, recTimerInterval = null;
   let masterRecBtn = null, masterRecStatus = null;
+  let sharedNoiseBuffer = null;
+
+  function buildNoiseBuffer(duration) {
+    const rate = ctx.sampleRate;
+    const length = Math.floor(rate * duration);
+    const buf = ctx.createBuffer(2, length, rate);
+    for (let ch = 0; ch < 2; ch++) {
+      const data = buf.getChannelData(ch);
+      for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
+    }
+    return buf;
+  }
+
+  function ageFreqFromKnob(v) { return 9000 - v * 8300; } // 0 -> open, 1 -> dull/worn
 
   function buildImpulseResponse(duration, decay) {
     const rate = ctx.sampleRate;
@@ -97,6 +111,8 @@
     reverbBusGain = ctx.createGain();
     reverbBusGain.gain.value = 0.9;
     reverbConvolver.connect(reverbBusGain).connect(masterGain);
+
+    sharedNoiseBuffer = buildNoiseBuffer(3.0);
 
     setupMasterRecorder();
 
@@ -394,7 +410,16 @@
         depth: 0.3,
         pan: [-0.6, -0.2, 0.2, 0.6][index % 4],
         level: 0.85,
+        lofiCrush: 0,
+        lofiWow: 0,
+        lofiNoise: 0,
+        lofiAge: 0,
       };
+
+      this.nextCrackleTime = 0;
+      this._lofiHoldL = 0;
+      this._lofiHoldR = 0;
+      this._lofiCounter = 0;
 
       this.knobs = {};
     }
@@ -424,7 +449,57 @@
       this.panner = ctx.createStereoPanner();
       this.panner.pan.value = p.pan;
 
-      this.filterNode.connect(this.crusher).connect(this.ringGain).connect(this.panner);
+      // lo-fi stage: worn-tape highcut -> wow/flutter pitch wobble ->
+      // sample-and-hold decimation, each a fine-grained mood control
+      this.ageFilter = ctx.createBiquadFilter();
+      this.ageFilter.type = "lowpass";
+      this.ageFilter.Q.value = 0.4;
+      this.ageFilter.frequency.value = ageFreqFromKnob(p.lofiAge);
+
+      this.wowDelay = ctx.createDelay(0.05);
+      this.wowDelay.delayTime.value = 0.008;
+      this.wowLFO = ctx.createOscillator();
+      this.wowLFO.type = "sine";
+      this.wowLFO.frequency.value = 0.6 + p.lofiWow * 3;
+      this.wowDepth = ctx.createGain();
+      this.wowDepth.gain.value = p.lofiWow * 0.006;
+      this.wowLFO.connect(this.wowDepth).connect(this.wowDelay.delayTime);
+      this.wowLFO.start();
+
+      this.lofiNode = ctx.createScriptProcessor(1024, 2, 2);
+      this.lofiNode.onaudioprocess = (e) => {
+        const inL = e.inputBuffer.getChannelData(0);
+        const inR = e.inputBuffer.numberOfChannels > 1 ? e.inputBuffer.getChannelData(1) : inL;
+        const outL = e.outputBuffer.getChannelData(0);
+        const outR = e.outputBuffer.getChannelData(1);
+        const holdSamples = Math.max(1, Math.round(1 + this.params.lofiCrush * 30));
+        for (let i = 0; i < inL.length; i++) {
+          if (this._lofiCounter <= 0) {
+            this._lofiHoldL = inL[i];
+            this._lofiHoldR = inR[i];
+            this._lofiCounter = holdSamples;
+          }
+          this._lofiCounter--;
+          outL[i] = this._lofiHoldL;
+          outR[i] = this._lofiHoldR;
+        }
+      };
+
+      this.filterNode.connect(this.crusher).connect(this.ringGain)
+        .connect(this.ageFilter).connect(this.wowDelay).connect(this.lofiNode)
+        .connect(this.panner);
+
+      // tape hiss / vinyl surface noise bed, mixed in directly at the panner
+      this.noiseSrc = ctx.createBufferSource();
+      this.noiseSrc.buffer = sharedNoiseBuffer;
+      this.noiseSrc.loop = true;
+      this.noiseFilter = ctx.createBiquadFilter();
+      this.noiseFilter.type = "highpass";
+      this.noiseFilter.frequency.value = 1200;
+      this.noiseGain = ctx.createGain();
+      this.noiseGain.gain.value = p.lofiNoise * 0.15;
+      this.noiseSrc.connect(this.noiseFilter).connect(this.noiseGain).connect(this.panner);
+      this.noiseSrc.start();
 
       // dual-tap ping-pong delay, always fed, mix controls audibility
       this.delayA = ctx.createDelay(2.0);
@@ -675,6 +750,22 @@
       if (this.activeGrains.length > 64) this.activeGrains.shift();
     }
 
+    spawnCrackle(time) {
+      if (!sharedNoiseBuffer) return;
+      const dur = 0.003 + Math.random() * 0.004;
+      const offset = Math.random() * Math.max(0.01, sharedNoiseBuffer.duration - dur);
+      const src = ctx.createBufferSource();
+      src.buffer = sharedNoiseBuffer;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, time);
+      g.gain.linearRampToValueAtTime(this.params.lofiNoise * 0.5, time + 0.001);
+      g.gain.linearRampToValueAtTime(0, time + dur);
+      src.connect(g).connect(this.panner);
+      src.start(time, offset, dur);
+      src.stop(time + dur + 0.01);
+      src.onended = () => { try { src.disconnect(); g.disconnect(); } catch (e) {} };
+    }
+
     schedulerTick(now) {
       const p = this.params;
       if (this.playing) {
@@ -692,6 +783,16 @@
           }
         } else {
           this.applyLoopBounds(now);
+        }
+
+        if (p.lofiNoise > 0.04) {
+          const rate = 0.5 + p.lofiNoise * 10;
+          while (this.nextCrackleTime < now + 0.25) {
+            this.spawnCrackle(this.nextCrackleTime);
+            this.nextCrackleTime += (1 / rate) * (0.6 + Math.random() * 0.8);
+          }
+        } else {
+          this.nextCrackleTime = now;
         }
       }
       // prune stale grain markers for visualization
@@ -1023,6 +1124,48 @@
       dice: () => rand(-1, 1),
     });
     knobsWrap.appendChild(space.wrap);
+
+    // LOFI — worn-tape mood shaping: crush (sample-rate decimation),
+    // wow (pitch wobble), noise (hiss + vinyl crackle), age (highcut)
+    const lofi = makeSection("lofi");
+    addKnob(lofi, {
+      key: "lofiCrush", label: "crush", min: 0, max: 1, value: track.params.lofiCrush,
+      format: (v) => Math.round(v * 100) + "%",
+      onChange: (v) => { track.params.lofiCrush = v; },
+      dice: () => rand(0, 1),
+    });
+    addKnob(lofi, {
+      key: "lofiWow", label: "wow", min: 0, max: 1, value: track.params.lofiWow,
+      format: (v) => Math.round(v * 100) + "%",
+      onChange: (v) => {
+        track.params.lofiWow = v;
+        if (track.wowDepth) {
+          const now = ctx.currentTime;
+          track.wowDepth.gain.setTargetAtTime(v * 0.006, now, 0.05);
+          track.wowLFO.frequency.setTargetAtTime(0.6 + v * 3, now, 0.1);
+        }
+      },
+      dice: () => rand(0, 1),
+    });
+    addKnob(lofi, {
+      key: "lofiNoise", label: "noise", min: 0, max: 1, value: track.params.lofiNoise,
+      format: (v) => Math.round(v * 100) + "%",
+      onChange: (v) => {
+        track.params.lofiNoise = v;
+        if (track.noiseGain) track.noiseGain.gain.setTargetAtTime(v * 0.15, ctx.currentTime, 0.05);
+      },
+      dice: () => rand(0, 1),
+    });
+    addKnob(lofi, {
+      key: "lofiAge", label: "age", min: 0, max: 1, value: track.params.lofiAge,
+      format: (v) => Math.round(v * 100) + "%",
+      onChange: (v) => {
+        track.params.lofiAge = v;
+        if (track.ageFilter) track.ageFilter.frequency.setTargetAtTime(ageFreqFromKnob(v), ctx.currentTime, 0.02);
+      },
+      dice: () => rand(0, 1),
+    });
+    knobsWrap.appendChild(lofi.wrap);
 
     // OUTPUT
     const output = makeSection("output");
