@@ -27,6 +27,8 @@
   const armBtn = el("armBtn");
   const meterFill = el("meterFill");
   const inputStatus = el("inputStatus");
+  const forceMonoToggle = el("forceMonoToggle");
+  const monoStatus = el("monoStatus");
 
   const autoSampleToggle = el("autoSampleToggle");
   const autoIntervalSlider = el("autoInterval");
@@ -63,6 +65,7 @@
     depth: el(`voice${letter}-depth`),
     resample: el(`voice${letter}-resample`),
     dice: el(`voice${letter}-dice`),
+    freeze: el(`voice${letter}-freeze`),
     durLabel: el(`voice${letter}-durLabel`),
   }));
 
@@ -264,12 +267,72 @@
     ringSamplesWritten = 0;
   }
 
+  // Many multi-channel interfaces (an RME Fireface included) expose 2
+  // channels even when only one physical input has anything plugged into
+  // it — the "other" channel is just silence. Every voice then captures
+  // real signal on one side and near-nothing on the other, so panning has
+  // nothing to bring up on the quiet side: it reads as "one channel is
+  // always louder", not as pan doing nothing. Auto-detect that from the
+  // first ~0.5s of real signal and duplicate the live channel into both;
+  // the manual checkbox covers setups the heuristic misjudges.
+  let monoDetectDone = false;
+  let monoDetectSamples = 0;
+  let monoDetectPeakL = 0;
+  let monoDetectPeakR = 0;
+  let monoSourceIsLeft = true;
+  let effectiveMono = false;
+  const MONO_DETECT_SAMPLES = 22050; // ~0.5s at 44.1kHz
+
+  function resetMonoDetection() {
+    monoDetectDone = false;
+    monoDetectSamples = 0;
+    monoDetectPeakL = 0;
+    monoDetectPeakR = 0;
+    effectiveMono = false;
+    if (monoStatus) monoStatus.textContent = "";
+  }
+
+  function updateMonoDetection(l, r) {
+    if (monoDetectDone) return;
+    for (let i = 0; i < l.length; i++) {
+      const al = Math.abs(l[i]);
+      const ar = Math.abs(r[i]);
+      if (al > monoDetectPeakL) monoDetectPeakL = al;
+      if (ar > monoDetectPeakR) monoDetectPeakR = ar;
+    }
+    monoDetectSamples += l.length;
+    if (monoDetectSamples < MONO_DETECT_SAMPLES) return;
+    const maxPeak = Math.max(monoDetectPeakL, monoDetectPeakR);
+    if (maxPeak < 0.01) {
+      // too quiet to judge yet — keep listening for real signal
+      monoDetectSamples = 0;
+      monoDetectPeakL = 0;
+      monoDetectPeakR = 0;
+      return;
+    }
+    const minPeak = Math.min(monoDetectPeakL, monoDetectPeakR);
+    effectiveMono = minPeak / maxPeak < 0.08;
+    monoSourceIsLeft = monoDetectPeakL >= monoDetectPeakR;
+    monoDetectDone = true;
+    if (monoStatus) {
+      monoStatus.textContent = effectiveMono
+        ? "🔀 モノラル入力を検出 — 両チャンネルに複製しています"
+        : "";
+    }
+  }
+
   // bulk TypedArray.set() copies instead of a per-sample loop — with loops
   // up to 30s long this used to be a multi-million-iteration JS loop right
   // on the main thread at every re-trigger, which is exactly what produces
   // audible crackling: it blocks whatever else is due to run (including,
   // on the ScriptProcessor fallback path, audio rendering itself)
   function writeRingChunk(l, r) {
+    updateMonoDetection(l, r);
+    if (forceMonoToggle?.checked || effectiveMono) {
+      const mono = forceMonoToggle?.checked ? l : (monoSourceIsLeft ? l : r);
+      l = mono;
+      r = mono;
+    }
     const n = l.length;
     const spaceToEnd = ringLen - ringWritePos;
     if (n <= spaceToEnd) {
@@ -394,6 +457,7 @@
 
       ringTapNode = makeTapNode(writeRingChunk);
       inputGain.connect(ringTapNode);
+      resetMonoDetection(); // a new connection may be a different device/routing
 
       await listInputDevices();
       const track = mediaStream.getAudioTracks()[0];
@@ -414,6 +478,16 @@
   // instead of requiring a second click on "再接続"
   deviceSelect.addEventListener("change", () => {
     if (audioCtx) armInput();
+  });
+
+  forceMonoToggle?.addEventListener("change", () => {
+    if (monoStatus) {
+      monoStatus.textContent = forceMonoToggle.checked
+        ? "🔀 モノラル化を手動で強制中"
+        : effectiveMono
+          ? "🔀 モノラル入力を検出 — 両チャンネルに複製しています"
+          : "";
+    }
   });
 
   function applyDryWet() {
@@ -878,6 +952,23 @@
       v.reverse = Math.random() < 0.5;
       ui.reverse.checked = v.reverse;
 
+      v.locked = Math.random() < 0.5;
+      ui.locked.checked = v.locked;
+      if (v.locked) clearTimeout(v.flowTimer);
+
+      if (v.active) triggerVoice(v);
+    });
+
+    // freeze this layer right now: switch to fixed loop mode and lock it
+    // in one click, instead of opening the mode dropdown and the lock
+    // checkbox separately
+    ui.freeze.addEventListener("click", () => {
+      ui.mode.value = "fixed";
+      v.mode = "fixed";
+      ui.root.classList.remove("flow");
+      ui.locked.checked = true;
+      v.locked = true;
+      clearTimeout(v.flowTimer);
       if (v.active) triggerVoice(v);
     });
   });

@@ -34,6 +34,16 @@
       <div class="meter"><div id="meterFill" class="meterFill"></div></div>
       <p id="inputStatus" class="status">未接続</p>
 
+      <label class="check small">
+        <input type="checkbox" id="forceMonoToggle" />
+        🔀 入力を強制モノラル化（左chを両chに複製）
+      </label>
+      <p id="monoStatus" class="status"></p>
+      <p class="hint small">
+        片方のチャンネルだけ大きい/パンが効かない場合、入力が実質モノラル（片chが無音）である可能性が高いです。
+        通常は自動検出して両chに複製しますが、うまく検出しない場合は上のチェックで手動強制できます。
+      </p>
+
       <label class="slider inline">
         <span>Dry/Wet</span>
         <input id="dryWetSlider" type="range" min="0" max="100" value="100" />
@@ -111,6 +121,7 @@
           <div class="speedButtons">
             <button id="voiceA-resample" class="ghostBtn small">再サンプル</button>
             <button id="voiceA-dice" type="button" class="ghostBtn small">🎲</button>
+            <button id="voiceA-freeze" type="button" class="ghostBtn small">❄️ 固定</button>
           </div>
         </div>
 
@@ -150,6 +161,7 @@
           <div class="speedButtons">
             <button id="voiceB-resample" class="ghostBtn small">再サンプル</button>
             <button id="voiceB-dice" type="button" class="ghostBtn small">🎲</button>
+            <button id="voiceB-freeze" type="button" class="ghostBtn small">❄️ 固定</button>
           </div>
         </div>
 
@@ -189,6 +201,7 @@
           <div class="speedButtons">
             <button id="voiceC-resample" class="ghostBtn small">再サンプル</button>
             <button id="voiceC-dice" type="button" class="ghostBtn small">🎲</button>
+            <button id="voiceC-freeze" type="button" class="ghostBtn small">❄️ 固定</button>
           </div>
         </div>
 
@@ -228,6 +241,7 @@
           <div class="speedButtons">
             <button id="voiceD-resample" class="ghostBtn small">再サンプル</button>
             <button id="voiceD-dice" type="button" class="ghostBtn small">🎲</button>
+            <button id="voiceD-freeze" type="button" class="ghostBtn small">❄️ 固定</button>
           </div>
         </div>
       </div>
