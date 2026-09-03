@@ -42,6 +42,7 @@
 
   const routing = TRACKS.map((_, i) => i); // routing[sourceRow] = voice engine index actually heard
   const muted = TRACKS.map(() => false);
+  const trackVolume = TRACKS.map(() => 0.8); // per-track fader, applied to trackGains once audio exists
   const flashRow = new Array(TRACKS.length).fill(0); // ms timestamp until which cable glows
 
   const playBtn = document.getElementById("playBtn");
@@ -91,9 +92,35 @@
       row.style.opacity = muted[r] ? 0.4 : 1;
     });
 
+    const faderRow = document.createElement("div");
+    faderRow.className = "fader-row";
+
+    const fader = document.createElement("input");
+    fader.type = "range";
+    fader.className = "fader";
+    fader.min = "0";
+    fader.max = "100";
+    fader.value = String(Math.round(trackVolume[r] * 100));
+    fader.style.setProperty("--fader-color", track.color);
+    fader.setAttribute("aria-label", `${track.name} volume`);
+
+    const faderVal = document.createElement("span");
+    faderVal.className = "fader-val";
+    faderVal.textContent = fader.value;
+
+    fader.addEventListener("input", () => {
+      trackVolume[r] = +fader.value / 100;
+      faderVal.textContent = fader.value;
+      if (trackGains[r]) trackGains[r].gain.setTargetAtTime(trackVolume[r], audioCtx.currentTime, 0.015);
+    });
+
+    faderRow.appendChild(fader);
+    faderRow.appendChild(faderVal);
+
     label.appendChild(nameEl);
     label.appendChild(routeEl);
     label.appendChild(muteBtn);
+    label.appendChild(faderRow);
     row.appendChild(label);
 
     for (let s = 0; s < STEPS; s++) {
@@ -144,9 +171,9 @@
     comp.ratio.value = 6;
     masterGain.connect(comp).connect(audioCtx.destination);
 
-    trackGains = TRACKS.map(() => {
+    trackGains = TRACKS.map((_, i) => {
       const g = audioCtx.createGain();
-      g.gain.value = 1;
+      g.gain.value = trackVolume[i];
       g.connect(masterGain);
       return g;
     });
@@ -543,7 +570,7 @@
     patchCtx.globalAlpha = 1;
 
     // nodes + labels
-    patchCtx.font = "9px monospace";
+    patchCtx.font = "9px 'JetBrains Mono', monospace";
     for (let i = 0; i < TRACKS.length; i++) {
       const y = rowY(i);
 
