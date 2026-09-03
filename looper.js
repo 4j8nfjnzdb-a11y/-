@@ -668,6 +668,7 @@
     panDrift: makeDrift(-1, 1, 0),
     pitchDrift: makeDrift(-7, 7, 0), // semitones, continuous (microtonal) around v.speed
     flowTimer: null,
+    flowScheduled: false,
     currentDuration: 4,
   }));
 
@@ -777,18 +778,33 @@
       console.error(`triggerVoice(${v.letter}) failed:`, err);
       if (v.mode === "flow" && v.active && !v.locked) {
         // don't let one bad cycle end this voice's flow forever — retry
-        // shortly instead of dying silently
+        // shortly instead of dying silently. Marking this scheduled keeps
+        // the watchdog below from piling on a redundant restart meanwhile.
         clearTimeout(v.flowTimer);
-        v.flowTimer = setTimeout(() => triggerVoice(v), 1500);
+        v.flowScheduled = true;
+        v.flowTimer = setTimeout(() => {
+          v.flowScheduled = false;
+          triggerVoice(v);
+        }, 1500);
       }
     }
   }
 
-  function scheduleFlow(v, justPlayedDuration) {
+  // clears the pending flow timer *and* the bookkeeping flag the watchdog
+  // below relies on — use this instead of a bare clearTimeout everywhere
+  // a voice's flow chain is being deliberately stopped
+  function stopFlowSchedule(v) {
     clearTimeout(v.flowTimer);
+    v.flowScheduled = false;
+  }
+
+  function scheduleFlow(v, justPlayedDuration) {
+    stopFlowSchedule(v);
     if (!v.active || v.mode !== "flow" || v.locked) return;
     const nextDuration = pickDuration();
+    v.flowScheduled = true;
     v.flowTimer = setTimeout(() => {
+      v.flowScheduled = false;
       if (v.active && v.mode === "flow" && !v.locked) triggerVoice(v, nextDuration);
     }, Math.max(300, justPlayedDuration * 1000 * 0.92));
   }
@@ -798,13 +814,30 @@
     if (active) {
       triggerVoice(v);
     } else {
-      clearTimeout(v.flowTimer);
+      stopFlowSchedule(v);
       if (v.currentSource) {
         stopSourceSoon(v.currentSource, v.currentGain);
         v.currentSource = null;
       }
     }
   }
+
+  // triggerVoice() can return early (not enough ring data yet, no
+  // audioCtx, ...) without ever reaching scheduleFlow() — that's a plain
+  // `return`, not a thrown error, so the try/catch in triggerVoice can't
+  // catch it, and the voice's self-perpetuating flow chain just quietly
+  // never restarts. Rather than track down every possible early-exit
+  // path, periodically check: is this voice supposed to be actively
+  // flowing but has nothing scheduled? If so, just kick it again.
+  setInterval(() => {
+    if (!audioCtx) return;
+    voices.forEach((v) => {
+      if (v.active && v.mode === "flow" && !v.locked && !v.flowScheduled) {
+        console.warn(`watchdog: voice ${v.letter}'s flow chain had stalled — restarting it`);
+        triggerVoice(v);
+      }
+    });
+  }, 4000);
 
   // voices that are checked "active" by default in the markup never fire a
   // change event, and the very first trigger attempt right after arming
@@ -910,6 +943,7 @@
     ui.mode.addEventListener("change", () => {
       v.mode = ui.mode.value;
       ui.root.classList.toggle("flow", v.mode === "flow");
+      stopFlowSchedule(v); // avoid a stale flow timer firing once more after switching away from flow
       if (v.active) triggerVoice(v);
     });
 
@@ -933,7 +967,11 @@
     // content changes once locked is this voice's own 再サンプル button
     ui.locked.addEventListener("change", () => {
       v.locked = ui.locked.checked;
-      clearTimeout(v.flowTimer);
+      if (v.locked) {
+        stopFlowSchedule(v);
+      } else if (v.active && v.mode === "flow") {
+        triggerVoice(v); // resume flowing right away instead of waiting on the watchdog
+      }
     });
 
     function applySpeed() {
@@ -993,7 +1031,7 @@
 
       v.locked = Math.random() < 0.5;
       ui.locked.checked = v.locked;
-      if (v.locked) clearTimeout(v.flowTimer);
+      if (v.locked) stopFlowSchedule(v);
 
       if (v.active) triggerVoice(v);
     });
@@ -1007,7 +1045,7 @@
       ui.root.classList.remove("flow");
       ui.locked.checked = true;
       v.locked = true;
-      clearTimeout(v.flowTimer);
+      stopFlowSchedule(v);
       if (v.active) triggerVoice(v);
     });
   });
