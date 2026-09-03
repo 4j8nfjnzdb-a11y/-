@@ -178,7 +178,11 @@
 
     monitorGain = audioCtx.createGain();
     monitorGain.gain.value = 0;
-    inputGain.connect(monitorGain).connect(masterGain);
+    // straight to destination, bypassing masterGain/compressor/limiter —
+    // those exist to tame the looper's own summed output, and running the
+    // dry monitor through them squashes and colors the live input, which
+    // is the opposite of what "hear the raw input" should sound like
+    inputGain.connect(monitorGain).connect(audioCtx.destination);
 
     analyser = audioCtx.createAnalyser();
     analyser.fftSize = 512;
