@@ -537,10 +537,6 @@
       this.panner.connect(this.delayA);
       this.panner.connect(this.delayB);
 
-      this.reverbSend = ctx.createGain();
-      this.reverbSend.gain.value = p.depth * 1.1;
-      this.panner.connect(this.reverbSend).connect(reverbConvolver);
-
       this.trackSum = ctx.createGain();
       this.panner.connect(this.trackSum);
       this.delayMixGain.connect(this.trackSum);
@@ -548,6 +544,12 @@
       this.levelGain = ctx.createGain();
       this.levelGain.gain.value = p.level;
       this.trackSum.connect(this.levelGain).connect(masterGain);
+
+      // reverb send taps post-fader, so level all the way down means
+      // truly silent — not just the dry/delay path
+      this.reverbSend = ctx.createGain();
+      this.reverbSend.gain.value = p.depth * 1.1;
+      this.levelGain.connect(this.reverbSend).connect(reverbConvolver);
     }
 
     updateTextureCurve() {
