@@ -941,6 +941,40 @@
 
   // ---- voice UI wiring ----------------------------------------------------
 
+  // 🎲 randomize one voice's creative parameters. allowLockRoll gates whether
+  // this roll may also flip the lock — true for the voice's own dice button
+  // (an explicit per-voice action), false for the bulk/auto path, since
+  // letting bulk rolls lock voices means repeated rolls inevitably converge
+  // toward every voice locked (each roll only ever adds locks, never removes
+  // them, because diceAllBtn skips already-locked voices) — that permanently
+  // freezes the "全レイヤーをランダム化" button and the auto-randomize loop.
+  function rollVoiceDice(v, ui, allowLockRoll) {
+    v.speed = randRange(0.4, 2.2);
+    ui.speed.value = Math.round(v.speed * 100);
+    ui.speedLabel.textContent = `${v.speed.toFixed(2)}x`;
+
+    v.pitchRandom = Math.random() < 0.5;
+    ui.pitchRandom.checked = v.pitchRandom;
+
+    v.panAmount = Math.random();
+    ui.pan.value = Math.round(v.panAmount * 100);
+
+    v.depthAmount = Math.random();
+    ui.depth.value = Math.round(v.depthAmount * 100);
+    if (audioCtx) applyDepth(v);
+
+    v.reverse = Math.random() < 0.5;
+    ui.reverse.checked = v.reverse;
+
+    if (allowLockRoll) {
+      v.locked = Math.random() < 0.5;
+      ui.locked.checked = v.locked;
+      if (v.locked) stopFlowSchedule(v);
+    }
+
+    if (v.active) triggerVoice(v);
+  }
+
   voiceEls.forEach((ui, i) => {
     const v = voices[i];
     v.durLabel = ui.durLabel;
@@ -1024,30 +1058,7 @@
     // 🎲 randomize this voice's creative parameters (pitch/speed included)
     // and pull a fresh grain with them — a direct per-voice action, so it
     // works even if the voice is locked, same as its own 再サンプル button
-    ui.dice.addEventListener("click", () => {
-      v.speed = randRange(0.4, 2.2);
-      ui.speed.value = Math.round(v.speed * 100);
-      ui.speedLabel.textContent = `${v.speed.toFixed(2)}x`;
-
-      v.pitchRandom = Math.random() < 0.5;
-      ui.pitchRandom.checked = v.pitchRandom;
-
-      v.panAmount = Math.random();
-      ui.pan.value = Math.round(v.panAmount * 100);
-
-      v.depthAmount = Math.random();
-      ui.depth.value = Math.round(v.depthAmount * 100);
-      if (audioCtx) applyDepth(v);
-
-      v.reverse = Math.random() < 0.5;
-      ui.reverse.checked = v.reverse;
-
-      v.locked = Math.random() < 0.5;
-      ui.locked.checked = v.locked;
-      if (v.locked) stopFlowSchedule(v);
-
-      if (v.active) triggerVoice(v);
-    });
+    ui.dice.addEventListener("click", () => rollVoiceDice(v, ui, true));
 
     // freeze this layer right now: switch to fixed loop mode and lock it
     // in one click, instead of opening the mode dropdown and the lock
@@ -1065,10 +1076,13 @@
   });
 
   // shuffle every unlocked layer at once by reusing each voice's own dice
-  // button logic — locked voices are skipped, same as auto-sample/再サンプル
+  // roll logic — locked voices are skipped, same as auto-sample/再サンプル.
+  // allowLockRoll=false here: bulk/auto rolls must never flip a voice to
+  // locked, or repeated presses would eventually lock every voice and
+  // freeze this button and the auto-randomize loop for good.
   diceAllBtn.addEventListener("click", () => {
     voiceEls.forEach((ui, i) => {
-      if (!voices[i].locked) ui.dice.click();
+      if (!voices[i].locked) rollVoiceDice(voices[i], ui, false);
     });
     randomizeDelayTimes();
   });
