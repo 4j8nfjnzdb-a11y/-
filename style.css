@@ -176,6 +176,26 @@ button { font-family: inherit; cursor: pointer; }
 }
 .recBtn.active { background: rgba(220, 60, 60, 0.4); border-color: rgba(255,120,120,0.8); }
 
+.autoDiceBtn { margin-left: auto; }
+.autoDiceBtn.active {
+  background: linear-gradient(135deg, rgba(220,80,120,0.3), rgba(90,140,220,0.3));
+  border-color: rgba(234,230,223,0.7);
+  color: #fff;
+  animation: autoDicePulse 2.4s ease-in-out infinite;
+}
+
+@keyframes autoDicePulse {
+  0%, 100% { box-shadow: 0 0 0 0 hsla(var(--accent), 75%, 62%, 0.5); }
+  50% { box-shadow: 0 0 0 4px hsla(var(--accent), 75%, 62%, 0); }
+}
+
+@keyframes autoFlashPulse {
+  0% { box-shadow: 0 0 0 0 hsla(var(--accent), 85%, 65%, 0.9); }
+  100% { box-shadow: 0 0 0 10px hsla(var(--accent), 85%, 65%, 0); }
+}
+.fader.autoFlash .fader__cap { animation: autoFlashPulse 0.9s ease-out; }
+.fader.autoFlash .fader__label { color: hsla(var(--accent), 80%, 75%, 1); }
+
 .cycleBtn--small { padding: 0.3rem 0.5rem; align-self: center; margin-left: 0.2rem; }
 
 .playBtn { min-width: 2.4em; text-align: center; }

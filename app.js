@@ -22,6 +22,10 @@
   const rand = (lo, hi) => lo + Math.random() * (hi - lo);
   const semitoneToRate = (s) => Math.pow(2, s / 12);
 
+  // log-uniform spread so auto-dice firings land anywhere from quick
+  // successive nudges to glacially slow ones, not a fixed tempo
+  function randomAutoDiceInterval() { return 0.5 * Math.pow(90 / 0.5, Math.random()); }
+
   function makeDrift(min, max, start) {
     let value = start ?? (min + max) / 2;
     let target = value;
@@ -422,6 +426,8 @@
       this._lofiCounter = 0;
 
       this.knobs = {};
+      this.autoDice = false;
+      this.nextAutoDiceTime = 0;
     }
 
     // -------- graph (built once audio is unlocked) --------
@@ -770,6 +776,17 @@
 
     schedulerTick(now) {
       const p = this.params;
+
+      if (this.autoDice && now >= this.nextAutoDiceTime) {
+        const keys = Object.keys(this.knobs);
+        if (keys.length) {
+          const k = keys[Math.floor(Math.random() * keys.length)];
+          this.knobs[k].roll();
+          this.onAutoDiceFired && this.onAutoDiceFired(k);
+        }
+        this.nextAutoDiceTime = now + randomAutoDiceInterval();
+      }
+
       if (this.playing) {
         this.wander.tick(0.03 + p.flux * 0.25);
         this.panDrift.tick(0.04 + p.flux * 0.2);
@@ -946,9 +963,21 @@
     trackRandBtn.title = "randomize this track";
     trackRandBtn.addEventListener("click", () => randomizeTrack(track));
 
+    const autoDiceBtn = document.createElement("button");
+    autoDiceBtn.className = "toggleBtn autoDiceBtn";
+    autoDiceBtn.textContent = "🎲 AUTO";
+    autoDiceBtn.title = "オンにすると、このトラックのどれかのフェーダーをランダムな間隔（早い⇔超ゆっくり）で自動的に振り続ける";
+    autoDiceBtn.addEventListener("click", () => {
+      ensureAudio();
+      track.autoDice = !track.autoDice;
+      autoDiceBtn.classList.toggle("active", track.autoDice);
+      if (track.autoDice) track.nextAutoDiceTime = ctx.currentTime + randomAutoDiceInterval();
+    });
+
     modeRow.appendChild(modeBtn);
     modeRow.appendChild(revBtn);
     modeRow.appendChild(trackRandBtn);
+    modeRow.appendChild(autoDiceBtn);
     header.appendChild(modeRow);
 
     el.appendChild(header);
@@ -1200,6 +1229,14 @@
       if (!count) { folderLabel.textContent = ""; return; }
       const name = track.folderName ? track.folderName + " — " : "";
       folderLabel.textContent = `${name}${count}曲` + (track.lastFolderFileName ? ` / now: ${track.lastFolderFileName}` : "");
+    };
+    track.onAutoDiceFired = (key) => {
+      const k = track.knobs[key];
+      if (!k) return;
+      k.el.classList.remove("autoFlash");
+      // eslint-disable-next-line no-unused-expressions
+      k.el.offsetWidth; // restart the animation if it fires again quickly
+      k.el.classList.add("autoFlash");
     };
 
     return el;
