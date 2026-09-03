@@ -38,6 +38,7 @@
   const durRangeLabel = el("durRangeLabel");
   const sampleNowBtn = el("sampleNowBtn");
   const diceAllBtn = el("diceAllBtn");
+  const autoRandomizeToggle = el("autoRandomizeToggle");
   const dryWetSlider = el("dryWetSlider");
   const dryWetLabel = el("dryWetLabel");
 
@@ -739,7 +740,13 @@
 
       const source = audioCtx.createBufferSource();
       source.buffer = buffer;
-      source.loop = v.mode === "fixed";
+      // "locked" means "keep playing exactly this, don't touch it" — that
+      // has to loop natively regardless of mode. Without this, a flow-mode
+      // voice that gets locked (its own checkbox, the freeze button, or a
+      // dice roll) stops re-triggering itself but was never set to loop
+      // either, so it plays once and then falls silent for good — exactly
+      // "押すと最初聞いてて聞かなくなって音も止まる".
+      source.loop = v.mode === "fixed" || v.locked;
       source.playbackRate.value = initialRate;
 
       const gainNode = audioCtx.createGain();
@@ -969,6 +976,12 @@
       v.locked = ui.locked.checked;
       if (v.locked) {
         stopFlowSchedule(v);
+        // the currently-playing source was created before locking, so it
+        // doesn't loop natively — without a fresh trigger it just plays
+        // once more and goes silent instead of actually looping. Keep the
+        // same duration: the point of locking is to keep what's playing,
+        // not to grab something new.
+        if (v.active) triggerVoice(v, v.currentDuration);
       } else if (v.active && v.mode === "flow") {
         triggerVoice(v); // resume flowing right away instead of waiting on the watchdog
       }
@@ -1046,7 +1059,8 @@
       ui.locked.checked = true;
       v.locked = true;
       stopFlowSchedule(v);
-      if (v.active) triggerVoice(v);
+      // freeze what's currently playing, not something new
+      if (v.active) triggerVoice(v, v.currentDuration);
     });
   });
 
@@ -1057,6 +1071,23 @@
       if (!voices[i].locked) ui.dice.click();
     });
     randomizeDelayTimes();
+  });
+
+  // auto-randomize: keeps clicking "全レイヤーをランダム化" on its own, at
+  // an irregular interval up to 10s (sometimes soon, sometimes not) rather
+  // than a steady metronomic tick
+  let autoRandomizeTimer = null;
+  function scheduleAutoRandomize() {
+    clearTimeout(autoRandomizeTimer);
+    if (!autoRandomizeToggle?.checked) return;
+    autoRandomizeTimer = setTimeout(() => {
+      diceAllBtn.click();
+      scheduleAutoRandomize();
+    }, randRange(1, 10) * 1000);
+  }
+  autoRandomizeToggle?.addEventListener("change", () => {
+    if (autoRandomizeToggle.checked) scheduleAutoRandomize();
+    else clearTimeout(autoRandomizeTimer);
   });
 
   // the delay bus's own character (its two tap times) never changed on
