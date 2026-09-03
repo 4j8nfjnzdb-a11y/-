@@ -30,13 +30,16 @@
       <div class="row">
         <select id="deviceSelect"></select>
         <button id="armBtn" class="ghostBtn">入力を接続</button>
-        <label class="check">
-          <input type="checkbox" id="monitorToggle" />
-          モニター（生音を聴く）
-        </label>
       </div>
       <div class="meter"><div id="meterFill" class="meterFill"></div></div>
       <p id="inputStatus" class="status">未接続</p>
+
+      <label class="slider inline">
+        <span>Dry/Wet</span>
+        <input id="dryWetSlider" type="range" min="0" max="100" value="100" />
+        <em id="dryWetLabel">Wet 100%（エフェクトのみ）</em>
+      </label>
+      <p class="hint small">Dryは入力の生音、Wetは4レイヤーのループ＋エフェクト音です。Wet 100%だとエフェクトの音だけになります。</p>
 
       <div class="row">
         <button id="recordBtn" class="ghostBtn">● 録音開始</button>
@@ -59,6 +62,7 @@
           <em id="autoIntervalLabel">24s</em>
         </label>
         <button id="sampleNowBtn" class="ghostBtn">今すぐ全レイヤーを再サンプル</button>
+        <button id="diceAllBtn" class="ghostBtn">🎲 全レイヤーをランダム化</button>
       </div>
       <label class="slider inline">
         <span>長さの範囲</span>
@@ -104,7 +108,10 @@
             <span>奥行き</span>
             <input id="voiceA-depth" type="range" min="0" max="100" value="30" />
           </label>
-          <button id="voiceA-resample" class="ghostBtn small">再サンプル</button>
+          <div class="speedButtons">
+            <button id="voiceA-resample" class="ghostBtn small">再サンプル</button>
+            <button id="voiceA-dice" type="button" class="ghostBtn small">🎲</button>
+          </div>
         </div>
 
         <div id="voiceB" class="voiceCard flow">
@@ -140,7 +147,10 @@
             <span>奥行き</span>
             <input id="voiceB-depth" type="range" min="0" max="100" value="50" />
           </label>
-          <button id="voiceB-resample" class="ghostBtn small">再サンプル</button>
+          <div class="speedButtons">
+            <button id="voiceB-resample" class="ghostBtn small">再サンプル</button>
+            <button id="voiceB-dice" type="button" class="ghostBtn small">🎲</button>
+          </div>
         </div>
 
         <div id="voiceC" class="voiceCard flow">
@@ -176,7 +186,10 @@
             <span>奥行き</span>
             <input id="voiceC-depth" type="range" min="0" max="100" value="65" />
           </label>
-          <button id="voiceC-resample" class="ghostBtn small">再サンプル</button>
+          <div class="speedButtons">
+            <button id="voiceC-resample" class="ghostBtn small">再サンプル</button>
+            <button id="voiceC-dice" type="button" class="ghostBtn small">🎲</button>
+          </div>
         </div>
 
         <div id="voiceD" class="voiceCard flow">
@@ -212,7 +225,10 @@
             <span>奥行き</span>
             <input id="voiceD-depth" type="range" min="0" max="100" value="15" />
           </label>
-          <button id="voiceD-resample" class="ghostBtn small">再サンプル</button>
+          <div class="speedButtons">
+            <button id="voiceD-resample" class="ghostBtn small">再サンプル</button>
+            <button id="voiceD-dice" type="button" class="ghostBtn small">🎲</button>
+          </div>
         </div>
       </div>
     </section>

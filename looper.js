@@ -25,7 +25,6 @@
   const startBtn = el("startBtn");
   const deviceSelect = el("deviceSelect");
   const armBtn = el("armBtn");
-  const monitorToggle = el("monitorToggle");
   const meterFill = el("meterFill");
   const inputStatus = el("inputStatus");
 
@@ -36,6 +35,9 @@
   const maxDurSlider = el("maxDur");
   const durRangeLabel = el("durRangeLabel");
   const sampleNowBtn = el("sampleNowBtn");
+  const diceAllBtn = el("diceAllBtn");
+  const dryWetSlider = el("dryWetSlider");
+  const dryWetLabel = el("dryWetLabel");
 
   const recordBtn = el("recordBtn");
   const recordStatus = el("recordStatus");
@@ -60,6 +62,7 @@
     pan: el(`voice${letter}-pan`),
     depth: el(`voice${letter}-depth`),
     resample: el(`voice${letter}-resample`),
+    dice: el(`voice${letter}-dice`),
     durLabel: el(`voice${letter}-durLabel`),
   }));
 
@@ -89,7 +92,7 @@
 
   let audioCtx = null;
   let masterGain, compressor, limiter, reverbNode, delayA, delayB;
-  let inputGain, monitorGain, sourceNode, mediaStream;
+  let inputGain, mainDryGain, mainWetGain, finalMix, sourceNode, mediaStream;
   let analyser, meterData;
   let workletSupported = false;
 
@@ -142,7 +145,17 @@
     limiter.curve = buildSoftClipCurve(2.2, 2048);
     limiter.oversample = "4x";
 
-    masterGain.connect(compressor).connect(limiter).connect(audioCtx.destination);
+    // dry/wet crossfade for the whole app: "dry" is the raw live input,
+    // "wet" is the looper's own summed output (post compressor/limiter).
+    // Both feed a shared finalMix node so recording (tapped from there)
+    // captures exactly the same blend that reaches the speakers.
+    finalMix = audioCtx.createGain();
+    finalMix.gain.value = 1;
+    finalMix.connect(audioCtx.destination);
+
+    mainWetGain = audioCtx.createGain();
+    mainWetGain.gain.value = 1;
+    masterGain.connect(compressor).connect(limiter).connect(mainWetGain).connect(finalMix);
 
     reverbNode = audioCtx.createConvolver();
     // convolution cost scales directly with impulse-response length; 4.5s
@@ -176,13 +189,14 @@
     inputGain = audioCtx.createGain();
     inputGain.gain.value = 1.0;
 
-    monitorGain = audioCtx.createGain();
-    monitorGain.gain.value = 0;
-    // straight to destination, bypassing masterGain/compressor/limiter —
+    mainDryGain = audioCtx.createGain();
+    mainDryGain.gain.value = 0;
+    // straight to finalMix, bypassing masterGain/compressor/limiter —
     // those exist to tame the looper's own summed output, and running the
-    // dry monitor through them squashes and colors the live input, which
-    // is the opposite of what "hear the raw input" should sound like
-    inputGain.connect(monitorGain).connect(audioCtx.destination);
+    // dry signal through them squashes and colors the live input, which
+    // is the opposite of what "dry" should sound like
+    inputGain.connect(mainDryGain).connect(finalMix);
+    applyDryWet();
 
     analyser = audioCtx.createAnalyser();
     analyser.fftSize = 512;
@@ -402,9 +416,18 @@
     if (audioCtx) armInput();
   });
 
-  monitorToggle.addEventListener("change", () => {
+  function applyDryWet() {
     if (!audioCtx) return;
-    monitorGain.gain.setTargetAtTime(monitorToggle.checked ? 0.7 : 0, audioCtx.currentTime, 0.05);
+    const wet = +dryWetSlider.value / 100;
+    const now = audioCtx.currentTime;
+    mainWetGain.gain.setTargetAtTime(wet, now, 0.05);
+    mainDryGain.gain.setTargetAtTime((1 - wet) * 0.85, now, 0.05);
+  }
+
+  dryWetSlider.addEventListener("input", () => {
+    dryWetLabel.textContent =
+      dryWetSlider.value == 100 ? "Wet 100%（エフェクトのみ）" : `Dry ${100 - dryWetSlider.value}% / Wet ${dryWetSlider.value}%`;
+    applyDryWet();
   });
 
   function drawMeter() {
@@ -436,13 +459,12 @@
     if (!audioCtx) return;
     if (!recordTapNode) {
       recordTapNode = makeTapNode(onRecordChunk);
-      // tap after the compressor/limiter, not masterGain — otherwise the
-      // recording gets the raw, unprotected sum of all four layers plus
-      // reverb/delay tails, while the speakers hear the limited version.
-      // Four voices re-triggering close together can easily push that raw
-      // sum well past 0dBFS, which is exactly "録音すると音割れ" while
-      // live listening sounds fine.
-      limiter.connect(recordTapNode);
+      // tap from finalMix — the same dry+wet blend that reaches the
+      // speakers, after the compressor/limiter protects the wet side.
+      // Tapping anything upstream of that (e.g. masterGain directly) would
+      // record the raw, unprotected sum, which is exactly what caused
+      // "録音すると音割れ" while live listening sounded fine.
+      finalMix.connect(recordTapNode);
     }
     recordChunksL = [];
     recordChunksR = [];
@@ -834,6 +856,38 @@
     });
 
     ui.resample.addEventListener("click", () => triggerVoice(v));
+
+    // 🎲 randomize this voice's creative parameters (pitch/speed included)
+    // and pull a fresh grain with them — a direct per-voice action, so it
+    // works even if the voice is locked, same as its own 再サンプル button
+    ui.dice.addEventListener("click", () => {
+      v.speed = randRange(0.4, 2.2);
+      ui.speed.value = Math.round(v.speed * 100);
+      ui.speedLabel.textContent = `${v.speed.toFixed(2)}x`;
+
+      v.pitchRandom = Math.random() < 0.5;
+      ui.pitchRandom.checked = v.pitchRandom;
+
+      v.panAmount = Math.random();
+      ui.pan.value = Math.round(v.panAmount * 100);
+
+      v.depthAmount = Math.random();
+      ui.depth.value = Math.round(v.depthAmount * 100);
+      if (audioCtx) applyDepth(v);
+
+      v.reverse = Math.random() < 0.5;
+      ui.reverse.checked = v.reverse;
+
+      if (v.active) triggerVoice(v);
+    });
+  });
+
+  // shuffle every unlocked layer at once by reusing each voice's own dice
+  // button logic — locked voices are skipped, same as auto-sample/再サンプル
+  diceAllBtn.addEventListener("click", () => {
+    voiceEls.forEach((ui, i) => {
+      if (!voices[i].locked) ui.dice.click();
+    });
   });
 
   // ---- transport / master --------------------------------------------
