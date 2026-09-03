@@ -51,6 +51,15 @@
       </label>
       <p class="hint small">Dryは入力の生音、Wetは4レイヤーのループ＋エフェクト音です。Wet 100%だとエフェクトの音だけになります。</p>
 
+      <label class="check small">
+        <input type="checkbox" id="delayToggle" checked />
+        🔁 ディレイ（複合ディレイバス）を有効化
+      </label>
+      <p class="hint small">
+        全レイヤーが送るディレイのタップ位置は普段は固定です（スピード変化で音がグニャつくのを避けるため）。
+        🎲「全レイヤーをランダム化」を押すと、ここも新しい固定値へ瞬時に切り替わります（連続的な揺れではありません）。
+      </p>
+
       <div class="row">
         <button id="recordBtn" class="ghostBtn">● 録音開始</button>
         <span id="recordStatus" class="status">待機中</span>

@@ -47,6 +47,7 @@
 
   const masterVolSlider = el("masterVol");
   const bgAnimToggle = el("bgAnimToggle");
+  const delayToggle = el("delayToggle");
 
   const voiceEls = VOICE_LETTERS.map((letter) => ({
     letter,
@@ -94,7 +95,7 @@
   // ---- audio context + graph ------------------------------------------
 
   let audioCtx = null;
-  let masterGain, compressor, limiter, reverbNode, delayA, delayB;
+  let masterGain, compressor, limiter, reverbNode, delayA, delayB, delayBusGain;
   let inputGain, mainDryGain, mainWetGain, finalMix, sourceNode, mediaStream;
   let analyser, meterData;
   let workletSupported = false;
@@ -169,6 +170,11 @@
 
     // the "compound delay" bus: two non-multiple, damped feedback delay
     // lines that every voice can send into via its depth control
+    // shared on/off gate for the whole delay bus, and the point every
+    // voice's delay send actually connects to
+    delayBusGain = audioCtx.createGain();
+    delayBusGain.gain.value = delayToggle && !delayToggle.checked ? 0 : 1;
+
     delayA = audioCtx.createDelay(2.5);
     delayA.delayTime.value = 0.372;
     const fbA = audioCtx.createGain();
@@ -188,6 +194,9 @@
     dampB.frequency.value = 1800;
     delayB.connect(dampB).connect(fbB).connect(delayB);
     delayB.connect(masterGain);
+
+    delayBusGain.connect(delayA);
+    delayBusGain.connect(delayB);
 
     inputGain = audioCtx.createGain();
     inputGain.gain.value = 1.0;
@@ -218,6 +227,14 @@
 
     voices.forEach((v) => buildVoiceChain(v));
     drawMeter();
+
+    // browsers sometimes suspend a context on their own (backgrounding,
+    // power-saving, an unrelated audio-device change) — resume it silently
+    // instead of leaving playback dead with no visible cause
+    audioCtx.addEventListener("statechange", () => {
+      console.warn("AudioContext state changed to:", audioCtx.state);
+      if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+    });
   }
 
   // silent sink so tap nodes stay in the render graph across browsers
@@ -464,6 +481,14 @@
       inputStatus.textContent = `接続中: ${track.label || "入力デバイス"}`;
       armBtn.textContent = "再接続";
 
+      // a USB interface dropping out (power/driver hiccup) ends the track
+      // silently otherwise — surface it instead of leaving the input just
+      // as dead as if nothing were wrong
+      track.onended = () => {
+        inputStatus.textContent = "入力が切断されました。「入力を接続」でもう一度繋いでください。";
+        armBtn.textContent = "入力を接続";
+      };
+
       bootstrapActiveVoices();
     } catch (err) {
       // whatever failed above (permission denial, no secure context, no
@@ -663,8 +688,7 @@
     v.depthFilter.connect(v.dryGain).connect(masterGain);
     v.depthFilter.connect(v.wetGain).connect(reverbNode);
     v.depthFilter.connect(v.delaySendGain);
-    v.delaySendGain.connect(delayA);
-    v.delaySendGain.connect(delayB);
+    v.delaySendGain.connect(delayBusGain);
 
     applyDepth(v);
   }
@@ -693,56 +717,71 @@
   }
 
   function triggerVoice(v, durationOverride) {
-    if (!audioCtx || ringSecondsAvailable() < 0.5) return;
+    // flow mode re-schedules itself from *inside* this function; if
+    // anything below threw, the chain used to just die silently for that
+    // voice — no error on screen, no retry, sound just stops for good.
+    // Wrapping the whole thing means a failure gets logged and, for a
+    // flow-mode voice, still gets a retry scheduled instead of going dark.
+    try {
+      if (!audioCtx || ringSecondsAvailable() < 0.5) return;
 
-    const duration = Math.min(durationOverride ?? pickDuration(), ringSecondsAvailable());
-    v.currentDuration = duration;
-    if (v.durLabel) v.durLabel.textContent = `${duration.toFixed(1)}s`;
+      const duration = Math.min(durationOverride ?? pickDuration(), ringSecondsAvailable());
+      v.currentDuration = duration;
+      if (v.durLabel) v.durLabel.textContent = `${duration.toFixed(1)}s`;
 
-    const buffer = extractSnapshot(duration, v.reverse);
+      const buffer = extractSnapshot(duration, v.reverse);
 
-    if (v.pitchRandom) {
-      v.pitchDrift.set(randRange(-7, 7));
+      if (v.pitchRandom) {
+        v.pitchDrift.set(randRange(-7, 7));
+      }
+      const initialRate = v.pitchRandom ? v.speed * Math.pow(2, v.pitchDrift.value / 12) : v.speed;
+
+      const source = audioCtx.createBufferSource();
+      source.buffer = buffer;
+      source.loop = v.mode === "fixed";
+      source.playbackRate.value = initialRate;
+
+      const gainNode = audioCtx.createGain();
+      gainNode.gain.value = 0;
+      source.connect(gainNode).connect(v.panNode);
+
+      const now = audioCtx.currentTime;
+      gainNode.gain.setValueAtTime(0, now);
+      gainNode.gain.linearRampToValueAtTime(1, now + 0.15);
+
+      // give this grain its own place in the field right away, instead of
+      // waiting for the slow continuous wobble to happen to wander there —
+      // the ongoing drift then continues from this new spot rather than
+      // snapping back to wherever it was
+      if (v.panAmount > 0) {
+        const panJitter = randRange(-1, 1) * v.panAmount;
+        v.panDrift.set(panJitter);
+        v.panNode.pan.setTargetAtTime(panJitter, now, 0.06);
+      }
+      const depthJitter = Math.min(1, Math.max(0, v.depthAmount + randRange(-0.12, 0.12)));
+      applyDepth(v, depthJitter);
+
+      source.start(now);
+
+      if (v.currentSource) stopSourceSoon(v.currentSource, v.currentGain);
+      v.currentSource = source;
+      v.currentGain = gainNode;
+
+      if (v.mode === "flow") {
+        source.onended = null;
+        scheduleFlow(v, duration);
+      }
+
+      spawnParticle(v);
+    } catch (err) {
+      console.error(`triggerVoice(${v.letter}) failed:`, err);
+      if (v.mode === "flow" && v.active && !v.locked) {
+        // don't let one bad cycle end this voice's flow forever — retry
+        // shortly instead of dying silently
+        clearTimeout(v.flowTimer);
+        v.flowTimer = setTimeout(() => triggerVoice(v), 1500);
+      }
     }
-    const initialRate = v.pitchRandom ? v.speed * Math.pow(2, v.pitchDrift.value / 12) : v.speed;
-
-    const source = audioCtx.createBufferSource();
-    source.buffer = buffer;
-    source.loop = v.mode === "fixed";
-    source.playbackRate.value = initialRate;
-
-    const gainNode = audioCtx.createGain();
-    gainNode.gain.value = 0;
-    source.connect(gainNode).connect(v.panNode);
-
-    const now = audioCtx.currentTime;
-    gainNode.gain.setValueAtTime(0, now);
-    gainNode.gain.linearRampToValueAtTime(1, now + 0.15);
-
-    // give this grain its own place in the field right away, instead of
-    // waiting for the slow continuous wobble to happen to wander there —
-    // the ongoing drift then continues from this new spot rather than
-    // snapping back to wherever it was
-    if (v.panAmount > 0) {
-      const panJitter = randRange(-1, 1) * v.panAmount;
-      v.panDrift.set(panJitter);
-      v.panNode.pan.setTargetAtTime(panJitter, now, 0.06);
-    }
-    const depthJitter = Math.min(1, Math.max(0, v.depthAmount + randRange(-0.12, 0.12)));
-    applyDepth(v, depthJitter);
-
-    source.start(now);
-
-    if (v.currentSource) stopSourceSoon(v.currentSource, v.currentGain);
-    v.currentSource = source;
-    v.currentGain = gainNode;
-
-    if (v.mode === "flow") {
-      source.onended = null;
-      scheduleFlow(v, duration);
-    }
-
-    spawnParticle(v);
   }
 
   function scheduleFlow(v, justPlayedDuration) {
@@ -979,6 +1018,25 @@
     voiceEls.forEach((ui, i) => {
       if (!voices[i].locked) ui.dice.click();
     });
+    randomizeDelayTimes();
+  });
+
+  // the delay bus's own character (its two tap times) never changed on
+  // its own — dice now gives it a fresh, but *fixed*, character each
+  // time. This is a discrete jump (setValueAtTime), not a ramp: sliding
+  // delayTime continuously while audio is flowing through it is what
+  // causes the pitch-bending "warble" that was explicitly not wanted —
+  // an instant jump doesn't do that, it's just a new tap point.
+  function randomizeDelayTimes() {
+    if (!audioCtx) return;
+    const now = audioCtx.currentTime;
+    delayA.delayTime.setValueAtTime(randRange(0.15, 0.9), now);
+    delayB.delayTime.setValueAtTime(randRange(0.15, 0.9), now);
+  }
+
+  delayToggle?.addEventListener("change", () => {
+    if (!audioCtx) return;
+    delayBusGain.gain.setTargetAtTime(delayToggle.checked ? 1 : 0, audioCtx.currentTime, 0.05);
   });
 
   // ---- transport / master --------------------------------------------
