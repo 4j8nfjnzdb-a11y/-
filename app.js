@@ -46,6 +46,7 @@
   const flashRow = new Array(TRACKS.length).fill(0); // ms timestamp until which cable glows
 
   const playBtn = document.getElementById("playBtn");
+  const recBtn = document.getElementById("recBtn");
   const chaosBtn = document.getElementById("chaosBtn");
   const randomBtn = document.getElementById("randomBtn");
   const clearBtn = document.getElementById("clearBtn");
@@ -495,6 +496,127 @@
   }
 
   playBtn.addEventListener("click", () => (running ? stop() : start()));
+
+  // ---- WAV recorder ----------------------------------------------------
+  // Taps the master bus with a ScriptProcessorNode running in parallel to
+  // normal playback (routed to a muted gain so it doesn't add an extra
+  // audible path), buffers raw stereo float samples, and on stop encodes
+  // them straight into a 16-bit PCM WAV file for download.
+
+  let isRecording = false;
+  let recProcessor = null;
+  let recSilent = null;
+  let recChunksL = [];
+  let recChunksR = [];
+  let recTimer = null;
+  let recStartedAt = 0;
+
+  function formatElapsed(seconds) {
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }
+
+  function startRecording() {
+    if (!audioCtx) initAudio();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+
+    recChunksL = [];
+    recChunksR = [];
+    recProcessor = audioCtx.createScriptProcessor(4096, 2, 2);
+    recSilent = audioCtx.createGain();
+    recSilent.gain.value = 0;
+    masterGain.connect(recProcessor);
+    recProcessor.connect(recSilent);
+    recSilent.connect(audioCtx.destination);
+    recProcessor.onaudioprocess = (e) => {
+      recChunksL.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+      recChunksR.push(new Float32Array(e.inputBuffer.getChannelData(1)));
+    };
+
+    isRecording = true;
+    recStartedAt = performance.now();
+    recBtn.classList.add("recording");
+    recTimer = setInterval(() => {
+      recBtn.textContent = `■ ${formatElapsed((performance.now() - recStartedAt) / 1000)}`;
+    }, 250);
+  }
+
+  function encodeWav(chunksL, chunksR, sampleRate) {
+    const frameCount = chunksL.reduce((sum, c) => sum + c.length, 0);
+    const buffer = new ArrayBuffer(44 + frameCount * 4);
+    const view = new DataView(buffer);
+
+    const writeString = (offset, str) => {
+      for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+    };
+
+    writeString(0, "RIFF");
+    view.setUint32(4, 36 + frameCount * 4, true);
+    writeString(8, "WAVE");
+    writeString(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true); // PCM
+    view.setUint16(22, 2, true); // stereo
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 4, true); // byte rate (2ch * 2 bytes)
+    view.setUint16(32, 4, true); // block align
+    view.setUint16(34, 16, true); // bits per sample
+    writeString(36, "data");
+    view.setUint32(40, frameCount * 4, true);
+
+    let pos = 44;
+    for (let c = 0; c < chunksL.length; c++) {
+      const l = chunksL[c];
+      const r = chunksR[c];
+      for (let i = 0; i < l.length; i++) {
+        const sl = clamp(l[i], -1, 1);
+        const sr = clamp(r[i], -1, 1);
+        view.setInt16(pos, sl < 0 ? sl * 0x8000 : sl * 0x7fff, true);
+        view.setInt16(pos + 2, sr < 0 ? sr * 0x8000 : sr * 0x7fff, true);
+        pos += 4;
+      }
+    }
+
+    return new Blob([buffer], { type: "audio/wav" });
+  }
+
+  function stopRecording() {
+    isRecording = false;
+    clearInterval(recTimer);
+    recBtn.textContent = "⏺ REC";
+    recBtn.classList.remove("recording");
+
+    if (recProcessor) {
+      recProcessor.onaudioprocess = null;
+      masterGain.disconnect(recProcessor);
+      recProcessor.disconnect();
+      recSilent.disconnect();
+      recProcessor = null;
+      recSilent = null;
+    }
+
+    if (recChunksL.length === 0) return;
+
+    const blob = encodeWav(recChunksL, recChunksR, audioCtx.sampleRate);
+    recChunksL = [];
+    recChunksR = [];
+
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `PULSAR-23_${stamp}.wav`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
+  recBtn.addEventListener("click", () => (isRecording ? stopRecording() : startRecording()));
 
   chaosBtn.addEventListener("click", () => {
     if (!audioCtx) initAudio();
