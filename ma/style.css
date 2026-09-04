@@ -47,12 +47,55 @@ body {
   border: 1px solid rgba(234, 230, 223, 0.14);
 }
 
+.breathWrap {
+  position: absolute;
+  inset: 0;
+  transition: opacity 0.4s ease;
+}
+
+.breathWrap.hidden {
+  opacity: 0;
+}
+
 .breath {
   position: absolute;
   inset: 32%;
   border-radius: 50%;
   background: radial-gradient(circle, rgba(217, 185, 140, 0.22), rgba(217, 185, 140, 0) 70%);
   animation: breathe 4.6s ease-in-out infinite;
+}
+
+.maLabel {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3.2rem;
+  font-weight: 300;
+  color: var(--accent);
+  opacity: 0;
+  transition: opacity 1.1s ease;
+  pointer-events: none;
+}
+
+.maLabel.show {
+  opacity: 0.5;
+}
+
+.ring.burstFlash::after {
+  content: "";
+  position: absolute;
+  inset: -25%;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--accent) 0%, rgba(217, 185, 140, 0) 68%);
+  animation: burst 0.55s cubic-bezier(0.1, 0.7, 0.3, 1) forwards;
+  pointer-events: none;
+}
+
+@keyframes burst {
+  0% { transform: scale(0.15); opacity: 0.95; }
+  100% { transform: scale(2.5); opacity: 0; }
 }
 
 @keyframes breathe {
@@ -168,6 +211,15 @@ button {
 .ghostBtn.muted {
   border-color: rgba(217, 185, 140, 0.6);
   color: var(--accent);
+}
+
+.explodeBtn {
+  border-color: rgba(217, 185, 140, 0.45);
+}
+
+.explodeBtn:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 .controls {

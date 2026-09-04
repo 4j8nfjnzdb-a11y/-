@@ -9,7 +9,8 @@
 <body>
   <div class="stage">
     <div class="ring" id="ring">
-      <div class="breath" id="breath"></div>
+      <div class="breathWrap" id="breathWrap"><div class="breath" id="breath"></div></div>
+      <div class="maLabel" id="maLabel">間</div>
       <div class="playhead" id="playhead"></div>
     </div>
   </div>
@@ -17,12 +18,13 @@
   <main class="ui">
     <header>
       <h1>間 <span class="sub">ma</span></h1>
-      <p class="tagline">音を消しても、音楽は続いているか。円をタップして間(ま)を配置する ── 構造だけの楽器。</p>
+      <p class="tagline">音を消しても、音楽は続いているか。円をタップして間(ま)を配置する ── 構造だけの楽器。爆発は、すべてを鳴らし尽くしてから、間に落ちる。</p>
     </header>
 
     <div class="transport">
       <button id="playBtn" class="playBtn">再生</button>
       <button id="soundBtn" class="ghostBtn">音: オン</button>
+      <button id="explodeBtn" class="ghostBtn explodeBtn">爆発</button>
     </div>
 
     <div class="controls">
