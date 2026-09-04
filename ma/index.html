@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>間 — ma</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="stage">
+    <div class="ring" id="ring">
+      <div class="breath" id="breath"></div>
+      <div class="playhead" id="playhead"></div>
+    </div>
+  </div>
+
+  <main class="ui">
+    <header>
+      <h1>間 <span class="sub">ma</span></h1>
+      <p class="tagline">音を消しても、音楽は続いているか。円をタップして間(ま)を配置する ── 構造だけの楽器。</p>
+    </header>
+
+    <div class="transport">
+      <button id="playBtn" class="playBtn">再生</button>
+      <button id="soundBtn" class="ghostBtn">音: オン</button>
+    </div>
+
+    <div class="controls">
+      <label class="slider">
+        <span>速さ <em>tempo</em></span>
+        <input id="tempo" type="range" min="30" max="160" value="72" />
+      </label>
+    </div>
+
+    <p class="prompt" id="prompt">拍だけがある。音がなくても、間は続く。</p>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
