@@ -50,6 +50,15 @@
     return (file.type && file.type.startsWith("audio/")) || AUDIO_EXT.test(file.name);
   }
 
+  // iOS/iPadOS has no real directory-picker support: an input with
+  // webkitdirectory shows Files.app but greys out every individual file
+  // (it's holding out for a folder), so skip that attribute there and
+  // fall back to plain multi-select, which iOS handles fine
+  function isIOS() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent)
+      || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  }
+
   // ---------------------------------------------------------------- audio engine
 
   let ctx = null;
@@ -1026,11 +1035,15 @@
     const folderBtn = document.createElement("button");
     folderBtn.className = "toggleBtn";
     folderBtn.textContent = "FOLDER";
-    folderBtn.title = "サンプルの入ったフォルダを割り当てる";
     const folderInput = document.createElement("input");
     folderInput.type = "file";
     folderInput.multiple = true;
-    folderInput.webkitdirectory = true;
+    if (isIOS()) {
+      folderBtn.title = "サンプルファイルを複数選択（iOSはフォルダ選択に非対応のため複数選択になります）";
+    } else {
+      folderInput.webkitdirectory = true;
+      folderBtn.title = "サンプルの入ったフォルダを割り当てる";
+    }
     folderInput.className = "visuallyHiddenInput";
     folderBtn.addEventListener("click", () => { ensureAudio(); folderInput.click(); });
     folderInput.addEventListener("change", async () => {
