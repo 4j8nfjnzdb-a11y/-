@@ -180,6 +180,30 @@
     return new Blob([buffer], { type: "audio/wav" });
   }
 
+  // when running inside a capability-aware host (e.g. a published
+  // Artifact), a plain <a download> click is inert — go through the
+  // platform's save prompt instead; otherwise (a normal page load)
+  // trigger a real browser download directly
+  async function saveBlobAsFile(filename, blob) {
+    const inHostedFrame = !!(window.claude && typeof window.claude.use === "function");
+    if (inHostedFrame) {
+      try {
+        const dl = await window.claude.use("downloads");
+        if (dl) { await dl.save({ filename, data: blob }); return true; }
+      } catch (e) { /* fall through to false */ }
+      return false;
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    return true;
+  }
+
   function startMasterRecording() {
     ensureAudio();
     if (masterRecording) return;
@@ -187,6 +211,7 @@
     recBuffersR = [];
     masterRecording = true;
     recStartTime = performance.now();
+    tracks.forEach((t) => t.startStemRecording());
     if (masterRecBtn) { masterRecBtn.classList.add("active"); masterRecBtn.textContent = "■ STOP REC"; }
     recTimerInterval = setInterval(() => {
       const sec = (performance.now() - recStartTime) / 1000;
@@ -201,42 +226,35 @@
     clearInterval(recTimerInterval);
     recTimerInterval = null;
     if (masterRecBtn) { masterRecBtn.classList.remove("active"); masterRecBtn.textContent = "● REC"; }
-    if (!recBuffersL.length) { if (masterRecStatus) masterRecStatus.textContent = ""; return; }
 
-    const blob = encodeWavBlob(recBuffersL, recBuffersR, ctx.sampleRate);
-    recBuffersL = [];
-    recBuffersR = [];
     const ts = new Date();
     const pad = (n) => String(n).padStart(2, "0");
-    const filename = `torso_${ts.getFullYear()}${pad(ts.getMonth() + 1)}${pad(ts.getDate())}_${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}.wav`;
+    const baseName = `torso_${ts.getFullYear()}${pad(ts.getMonth() + 1)}${pad(ts.getDate())}_${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}`;
 
-    // when running inside a capability-aware host (e.g. a published
-    // Artifact), a plain <a download> click is inert — go through the
-    // platform's save prompt instead; otherwise (a normal page load)
-    // trigger a real browser download directly
-    const inHostedFrame = !!(window.claude && typeof window.claude.use === "function");
-    let saved = false;
-    if (inHostedFrame) {
-      try {
-        const dl = await window.claude.use("downloads");
-        if (dl) { await dl.save({ filename, data: blob }); saved = true; }
-      } catch (e) { saved = false; }
-    } else {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 30000);
-      saved = true;
+    let total = 0, saved = 0;
+
+    if (recBuffersL.length) {
+      total++;
+      const blob = encodeWavBlob(recBuffersL, recBuffersR, ctx.sampleRate);
+      recBuffersL = [];
+      recBuffersR = [];
+      if (await saveBlobAsFile(`${baseName}.wav`, blob)) saved++;
+    }
+
+    // stop + collect each track's stem regardless of whether the master
+    // bus captured anything, so they always match what was armed at start
+    for (let i = 0; i < tracks.length; i++) {
+      const blob = tracks[i].stopStemRecording();
+      if (blob) {
+        total++;
+        if (await saveBlobAsFile(`${baseName}_track${i + 1}.wav`, blob)) saved++;
+      }
     }
 
     if (masterRecStatus) {
-      masterRecStatus.textContent = saved
-        ? `saved: ${filename}`
-        : "この環境では保存できません（ローカル版でお試しください）";
+      if (total === 0) masterRecStatus.textContent = "";
+      else if (saved === total) masterRecStatus.textContent = `saved ${saved} files: ${baseName}...`;
+      else masterRecStatus.textContent = `${saved}/${total} saved — この環境では一部保存できません`;
     }
   }
 
@@ -395,6 +413,9 @@
       this.mediaStream = null;
       this.folderFiles = [];
       this.folderName = "";
+      this.stemRecording = false;
+      this.stemBuffersL = [];
+      this.stemBuffersR = [];
 
       this.params = {
         mode: "loop",
@@ -556,6 +577,36 @@
       this.reverbSend = ctx.createGain();
       this.reverbSend.gain.value = p.depth * 1.1;
       this.levelGain.connect(this.reverbSend).connect(reverbConvolver);
+
+      // per-track stem recorder: taps this track's own post-fader signal
+      // (what it actually contributes to the mix), fires alongside the
+      // master recorder
+      this.stemTap = ctx.createScriptProcessor(4096, 2, 2);
+      this.stemSilence = ctx.createGain();
+      this.stemSilence.gain.value = 0;
+      this.levelGain.connect(this.stemTap);
+      this.stemTap.connect(this.stemSilence).connect(ctx.destination);
+      this.stemTap.onaudioprocess = (e) => {
+        if (!this.stemRecording) return;
+        const inBuf = e.inputBuffer;
+        this.stemBuffersL.push(inBuf.getChannelData(0).slice());
+        this.stemBuffersR.push((inBuf.numberOfChannels > 1 ? inBuf.getChannelData(1) : inBuf.getChannelData(0)).slice());
+      };
+    }
+
+    startStemRecording() {
+      this.stemBuffersL = [];
+      this.stemBuffersR = [];
+      this.stemRecording = true;
+    }
+
+    stopStemRecording() {
+      this.stemRecording = false;
+      if (!this.stemBuffersL.length) return null;
+      const blob = encodeWavBlob(this.stemBuffersL, this.stemBuffersR, ctx.sampleRate);
+      this.stemBuffersL = [];
+      this.stemBuffersR = [];
+      return blob;
     }
 
     updateTextureCurve() {
