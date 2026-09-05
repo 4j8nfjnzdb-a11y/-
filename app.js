@@ -1000,7 +1000,10 @@
     loadBtn.textContent = "LOAD";
     const fileInput = document.createElement("input");
     fileInput.type = "file";
-    fileInput.accept = "audio/*";
+    // no accept filter: iOS's UTI-based audio filtering is inconsistent
+    // and can grey out valid files (e.g. Voice Memos moved into Files)
+    // that don't cleanly conform to what it expects from "audio/*" —
+    // decodeAudioData below already rejects anything that isn't audio
     fileInput.className = "visuallyHiddenInput";
     loadBtn.addEventListener("click", () => { ensureAudio(); fileInput.click(); });
     fileInput.addEventListener("change", async () => {
