@@ -1,418 +1,450 @@
-// kizashi — generative ambient
+// GLITCH DECODER — video corruption toy
 //
-// The idea: build a texture that reads as "repetition" (steady pulse,
-// familiar scale, cyclic pads) while every layer runs on its own
-// incommensurate clock and a slowly-drifting probability of firing at
-// all. The listener's short-term predictive model never quite locks in
-// — each layer swerves a little before it would become obvious — but
-// nothing is ever pure noise either. That balance is tuned by the
-// "swerve" and "density" sliders.
+// Pipeline per frame:
+//   1. pull a fresh frame into an offscreen "frame buffer" (skipped while
+//      frozen, which is what makes the base image hold still while the
+//      corruption layered on top keeps moving)
+//   2. blit the buffer onto the visible canvas
+//   3. layer chaos-scaled effects on top, each gated by its own toggle
+// Everything is driven by one 0-100 "chaos" value; at 0 the output is a
+// clean passthrough, at 100 every effect fires large and often.
 
 (() => {
-  const playBtn = document.getElementById("playBtn");
-  const paletteBtn = document.getElementById("paletteBtn");
-  const densitySlider = document.getElementById("density");
-  const toneSlider = document.getElementById("tone");
-  const swerveSlider = document.getElementById("swerve");
-  const canvas = document.getElementById("bg");
-  const ctx2d = canvas.getContext("2d");
+  const canvas = document.getElementById("canvas");
+  const mainCtx = canvas.getContext("2d");
+  const video = document.getElementById("sourceVideo");
+  const dropZone = document.getElementById("dropZone");
+  const placeholder = document.getElementById("placeholder");
+  const fileInput = document.getElementById("fileInput");
+  const sampleBtn = document.getElementById("sampleBtn");
+  const loadBtn = document.getElementById("loadBtn");
+  const muteBtn = document.getElementById("muteBtn");
+  const resetBtn = document.getElementById("resetBtn");
+  const playPauseBtn = document.getElementById("playPauseBtn");
+  const recordBtn = document.getElementById("recordBtn");
+  const downloadLink = document.getElementById("downloadLink");
+  const chaosSlider = document.getElementById("chaos");
+  const chaosValueLabel = document.getElementById("chaosValueLabel");
 
-  let audioCtx = null;
-  let master, dry, wet, reverbNode, delayA, delayB, delayFeedbackA, delayFeedbackB;
-  let padVoices = [];
-  let bellLayers = [];
-  let running = false;
-  let schedulerTimer = null;
-
-  // ---- musical material -------------------------------------------
-
-  const SCALES = {
-    // semitone offsets from root, chosen to always sound consonant
-    // no matter which degree becomes the melodic center
-    warm: [0, 2, 3, 7, 9, 10],      // dorian-ish, dusky
-    mid: [0, 2, 4, 7, 9, 11],       // major/ionian, open
-    bright: [0, 2, 4, 6, 9, 11],    // lydian-ish, lifted
+  const fx = {
+    block: document.getElementById("fxBlock"),
+    channel: document.getElementById("fxChannel"),
+    scan: document.getElementById("fxScan"),
+    freeze: document.getElementById("fxFreeze"),
+    sort: document.getElementById("fxSort"),
+    noise: document.getElementById("fxNoise"),
   };
 
-  const ROOTS = [48, 50, 53, 55, 57]; // C, D, F, G, A (midi, low register)
+  // offscreen working canvases
+  const fb = document.createElement("canvas");
+  const fbCtx = fb.getContext("2d");
+  const tintRed = document.createElement("canvas");
+  const tintRedCtx = tintRed.getContext("2d");
+  const tintCyan = document.createElement("canvas");
+  const tintCyanCtx = tintCyan.getContext("2d");
 
-  let palette = makePalette();
+  let w = 640, h = 360;
+  let mode = null; // "video" | "sample"
+  let hasSource = false;
+  let playing = false;
+  let objectUrl = null;
+  let sampleTime = 0;
+  let lastTs = 0;
+  let freezeCountdown = 0;
+  let channelDrift = 0;
+  let channelDriftTarget = 0;
+  let sortFrameCounter = 0;
+  let recorder = null;
+  let recording = false;
+  let recordedChunks = [];
 
-  function makePalette() {
-    const roots = ROOTS.slice();
-    const root = roots[Math.floor(Math.random() * roots.length)];
-    const hue = Math.random() * 360;
-    return { root, hue };
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const randInt = (lo, hi) => Math.floor(lo + Math.random() * (hi - lo + 1));
+
+  function setWorkSize(nw, nh) {
+    const maxW = 900;
+    let W = nw, H = nh;
+    if (W > maxW) {
+      H = Math.round((H * maxW) / W);
+      W = maxW;
+    }
+    w = W;
+    h = H;
+    canvas.width = w;
+    canvas.height = h;
+    fb.width = w;
+    fb.height = h;
+    tintRed.width = w;
+    tintRed.height = h;
+    tintCyan.width = w;
+    tintCyan.height = h;
   }
+  setWorkSize(640, 360);
 
-  function midiToFreq(m) {
-    return 440 * Math.pow(2, (m - 69) / 12);
-  }
+  // ---- sources ---------------------------------------------------
 
-  function scaleForTone(tone) {
-    // tone: 0..100 -> warm..bright
-    if (tone < 33) return SCALES.warm;
-    if (tone < 66) return SCALES.mid;
-    return SCALES.bright;
-  }
-
-  function pickDegree(layer) {
-    const scale = scaleForTone(+toneSlider.value);
-    const degree = scale[Math.floor(Math.random() * scale.length)];
-    return palette.root + degree + layer.octave * 12;
-  }
-
-  // ---- smoothed randomness (organic "swerve", not white noise) -----
-
-  function makeDrift(min, max, start) {
-    let value = start ?? (min + max) / 2;
-    let target = value;
-    return {
-      get value() { return value; },
-      tick(rate) {
-        if (Math.random() < 0.08) {
-          target = min + Math.random() * (max - min);
-        }
-        value += (target - value) * rate;
-        return value;
-      },
+  function loadVideoFile(file) {
+    mode = "video";
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    objectUrl = URL.createObjectURL(file);
+    video.src = objectUrl;
+    video.onloadedmetadata = () => {
+      setWorkSize(video.videoWidth || 640, video.videoHeight || 360);
+      hasSource = true;
+      placeholder.style.display = "none";
+      playPauseBtn.disabled = false;
+      recordBtn.disabled = false;
+      muteBtn.disabled = false;
+      video.play();
+      playing = true;
+      updatePlayButton();
     };
   }
 
-  // ---- audio graph ---------------------------------------------------
-
-  function buildImpulseResponse(context, duration, decay) {
-    const rate = context.sampleRate;
-    const length = Math.floor(rate * duration);
-    const impulse = context.createBuffer(2, length, rate);
-    for (let ch = 0; ch < 2; ch++) {
-      const data = impulse.getChannelData(ch);
-      for (let i = 0; i < length; i++) {
-        const t = i / length;
-        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, decay);
-      }
-    }
-    return impulse;
+  function useSample() {
+    mode = "sample";
+    sampleTime = 0;
+    setWorkSize(640, 360);
+    hasSource = true;
+    playing = true;
+    placeholder.style.display = "none";
+    playPauseBtn.disabled = false;
+    recordBtn.disabled = false;
+    updatePlayButton();
   }
 
-  function initAudio() {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  function drawSamplePattern(ctx, t) {
+    const hue = (t * 15) % 360;
+    const grad = ctx.createLinearGradient(0, 0, w, h);
+    grad.addColorStop(0, `hsl(${hue}, 50%, 18%)`);
+    grad.addColorStop(1, `hsl(${(hue + 80) % 360}, 50%, 10%)`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
 
-    master = audioCtx.createGain();
-    master.gain.value = 0.85;
-
-    const compressor = audioCtx.createDynamicsCompressor();
-    compressor.threshold.value = -18;
-    compressor.ratio.value = 3;
-
-    master.connect(compressor).connect(audioCtx.destination);
-
-    dry = audioCtx.createGain();
-    dry.gain.value = 0.55;
-    dry.connect(master);
-
-    wet = audioCtx.createGain();
-    wet.gain.value = 0.9;
-
-    reverbNode = audioCtx.createConvolver();
-    reverbNode.buffer = buildImpulseResponse(audioCtx, 5.5, 3.0);
-    reverbNode.connect(wet);
-    wet.connect(master);
-
-    // two non-multiple delay lines, damped feedback, for a soft
-    // shimmering space that never quite settles into a fixed comb
-    delayA = audioCtx.createDelay(2.0);
-    delayA.delayTime.value = 0.372;
-    delayFeedbackA = audioCtx.createGain();
-    delayFeedbackA.gain.value = 0.38;
-    const dampA = audioCtx.createBiquadFilter();
-    dampA.type = "lowpass";
-    dampA.frequency.value = 2200;
-    delayA.connect(dampA).connect(delayFeedbackA).connect(delayA);
-    delayA.connect(wet);
-
-    delayB = audioCtx.createDelay(2.0);
-    delayB.delayTime.value = 0.551;
-    delayFeedbackB = audioCtx.createGain();
-    delayFeedbackB.gain.value = 0.33;
-    const dampB = audioCtx.createBiquadFilter();
-    dampB.type = "lowpass";
-    dampB.frequency.value = 1800;
-    delayB.connect(dampB).connect(delayFeedbackB).connect(delayB);
-    delayB.connect(wet);
-
-    buildPads();
-    buildBellLayers();
-  }
-
-  function sendToSpace(node, delayAmt, reverbAmt, dryAmt) {
-    const dg = audioCtx.createGain();
-    dg.gain.value = dryAmt;
-    node.connect(dg).connect(dry);
-
-    const rg = audioCtx.createGain();
-    rg.gain.value = reverbAmt;
-    node.connect(rg).connect(reverbNode);
-
-    const dla = audioCtx.createGain();
-    dla.gain.value = delayAmt;
-    node.connect(dla).connect(delayA);
-    node.connect(dla).connect(delayB);
-  }
-
-  // ---- pad drone layer: slow, cyclic-feeling, never exactly cyclic --
-
-  function buildPads() {
-    padVoices.forEach((v) => v.stopAll && v.stopAll());
-    padVoices = [];
-
-    const intervals = [0, 7, 12, 16]; // root, fifth, octave, tenth-ish
-    intervals.forEach((iv, i) => {
-      const osc = audioCtx.createOscillator();
-      osc.type = i % 2 === 0 ? "sine" : "triangle";
-      const detune = (Math.random() * 2 - 1) * 6;
-      osc.detune.value = detune;
-
-      const gain = audioCtx.createGain();
-      gain.gain.value = 0;
-
-      const filter = audioCtx.createBiquadFilter();
-      filter.type = "lowpass";
-      filter.frequency.value = 900;
-      filter.Q.value = 0.4;
-
-      osc.connect(filter).connect(gain);
-      sendToSpace(gain, 0.5, 0.8, 0.25);
-
-      osc.start();
-
-      // each voice's filter LFO period is an irrational-ish multiple
-      // of the others, so the ensemble never repeats a combined shape
-      const lfoPeriod = 17 + i * 6.28 + Math.random() * 4;
-      padVoices.push({
-        osc, gain, filter, interval: iv,
-        lfoPeriod, phase: Math.random() * Math.PI * 2,
-        targetGain: 0.05 + Math.random() * 0.03,
-        stopAll() { try { osc.stop(); } catch (e) {} },
-      });
-    });
-
-    crossfadePadsToPalette(4);
-  }
-
-  function crossfadePadsToPalette(rampSeconds) {
-    const now = audioCtx.currentTime;
-    padVoices.forEach((v) => {
-      const freq = midiToFreq(palette.root + v.interval);
-      v.osc.frequency.cancelScheduledValues(now);
-      v.osc.frequency.setValueAtTime(v.osc.frequency.value || freq, now);
-      v.osc.frequency.linearRampToValueAtTime(freq, now + rampSeconds);
-
-      v.gain.gain.cancelScheduledValues(now);
-      v.gain.gain.setValueAtTime(v.gain.gain.value, now);
-      v.gain.gain.linearRampToValueAtTime(0, now + rampSeconds * 0.5);
-      v.gain.gain.linearRampToValueAtTime(v.targetGain, now + rampSeconds * 2);
-    });
-  }
-
-  function updatePads(t) {
-    padVoices.forEach((v) => {
-      const lfo = Math.sin((t / v.lfoPeriod) * Math.PI * 2 + v.phase);
-      const tone = +toneSlider.value / 100;
-      const base = 500 + tone * 1400;
-      v.filter.frequency.setTargetAtTime(base + lfo * 260, audioCtx.currentTime, 0.6);
-    });
-  }
-
-  // ---- sparse melodic "bell" layers ----------------------------------
-  // Each layer keeps its own clock. On every tick it may or may not
-  // fire, governed by a probability that random-walks between a low
-  // and high bound — the swerve control widens or narrows that walk.
-
-  function buildBellLayers() {
-    bellLayers = [
-      { octave: 1, baseInterval: 2.6, gain: 0.16, decayMin: 1.8, decayMax: 4.5,
-        prob: makeDrift(0.15, 0.7, 0.4), jitter: makeDrift(-1, 1, 0), nextTime: 0 },
-      { octave: 2, baseInterval: 1.7, gain: 0.11, decayMin: 1.2, decayMax: 3.0,
-        prob: makeDrift(0.1, 0.65, 0.3), jitter: makeDrift(-1, 1, 0), nextTime: 0 },
-      { octave: 3, baseInterval: 4.1, gain: 0.09, decayMin: 2.0, decayMax: 5.5,
-        prob: makeDrift(0.08, 0.5, 0.2), jitter: makeDrift(-1, 1, 0), nextTime: 0 },
-    ];
-    const now = audioCtx.currentTime;
-    bellLayers.forEach((l, i) => { l.nextTime = now + 1 + i * 0.7; });
-  }
-
-  function triggerBell(layer, time) {
-    const midi = pickDegree(layer);
-    const freq = midiToFreq(midi);
-    const decay = layer.decayMin + Math.random() * (layer.decayMax - layer.decayMin);
-
-    const osc = audioCtx.createOscillator();
-    osc.type = "sine";
-    osc.frequency.value = freq;
-
-    const partial = audioCtx.createOscillator();
-    partial.type = "sine";
-    partial.frequency.value = freq * 2.01;
-    const partialGain = audioCtx.createGain();
-    partialGain.gain.value = 0.18;
-
-    const env = audioCtx.createGain();
-    env.gain.setValueAtTime(0, time);
-    env.gain.linearRampToValueAtTime(layer.gain, time + 0.03);
-    env.gain.exponentialRampToValueAtTime(0.0005, time + decay);
-
-    const filter = audioCtx.createBiquadFilter();
-    filter.type = "lowpass";
-    const tone = +toneSlider.value / 100;
-    filter.frequency.value = 700 + tone * 3500;
-    filter.Q.value = 0.6;
-
-    const panner = audioCtx.createStereoPanner();
-    panner.pan.value = (Math.random() * 2 - 1) * 0.7;
-
-    osc.connect(filter);
-    partial.connect(partialGain).connect(filter);
-    filter.connect(env).connect(panner);
-
-    sendToSpace(panner, 0.55, 0.7, 0.35);
-
-    osc.start(time);
-    partial.start(time);
-    osc.stop(time + decay + 0.2);
-    partial.stop(time + decay + 0.2);
-
-    spawnParticle(midi, panner.pan.value, decay);
-  }
-
-  function scheduleBells() {
-    const now = audioCtx.currentTime;
-    const lookahead = 0.25;
-    const density = +densitySlider.value / 100;
-    const swerve = +swerveSlider.value / 100;
-
-    bellLayers.forEach((layer) => {
-      while (layer.nextTime < now + lookahead) {
-        const t = layer.nextTime;
-
-        // probability itself drifts — this is the "dodge the
-        // prediction just before it forms" mechanism
-        const walkRate = 0.05 + swerve * 0.25;
-        const p = layer.prob.tick(walkRate);
-        const effectiveP = Math.min(0.95, p + density * 0.35);
-
-        if (Math.random() < effectiveP) {
-          triggerBell(layer, t);
+    const cell = 40;
+    ctx.save();
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = "#fff";
+    for (let y = -cell; y < h + cell; y += cell) {
+      for (let x = -cell; x < w + cell; x += cell) {
+        const ox = (x + t * 20) % (cell * 2);
+        if ((Math.floor(ox / cell) + Math.floor(y / cell)) % 2 === 0) {
+          ctx.fillRect(x, y, cell, cell);
         }
-
-        const jitterAmt = layer.jitter.tick(0.15) * (0.15 + swerve * 0.35);
-        const interval = layer.baseInterval * (1 + jitterAmt) / (0.4 + density * 0.9);
-        layer.nextTime = t + Math.max(0.35, interval);
       }
-    });
-  }
-
-  // ---- transport -------------------------------------------------
-
-  let lastPadUpdate = 0;
-
-  function schedulerLoop() {
-    if (!running) return;
-    scheduleBells();
-    const t = audioCtx.currentTime;
-    if (t - lastPadUpdate > 0.08) {
-      updatePads(t);
-      lastPadUpdate = t;
     }
-    schedulerTimer = setTimeout(schedulerLoop, 60);
+    ctx.restore();
+
+    const bx = w / 2 + Math.sin(t * 0.9) * w * 0.32;
+    const by = h / 2 + Math.cos(t * 1.3) * h * 0.28;
+    ctx.beginPath();
+    ctx.fillStyle = "#ffe62e";
+    ctx.arc(bx, by, Math.min(w, h) * 0.06, 0, Math.PI * 2);
+    ctx.fill();
+
+    const secs = Math.floor(t);
+    const mm = String(Math.floor(secs / 60));
+    const ss = String(secs % 60).padStart(2, "0");
+    ctx.fillStyle = "rgba(0,0,0,0.5)";
+    ctx.fillRect(10, 10, 90, 34);
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 22px monospace";
+    ctx.textBaseline = "middle";
+    ctx.fillText(`${mm}:${ss}`, 18, 27);
+
+    ctx.fillStyle = "rgba(255,255,255,0.6)";
+    ctx.font = "12px monospace";
+    ctx.fillText("SAMPLE FEED", w - 140, h - 16);
   }
 
-  function start() {
-    if (!audioCtx) initAudio();
-    if (audioCtx.state === "suspended") audioCtx.resume();
-    running = true;
-    schedulerLoop();
-    playBtn.textContent = "停止";
-    playBtn.classList.add("playing");
-  }
-
-  function stop() {
-    running = false;
-    clearTimeout(schedulerTimer);
-    if (audioCtx) {
-      const now = audioCtx.currentTime;
-      master.gain.setTargetAtTime(0, now, 0.3);
-      setTimeout(() => {
-        if (!running) master.gain.setTargetAtTime(0.85, audioCtx.currentTime, 0.01);
-      }, 1200);
+  function pullFrameIntoBuffer() {
+    if (mode === "video") {
+      if (video.readyState >= 2) fbCtx.drawImage(video, 0, 0, w, h);
+    } else if (mode === "sample") {
+      drawSamplePattern(fbCtx, sampleTime);
     }
-    playBtn.textContent = "再生";
-    playBtn.classList.remove("playing");
   }
 
-  playBtn.addEventListener("click", () => {
-    if (running) stop(); else start();
+  // ---- glitch effects ---------------------------------------------
+
+  function applyChannelShift(chaosNorm) {
+    if (Math.random() < 0.05) channelDriftTarget = Math.random() * 2 - 1;
+    channelDrift += (channelDriftTarget - channelDrift) * 0.2;
+    const offset = Math.round(channelDrift * chaosNorm * 30);
+    if (offset === 0) return;
+
+    // isolate a channel with no per-pixel loop: multiplying by a pure
+    // primary zeroes the other two channels (src * 255/255 vs src * 0)
+    tintRedCtx.clearRect(0, 0, w, h);
+    tintRedCtx.drawImage(canvas, 0, 0, w, h);
+    tintRedCtx.globalCompositeOperation = "multiply";
+    tintRedCtx.fillStyle = "#ff0000";
+    tintRedCtx.fillRect(0, 0, w, h);
+    tintRedCtx.globalCompositeOperation = "source-over";
+
+    tintCyanCtx.clearRect(0, 0, w, h);
+    tintCyanCtx.drawImage(canvas, 0, 0, w, h);
+    tintCyanCtx.globalCompositeOperation = "multiply";
+    tintCyanCtx.fillStyle = "#00ffff";
+    tintCyanCtx.fillRect(0, 0, w, h);
+    tintCyanCtx.globalCompositeOperation = "source-over";
+
+    mainCtx.globalCompositeOperation = "screen";
+    mainCtx.drawImage(tintRed, offset, 0);
+    mainCtx.drawImage(tintCyan, -offset, 0);
+    mainCtx.globalCompositeOperation = "source-over";
+  }
+
+  function applyBlockTear(chaosNorm) {
+    if (Math.random() > 0.25 + 0.65 * chaosNorm) return;
+    const count = 1 + Math.floor(Math.random() * (1 + chaosNorm * 14));
+    for (let i = 0; i < count; i++) {
+      const bw = Math.min(w, Math.round(8 + chaosNorm * 10 + Math.random() * (20 + chaosNorm * 140)));
+      const bh = Math.min(h, Math.round(8 + chaosNorm * 8 + Math.random() * (14 + chaosNorm * 90)));
+      const sx = Math.random() * (w - bw);
+      const sy = Math.random() * (h - bh);
+      const dx = clamp(sx + (Math.random() * 2 - 1) * chaosNorm * 90, 0, w - bw);
+      const dy = clamp(sy + (Math.random() * 2 - 1) * chaosNorm * 40, 0, h - bh);
+      mainCtx.drawImage(canvas, sx, sy, bw, bh, dx, dy, bw, bh);
+    }
+  }
+
+  function applyScanlineTear(chaosNorm) {
+    if (Math.random() > 0.2 + 0.6 * chaosNorm) return;
+    const lines = 1 + Math.floor(chaosNorm * 7);
+    for (let i = 0; i < lines; i++) {
+      const bh = Math.min(h, Math.round(2 + Math.random() * (2 + chaosNorm * 14)));
+      const sy = Math.random() * (h - bh);
+      const shift = Math.round((Math.random() * 2 - 1) * (20 + chaosNorm * 220));
+      mainCtx.drawImage(canvas, 0, sy, w, bh, shift, sy, w, bh);
+    }
+  }
+
+  const NOISE_PALETTE = ["#ff2e88", "#2ee6d6", "#ffffff", "#000000", "#ffe62e"];
+  function applyNoiseBlocks(chaosNorm) {
+    if (Math.random() > 0.3 + 0.5 * chaosNorm) return;
+    const count = Math.floor(chaosNorm * 6);
+    for (let i = 0; i < count; i++) {
+      const bw = Math.round(6 + Math.random() * (10 + chaosNorm * 60));
+      const bh = Math.round(4 + Math.random() * (6 + chaosNorm * 30));
+      const x = Math.random() * Math.max(1, w - bw);
+      const y = Math.random() * Math.max(1, h - bh);
+      mainCtx.globalAlpha = 0.35 + Math.random() * 0.5;
+      mainCtx.globalCompositeOperation = Math.random() < 0.5 ? "difference" : "source-over";
+      mainCtx.fillStyle = NOISE_PALETTE[Math.floor(Math.random() * NOISE_PALETTE.length)];
+      mainCtx.fillRect(x, y, bw, bh);
+    }
+    mainCtx.globalAlpha = 1;
+    mainCtx.globalCompositeOperation = "source-over";
+  }
+
+  function applyPixelSort(chaosNorm) {
+    sortFrameCounter++;
+    const every = Math.max(1, 4 - Math.floor(chaosNorm * 3));
+    if (sortFrameCounter % every !== 0) return;
+
+    const stripH = Math.max(6, Math.min(h, Math.round(16 + chaosNorm * 90)));
+    const y0 = Math.floor(Math.random() * Math.max(1, h - stripH));
+    let imgData;
+    try {
+      imgData = mainCtx.getImageData(0, y0, w, stripH);
+    } catch (e) {
+      return;
+    }
+    const data = imgData.data;
+    const threshold = 60;
+
+    for (let row = 0; row < stripH; row++) {
+      const rowStart = row * w * 4;
+      let x = 0;
+      while (x < w) {
+        const idx = rowStart + x * 4;
+        const brightness = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+        if (brightness > threshold) {
+          let xEnd = x;
+          while (xEnd < w) {
+            const idx2 = rowStart + xEnd * 4;
+            const b2 = (data[idx2] + data[idx2 + 1] + data[idx2 + 2]) / 3;
+            if (b2 <= threshold) break;
+            xEnd++;
+          }
+          const runLen = xEnd - x;
+          if (runLen > 1) {
+            const pixels = [];
+            for (let k = 0; k < runLen; k++) {
+              const idx3 = rowStart + (x + k) * 4;
+              pixels.push([data[idx3], data[idx3 + 1], data[idx3 + 2], data[idx3 + 3]]);
+            }
+            pixels.sort((a, b) => a[0] + a[1] + a[2] - (b[0] + b[1] + b[2]));
+            for (let k = 0; k < runLen; k++) {
+              const idx3 = rowStart + (x + k) * 4;
+              data[idx3] = pixels[k][0];
+              data[idx3 + 1] = pixels[k][1];
+              data[idx3 + 2] = pixels[k][2];
+              data[idx3 + 3] = pixels[k][3];
+            }
+          }
+          x = xEnd;
+        } else {
+          x++;
+        }
+      }
+    }
+    mainCtx.putImageData(imgData, 0, y0);
+  }
+
+  // ---- main loop ---------------------------------------------------
+
+  function tick(now) {
+    requestAnimationFrame(tick);
+    const dt = lastTs ? Math.min(0.1, (now - lastTs) / 1000) : 0;
+    lastTs = now;
+    if (!hasSource) return;
+
+    if (mode === "sample" && playing) sampleTime += dt;
+
+    const chaosNorm = +chaosSlider.value / 100;
+
+    if (fx.freeze.checked) {
+      if (freezeCountdown > 0) {
+        freezeCountdown--;
+      } else {
+        if (playing) pullFrameIntoBuffer();
+        if (chaosNorm > 0 && Math.random() < chaosNorm * chaosNorm * 0.06) {
+          freezeCountdown = randInt(2, 3 + Math.floor(chaosNorm * 40));
+        }
+      }
+    } else if (playing) {
+      pullFrameIntoBuffer();
+    }
+
+    mainCtx.clearRect(0, 0, w, h);
+    mainCtx.drawImage(fb, 0, 0, w, h);
+
+    if (chaosNorm > 0) {
+      if (fx.channel.checked) applyChannelShift(chaosNorm);
+      if (fx.block.checked) applyBlockTear(chaosNorm);
+      if (fx.scan.checked) applyScanlineTear(chaosNorm);
+      if (fx.noise.checked) applyNoiseBlocks(chaosNorm);
+      if (fx.sort.checked) applyPixelSort(chaosNorm);
+    }
+  }
+  requestAnimationFrame(tick);
+
+  // ---- transport ----------------------------------------------------
+
+  function updatePlayButton() {
+    playPauseBtn.textContent = playing ? "一時停止" : "再生";
+    playPauseBtn.classList.toggle("primary", playing);
+  }
+
+  function togglePlay() {
+    if (!hasSource) return;
+    if (mode === "video") {
+      if (video.paused) {
+        video.play();
+        playing = true;
+      } else {
+        video.pause();
+        playing = false;
+      }
+    } else {
+      playing = !playing;
+    }
+    updatePlayButton();
+  }
+
+  playPauseBtn.addEventListener("click", togglePlay);
+
+  muteBtn.addEventListener("click", () => {
+    video.muted = !video.muted;
+    muteBtn.textContent = video.muted ? "🔇 音声" : "🔊 音声";
   });
 
-  paletteBtn.addEventListener("click", () => {
-    palette = makePalette();
-    if (audioCtx) crossfadePadsToPalette(6);
+  resetBtn.addEventListener("click", () => {
+    chaosSlider.value = 0;
+    chaosValueLabel.textContent = "0";
+    freezeCountdown = 0;
+    channelDrift = 0;
+    channelDriftTarget = 0;
   });
 
-  // ---- visual: quiet drifting field, loosely tied to note events -----
+  chaosSlider.addEventListener("input", () => {
+    chaosValueLabel.textContent = chaosSlider.value;
+  });
 
-  let particles = [];
-  let hue = palette.hue;
+  loadBtn.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", () => {
+    const f = fileInput.files && fileInput.files[0];
+    if (f) loadVideoFile(f);
+  });
 
-  function resizeCanvas() {
-    canvas.width = window.innerWidth * devicePixelRatio;
-    canvas.height = window.innerHeight * devicePixelRatio;
+  sampleBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    useSample();
+  });
+
+  dropZone.addEventListener("click", (e) => {
+    if (e.target.closest("button")) return;
+    if (!hasSource) fileInput.click();
+    else togglePlay();
+  });
+
+  ["dragenter", "dragover"].forEach((evt) =>
+    dropZone.addEventListener(evt, (e) => {
+      e.preventDefault();
+      dropZone.classList.add("dragOver");
+    })
+  );
+  ["dragleave", "drop"].forEach((evt) =>
+    dropZone.addEventListener(evt, (e) => {
+      e.preventDefault();
+      dropZone.classList.remove("dragOver");
+    })
+  );
+  dropZone.addEventListener("drop", (e) => {
+    const file = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (file && file.type.startsWith("video/")) loadVideoFile(file);
+  });
+
+  // ---- record / export ----------------------------------------------
+
+  function pickMimeType() {
+    const candidates = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
+    return candidates.find((t) => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || "";
   }
-  window.addEventListener("resize", resizeCanvas);
-  resizeCanvas();
 
-  function spawnParticle(midi, pan, decay) {
-    const w = canvas.width, h = canvas.height;
-    const x = ((midi % 24) / 24) * w * 0.8 + w * 0.1;
-    const y = h * 0.5 - pan * h * 0.32 + (Math.random() - 0.5) * h * 0.15;
-    particles.push({
-      x, y,
-      r: 4 * devicePixelRatio,
-      life: 0,
-      maxLife: Math.max(1.5, decay),
-      vx: (Math.random() - 0.5) * 6,
-      vy: (Math.random() - 0.5) * 6,
-    });
-    if (particles.length > 120) particles.shift();
+  function startRecording() {
+    const stream = canvas.captureStream(30);
+    const mime = pickMimeType();
+    recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+    recordedChunks = [];
+    recorder.ondataavailable = (e) => {
+      if (e.data && e.data.size) recordedChunks.push(e.data);
+    };
+    recorder.onstop = () => {
+      const blob = new Blob(recordedChunks, { type: "video/webm" });
+      const url = URL.createObjectURL(blob);
+      downloadLink.href = url;
+      downloadLink.download = `glitch-${Date.now()}.webm`;
+      downloadLink.style.display = "inline-flex";
+      downloadLink.textContent = "ダウンロード";
+    };
+    recorder.start();
+    recording = true;
+    recordBtn.textContent = "■ 録画停止";
+    recordBtn.classList.add("recording");
   }
 
-  function draw() {
-    const w = canvas.width, h = canvas.height;
-    hue = (hue + 0.01) % 360;
-    const targetHue = palette.hue;
-    hue += (targetHue - hue) * 0.0015;
-
-    ctx2d.fillStyle = `hsla(${hue}, 30%, 4%, 0.18)`;
-    ctx2d.fillRect(0, 0, w, h);
-
-    particles.forEach((p) => {
-      p.life += 1 / 60;
-      p.x += p.vx * 0.016;
-      p.y += p.vy * 0.016;
-      const t = p.life / p.maxLife;
-      const alpha = Math.max(0, 1 - t) * 0.5;
-      const r = p.r * (1 + t * 8);
-      const grad = ctx2d.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
-      grad.addColorStop(0, `hsla(${hue}, 60%, 75%, ${alpha})`);
-      grad.addColorStop(1, `hsla(${hue}, 60%, 75%, 0)`);
-      ctx2d.fillStyle = grad;
-      ctx2d.beginPath();
-      ctx2d.arc(p.x, p.y, r, 0, Math.PI * 2);
-      ctx2d.fill();
-    });
-    particles = particles.filter((p) => p.life < p.maxLife);
-
-    requestAnimationFrame(draw);
+  function stopRecording() {
+    if (recorder && recorder.state !== "inactive") recorder.stop();
+    recording = false;
+    recordBtn.textContent = "● 録画開始";
+    recordBtn.classList.remove("recording");
   }
-  requestAnimationFrame(draw);
+
+  recordBtn.addEventListener("click", () => {
+    if (!recording) startRecording();
+    else stopRecording();
+  });
 })();

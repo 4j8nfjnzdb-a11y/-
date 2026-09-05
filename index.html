@@ -3,39 +3,59 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>kizashi — generative ambient</title>
+<title>GLITCH DECODER — video corruption toy</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <canvas id="bg"></canvas>
-
-  <main class="ui">
+  <main class="app">
     <header>
-      <h1>kizashi <span class="sub">きざし</span></h1>
-      <p class="tagline">反復に見せかけて、予測の像を結ぶ寸前でかわし続けるアンビエント。</p>
+      <h1 data-text="GLITCH DECODER">GLITCH DECODER</h1>
+      <p class="tagline">動画を読み込んで、フェーダーを上げるほど壊れていく。止まる、跳ねる、裂ける、色がズレる。</p>
     </header>
 
-    <div class="transport">
-      <button id="playBtn" class="playBtn">再生</button>
-      <button id="paletteBtn" class="ghostBtn">配色を変える</button>
+    <div class="stage" id="dropZone">
+      <canvas id="canvas"></canvas>
+      <video id="sourceVideo" playsinline loop muted style="display:none"></video>
+      <div class="placeholder" id="placeholder">
+        <p>動画をドラッグ&ドロップ、またはクリックして選択</p>
+        <p class="or">— または —</p>
+        <button id="sampleBtn" class="ghostBtn">サンプル映像で試す</button>
+      </div>
+      <input id="fileInput" type="file" accept="video/*" hidden />
     </div>
 
-    <div class="controls">
-      <label class="slider">
-        <span>密度 <em>density</em></span>
-        <input id="density" type="range" min="0" max="100" value="42" />
-      </label>
-      <label class="slider">
-        <span>明暗 <em>tone</em></span>
-        <input id="tone" type="range" min="0" max="100" value="50" />
-      </label>
-      <label class="slider">
-        <span>揺らぎ <em>swerve</em></span>
-        <input id="swerve" type="range" min="0" max="100" value="55" />
-      </label>
-    </div>
+    <section class="panel">
+      <div class="chaosRow">
+        <label class="chaosLabel" for="chaos">
+          <span class="chaosTitle">CHAOS</span>
+          <span class="chaosValue" id="chaosValueLabel">0</span>
+        </label>
+        <input id="chaos" class="chaosFader" type="range" min="0" max="100" value="0" />
+      </div>
 
-    <p class="hint">音は毎回、一度きりのものです。同じ配列は二度と戻ってきません。</p>
+      <div class="controlsRow">
+        <div class="transport">
+          <button id="playPauseBtn" class="btn primary" disabled>再生</button>
+          <button id="loadBtn" class="btn">動画を読み込む</button>
+          <button id="muteBtn" class="btn" disabled>🔇 音声</button>
+          <button id="resetBtn" class="btn">リセット</button>
+        </div>
+        <div class="record">
+          <button id="recordBtn" class="btn danger" disabled>● 録画開始</button>
+          <a id="downloadLink" class="btn download" style="display:none">ダウンロード</a>
+        </div>
+      </div>
+
+      <div class="effects">
+        <span class="effectsLabel">挙動</span>
+        <label class="toggle"><input type="checkbox" id="fxBlock" checked /> ブロック崩壊</label>
+        <label class="toggle"><input type="checkbox" id="fxChannel" checked /> 色ズレ (RGB split)</label>
+        <label class="toggle"><input type="checkbox" id="fxScan" checked /> スキャンライン</label>
+        <label class="toggle"><input type="checkbox" id="fxFreeze" checked /> フリーズ / 停止</label>
+        <label class="toggle"><input type="checkbox" id="fxSort" /> ピクセルソート</label>
+        <label class="toggle"><input type="checkbox" id="fxNoise" checked /> ノイズブロック</label>
+      </div>
+    </section>
   </main>
 
   <script src="app.js"></script>
