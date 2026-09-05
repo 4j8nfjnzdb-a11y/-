@@ -166,6 +166,95 @@
     return new Blob([buffer], { type: "audio/wav" });
   }
 
+  // minimal zero-dependency ZIP writer (stored/uncompressed entries) so
+  // a multi-file recording can be offered as a single download — most
+  // browsers silently block the 2nd+ of several downloads fired from
+  // one click, so one .zip is the only reliable way to hand over more
+  // than one file at once
+  let crc32Table = null;
+  function crc32(bytes) {
+    if (!crc32Table) {
+      crc32Table = new Uint32Array(256);
+      for (let n = 0; n < 256; n++) {
+        let c = n;
+        for (let k = 0; k < 8; k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+        crc32Table[n] = c >>> 0;
+      }
+    }
+    let crc = 0xffffffff;
+    for (let i = 0; i < bytes.length; i++) crc = crc32Table[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+    return (crc ^ 0xffffffff) >>> 0;
+  }
+
+  function buildZipBlob(files) {
+    const encoder = new TextEncoder();
+    const now = new Date();
+    const dosTime = ((now.getHours() & 0x1f) << 11) | ((now.getMinutes() & 0x3f) << 5) | ((now.getSeconds() >> 1) & 0x1f);
+    const dosDate = (((now.getFullYear() - 1980) & 0x7f) << 9) | (((now.getMonth() + 1) & 0xf) << 5) | (now.getDate() & 0x1f);
+
+    const localParts = [];
+    const centralParts = [];
+    let offset = 0;
+
+    files.forEach((f) => {
+      const nameBytes = encoder.encode(f.name);
+      const data = f.data;
+      const crc = crc32(data);
+      const size = data.length;
+
+      const local = new DataView(new ArrayBuffer(30));
+      local.setUint32(0, 0x04034b50, true);
+      local.setUint16(4, 20, true);
+      local.setUint16(6, 0, true);
+      local.setUint16(8, 0, true);
+      local.setUint16(10, dosTime, true);
+      local.setUint16(12, dosDate, true);
+      local.setUint32(14, crc, true);
+      local.setUint32(18, size, true);
+      local.setUint32(22, size, true);
+      local.setUint16(26, nameBytes.length, true);
+      local.setUint16(28, 0, true);
+      localParts.push(new Uint8Array(local.buffer), nameBytes, data);
+
+      const central = new DataView(new ArrayBuffer(46));
+      central.setUint32(0, 0x02014b50, true);
+      central.setUint16(4, 20, true);
+      central.setUint16(6, 20, true);
+      central.setUint16(8, 0, true);
+      central.setUint16(10, 0, true);
+      central.setUint16(12, dosTime, true);
+      central.setUint16(14, dosDate, true);
+      central.setUint32(16, crc, true);
+      central.setUint32(20, size, true);
+      central.setUint32(24, size, true);
+      central.setUint16(28, nameBytes.length, true);
+      central.setUint16(30, 0, true);
+      central.setUint16(32, 0, true);
+      central.setUint16(34, 0, true);
+      central.setUint16(36, 0, true);
+      central.setUint32(38, 0, true);
+      central.setUint32(42, offset, true);
+      centralParts.push(new Uint8Array(central.buffer), nameBytes);
+
+      offset += 30 + nameBytes.length + size;
+    });
+
+    const centralStart = offset;
+    const centralSize = centralParts.reduce((s, p) => s + p.length, 0);
+
+    const end = new DataView(new ArrayBuffer(22));
+    end.setUint32(0, 0x06054b50, true);
+    end.setUint16(4, 0, true);
+    end.setUint16(6, 0, true);
+    end.setUint16(8, files.length, true);
+    end.setUint16(10, files.length, true);
+    end.setUint32(12, centralSize, true);
+    end.setUint32(16, centralStart, true);
+    end.setUint16(20, 0, true);
+
+    return new Blob([...localParts, ...centralParts, new Uint8Array(end.buffer)], { type: "application/zip" });
+  }
+
   // when running inside a capability-aware host (e.g. a published
   // Artifact), a plain <a download> click is inert — go through the
   // platform's save prompt instead; otherwise (a normal page load)
@@ -217,14 +306,13 @@
     const pad = (n) => String(n).padStart(2, "0");
     const baseName = `torso_${ts.getFullYear()}${pad(ts.getMonth() + 1)}${pad(ts.getDate())}_${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}`;
 
-    let total = 0, saved = 0;
+    const files = [];
 
     if (recBuffersL.length) {
-      total++;
       const blob = encodeWavBlob(recBuffersL, recBuffersR, ctx.sampleRate);
       recBuffersL = [];
       recBuffersR = [];
-      if (await saveBlobAsFile(`${baseName}.wav`, blob)) saved++;
+      files.push({ name: `${baseName}.wav`, data: new Uint8Array(await blob.arrayBuffer()) });
     }
 
     // stop + collect each track's stem regardless of whether the master
@@ -232,15 +320,22 @@
     for (let i = 0; i < tracks.length; i++) {
       const blob = tracks[i].stopStemRecording();
       if (blob) {
-        total++;
-        if (await saveBlobAsFile(`${baseName}_track${i + 1}.wav`, blob)) saved++;
+        files.push({ name: `${baseName}_track${i + 1}.wav`, data: new Uint8Array(await blob.arrayBuffer()) });
       }
     }
 
+    if (!files.length) { if (masterRecStatus) masterRecStatus.textContent = ""; return; }
+
+    // bundle everything into one .zip: most browsers silently block the
+    // 2nd+ of several downloads fired without an extra click, so
+    // offering 5 separate files often left only the first one saved
+    const zipBlob = buildZipBlob(files);
+    const saved = await saveBlobAsFile(`${baseName}.zip`, zipBlob);
+
     if (masterRecStatus) {
-      if (total === 0) masterRecStatus.textContent = "";
-      else if (saved === total) masterRecStatus.textContent = `saved ${saved} files: ${baseName}...`;
-      else masterRecStatus.textContent = `${saved}/${total} saved — この環境では一部保存できません`;
+      masterRecStatus.textContent = saved
+        ? `saved: ${baseName}.zip (${files.length} files)`
+        : "この環境では保存できません（ローカル版でお試しください）";
     }
   }
 
