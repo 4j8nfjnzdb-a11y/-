@@ -65,18 +65,6 @@
   let recBuffersL = [], recBuffersR = [];
   let recStartTime = 0, recTimerInterval = null;
   let masterRecBtn = null, masterRecStatus = null;
-  let sharedNoiseBuffer = null;
-
-  function buildNoiseBuffer(duration) {
-    const rate = ctx.sampleRate;
-    const length = Math.floor(rate * duration);
-    const buf = ctx.createBuffer(2, length, rate);
-    for (let ch = 0; ch < 2; ch++) {
-      const data = buf.getChannelData(ch);
-      for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
-    }
-    return buf;
-  }
 
   function ageFreqFromKnob(v) { return 9000 - v * 8300; } // 0 -> open, 1 -> dull/worn
 
@@ -115,8 +103,6 @@
     reverbBusGain = ctx.createGain();
     reverbBusGain.gain.value = 0.9;
     reverbConvolver.connect(reverbBusGain).connect(masterGain);
-
-    sharedNoiseBuffer = buildNoiseBuffer(3.0);
 
     setupMasterRecorder();
 
@@ -437,11 +423,9 @@
         level: 0.85,
         lofiCrush: 0,
         lofiWow: 0,
-        lofiNoise: 0,
         lofiAge: 0,
       };
 
-      this.nextCrackleTime = 0;
       this._lofiHoldL = 0;
       this._lofiHoldR = 0;
       this._lofiCounter = 0;
@@ -515,18 +499,6 @@
       this.filterNode.connect(this.crusher).connect(this.ringGain)
         .connect(this.ageFilter).connect(this.wowDelay).connect(this.lofiNode)
         .connect(this.panner);
-
-      // tape hiss / vinyl surface noise bed, mixed in directly at the panner
-      this.noiseSrc = ctx.createBufferSource();
-      this.noiseSrc.buffer = sharedNoiseBuffer;
-      this.noiseSrc.loop = true;
-      this.noiseFilter = ctx.createBiquadFilter();
-      this.noiseFilter.type = "highpass";
-      this.noiseFilter.frequency.value = 1200;
-      this.noiseGain = ctx.createGain();
-      this.noiseGain.gain.value = p.lofiNoise * 0.15;
-      this.noiseSrc.connect(this.noiseFilter).connect(this.noiseGain).connect(this.panner);
-      this.noiseSrc.start();
 
       // dual-tap ping-pong delay, always fed, mix controls audibility
       this.delayA = ctx.createDelay(2.0);
@@ -705,9 +677,6 @@
       this.playing = true;
       if (this.params.mode === "loop") this.restartLoopSource();
       else this.nextGrainTime = ctx.currentTime + 0.03;
-      // avoid a "catch up" burst of crackle bursts if noise was already
-      // turned up while stopped, or the track sat idle a while
-      this.nextCrackleTime = ctx.currentTime + 0.03;
       this.onPlayStateChanged && this.onPlayStateChanged(true);
     }
 
@@ -812,22 +781,6 @@
       if (this.activeGrains.length > 64) this.activeGrains.shift();
     }
 
-    spawnCrackle(time) {
-      if (!sharedNoiseBuffer) return;
-      const dur = 0.003 + Math.random() * 0.004;
-      const offset = Math.random() * Math.max(0.01, sharedNoiseBuffer.duration - dur);
-      const src = ctx.createBufferSource();
-      src.buffer = sharedNoiseBuffer;
-      const g = ctx.createGain();
-      g.gain.setValueAtTime(0, time);
-      g.gain.linearRampToValueAtTime(this.params.lofiNoise * 0.5, time + 0.001);
-      g.gain.linearRampToValueAtTime(0, time + dur);
-      src.connect(g).connect(this.panner);
-      src.start(time, offset, dur);
-      src.stop(time + dur + 0.01);
-      src.onended = () => { try { src.disconnect(); g.disconnect(); } catch (e) {} };
-    }
-
     schedulerTick(now) {
       const p = this.params;
 
@@ -859,17 +812,6 @@
           if (this.nextGrainTime < now) this.nextGrainTime = now + 0.03;
         } else {
           this.applyLoopBounds(now);
-        }
-
-        if (p.lofiNoise > 0.04) {
-          const rate = 0.5 + p.lofiNoise * 10;
-          for (let guard = 0; guard < 40 && this.nextCrackleTime < now + 0.25; guard++) {
-            this.spawnCrackle(this.nextCrackleTime);
-            this.nextCrackleTime += (1 / rate) * (0.6 + Math.random() * 0.8);
-          }
-          if (this.nextCrackleTime < now) this.nextCrackleTime = now + 0.03;
-        } else {
-          this.nextCrackleTime = now;
         }
       }
       // prune stale grain markers for visualization
@@ -1215,7 +1157,7 @@
     knobsWrap.appendChild(space.wrap);
 
     // LOFI — worn-tape mood shaping: crush (sample-rate decimation),
-    // wow (pitch wobble), noise (hiss + vinyl crackle), age (highcut)
+    // wow (pitch wobble), age (highcut)
     const lofi = makeSection("lofi");
     addKnob(lofi, {
       key: "lofiCrush", label: "crush", min: 0, max: 1, value: track.params.lofiCrush,
@@ -1233,15 +1175,6 @@
           track.wowDepth.gain.setTargetAtTime(v * 0.006, now, 0.05);
           track.wowLFO.frequency.setTargetAtTime(0.6 + v * 3, now, 0.1);
         }
-      },
-      dice: () => rand(0, 1),
-    });
-    addKnob(lofi, {
-      key: "lofiNoise", label: "noise", min: 0, max: 1, value: track.params.lofiNoise,
-      format: (v) => Math.round(v * 100) + "%",
-      onChange: (v) => {
-        track.params.lofiNoise = v;
-        if (track.noiseGain) track.noiseGain.gain.setTargetAtTime(v * 0.15, ctx.currentTime, 0.05);
       },
       dice: () => rand(0, 1),
     });
