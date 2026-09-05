@@ -257,7 +257,7 @@
 
   function isAudioFile(file) {
     if (file.type && file.type.startsWith("audio/")) return true;
-    return /\.(mp3|wav|ogg|oga|m4a|aac|flac|webm|opus|aiff|aif)$/i.test(file.name);
+    return /\.(mp3|wav|wave|ogg|oga|m4a|aac|flac|webm|opus|aiff|aif|caf)$/i.test(file.name);
   }
 
   async function collectFilesFromDataTransfer(dataTransfer) {
@@ -308,13 +308,29 @@
     return entry.reversedBuffer;
   }
 
-  async function loadFilesIntoTrack(track, fileList) {
-    const files = Array.from(fileList).filter(isAudioFile);
-    if (!files.length) return;
+  function setLoadStatus(track, message) {
+    track.loadStatusEl.textContent = message || "";
+  }
+
+  async function loadFilesIntoTrack(track, fileList, opts = {}) {
+    // The FILE button's <input accept="audio/*,..."> already restricted the
+    // OS picker to audio, so a second name/mime re-check here can only ever
+    // reject a file the user deliberately chose. Only apply that filter for
+    // FOLDER loads and drag-and-drop, where arbitrary non-audio files are
+    // likely to be mixed in.
+    const applyFilter = opts.filter !== false;
+    const candidates = Array.from(fileList);
+    const files = applyFilter ? candidates.filter(isAudioFile) : candidates;
+
+    if (!files.length) {
+      setLoadStatus(track, candidates.length ? "音声ファイルが見つかりませんでした" : "");
+      return;
+    }
     await ensureAudioContext();
     await workletReady;
 
     const pool = [];
+    const failedNames = [];
     for (const file of files) {
       try {
         const arrayBuffer = await file.arrayBuffer();
@@ -322,9 +338,14 @@
         pool.push({ name: file.name, buffer: audioBuffer, reversedBuffer: null });
       } catch (err) {
         console.warn("decode failed:", file.name, err);
+        failedNames.push(file.name);
       }
     }
-    if (!pool.length) return;
+
+    if (!pool.length) {
+      setLoadStatus(track, `読み込み失敗: ${failedNames.slice(0, 2).join(", ")}${failedNames.length > 2 ? " ほか" : ""}(非対応の形式かも)`);
+      return;
+    }
 
     stopTrack(track);
     track.pool = pool;
@@ -334,6 +355,7 @@
     track.loopLength = undefined;
     if (track.revBtn.classList.contains("on")) track.revBtn.classList.remove("on");
 
+    setLoadStatus(track, failedNames.length ? `${failedNames.length}件は読み込めませんでした` : "");
     drawWaveform(track);
     updateLoopOverlay(track);
     updateTrackName(track);
@@ -764,6 +786,7 @@
       fileInput: el.querySelector('[data-role="fileInput"]'),
       folderInput: el.querySelector('[data-role="folderInput"]'),
       poolCountEl: el.querySelector('[data-role="poolCount"]'),
+      loadStatusEl: el.querySelector('[data-role="loadStatus"]'),
       playBtn: el.querySelector('[data-role="playBtn"]'),
       cycleBtn: el.querySelector('[data-role="cycleBtn"]'),
       wobbleBtn: el.querySelector('[data-role="wobbleBtn"]'),
@@ -788,7 +811,7 @@
     track.fileBtn.addEventListener("click", () => track.fileInput.click());
     track.folderBtn.addEventListener("click", () => track.folderInput.click());
     track.fileInput.addEventListener("change", (e) => {
-      loadFilesIntoTrack(track, e.target.files);
+      loadFilesIntoTrack(track, e.target.files, { filter: false });
       e.target.value = "";
     });
     track.folderInput.addEventListener("change", (e) => {

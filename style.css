@@ -222,6 +222,16 @@ html, body {
   margin-left: auto;
 }
 
+.load-status {
+  font-size: 0.66rem;
+  color: var(--danger);
+  margin-bottom: 0.4rem;
+  line-height: 1.4;
+}
+.load-status:empty {
+  display: none;
+}
+
 button {
   font-family: inherit;
   cursor: pointer;
