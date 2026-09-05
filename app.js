@@ -1677,50 +1677,60 @@
       });
       return lines.join("\n");
     }
+    let lastTestToneMsg = "";
     function renderDebugInfo() {
       if (debugPanel.hidden) return;
       const before = ctx ? ctx.currentTime : null;
       setTimeout(() => {
         const after = ctx ? ctx.currentTime : null;
         const delta = (before !== null && after !== null) ? (after - before).toFixed(3) : "n/a";
-        debugPanel.textContent = collectDebugInfo()
+        let text = collectDebugInfo()
           + `\n\nctx.currentTime advanced ${delta}s over ~300ms (should be ~0.3 — if 0.000, the audio clock itself is frozen)`;
+        if (lastTestToneMsg) text += `\n\n${lastTestToneMsg}`;
+        debugPanel.textContent = text;
       }, 300);
     }
     const testToneBtn = document.getElementById("testToneBtn");
     testToneBtn.addEventListener("click", () => {
       ensureAudio();
-      // a raw oscillator straight to destination, bypassing every track
-      // node entirely — if this is also silent, the problem is the
-      // device/browser's audio output itself, not this app's graph
-      const osc = ctx.createOscillator();
-      osc.type = "sine";
-      osc.frequency.value = 440;
-      const g = ctx.createGain();
-      g.gain.setValueAtTime(0, ctx.currentTime);
-      g.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.02);
-      g.gain.setValueAtTime(0.5, ctx.currentTime + 0.9);
-      g.gain.linearRampToValueAtTime(0, ctx.currentTime + 1.0);
-      const meter = ctx.createAnalyser();
-      meter.fftSize = 256;
-      osc.connect(g).connect(meter).connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 1.05);
-      testToneBtn.textContent = "🔊 playing…";
-      setTimeout(() => {
-        const data = new Float32Array(meter.fftSize);
-        meter.getFloatTimeDomainData(data);
-        let sum = 0;
-        for (let i = 0; i < data.length; i++) sum += data[i] * data[i];
-        const rms = Math.sqrt(sum / data.length);
+      try {
+        // a raw oscillator straight to destination, bypassing every
+        // track node entirely — if this is also silent, the problem is
+        // the device/browser's audio output itself, not this app's graph
+        const osc = ctx.createOscillator();
+        osc.type = "sine";
+        osc.frequency.value = 440;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0, ctx.currentTime);
+        g.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.02);
+        g.gain.setValueAtTime(0.5, ctx.currentTime + 0.9);
+        g.gain.linearRampToValueAtTime(0, ctx.currentTime + 1.0);
+        const meter = ctx.createAnalyser();
+        meter.fftSize = 256;
+        osc.connect(g).connect(meter).connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 1.05);
+        testToneBtn.textContent = "🔊 playing…";
+        setTimeout(() => {
+          const data = new Float32Array(meter.fftSize);
+          meter.getFloatTimeDomainData(data);
+          let sum = 0;
+          for (let i = 0; i < data.length; i++) sum += data[i] * data[i];
+          const rms = Math.sqrt(sum / data.length);
+          lastTestToneMsg = `🔊 test tone RMS at output: ${rms.toFixed(4)} `
+            + (rms > 0.01 ? "(signal present — if you didn't hear anything, it's the device's audio output/routing, not this app)"
+              : "(no signal reaching destination — this points to a real bug here)");
+          debugPanel.hidden = false;
+          debugBtn.classList.add("active");
+          debugPanel.textContent = collectDebugInfo() + `\n\n${lastTestToneMsg}`;
+          if (!debugInterval) debugInterval = setInterval(renderDebugInfo, 1000);
+        }, 200);
+      } catch (e) {
+        lastTestToneMsg = `🔊 test tone FAILED TO START: ${e.message}`;
         debugPanel.hidden = false;
         debugBtn.classList.add("active");
-        debugPanel.textContent = collectDebugInfo()
-          + `\n\n🔊 test tone RMS at output: ${rms.toFixed(4)} `
-          + (rms > 0.01 ? "(signal present — if you didn't hear anything, it's the device's audio output/routing, not this app)"
-            : "(no signal reaching destination — this points to a real bug here)");
-        if (!debugInterval) debugInterval = setInterval(renderDebugInfo, 1000);
-      }, 150);
+        debugPanel.textContent = collectDebugInfo() + `\n\n${lastTestToneMsg}`;
+      }
       setTimeout(() => { testToneBtn.textContent = "🔊 TEST TONE (1s)"; }, 1100);
     });
 
