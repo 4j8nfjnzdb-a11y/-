@@ -3,40 +3,96 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>kizashi — generative ambient</title>
+<title>VOICE MORPH STUDIO</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <canvas id="bg"></canvas>
-
-  <main class="ui">
-    <header>
-      <h1>kizashi <span class="sub">きざし</span></h1>
-      <p class="tagline">反復に見せかけて、予測の像を結ぶ寸前でかわし続けるアンビエント。</p>
+  <div class="app">
+    <header class="topbar">
+      <h1 class="logo">VOICE <span>MORPH</span> STUDIO</h1>
+      <p class="tagline">録音 × ボイスチェンジ × 派手なフェーダーミキサー</p>
     </header>
 
-    <div class="transport">
-      <button id="playBtn" class="playBtn">再生</button>
-      <button id="paletteBtn" class="ghostBtn">配色を変える</button>
-    </div>
+    <main class="layout">
 
-    <div class="controls">
-      <label class="slider">
-        <span>密度 <em>density</em></span>
-        <input id="density" type="range" min="0" max="100" value="42" />
-      </label>
-      <label class="slider">
-        <span>明暗 <em>tone</em></span>
-        <input id="tone" type="range" min="0" max="100" value="50" />
-      </label>
-      <label class="slider">
-        <span>揺らぎ <em>swerve</em></span>
-        <input id="swerve" type="range" min="0" max="100" value="55" />
-      </label>
-    </div>
+      <!-- ============ RECORDER ============ -->
+      <section class="panel recorder-panel">
+        <h2 class="panel-title">🎙 レコーダー</h2>
 
-    <p class="hint">音は毎回、一度きりのものです。同じ配列は二度と戻ってきません。</p>
-  </main>
+        <div class="rec-row">
+          <button id="recBtn" class="bigBtn recBtn">
+            <span class="dot"></span> 録音
+          </button>
+          <label class="monitorToggle">
+            <input type="checkbox" id="monitorToggle" />
+            <span>ライブモニター（要ヘッドホン）</span>
+          </label>
+        </div>
+
+        <canvas id="scope" class="scope" height="90"></canvas>
+        <p id="recStatus" class="status">マイクの準備ができています。「録音」を押して歌ってください。</p>
+
+        <div class="takes">
+          <h3>テイク一覧</h3>
+          <ul id="takeList" class="takeList"></ul>
+        </div>
+
+        <div class="playbackRow">
+          <button id="playBtn" class="ghostBtn" disabled>▶ エフェクト再生</button>
+          <button id="loopBtn" class="ghostBtn toggleBtn" disabled>🔁 ループ</button>
+          <button id="exportBtn" class="ghostBtn" disabled>⬇ 書き出し (WAV)</button>
+          <button id="downloadRawBtn" class="ghostBtn" disabled>⬇ 原音DL</button>
+        </div>
+      </section>
+
+      <!-- ============ PRESETS ============ -->
+      <section class="panel preset-panel">
+        <h2 class="panel-title">✨ ボイスプリセット</h2>
+        <div id="presetGrid" class="presetGrid"></div>
+      </section>
+
+      <!-- ============ MIXER ============ -->
+      <section class="panel mixer-panel">
+        <h2 class="panel-title">🎛 エフェクト・ミキサー</h2>
+        <div id="faderRack" class="faderRack"></div>
+
+        <details class="advanced">
+          <summary>詳細設定（リバーブ / ディレイ / コーラス）</summary>
+          <div id="advancedGrid" class="advancedGrid"></div>
+        </details>
+      </section>
+
+      <!-- ============ TEMPO ============ -->
+      <section class="panel tempo-panel">
+        <h2 class="panel-title">🥁 BPM / テンポ</h2>
+
+        <div class="tempoRow">
+          <label>スピード <em id="speedVal">100%</em></label>
+          <input id="speedSlider" type="range" min="50" max="200" value="100" class="hslider" />
+        </div>
+        <label class="pitchLock">
+          <input type="checkbox" id="pitchLockToggle" checked />
+          <span>ピッチロック（速度を変えても声の高さを維持）</span>
+        </label>
+
+        <div class="metronome">
+          <div class="tempoRow">
+            <label>メトロノーム BPM <em id="bpmVal">120</em></label>
+            <input id="bpmSlider" type="range" min="40" max="240" value="120" class="hslider" />
+          </div>
+          <div class="rec-row">
+            <button id="metroBtn" class="ghostBtn toggleBtn">▶ メトロノーム開始</button>
+            <button id="tapBtn" class="ghostBtn">👆 タップでBPM測定</button>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <footer class="foot">
+      <p>ヒント：初回はマイク許可が必要です。録音→プリセット選択→フェーダーで微調整→書き出し、の流れでどうぞ。</p>
+    </footer>
+  </div>
 
   <script src="app.js"></script>
 </body>

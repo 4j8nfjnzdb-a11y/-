@@ -1,90 +1,93 @@
-// kizashi — generative ambient
-//
-// The idea: build a texture that reads as "repetition" (steady pulse,
-// familiar scale, cyclic pads) while every layer runs on its own
-// incommensurate clock and a slowly-drifting probability of firing at
-// all. The listener's short-term predictive model never quite locks in
-// — each layer swerves a little before it would become obvious — but
-// nothing is ever pure noise either. That balance is tuned by the
-// "swerve" and "density" sliders.
+// VOICE MORPH STUDIO — record your voice, morph it (pitch / formant /
+// robot / bitcrush / chorus / reverb / delay / EQ) with mixer-style
+// faders, ride tempo with a pitch-locked speed control + metronome,
+// and export the processed result as a WAV file.
 
 (() => {
+  // ---------------------------------------------------------------
+  // fader / preset definitions
+  // ---------------------------------------------------------------
+
+  const FADERS = [
+    { id: "pitch", label: "PITCH", min: -12, max: 12, step: 1, def: 0, unit: "st", hue: "#35e6ff" },
+    { id: "formant", label: "FORMANT", min: -100, max: 100, step: 1, def: 0, unit: "%", hue: "#ff2fd0" },
+    { id: "robot", label: "ROBOT", min: 0, max: 100, step: 1, def: 0, unit: "%", hue: "#b6ff35" },
+    { id: "bitcrush", label: "CRUSH", min: 0, max: 100, step: 1, def: 0, unit: "%", hue: "#ffd93b" },
+    { id: "chorus", label: "CHORUS", min: 0, max: 100, step: 1, def: 0, unit: "%", hue: "#ff2fd0" },
+    { id: "reverb", label: "REVERB", min: 0, max: 100, step: 1, def: 20, unit: "%", hue: "#35e6ff" },
+    { id: "delay", label: "DELAY", min: 0, max: 100, step: 1, def: 0, unit: "%", hue: "#b6ff35" },
+    { id: "master", label: "MASTER", min: 0, max: 100, step: 1, def: 80, unit: "%", hue: "#f4f0ff" },
+  ];
+
+  const ADVANCED = [
+    { id: "reverbSize", label: "リバーブサイズ", min: 0, max: 100, step: 1, def: 35 },
+    { id: "delayTime", label: "ディレイタイム(ms)", min: 20, max: 800, step: 10, def: 300 },
+    { id: "delayFeedback", label: "ディレイ・フィードバック", min: 0, max: 85, step: 1, def: 25 },
+    { id: "chorusRate", label: "コーラス速度(Hz)", min: 0.1, max: 5, step: 0.1, def: 1.2 },
+    { id: "chorusDepth", label: "コーラス深さ", min: 0, max: 100, step: 1, def: 50 },
+    { id: "eqLow", label: "EQ 低音(dB)", min: -20, max: 20, step: 1, def: 0 },
+    { id: "eqMid", label: "EQ 中音(dB)", min: -20, max: 20, step: 1, def: 0 },
+    { id: "eqHigh", label: "EQ 高音(dB)", min: -20, max: 20, step: 1, def: 0 },
+  ];
+
+  const PRESETS = [
+    { id: "normal", name: "ノーマル", desc: "素の声", vals: { pitch: 0, formant: 0, robot: 0, bitcrush: 0, chorus: 0, reverb: 15, delay: 0 } },
+    { id: "robot", name: "ロボット", desc: "金属質な機械声", vals: { pitch: 0, formant: -20, robot: 70, bitcrush: 35, chorus: 0, reverb: 20, delay: 15 } },
+    { id: "female", name: "女性声", desc: "高めで明るい声", vals: { pitch: 6, formant: 35, robot: 0, bitcrush: 0, chorus: 20, reverb: 20, delay: 5 } },
+    { id: "male", name: "男性声・低音", desc: "低く太い声", vals: { pitch: -6, formant: -35, robot: 0, bitcrush: 0, chorus: 0, reverb: 15, delay: 0 } },
+    { id: "vocaloid", name: "ボカロ風", desc: "透明感のある合成声", vals: { pitch: 4, formant: 20, robot: 15, bitcrush: 10, chorus: 45, reverb: 30, delay: 20 } },
+    { id: "chipmunk", name: "チップマンク", desc: "リスのような高音", vals: { pitch: 12, formant: 40, robot: 0, bitcrush: 0, chorus: 10, reverb: 10, delay: 0 } },
+    { id: "darklord", name: "ダークヴォイス", desc: "深く不穏な低音", vals: { pitch: -12, formant: -50, robot: 10, bitcrush: 5, chorus: 0, reverb: 45, delay: 25 } },
+    { id: "hall", name: "コンサートホール", desc: "広い残響空間", vals: { pitch: 0, formant: 0, robot: 0, bitcrush: 0, chorus: 10, reverb: 60, delay: 30 } },
+    { id: "glitch", name: "グリッチ", desc: "壊れたデジタル質感", vals: { pitch: -2, formant: -10, robot: 55, bitcrush: 60, chorus: 0, reverb: 15, delay: 40 } },
+  ];
+
+  const params = {};
+  FADERS.forEach((f) => (params[f.id] = f.def));
+  ADVANCED.forEach((f) => (params[f.id] = f.def));
+
+  // ---------------------------------------------------------------
+  // DOM refs
+  // ---------------------------------------------------------------
+
+  const recBtn = document.getElementById("recBtn");
+  const monitorToggle = document.getElementById("monitorToggle");
+  const recStatus = document.getElementById("recStatus");
+  const takeList = document.getElementById("takeList");
   const playBtn = document.getElementById("playBtn");
-  const paletteBtn = document.getElementById("paletteBtn");
-  const densitySlider = document.getElementById("density");
-  const toneSlider = document.getElementById("tone");
-  const swerveSlider = document.getElementById("swerve");
-  const canvas = document.getElementById("bg");
-  const ctx2d = canvas.getContext("2d");
+  const loopBtn = document.getElementById("loopBtn");
+  const exportBtn = document.getElementById("exportBtn");
+  const downloadRawBtn = document.getElementById("downloadRawBtn");
+  const presetGrid = document.getElementById("presetGrid");
+  const faderRack = document.getElementById("faderRack");
+  const advancedGrid = document.getElementById("advancedGrid");
+  const scopeCanvas = document.getElementById("scope");
+  const scopeCtx = scopeCanvas.getContext("2d");
+  const speedSlider = document.getElementById("speedSlider");
+  const speedVal = document.getElementById("speedVal");
+  const pitchLockToggle = document.getElementById("pitchLockToggle");
+  const bpmSlider = document.getElementById("bpmSlider");
+  const bpmVal = document.getElementById("bpmVal");
+  const metroBtn = document.getElementById("metroBtn");
+  const tapBtn = document.getElementById("tapBtn");
+
+  function setStatus(text) {
+    recStatus.textContent = text;
+  }
+
+  // ---------------------------------------------------------------
+  // audio graph — one chain shared by monitor-through and playback
+  // ---------------------------------------------------------------
 
   let audioCtx = null;
-  let master, dry, wet, reverbNode, delayA, delayB, delayFeedbackA, delayFeedbackB;
-  let padVoices = [];
-  let bellLayers = [];
-  let running = false;
-  let schedulerTimer = null;
+  let workletReady = null;
+  let liveChain = null;
+  let scopeAnalyser = null;
 
-  // ---- musical material -------------------------------------------
-
-  const SCALES = {
-    // semitone offsets from root, chosen to always sound consonant
-    // no matter which degree becomes the melodic center
-    warm: [0, 2, 3, 7, 9, 10],      // dorian-ish, dusky
-    mid: [0, 2, 4, 7, 9, 11],       // major/ionian, open
-    bright: [0, 2, 4, 6, 9, 11],    // lydian-ish, lifted
-  };
-
-  const ROOTS = [48, 50, 53, 55, 57]; // C, D, F, G, A (midi, low register)
-
-  let palette = makePalette();
-
-  function makePalette() {
-    const roots = ROOTS.slice();
-    const root = roots[Math.floor(Math.random() * roots.length)];
-    const hue = Math.random() * 360;
-    return { root, hue };
-  }
-
-  function midiToFreq(m) {
-    return 440 * Math.pow(2, (m - 69) / 12);
-  }
-
-  function scaleForTone(tone) {
-    // tone: 0..100 -> warm..bright
-    if (tone < 33) return SCALES.warm;
-    if (tone < 66) return SCALES.mid;
-    return SCALES.bright;
-  }
-
-  function pickDegree(layer) {
-    const scale = scaleForTone(+toneSlider.value);
-    const degree = scale[Math.floor(Math.random() * scale.length)];
-    return palette.root + degree + layer.octave * 12;
-  }
-
-  // ---- smoothed randomness (organic "swerve", not white noise) -----
-
-  function makeDrift(min, max, start) {
-    let value = start ?? (min + max) / 2;
-    let target = value;
-    return {
-      get value() { return value; },
-      tick(rate) {
-        if (Math.random() < 0.08) {
-          target = min + Math.random() * (max - min);
-        }
-        value += (target - value) * rate;
-        return value;
-      },
-    };
-  }
-
-  // ---- audio graph ---------------------------------------------------
-
-  function buildImpulseResponse(context, duration, decay) {
-    const rate = context.sampleRate;
-    const length = Math.floor(rate * duration);
-    const impulse = context.createBuffer(2, length, rate);
+  function buildImpulseResponse(ctx, duration, decay) {
+    const rate = ctx.sampleRate;
+    const length = Math.max(1, Math.floor(rate * duration));
+    const impulse = ctx.createBuffer(2, length, rate);
     for (let ch = 0; ch < 2; ch++) {
       const data = impulse.getChannelData(ch);
       for (let i = 0; i < length; i++) {
@@ -95,324 +98,725 @@
     return impulse;
   }
 
-  function initAudio() {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-    master = audioCtx.createGain();
-    master.gain.value = 0.85;
-
-    const compressor = audioCtx.createDynamicsCompressor();
-    compressor.threshold.value = -18;
-    compressor.ratio.value = 3;
-
-    master.connect(compressor).connect(audioCtx.destination);
-
-    dry = audioCtx.createGain();
-    dry.gain.value = 0.55;
-    dry.connect(master);
-
-    wet = audioCtx.createGain();
-    wet.gain.value = 0.9;
-
-    reverbNode = audioCtx.createConvolver();
-    reverbNode.buffer = buildImpulseResponse(audioCtx, 5.5, 3.0);
-    reverbNode.connect(wet);
-    wet.connect(master);
-
-    // two non-multiple delay lines, damped feedback, for a soft
-    // shimmering space that never quite settles into a fixed comb
-    delayA = audioCtx.createDelay(2.0);
-    delayA.delayTime.value = 0.372;
-    delayFeedbackA = audioCtx.createGain();
-    delayFeedbackA.gain.value = 0.38;
-    const dampA = audioCtx.createBiquadFilter();
-    dampA.type = "lowpass";
-    dampA.frequency.value = 2200;
-    delayA.connect(dampA).connect(delayFeedbackA).connect(delayA);
-    delayA.connect(wet);
-
-    delayB = audioCtx.createDelay(2.0);
-    delayB.delayTime.value = 0.551;
-    delayFeedbackB = audioCtx.createGain();
-    delayFeedbackB.gain.value = 0.33;
-    const dampB = audioCtx.createBiquadFilter();
-    dampB.type = "lowpass";
-    dampB.frequency.value = 1800;
-    delayB.connect(dampB).connect(delayFeedbackB).connect(delayB);
-    delayB.connect(wet);
-
-    buildPads();
-    buildBellLayers();
+  function makeBitcrushCurve(amount) {
+    const bits = 16 - Math.round((amount / 100) * 13);
+    const levels = Math.pow(2, bits);
+    const n = 1024;
+    const curve = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const x = (i / (n - 1)) * 2 - 1;
+      curve[i] = Math.round(x * levels) / levels;
+    }
+    return curve;
   }
 
-  function sendToSpace(node, delayAmt, reverbAmt, dryAmt) {
-    const dg = audioCtx.createGain();
-    dg.gain.value = dryAmt;
-    node.connect(dg).connect(dry);
+  // Builds the full effect chain on a given context (works for both the
+  // live AudioContext and a throwaway OfflineAudioContext used for export).
+  function buildChain(ctx) {
+    const input = ctx.createGain();
 
-    const rg = audioCtx.createGain();
-    rg.gain.value = reverbAmt;
-    node.connect(rg).connect(reverbNode);
+    const formantFilter = ctx.createBiquadFilter();
+    formantFilter.type = "peaking";
+    formantFilter.frequency.value = 2500;
+    formantFilter.Q.value = 0.7;
 
-    const dla = audioCtx.createGain();
-    dla.gain.value = delayAmt;
-    node.connect(dla).connect(delayA);
-    node.connect(dla).connect(delayB);
-  }
+    const pitchNode = new AudioWorkletNode(ctx, "pitch-shift-processor");
 
-  // ---- pad drone layer: slow, cyclic-feeling, never exactly cyclic --
+    // --- robot (ring modulation) ---
+    const ringCarrier = ctx.createOscillator();
+    ringCarrier.type = "sine";
+    ringCarrier.frequency.value = 55;
+    const ringGain = ctx.createGain();
+    ringGain.gain.value = 0; // driven entirely by the carrier -> pure multiply
+    ringCarrier.connect(ringGain.gain);
+    const robotDry = ctx.createGain();
+    const robotWet = ctx.createGain();
+    const robotMix = ctx.createGain();
 
-  function buildPads() {
-    padVoices.forEach((v) => v.stopAll && v.stopAll());
-    padVoices = [];
+    // --- bitcrush (waveshaper quantizer) ---
+    const waveshaper = ctx.createWaveShaper();
+    waveshaper.curve = makeBitcrushCurve(0);
+    const bitDry = ctx.createGain();
+    const bitWet = ctx.createGain();
+    const bitMix = ctx.createGain();
 
-    const intervals = [0, 7, 12, 16]; // root, fifth, octave, tenth-ish
-    intervals.forEach((iv, i) => {
-      const osc = audioCtx.createOscillator();
-      osc.type = i % 2 === 0 ? "sine" : "triangle";
-      const detune = (Math.random() * 2 - 1) * 6;
-      osc.detune.value = detune;
+    // --- chorus (two modulated delay lines) ---
+    const chorusDelay1 = ctx.createDelay(0.05);
+    const chorusDelay2 = ctx.createDelay(0.05);
+    chorusDelay1.delayTime.value = 0.02;
+    chorusDelay2.delayTime.value = 0.025;
+    const chorusLFO1 = ctx.createOscillator();
+    const chorusLFO2 = ctx.createOscillator();
+    chorusLFO1.type = "sine";
+    chorusLFO2.type = "sine";
+    chorusLFO1.frequency.value = 1.2;
+    chorusLFO2.frequency.value = 1.5;
+    const chorusDepth1 = ctx.createGain();
+    const chorusDepth2 = ctx.createGain();
+    chorusDepth1.gain.value = 0.003;
+    chorusDepth2.gain.value = 0.003;
+    chorusLFO1.connect(chorusDepth1).connect(chorusDelay1.delayTime);
+    chorusLFO2.connect(chorusDepth2).connect(chorusDelay2.delayTime);
+    const chorusWet1 = ctx.createGain();
+    const chorusWet2 = ctx.createGain();
+    const chorusMixBus = ctx.createGain();
 
-      const gain = audioCtx.createGain();
-      gain.gain.value = 0;
+    // --- eq ---
+    const eqLow = ctx.createBiquadFilter();
+    eqLow.type = "lowshelf";
+    eqLow.frequency.value = 250;
+    const eqMid = ctx.createBiquadFilter();
+    eqMid.type = "peaking";
+    eqMid.frequency.value = 1200;
+    eqMid.Q.value = 0.8;
+    const eqHigh = ctx.createBiquadFilter();
+    eqHigh.type = "highshelf";
+    eqHigh.frequency.value = 3200;
 
-      const filter = audioCtx.createBiquadFilter();
-      filter.type = "lowpass";
-      filter.frequency.value = 900;
-      filter.Q.value = 0.4;
+    // --- reverb + delay sends ---
+    const dryGain = ctx.createGain();
+    dryGain.gain.value = 1;
 
-      osc.connect(filter).connect(gain);
-      sendToSpace(gain, 0.5, 0.8, 0.25);
+    const reverbSend = ctx.createGain();
+    const reverbConvolver = ctx.createConvolver();
+    reverbConvolver.buffer = buildImpulseResponse(ctx, 2.4, 2.5);
+    const reverbWet = ctx.createGain();
 
-      osc.start();
+    const delaySend = ctx.createGain();
+    const delayNode = ctx.createDelay(2.0);
+    delayNode.delayTime.value = 0.3;
+    const delayFeedbackGain = ctx.createGain();
+    delayFeedbackGain.gain.value = 0.25;
+    const delayDamp = ctx.createBiquadFilter();
+    delayDamp.type = "lowpass";
+    delayDamp.frequency.value = 3000;
+    delayNode.connect(delayDamp).connect(delayFeedbackGain).connect(delayNode);
+    const delayWet = ctx.createGain();
 
-      // each voice's filter LFO period is an irrational-ish multiple
-      // of the others, so the ensemble never repeats a combined shape
-      const lfoPeriod = 17 + i * 6.28 + Math.random() * 4;
-      padVoices.push({
-        osc, gain, filter, interval: iv,
-        lfoPeriod, phase: Math.random() * Math.PI * 2,
-        targetGain: 0.05 + Math.random() * 0.03,
-        stopAll() { try { osc.stop(); } catch (e) {} },
-      });
-    });
+    const masterGain = ctx.createGain();
+    masterGain.gain.value = 0.8;
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -12;
+    limiter.ratio.value = 4;
 
-    crossfadePadsToPalette(4);
-  }
+    const output = limiter;
 
-  function crossfadePadsToPalette(rampSeconds) {
-    const now = audioCtx.currentTime;
-    padVoices.forEach((v) => {
-      const freq = midiToFreq(palette.root + v.interval);
-      v.osc.frequency.cancelScheduledValues(now);
-      v.osc.frequency.setValueAtTime(v.osc.frequency.value || freq, now);
-      v.osc.frequency.linearRampToValueAtTime(freq, now + rampSeconds);
+    // --- wiring ---
+    input.connect(formantFilter).connect(pitchNode);
 
-      v.gain.gain.cancelScheduledValues(now);
-      v.gain.gain.setValueAtTime(v.gain.gain.value, now);
-      v.gain.gain.linearRampToValueAtTime(0, now + rampSeconds * 0.5);
-      v.gain.gain.linearRampToValueAtTime(v.targetGain, now + rampSeconds * 2);
-    });
-  }
+    pitchNode.connect(robotDry).connect(robotMix);
+    pitchNode.connect(ringGain).connect(robotWet).connect(robotMix);
 
-  function updatePads(t) {
-    padVoices.forEach((v) => {
-      const lfo = Math.sin((t / v.lfoPeriod) * Math.PI * 2 + v.phase);
-      const tone = +toneSlider.value / 100;
-      const base = 500 + tone * 1400;
-      v.filter.frequency.setTargetAtTime(base + lfo * 260, audioCtx.currentTime, 0.6);
-    });
-  }
+    robotMix.connect(bitDry).connect(bitMix);
+    robotMix.connect(waveshaper).connect(bitWet).connect(bitMix);
 
-  // ---- sparse melodic "bell" layers ----------------------------------
-  // Each layer keeps its own clock. On every tick it may or may not
-  // fire, governed by a probability that random-walks between a low
-  // and high bound — the swerve control widens or narrows that walk.
+    bitMix.connect(chorusMixBus); // dry chorus path
+    bitMix.connect(chorusDelay1).connect(chorusWet1).connect(chorusMixBus);
+    bitMix.connect(chorusDelay2).connect(chorusWet2).connect(chorusMixBus);
 
-  function buildBellLayers() {
-    bellLayers = [
-      { octave: 1, baseInterval: 2.6, gain: 0.16, decayMin: 1.8, decayMax: 4.5,
-        prob: makeDrift(0.15, 0.7, 0.4), jitter: makeDrift(-1, 1, 0), nextTime: 0 },
-      { octave: 2, baseInterval: 1.7, gain: 0.11, decayMin: 1.2, decayMax: 3.0,
-        prob: makeDrift(0.1, 0.65, 0.3), jitter: makeDrift(-1, 1, 0), nextTime: 0 },
-      { octave: 3, baseInterval: 4.1, gain: 0.09, decayMin: 2.0, decayMax: 5.5,
-        prob: makeDrift(0.08, 0.5, 0.2), jitter: makeDrift(-1, 1, 0), nextTime: 0 },
-    ];
-    const now = audioCtx.currentTime;
-    bellLayers.forEach((l, i) => { l.nextTime = now + 1 + i * 0.7; });
-  }
+    chorusMixBus.connect(eqLow).connect(eqMid).connect(eqHigh);
 
-  function triggerBell(layer, time) {
-    const midi = pickDegree(layer);
-    const freq = midiToFreq(midi);
-    const decay = layer.decayMin + Math.random() * (layer.decayMax - layer.decayMin);
+    eqHigh.connect(dryGain).connect(masterGain);
+    eqHigh.connect(reverbSend).connect(reverbConvolver).connect(reverbWet).connect(masterGain);
+    eqHigh.connect(delaySend).connect(delayNode).connect(delayWet).connect(masterGain);
 
-    const osc = audioCtx.createOscillator();
-    osc.type = "sine";
-    osc.frequency.value = freq;
+    masterGain.connect(limiter);
 
-    const partial = audioCtx.createOscillator();
-    partial.type = "sine";
-    partial.frequency.value = freq * 2.01;
-    const partialGain = audioCtx.createGain();
-    partialGain.gain.value = 0.18;
+    const refs = {
+      input, output, formantFilter, pitchNode, ringCarrier, ringGain,
+      robotDry, robotWet, waveshaper, bitDry, bitWet,
+      chorusLFO1, chorusLFO2, chorusWet1, chorusWet2,
+      eqLow, eqMid, eqHigh, dryGain, reverbSend, reverbConvolver, reverbWet,
+      delaySend, delayNode, delayFeedbackGain, delayWet, masterGain,
+    };
 
-    const env = audioCtx.createGain();
-    env.gain.setValueAtTime(0, time);
-    env.gain.linearRampToValueAtTime(layer.gain, time + 0.03);
-    env.gain.exponentialRampToValueAtTime(0.0005, time + decay);
+    let started = false;
+    function start() {
+      if (started) return;
+      started = true;
+      ringCarrier.start();
+      chorusLFO1.start();
+      chorusLFO2.start();
+    }
 
-    const filter = audioCtx.createBiquadFilter();
-    filter.type = "lowpass";
-    const tone = +toneSlider.value / 100;
-    filter.frequency.value = 700 + tone * 3500;
-    filter.Q.value = 0.6;
+    let reverbDuration = 2.4;
 
-    const panner = audioCtx.createStereoPanner();
-    panner.pan.value = (Math.random() * 2 - 1) * 0.7;
+    function applyParams(p, opts) {
+      const live = !!(opts && opts.live);
+      const set = (audioParam, value) => {
+        if (live) audioParam.setTargetAtTime(value, ctx.currentTime, 0.02);
+        else audioParam.setValueAtTime(value, ctx.currentTime);
+      };
 
-    osc.connect(filter);
-    partial.connect(partialGain).connect(filter);
-    filter.connect(env).connect(panner);
+      set(formantFilter.gain, (p.formant / 100) * 15);
 
-    sendToSpace(panner, 0.55, 0.7, 0.35);
+      const robotAmt = p.robot / 100;
+      set(robotDry.gain, 1 - robotAmt);
+      set(robotWet.gain, robotAmt);
 
-    osc.start(time);
-    partial.start(time);
-    osc.stop(time + decay + 0.2);
-    partial.stop(time + decay + 0.2);
+      const bitAmt = p.bitcrush / 100;
+      waveshaper.curve = makeBitcrushCurve(p.bitcrush);
+      set(bitDry.gain, 1 - bitAmt);
+      set(bitWet.gain, bitAmt);
 
-    spawnParticle(midi, panner.pan.value, decay);
-  }
+      const chorusAmt = (p.chorus / 100) * 0.5;
+      set(chorusWet1.gain, chorusAmt);
+      set(chorusWet2.gain, chorusAmt);
+      const depth = (p.chorusDepth / 100) * 0.006;
+      chorusDepth1.gain.value = depth;
+      chorusDepth2.gain.value = depth * 1.15;
+      chorusLFO1.frequency.value = p.chorusRate;
+      chorusLFO2.frequency.value = p.chorusRate * 1.25;
 
-  function scheduleBells() {
-    const now = audioCtx.currentTime;
-    const lookahead = 0.25;
-    const density = +densitySlider.value / 100;
-    const swerve = +swerveSlider.value / 100;
+      set(eqLow.gain, (p.eqLow || 0));
+      set(eqMid.gain, (p.eqMid || 0));
+      set(eqHigh.gain, (p.eqHigh || 0));
 
-    bellLayers.forEach((layer) => {
-      while (layer.nextTime < now + lookahead) {
-        const t = layer.nextTime;
-
-        // probability itself drifts — this is the "dodge the
-        // prediction just before it forms" mechanism
-        const walkRate = 0.05 + swerve * 0.25;
-        const p = layer.prob.tick(walkRate);
-        const effectiveP = Math.min(0.95, p + density * 0.35);
-
-        if (Math.random() < effectiveP) {
-          triggerBell(layer, t);
-        }
-
-        const jitterAmt = layer.jitter.tick(0.15) * (0.15 + swerve * 0.35);
-        const interval = layer.baseInterval * (1 + jitterAmt) / (0.4 + density * 0.9);
-        layer.nextTime = t + Math.max(0.35, interval);
+      set(reverbSend.gain, p.reverb / 100);
+      set(reverbWet.gain, 1);
+      const wantedDuration = 0.6 + (p.reverbSize / 100) * 4;
+      if (Math.abs(wantedDuration - reverbDuration) > 0.15) {
+        reverbDuration = wantedDuration;
+        reverbConvolver.buffer = buildImpulseResponse(ctx, reverbDuration, 2 + (p.reverbSize / 100) * 2);
       }
+
+      set(delaySend.gain, p.delay / 100);
+      set(delayWet.gain, 1);
+      set(delayNode.delayTime, p.delayTime / 1000);
+      set(delayFeedbackGain.gain, Math.min(0.9, p.delayFeedback / 100));
+
+      set(masterGain.gain, p.master / 100);
+
+      const semitoneRatio = Math.pow(2, p.pitch / 12);
+      const speed = (p.speed || 100) / 100;
+      const pitchRatio = p.pitchLock ? semitoneRatio / speed : semitoneRatio;
+      const ratioParam = pitchNode.parameters.get("pitchRatio");
+      if (live) ratioParam.setTargetAtTime(pitchRatio, ctx.currentTime, 0.02);
+      else ratioParam.setValueAtTime(pitchRatio, ctx.currentTime);
+    }
+
+    return { input, output, refs, start, applyParams };
+  }
+
+  function getParamsSnapshot() {
+    return Object.assign({}, params, {
+      speed: +speedSlider.value,
+      pitchLock: pitchLockToggle.checked,
     });
   }
 
-  // ---- transport -------------------------------------------------
+  async function ensureAudio() {
+    if (audioCtx) return;
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    workletReady = audioCtx.audioWorklet.addModule("pitch-processor.js");
+    await workletReady;
+    liveChain = buildChain(audioCtx);
+    liveChain.start();
+    liveChain.applyParams(getParamsSnapshot(), { live: true });
 
-  let lastPadUpdate = 0;
-
-  function schedulerLoop() {
-    if (!running) return;
-    scheduleBells();
-    const t = audioCtx.currentTime;
-    if (t - lastPadUpdate > 0.08) {
-      updatePads(t);
-      lastPadUpdate = t;
-    }
-    schedulerTimer = setTimeout(schedulerLoop, 60);
+    scopeAnalyser = audioCtx.createAnalyser();
+    scopeAnalyser.fftSize = 1024;
+    liveChain.output.connect(scopeAnalyser);
+    liveChain.output.connect(audioCtx.destination);
   }
 
-  function start() {
-    if (!audioCtx) initAudio();
-    if (audioCtx.state === "suspended") audioCtx.resume();
-    running = true;
-    schedulerLoop();
-    playBtn.textContent = "停止";
-    playBtn.classList.add("playing");
+  function updateLiveParams() {
+    if (!liveChain) return;
+    liveChain.applyParams(getParamsSnapshot(), { live: true });
   }
 
-  function stop() {
-    running = false;
-    clearTimeout(schedulerTimer);
-    if (audioCtx) {
-      const now = audioCtx.currentTime;
-      master.gain.setTargetAtTime(0, now, 0.3);
-      setTimeout(() => {
-        if (!running) master.gain.setTargetAtTime(0.85, audioCtx.currentTime, 0.01);
-      }, 1200);
-    }
-    playBtn.textContent = "再生";
-    playBtn.classList.remove("playing");
+  // ---------------------------------------------------------------
+  // build UI: faders, presets, advanced sliders
+  // ---------------------------------------------------------------
+
+  function fmtValue(f, v) {
+    if (f.id === "pitch") return (v > 0 ? "+" : "") + v + f.unit;
+    return v + (f.unit || "");
   }
 
-  playBtn.addEventListener("click", () => {
-    if (running) stop(); else start();
+  FADERS.forEach((f) => {
+    const wrap = document.createElement("div");
+    wrap.className = "fader";
+    wrap.style.setProperty("--fader-hue", f.hue);
+
+    const label = document.createElement("span");
+    label.className = "faderLabel";
+    label.textContent = f.label;
+
+    const valueEl = document.createElement("span");
+    valueEl.className = "faderValue";
+    valueEl.textContent = fmtValue(f, f.def);
+
+    const sliderWrap = document.createElement("div");
+    sliderWrap.className = "vslider-wrap";
+
+    const input = document.createElement("input");
+    input.type = "range";
+    input.className = "vslider";
+    input.min = f.min;
+    input.max = f.max;
+    input.step = f.step;
+    input.value = f.def;
+    input.id = "fader-" + f.id;
+
+    input.addEventListener("input", () => {
+      params[f.id] = +input.value;
+      valueEl.textContent = fmtValue(f, +input.value);
+      updateLiveParams();
+      clearActivePreset();
+    });
+
+    sliderWrap.appendChild(input);
+    wrap.appendChild(label);
+    wrap.appendChild(sliderWrap);
+    wrap.appendChild(valueEl);
+    faderRack.appendChild(wrap);
   });
 
-  paletteBtn.addEventListener("click", () => {
-    palette = makePalette();
-    if (audioCtx) crossfadePadsToPalette(6);
+  ADVANCED.forEach((f) => {
+    const wrap = document.createElement("label");
+    wrap.className = "miniSlider";
+
+    const top = document.createElement("span");
+    top.innerHTML = f.label + ' <em id="advVal-' + f.id + '">' + f.def + "</em>";
+
+    const input = document.createElement("input");
+    input.type = "range";
+    input.min = f.min;
+    input.max = f.max;
+    input.step = f.step;
+    input.value = f.def;
+
+    input.addEventListener("input", () => {
+      params[f.id] = +input.value;
+      document.getElementById("advVal-" + f.id).textContent = input.value;
+      updateLiveParams();
+    });
+
+    wrap.appendChild(top);
+    wrap.appendChild(input);
+    advancedGrid.appendChild(wrap);
   });
 
-  // ---- visual: quiet drifting field, loosely tied to note events -----
-
-  let particles = [];
-  let hue = palette.hue;
-
-  function resizeCanvas() {
-    canvas.width = window.innerWidth * devicePixelRatio;
-    canvas.height = window.innerHeight * devicePixelRatio;
+  function clearActivePreset() {
+    presetGrid.querySelectorAll(".presetBtn").forEach((b) => b.classList.remove("active"));
   }
-  window.addEventListener("resize", resizeCanvas);
-  resizeCanvas();
 
-  function spawnParticle(midi, pan, decay) {
-    const w = canvas.width, h = canvas.height;
-    const x = ((midi % 24) / 24) * w * 0.8 + w * 0.1;
-    const y = h * 0.5 - pan * h * 0.32 + (Math.random() - 0.5) * h * 0.15;
-    particles.push({
-      x, y,
-      r: 4 * devicePixelRatio,
-      life: 0,
-      maxLife: Math.max(1.5, decay),
-      vx: (Math.random() - 0.5) * 6,
-      vy: (Math.random() - 0.5) * 6,
+  function applyPreset(preset) {
+    Object.entries(preset.vals).forEach(([id, v]) => {
+      params[id] = v;
+      const el = document.getElementById("fader-" + id);
+      if (el) el.value = v;
+      const f = FADERS.find((x) => x.id === id);
+      const valueEl = el ? el.closest(".fader").querySelector(".faderValue") : null;
+      if (valueEl && f) valueEl.textContent = fmtValue(f, v);
     });
-    if (particles.length > 120) particles.shift();
+    updateLiveParams();
+    clearActivePreset();
+    const btn = presetGrid.querySelector(`[data-preset="${preset.id}"]`);
+    if (btn) btn.classList.add("active");
   }
 
-  function draw() {
-    const w = canvas.width, h = canvas.height;
-    hue = (hue + 0.01) % 360;
-    const targetHue = palette.hue;
-    hue += (targetHue - hue) * 0.0015;
+  PRESETS.forEach((preset) => {
+    const btn = document.createElement("button");
+    btn.className = "presetBtn";
+    btn.dataset.preset = preset.id;
+    btn.innerHTML = `<strong>${preset.name}</strong><small>${preset.desc}</small>`;
+    btn.addEventListener("click", () => applyPreset(preset));
+    presetGrid.appendChild(btn);
+  });
+  document.querySelector(`[data-preset="normal"]`).classList.add("active");
 
-    ctx2d.fillStyle = `hsla(${hue}, 30%, 4%, 0.18)`;
-    ctx2d.fillRect(0, 0, w, h);
+  // ---------------------------------------------------------------
+  // recorder
+  // ---------------------------------------------------------------
 
-    particles.forEach((p) => {
-      p.life += 1 / 60;
-      p.x += p.vx * 0.016;
-      p.y += p.vy * 0.016;
-      const t = p.life / p.maxLife;
-      const alpha = Math.max(0, 1 - t) * 0.5;
-      const r = p.r * (1 + t * 8);
-      const grad = ctx2d.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
-      grad.addColorStop(0, `hsla(${hue}, 60%, 75%, ${alpha})`);
-      grad.addColorStop(1, `hsla(${hue}, 60%, 75%, 0)`);
-      ctx2d.fillStyle = grad;
-      ctx2d.beginPath();
-      ctx2d.arc(p.x, p.y, r, 0, Math.PI * 2);
-      ctx2d.fill();
+  let micStream = null;
+  let micSource = null;
+  let mediaRecorder = null;
+  let chunks = [];
+  let recording = false;
+  let takes = [];
+  let takeCounter = 0;
+  let currentTake = null;
+
+  async function toggleRecord() {
+    if (recording) {
+      mediaRecorder.stop();
+      return;
+    }
+    try {
+      await ensureAudio();
+      if (audioCtx.state === "suspended") await audioCtx.resume();
+
+      if (!micStream) {
+        micStream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true },
+        });
+        micSource = audioCtx.createMediaStreamSource(micStream);
+      }
+
+      micSource.connect(scopeAnalyser);
+      if (monitorToggle.checked) micSource.connect(liveChain.input);
+
+      chunks = [];
+      mediaRecorder = new MediaRecorder(micStream);
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+      mediaRecorder.onstop = onRecordingStop;
+      mediaRecorder.start();
+
+      recording = true;
+      recBtn.classList.add("recording");
+      recBtn.lastChild.textContent = " 停止";
+      setStatus("録音中… もう一度押すと停止します。");
+    } catch (err) {
+      setStatus("マイクを使用できませんでした: " + err.message);
+    }
+  }
+
+  async function onRecordingStop() {
+    recording = false;
+    recBtn.classList.remove("recording");
+    recBtn.lastChild.textContent = " 録音";
+    setStatus("処理中…");
+
+    try {
+      micSource.disconnect(scopeAnalyser);
+      if (monitorToggle.checked) micSource.disconnect(liveChain.input);
+    } catch (e) {}
+
+    const blob = new Blob(chunks, { type: mediaRecorder.mimeType || "audio/webm" });
+    const arrayBuf = await blob.arrayBuffer();
+    let audioBuffer;
+    try {
+      audioBuffer = await audioCtx.decodeAudioData(arrayBuf);
+    } catch (e) {
+      setStatus("録音のデコードに失敗しました。もう一度お試しください。");
+      return;
+    }
+
+    takeCounter += 1;
+    const take = {
+      id: takeCounter,
+      name: `テイク ${takeCounter}`,
+      buffer: audioBuffer,
+      blobUrl: URL.createObjectURL(blob),
+    };
+    takes.push(take);
+    renderTakeList();
+    selectTake(take);
+    setStatus(`録音完了！（${audioBuffer.duration.toFixed(1)}秒） プリセットやフェーダーで声を変えてみましょう。`);
+  }
+
+  function renderTakeList() {
+    takeList.innerHTML = "";
+    takes.forEach((t) => {
+      const li = document.createElement("li");
+      li.className = "takeItem" + (currentTake === t ? " selected" : "");
+
+      const name = document.createElement("span");
+      name.className = "takeName";
+      name.textContent = `${t.name} (${t.buffer.duration.toFixed(1)}秒)`;
+      name.addEventListener("click", () => selectTake(t));
+
+      const delBtn = document.createElement("button");
+      delBtn.textContent = "削除";
+      delBtn.addEventListener("click", () => deleteTake(t));
+
+      li.appendChild(name);
+      li.appendChild(delBtn);
+      takeList.appendChild(li);
     });
-    particles = particles.filter((p) => p.life < p.maxLife);
-
-    requestAnimationFrame(draw);
   }
-  requestAnimationFrame(draw);
+
+  function selectTake(t) {
+    currentTake = t;
+    renderTakeList();
+    playBtn.disabled = false;
+    loopBtn.disabled = false;
+    exportBtn.disabled = false;
+    downloadRawBtn.disabled = false;
+  }
+
+  function deleteTake(t) {
+    takes = takes.filter((x) => x !== t);
+    if (currentTake === t) {
+      currentTake = takes[takes.length - 1] || null;
+      const hasTake = !!currentTake;
+      playBtn.disabled = loopBtn.disabled = exportBtn.disabled = downloadRawBtn.disabled = !hasTake;
+    }
+    renderTakeList();
+  }
+
+  recBtn.addEventListener("click", toggleRecord);
+
+  downloadRawBtn.addEventListener("click", () => {
+    if (!currentTake) return;
+    const a = document.createElement("a");
+    a.href = currentTake.blobUrl;
+    a.download = `${currentTake.name}_raw.webm`;
+    a.click();
+  });
+
+  // ---------------------------------------------------------------
+  // playback (through the live effect chain)
+  // ---------------------------------------------------------------
+
+  let playingSource = null;
+  let looping = false;
+
+  loopBtn.addEventListener("click", () => {
+    looping = !looping;
+    loopBtn.classList.toggle("active", looping);
+  });
+
+  playBtn.addEventListener("click", async () => {
+    if (playingSource) {
+      stopPlayback();
+      return;
+    }
+    if (!currentTake) return;
+    await ensureAudio();
+    if (audioCtx.state === "suspended") await audioCtx.resume();
+
+    const src = audioCtx.createBufferSource();
+    src.buffer = currentTake.buffer;
+    src.loop = looping;
+    src.playbackRate.value = +speedSlider.value / 100;
+    src.connect(liveChain.input);
+    src.onended = () => {
+      if (playingSource === src) stopPlayback();
+    };
+    src.start();
+    playingSource = src;
+    playBtn.textContent = "⏹ 停止";
+  });
+
+  function stopPlayback() {
+    if (playingSource) {
+      try {
+        playingSource.stop();
+      } catch (e) {}
+      try {
+        playingSource.disconnect();
+      } catch (e) {}
+    }
+    playingSource = null;
+    playBtn.textContent = "▶ エフェクト再生";
+  }
+
+  // ---------------------------------------------------------------
+  // export to WAV (offline render through a fresh copy of the chain)
+  // ---------------------------------------------------------------
+
+  function audioBufferToWav(buffer) {
+    const numChannels = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
+    const numFrames = buffer.length;
+    const bytesPerSample = 2;
+    const blockAlign = numChannels * bytesPerSample;
+    const dataSize = numFrames * blockAlign;
+    const bufferLength = 44 + dataSize;
+    const arrayBuffer = new ArrayBuffer(bufferLength);
+    const view = new DataView(arrayBuffer);
+
+    function writeString(offset, str) {
+      for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+    }
+
+    writeString(0, "RIFF");
+    view.setUint32(4, 36 + dataSize, true);
+    writeString(8, "WAVE");
+    writeString(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * blockAlign, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, bytesPerSample * 8, true);
+    writeString(36, "data");
+    view.setUint32(40, dataSize, true);
+
+    const channelData = [];
+    for (let ch = 0; ch < numChannels; ch++) channelData.push(buffer.getChannelData(ch));
+
+    let offset = 44;
+    for (let i = 0; i < numFrames; i++) {
+      for (let ch = 0; ch < numChannels; ch++) {
+        const sample = Math.max(-1, Math.min(1, channelData[ch][i]));
+        view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+        offset += 2;
+      }
+    }
+    return new Blob([arrayBuffer], { type: "audio/wav" });
+  }
+
+  exportBtn.addEventListener("click", async () => {
+    if (!currentTake) return;
+    exportBtn.disabled = true;
+    setStatus("書き出し中…（数秒お待ちください）");
+    try {
+      const speed = +speedSlider.value / 100;
+      const tailSeconds = 3;
+      const duration = currentTake.buffer.duration / speed + tailSeconds;
+      const sampleRate = audioCtx ? audioCtx.sampleRate : 44100;
+      const offlineCtx = new OfflineAudioContext(2, Math.ceil(duration * sampleRate), sampleRate);
+      await offlineCtx.audioWorklet.addModule("pitch-processor.js");
+
+      const chain = buildChain(offlineCtx);
+      chain.start();
+      chain.applyParams(getParamsSnapshot(), { live: false });
+      chain.output.connect(offlineCtx.destination);
+
+      const src = offlineCtx.createBufferSource();
+      src.buffer = currentTake.buffer;
+      src.playbackRate.value = speed;
+      src.connect(chain.input);
+      src.start();
+
+      const rendered = await offlineCtx.startRendering();
+      const wavBlob = audioBufferToWav(rendered);
+      const url = URL.createObjectURL(wavBlob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${currentTake.name}_morph.wav`;
+      a.click();
+      setStatus("書き出し完了！ダウンロードを確認してください。");
+    } catch (err) {
+      setStatus("書き出しに失敗しました: " + err.message);
+    } finally {
+      exportBtn.disabled = false;
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // tempo / speed / pitch-lock
+  // ---------------------------------------------------------------
+
+  speedSlider.addEventListener("input", () => {
+    speedVal.textContent = speedSlider.value + "%";
+    if (playingSource) playingSource.playbackRate.value = +speedSlider.value / 100;
+    updateLiveParams();
+  });
+
+  pitchLockToggle.addEventListener("change", updateLiveParams);
+
+  // ---------------------------------------------------------------
+  // metronome
+  // ---------------------------------------------------------------
+
+  let metroRunning = false;
+  let metroTimer = null;
+  let nextClickTime = 0;
+  let beatCount = 0;
+
+  function scheduleClick(time, accent) {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = "square";
+    osc.frequency.value = accent ? 1600 : 1000;
+    gain.gain.setValueAtTime(0.0001, time);
+    gain.gain.exponentialRampToValueAtTime(accent ? 0.5 : 0.32, time + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.06);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(time);
+    osc.stop(time + 0.08);
+  }
+
+  function metroLoop() {
+    if (!metroRunning) return;
+    const lookahead = 0.15;
+    const bpm = +bpmSlider.value;
+    const secondsPerBeat = 60 / bpm;
+    while (nextClickTime < audioCtx.currentTime + lookahead) {
+      scheduleClick(nextClickTime, beatCount % 4 === 0);
+      beatCount += 1;
+      nextClickTime += secondsPerBeat;
+    }
+    metroTimer = setTimeout(metroLoop, 30);
+  }
+
+  metroBtn.addEventListener("click", async () => {
+    if (metroRunning) {
+      metroRunning = false;
+      clearTimeout(metroTimer);
+      metroBtn.textContent = "▶ メトロノーム開始";
+      metroBtn.classList.remove("active");
+      return;
+    }
+    await ensureAudio();
+    if (audioCtx.state === "suspended") await audioCtx.resume();
+    metroRunning = true;
+    beatCount = 0;
+    nextClickTime = audioCtx.currentTime + 0.1;
+    metroBtn.textContent = "⏹ メトロノーム停止";
+    metroBtn.classList.add("active");
+    metroLoop();
+  });
+
+  bpmSlider.addEventListener("input", () => {
+    bpmVal.textContent = bpmSlider.value;
+  });
+
+  let tapTimes = [];
+  tapBtn.addEventListener("click", () => {
+    const now = performance.now();
+    if (tapTimes.length && now - tapTimes[tapTimes.length - 1] > 2000) tapTimes = [];
+    tapTimes.push(now);
+    if (tapTimes.length > 8) tapTimes.shift();
+    if (tapTimes.length >= 2) {
+      const intervals = [];
+      for (let i = 1; i < tapTimes.length; i++) intervals.push(tapTimes[i] - tapTimes[i - 1]);
+      const avg = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      const bpm = Math.round(60000 / avg);
+      if (bpm >= 40 && bpm <= 240) {
+        bpmSlider.value = bpm;
+        bpmVal.textContent = bpm;
+      }
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // oscilloscope visualizer
+  // ---------------------------------------------------------------
+
+  function resizeScope() {
+    scopeCanvas.width = scopeCanvas.clientWidth * devicePixelRatio;
+    scopeCanvas.height = scopeCanvas.clientHeight * devicePixelRatio;
+  }
+  window.addEventListener("resize", resizeScope);
+  resizeScope();
+
+  const scopeData = new Uint8Array(1024);
+
+  function drawScope() {
+    requestAnimationFrame(drawScope);
+    const w = scopeCanvas.width;
+    const h = scopeCanvas.height;
+    scopeCtx.fillStyle = "rgba(3, 2, 8, 0.35)";
+    scopeCtx.fillRect(0, 0, w, h);
+
+    if (!scopeAnalyser) return;
+    scopeAnalyser.getByteTimeDomainData(scopeData);
+
+    scopeCtx.lineWidth = 2 * devicePixelRatio;
+    scopeCtx.strokeStyle = "#35e6ff";
+    scopeCtx.shadowColor = "#35e6ff";
+    scopeCtx.shadowBlur = 12;
+    scopeCtx.beginPath();
+    const step = w / scopeData.length;
+    for (let i = 0; i < scopeData.length; i++) {
+      const v = scopeData[i] / 128 - 1;
+      const y = h / 2 + v * h * 0.42;
+      const x = i * step;
+      if (i === 0) scopeCtx.moveTo(x, y);
+      else scopeCtx.lineTo(x, y);
+    }
+    scopeCtx.stroke();
+    scopeCtx.shadowBlur = 0;
+  }
+  requestAnimationFrame(drawScope);
 })();
