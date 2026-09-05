@@ -45,10 +45,11 @@
       </div>
       <div class="globalSection">
         <button id="debugBtn" class="ghostBtn">🔧 DEBUG</button>
+        <button id="testToneBtn" class="ghostBtn">🔊 TEST TONE (1s)</button>
       </div>
     </footer>
     <pre id="debugPanel" class="debugPanel" hidden></pre>
-    <p class="hint">各ノブ横の 🎲 でそのパラメータだけをランダム化。各トラックの ⚄ でトラック全体をランダム化。「RANDOMIZE ALL / GLITCH」で全トラックのパラメータを一気に揺さぶる。各トラックの FOLDER でフォルダを割り当てておくと、隣の 🎲📁 でそのトラックだけ新しいサンプルに差し替え、下の「RANDOM SAMPLES」で複数トラックのサンプルをまとめて差し替えられる（LOAD の単体選択はそのまま使えます）。右下の ● REC で全体のミックスと4トラックそれぞれのステムを同時に録音し、停止すると WAV 5個（全体＋track1〜4）をまとめた1つの ZIP ファイルとして保存されます。音が出ない時は 🔧 DEBUG を押すと、音声エンジンの内部状態が文字で表示されます。</p>
+    <p class="hint">各ノブ横の 🎲 でそのパラメータだけをランダム化。各トラックの ⚄ でトラック全体をランダム化。「RANDOMIZE ALL / GLITCH」で全トラックのパラメータを一気に揺さぶる。各トラックの FOLDER でフォルダを割り当てておくと、隣の 🎲📁 でそのトラックだけ新しいサンプルに差し替え、下の「RANDOM SAMPLES」で複数トラックのサンプルをまとめて差し替えられる（LOAD の単体選択はそのまま使えます）。右下の ● REC で全体のミックスと4トラックそれぞれのステムを同時に録音し、停止すると WAV 5個（全体＋track1〜4）をまとめた1つの ZIP ファイルとして保存されます。音が出ない時は 🔧 DEBUG を押すと、音声エンジンの内部状態が文字で表示されます。🔊 TEST TONE は、トラックの仕組みを一切通らない単純な音を1秒鳴らして、そもそも端末から音が出るかどうかだけを確認します。</p>
   </main>
 
   <script src="app.js"></script>
