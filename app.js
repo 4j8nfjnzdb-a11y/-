@@ -1640,6 +1640,51 @@
       if (masterRecording) stopMasterRecording(); else startMasterRecording();
     });
 
+    const debugBtn = document.getElementById("debugBtn");
+    const debugPanel = document.getElementById("debugPanel");
+    let debugInterval = null;
+    function collectDebugInfo() {
+      const lines = [];
+      lines.push(`ua: ${navigator.userAgent}`);
+      lines.push(`protocol: ${location.protocol}  secureContext: ${window.isSecureContext}`);
+      if (!ctx) { lines.push("ctx: not created yet"); return lines.join("\n"); }
+      lines.push(`ctx.state: ${ctx.state}`);
+      lines.push(`ctx.sampleRate: ${ctx.sampleRate}  baseLatency: ${ctx.baseLatency}`);
+      lines.push(`audioWorklet: supported=${!!ctx.audioWorklet} loaded=${recorderWorkletReady}`);
+      lines.push(`masterGain: ${masterGain ? masterGain.gain.value.toFixed(3) : "n/a"}`);
+      lines.push("");
+      tracks.forEach((t) => {
+        const dur = t.buffer ? t.buffer.duration.toFixed(2) + "s" : "none";
+        lines.push(
+          `track${t.index + 1}: buffer=${dur} playing=${t.playing} mode=${t.params.mode} `
+          + `level=${t.params.level.toFixed(2)} reverse=${t.params.reverse} loopSrc=${!!t.loopSource}`
+        );
+      });
+      return lines.join("\n");
+    }
+    function renderDebugInfo() {
+      if (debugPanel.hidden) return;
+      const before = ctx ? ctx.currentTime : null;
+      setTimeout(() => {
+        const after = ctx ? ctx.currentTime : null;
+        const delta = (before !== null && after !== null) ? (after - before).toFixed(3) : "n/a";
+        debugPanel.textContent = collectDebugInfo()
+          + `\n\nctx.currentTime advanced ${delta}s over ~300ms (should be ~0.3 — if 0.000, the audio clock itself is frozen)`;
+      }, 300);
+    }
+    debugBtn.addEventListener("click", () => {
+      ensureAudio();
+      debugPanel.hidden = !debugPanel.hidden;
+      debugBtn.classList.toggle("active", !debugPanel.hidden);
+      if (!debugPanel.hidden) {
+        renderDebugInfo();
+        debugInterval = setInterval(renderDebugInfo, 1000);
+      } else {
+        clearInterval(debugInterval);
+        debugInterval = null;
+      }
+    });
+
     startBtn.addEventListener("click", () => {
       ensureAudio();
       startOverlay.remove();
