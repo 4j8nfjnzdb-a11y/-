@@ -531,14 +531,9 @@
         depth: 0.3,
         pan: [-0.6, -0.2, 0.2, 0.6][index % 4],
         level: 0.85,
-        lofiCrush: 0,
         lofiWow: 0,
         lofiAge: 0,
       };
-
-      this._lofiHoldL = 0;
-      this._lofiHoldR = 0;
-      this._lofiCounter = 0;
 
       this.knobs = {};
       this.autoDice = false;
@@ -587,36 +582,8 @@
       this.wowLFO.connect(this.wowDepth).connect(this.wowDelay.delayTime);
       this.wowLFO.start();
 
-      // larger buffer = fewer, cheaper main-thread callbacks/sec (this
-      // runs continuously on every track regardless of crush amount)
-      this.lofiNode = ctx.createScriptProcessor(4096, 2, 2);
-      this.lofiNode.onaudioprocess = (e) => {
-        const inL = e.inputBuffer.getChannelData(0);
-        const inR = e.inputBuffer.numberOfChannels > 1 ? e.inputBuffer.getChannelData(1) : inL;
-        const outL = e.outputBuffer.getChannelData(0);
-        const outR = e.outputBuffer.getChannelData(1);
-        const holdSamples = Math.max(1, Math.round(1 + this.params.lofiCrush * 30));
-        // crush effectively off (the default): a straight bulk copy is
-        // far cheaper than the per-sample loop below
-        if (holdSamples <= 1) {
-          outL.set(inL);
-          outR.set(inR);
-          return;
-        }
-        for (let i = 0; i < inL.length; i++) {
-          if (this._lofiCounter <= 0) {
-            this._lofiHoldL = inL[i];
-            this._lofiHoldR = inR[i];
-            this._lofiCounter = holdSamples;
-          }
-          this._lofiCounter--;
-          outL[i] = this._lofiHoldL;
-          outR[i] = this._lofiHoldR;
-        }
-      };
-
       this.filterNode.connect(this.crusher).connect(this.ringGain)
-        .connect(this.ageFilter).connect(this.wowDelay).connect(this.lofiNode)
+        .connect(this.ageFilter).connect(this.wowDelay)
         .connect(this.panner);
 
       // dual-tap ping-pong delay, always fed, mix controls audibility
@@ -1308,15 +1275,8 @@
     });
     knobsWrap.appendChild(space.wrap);
 
-    // LOFI — worn-tape mood shaping: crush (sample-rate decimation),
-    // wow (pitch wobble), age (highcut)
+    // LOFI — worn-tape mood shaping: wow (pitch wobble), age (highcut)
     const lofi = makeSection("lofi");
-    addKnob(lofi, {
-      key: "lofiCrush", label: "crush", min: 0, max: 1, value: track.params.lofiCrush,
-      format: (v) => Math.round(v * 100) + "%",
-      onChange: (v) => { track.params.lofiCrush = v; },
-      noDice: true,
-    });
     addKnob(lofi, {
       key: "lofiWow", label: "wow", min: 0, max: 1, value: track.params.lofiWow,
       format: (v) => Math.round(v * 100) + "%",
