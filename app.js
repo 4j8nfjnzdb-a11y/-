@@ -69,11 +69,12 @@
   // master recorder: taps the final mix post-compressor and captures
   // raw PCM so it can be exported as an actual .wav, not a transcoded
   // webm/opus recording
-  let masterRecTap = null, masterRecSilence = null;
+  let masterRecTapHandle = null;
   let masterRecording = false;
   let recBuffersL = [], recBuffersR = [];
   let recStartTime = 0, recTimerInterval = null;
   let masterRecBtn = null, masterRecStatus = null;
+  let recorderWorkletReady = false;
 
   function ageFreqFromKnob(v) { return 9000 - v * 8300; } // 0 -> open, 1 -> dull/worn
 
@@ -113,26 +114,75 @@
     reverbBusGain.gain.value = 0.9;
     reverbConvolver.connect(reverbBusGain).connect(masterGain);
 
-    setupMasterRecorder();
+    initRecorderWorklet();
 
     tracks.forEach((t) => t.buildGraph());
     startScheduler();
   }
 
-  function setupMasterRecorder() {
-    masterRecTap = ctx.createScriptProcessor(4096, 2, 2);
-    masterRecSilence = ctx.createGain();
-    masterRecSilence.gain.value = 0;
-    // tap the compressed final mix in parallel; route through a silent
-    // gain to destination so the node is actually pulled for processing
-    // without adding an audible duplicate of the signal
-    compressor.connect(masterRecTap);
-    masterRecTap.connect(masterRecSilence).connect(ctx.destination);
-    masterRecTap.onaudioprocess = (e) => {
-      if (!masterRecording) return;
-      const inBuf = e.inputBuffer;
-      recBuffersL.push(inBuf.getChannelData(0).slice());
-      recBuffersR.push((inBuf.numberOfChannels > 1 ? inBuf.getChannelData(1) : inBuf.getChannelData(0)).slice());
+  // Recording taps used to run on ScriptProcessorNode alone, which has
+  // known reliability issues on iOS Safari (it can simply stop being
+  // pulled for processing under some conditions) — load an AudioWorklet
+  // instead, which runs on the dedicated real-time audio thread, and
+  // only fall back to ScriptProcessorNode where AudioWorklet is
+  // unavailable at all. Loading is fire-and-forget from initAudio();
+  // by the time a user actually starts a recording (several taps later)
+  // the module has always finished loading.
+  function initRecorderWorklet() {
+    if (!ctx.audioWorklet) return;
+    const code = `
+      class TorsoRecorderProcessor extends AudioWorkletProcessor {
+        process(inputs) {
+          const input = inputs[0];
+          if (input && input.length && input[0] && input[0].length) {
+            const left = input[0].slice();
+            const right = (input.length > 1 ? input[1] : input[0]).slice();
+            this.port.postMessage({ left, right }, [left.buffer, right.buffer]);
+          }
+          return true;
+        }
+      }
+      registerProcessor('torso-recorder', TorsoRecorderProcessor);
+    `;
+    const url = URL.createObjectURL(new Blob([code], { type: "application/javascript" }));
+    ctx.audioWorklet.addModule(url)
+      .then(() => { recorderWorkletReady = true; })
+      .catch(() => { recorderWorkletReady = false; })
+      .finally(() => URL.revokeObjectURL(url));
+  }
+
+  // taps `sourceNode` in parallel (routed through a silent gain to
+  // destination so it's actually pulled for processing without adding
+  // an audible duplicate of the signal) and calls pushChunk(left,
+  // right) with each Float32Array block while the tap is alive;
+  // returns a handle whose disconnect() tears the whole tap down
+  function createRecorderTap(sourceNode, pushChunk) {
+    const silence = ctx.createGain();
+    silence.gain.value = 0;
+    let node;
+    if (recorderWorkletReady) {
+      node = new AudioWorkletNode(ctx, "torso-recorder", {
+        numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2],
+      });
+      node.port.onmessage = (e) => pushChunk(e.data.left, e.data.right);
+    } else {
+      node = ctx.createScriptProcessor(4096, 2, 2);
+      node.onaudioprocess = (e) => {
+        const inBuf = e.inputBuffer;
+        pushChunk(
+          inBuf.getChannelData(0).slice(),
+          (inBuf.numberOfChannels > 1 ? inBuf.getChannelData(1) : inBuf.getChannelData(0)).slice()
+        );
+      };
+    }
+    sourceNode.connect(node);
+    node.connect(silence).connect(ctx.destination);
+    return {
+      disconnect() {
+        try { sourceNode.disconnect(node); } catch (e) { /* already gone */ }
+        try { node.disconnect(); } catch (e) { /* already gone */ }
+        try { silence.disconnect(); } catch (e) { /* already gone */ }
+      },
     };
   }
 
@@ -295,6 +345,10 @@
     recBuffersR = [];
     masterRecording = true;
     recStartTime = performance.now();
+    masterRecTapHandle = createRecorderTap(compressor, (l, r) => {
+      recBuffersL.push(l);
+      recBuffersR.push(r);
+    });
     tracks.forEach((t) => t.startStemRecording());
     if (masterRecBtn) { masterRecBtn.classList.add("active"); masterRecBtn.textContent = "■ STOP REC"; }
     recTimerInterval = setInterval(() => {
@@ -309,6 +363,7 @@
     masterRecording = false;
     clearInterval(recTimerInterval);
     recTimerInterval = null;
+    if (masterRecTapHandle) { masterRecTapHandle.disconnect(); masterRecTapHandle = null; }
     if (masterRecBtn) { masterRecBtn.classList.remove("active"); masterRecBtn.textContent = "● REC"; }
 
     const ts = new Date();
@@ -635,31 +690,25 @@
       this.reverbSend = ctx.createGain();
       this.reverbSend.gain.value = p.depth * 1.1;
       this.levelGain.connect(this.reverbSend).connect(reverbConvolver);
-
-      // per-track stem recorder: taps this track's own post-fader signal
-      // (what it actually contributes to the mix), fires alongside the
-      // master recorder
-      this.stemTap = ctx.createScriptProcessor(4096, 2, 2);
-      this.stemSilence = ctx.createGain();
-      this.stemSilence.gain.value = 0;
-      this.levelGain.connect(this.stemTap);
-      this.stemTap.connect(this.stemSilence).connect(ctx.destination);
-      this.stemTap.onaudioprocess = (e) => {
-        if (!this.stemRecording) return;
-        const inBuf = e.inputBuffer;
-        this.stemBuffersL.push(inBuf.getChannelData(0).slice());
-        this.stemBuffersR.push((inBuf.numberOfChannels > 1 ? inBuf.getChannelData(1) : inBuf.getChannelData(0)).slice());
-      };
     }
 
+    // per-track stem recorder: taps this track's own post-fader signal
+    // (what it actually contributes to the mix), fires alongside the
+    // master recorder. Tap is created fresh on each recording, not held
+    // open permanently.
     startStemRecording() {
       this.stemBuffersL = [];
       this.stemBuffersR = [];
       this.stemRecording = true;
+      this._stemTapHandle = createRecorderTap(this.levelGain, (l, r) => {
+        this.stemBuffersL.push(l);
+        this.stemBuffersR.push(r);
+      });
     }
 
     stopStemRecording() {
       this.stemRecording = false;
+      if (this._stemTapHandle) { this._stemTapHandle.disconnect(); this._stemTapHandle = null; }
       if (!this.stemBuffersL.length) return null;
       const blob = encodeWavBlob(this.stemBuffersL, this.stemBuffersR, ctx.sampleRate);
       this.stemBuffersL = [];
