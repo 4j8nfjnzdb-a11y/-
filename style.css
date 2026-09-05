@@ -426,3 +426,34 @@ button:not(:disabled):active {
   color: #eaffe0;
   font-weight: 900;
 }
+
+.rec-panel {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 1.2rem;
+  border-top: 1px dashed var(--panel-border);
+  background: #17140f;
+}
+
+.rec-panel-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--hazard);
+  letter-spacing: 0.04em;
+}
+
+.rec-panel audio {
+  height: 30px;
+  max-width: 320px;
+  flex: 1 1 200px;
+}
+
+#recDownload {
+  display: inline-block;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-decoration: none;
+}

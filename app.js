@@ -16,6 +16,10 @@
   let delayNode, delayFeedback, delayDamp, delayReturn;
   let staticSource, staticGain, staticFilter;
   let crackleEnabled = false;
+  let masterRecorder = null;
+  let masterRecDest = null;
+  let masterRecChunks = [];
+  let masterRecUrl = null;
 
   const tracks = [];
 
@@ -248,7 +252,7 @@
     );
 
     render();
-    return { el: wrap, setValue: (v) => setValue(v, false), getValue: () => current };
+    return { el: wrap, min, max, setValue: (v, fire = true) => setValue(v, fire), getValue: () => current };
   }
 
   // ---------------------------------------------------------------
@@ -463,10 +467,12 @@
 
   function pickLoopRegion(duration) {
     const rawBuckets = [
-      { min: 0.12, max: 0.5, weight: 3 }, // stutter
-      { min: 0.5, max: 1.8, weight: 4 }, // short loop
-      { min: 1.8, max: 4.5, weight: 2 }, // longer loop
-      { min: 4.5, max: 9, weight: 1 }, // long smear
+      { min: 0.12, max: 0.5, weight: 3 }, // micro stutter
+      { min: 0.5, max: 1.5, weight: 4 }, // ~1s
+      { min: 1.5, max: 4, weight: 3 }, // ~2-3s
+      { min: 4, max: 9, weight: 2 }, // ~5-8s
+      { min: 9, max: 18, weight: 1.5 }, // ~10-15s
+      { min: 18, max: 30, weight: 1 }, // ~20-30s, long smear
     ];
     const buckets = rawBuckets
       .map((b) => ({ min: Math.min(b.min, duration), max: Math.min(b.max, duration), weight: b.weight }))
@@ -598,6 +604,7 @@
     src.loop = true;
     src.loopStart = track.loopStart;
     src.loopEnd = Math.min(track.loopStart + track.loopLength, buffer.duration);
+    src.playbackRate.value = track.pitchRatio;
     src.connect(track.chain.inputNode);
 
     if (track.wobbleEnabled) {
@@ -672,6 +679,48 @@
     } else {
       clearTimeout(track.autoTimer);
     }
+  }
+
+  // ---------------------------------------------------------------
+  // "ALL FX" dice — re-rolls every effect knob (crush/grit/filter/
+  // delay/pitch) on its own per-track clock, independent of the
+  // loop-region dice above.
+  // ---------------------------------------------------------------
+
+  let fxAutoEnabled = false;
+
+  function rollTrackEffects(track) {
+    if (!track.knobs) return;
+    const k = track.knobs;
+    k.crush.setValue(Math.random() * 100);
+    k.grit.setValue(Math.random() * 100);
+    k.filter.setValue(Math.random() * 100);
+    k.delay.setValue(Math.random() * 100);
+    k.pitch.setValue(k.pitch.min + Math.random() * (k.pitch.max - k.pitch.min));
+  }
+
+  function scheduleFxRoll(track) {
+    clearTimeout(track.fxTimer);
+    if (!fxAutoEnabled) return;
+    const delay = 1200 + Math.random() * 8000;
+    track.fxTimer = setTimeout(() => {
+      if (!fxAutoEnabled) return;
+      rollTrackEffects(track);
+      scheduleFxRoll(track);
+    }, delay);
+  }
+
+  function setFxAutoEnabled(enabled, fxAllBtn) {
+    fxAutoEnabled = enabled;
+    fxAllBtn.classList.toggle("on", enabled);
+    tracks.forEach((t) => {
+      if (enabled) {
+        rollTrackEffects(t);
+        scheduleFxRoll(t);
+      } else {
+        clearTimeout(t.fxTimer);
+      }
+    });
   }
 
   // ---------------------------------------------------------------
@@ -856,7 +905,22 @@
       },
     });
 
-    [crush, grit, filterKnob, delayKnob, vol].forEach((k) => knobRow.appendChild(k.el));
+    const pitch = createKnob({
+      label: "PITCH",
+      min: -24,
+      max: 24,
+      value: 0,
+      format: (v) => (v > 0 ? "+" : "") + Math.round(v) + "st",
+      onChange: (v) => {
+        track.pitchRatio = Math.pow(2, v / 12);
+        if (track.source) {
+          track.source.playbackRate.setTargetAtTime(track.pitchRatio, audioCtx.currentTime, 0.01);
+        }
+      },
+    });
+
+    track.knobs = { crush, grit, filter: filterKnob, delay: delayKnob, vol, pitch };
+    [crush, grit, filterKnob, delayKnob, pitch, vol].forEach((k) => knobRow.appendChild(k.el));
   }
 
   // ---------------------------------------------------------------
@@ -894,6 +958,8 @@
       wobbleEnabled: false,
       autoEnabled: false,
       autoTimer: null,
+      pitchRatio: 1,
+      fxTimer: null,
       isRecording: false,
       mediaStream: null,
       isPlaying: false,
@@ -976,6 +1042,64 @@
     tracks.push(track);
   }
 
+  // ---------------------------------------------------------------
+  // master mix recorder — bounces whatever the rack is currently
+  // playing (post-compressor) to a file the user can play back / save.
+  // ---------------------------------------------------------------
+
+  function pickRecorderMime() {
+    if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return "";
+    const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"];
+    return candidates.find((c) => MediaRecorder.isTypeSupported(c)) || "";
+  }
+
+  async function startMasterRecording(recAllBtn) {
+    await ensureAudioContext();
+    if (!window.MediaRecorder) {
+      alert("このブラウザは録音(MediaRecorder)に対応していません");
+      return;
+    }
+
+    masterRecDest = audioCtx.createMediaStreamDestination();
+    compressor.connect(masterRecDest);
+
+    const mime = pickRecorderMime();
+    masterRecChunks = [];
+    masterRecorder = mime ? new MediaRecorder(masterRecDest.stream, { mimeType: mime }) : new MediaRecorder(masterRecDest.stream);
+    masterRecorder.ondataavailable = (e) => {
+      if (e.data && e.data.size) masterRecChunks.push(e.data);
+    };
+    masterRecorder.onstop = () => {
+      const blob = new Blob(masterRecChunks, { type: masterRecorder.mimeType || "audio/webm" });
+      if (masterRecUrl) URL.revokeObjectURL(masterRecUrl);
+      masterRecUrl = URL.createObjectURL(blob);
+      showMasterRecording(masterRecUrl);
+      try {
+        compressor.disconnect(masterRecDest);
+      } catch (e) {}
+      masterRecDest = null;
+    };
+    masterRecorder.start();
+
+    recAllBtn.classList.add("recording");
+    recAllBtn.textContent = "⏺ REC MIX…";
+  }
+
+  function stopMasterRecording(recAllBtn) {
+    if (masterRecorder && masterRecorder.state !== "inactive") masterRecorder.stop();
+    recAllBtn.classList.remove("recording");
+    recAllBtn.textContent = "⏺ ALL REC";
+  }
+
+  function showMasterRecording(url) {
+    const panel = document.getElementById("recPanel");
+    const audioEl = document.getElementById("recAudio");
+    const downloadEl = document.getElementById("recDownload");
+    audioEl.src = url;
+    if (downloadEl) downloadEl.href = url;
+    panel.hidden = false;
+  }
+
   function setupMaster() {
     const masterKnobRow = document.querySelector('[data-role="masterKnobs"]');
     const masterVol = createKnob({
@@ -1019,9 +1143,20 @@
       });
     });
 
+    const fxAllBtn = document.getElementById("fxAllBtn");
+    fxAllBtn.addEventListener("click", () => setFxAutoEnabled(!fxAutoEnabled, fxAllBtn));
+
+    const recAllBtn = document.getElementById("recAllBtn");
+    recAllBtn.addEventListener("click", () => {
+      if (masterRecorder && masterRecorder.state !== "inactive") stopMasterRecording(recAllBtn);
+      else startMasterRecording(recAllBtn);
+    });
+
     const stopAllBtn = document.getElementById("stopAllBtn");
     stopAllBtn.addEventListener("click", () => {
       autoAllBtn.classList.remove("on");
+      setFxAutoEnabled(false, fxAllBtn);
+      if (masterRecorder && masterRecorder.state !== "inactive") stopMasterRecording(recAllBtn);
       tracks.forEach((t) => {
         if (t.autoEnabled) setAutoEnabled(t, false);
         stopTrack(t);
