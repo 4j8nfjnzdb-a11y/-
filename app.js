@@ -720,7 +720,11 @@
       const f = this.folderFiles[Math.floor(Math.random() * this.folderFiles.length)];
       const ab = await f.arrayBuffer();
       try { await this.loadArrayBuffer(ab); }
-      catch (e) { alert(`"${f.name}" の読み込みに失敗しました: ${e.message}`); return false; }
+      catch (e) {
+        this.onLoadError && this.onLoadError(`"${f.name}" 読み込み失敗: ${e.message}`);
+        alert(`"${f.name}" の読み込みに失敗しました: ${e.message}`);
+        return false;
+      }
       this.lastFolderFileName = f.name;
       this.onFolderChanged && this.onFolderChanged();
       return true;
@@ -995,7 +999,10 @@
       if (!f) return;
       const ab = await f.arrayBuffer();
       try { await track.loadArrayBuffer(ab); }
-      catch (e) { alert("読み込みに失敗しました: " + e.message); }
+      catch (e) {
+        flashButtonMessage(loadBtn, "読み込み失敗");
+        alert("読み込みに失敗しました: " + e.message);
+      }
     });
 
     const recBtn = document.createElement("button");
@@ -1119,7 +1126,10 @@
       if (!f) return;
       const ab = await f.arrayBuffer();
       try { await track.loadArrayBuffer(ab); }
-      catch (err) { alert("読み込みに失敗しました: " + err.message); }
+      catch (err) {
+        flashButtonMessage(loadBtn, "読み込み失敗");
+        alert("読み込みに失敗しました: " + err.message);
+      }
     });
 
     // waveform ---------------------------------------------------------
@@ -1346,6 +1356,10 @@
       if (!count) { folderLabel.textContent = ""; return; }
       const name = track.folderName ? track.folderName + " — " : "";
       folderLabel.textContent = `${name}${count}曲` + (track.lastFolderFileName ? ` / now: ${track.lastFolderFileName}` : "");
+    };
+    track.onLoadError = (msg) => {
+      folderLabel.textContent = msg;
+      setTimeout(() => track.onFolderChanged(), 3500);
     };
     track.onAutoDiceFired = (key) => {
       const k = track.knobs[key];
