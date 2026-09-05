@@ -353,7 +353,7 @@
   function createKnob(opts) {
     const {
       label, min, max, value, unit = "", decimals,
-      format, onChange, dice, disabled,
+      format, onChange, dice, disabled, noDice,
     } = opts;
 
     const dp = decimals ?? (max - min <= 2 ? 2 : (max - min <= 20 ? 1 : 0));
@@ -379,14 +379,17 @@
     track.appendChild(fill);
     track.appendChild(cap);
 
-    const dice_btn = document.createElement("button");
-    dice_btn.className = "dieBtn";
-    dice_btn.type = "button";
-    dice_btn.title = "randomize " + label;
-    dice_btn.textContent = "🎲";
+    let dice_btn = null;
+    if (!noDice) {
+      dice_btn = document.createElement("button");
+      dice_btn.className = "dieBtn";
+      dice_btn.type = "button";
+      dice_btn.title = "randomize " + label;
+      dice_btn.textContent = "🎲";
+    }
 
     body.appendChild(track);
-    body.appendChild(dice_btn);
+    if (dice_btn) body.appendChild(dice_btn);
 
     const valueEl = document.createElement("div");
     valueEl.className = "fader__value";
@@ -443,19 +446,22 @@
       setValue(v + (e.deltaY < 0 ? 1 : -1) * range * 0.02);
     }, { passive: false });
 
-    dice_btn.addEventListener("click", () => {
-      const nv = dice ? dice() : rand(min, max);
-      setValue(nv);
-    });
+    if (dice_btn) {
+      dice_btn.addEventListener("click", () => {
+        const nv = dice ? dice() : rand(min, max);
+        setValue(nv);
+      });
+    }
 
     render();
 
     return {
       el,
+      hasDice: !!dice_btn,
       get value() { return v; },
       set value(nv) { setValue(nv, { silent: true }); },
       setValue,
-      roll() { dice_btn.click(); },
+      roll() { if (dice_btn) dice_btn.click(); },
     };
   }
 
@@ -572,13 +578,22 @@
       this.wowLFO.connect(this.wowDepth).connect(this.wowDelay.delayTime);
       this.wowLFO.start();
 
-      this.lofiNode = ctx.createScriptProcessor(1024, 2, 2);
+      // larger buffer = fewer, cheaper main-thread callbacks/sec (this
+      // runs continuously on every track regardless of crush amount)
+      this.lofiNode = ctx.createScriptProcessor(4096, 2, 2);
       this.lofiNode.onaudioprocess = (e) => {
         const inL = e.inputBuffer.getChannelData(0);
         const inR = e.inputBuffer.numberOfChannels > 1 ? e.inputBuffer.getChannelData(1) : inL;
         const outL = e.outputBuffer.getChannelData(0);
         const outR = e.outputBuffer.getChannelData(1);
         const holdSamples = Math.max(1, Math.round(1 + this.params.lofiCrush * 30));
+        // crush effectively off (the default): a straight bulk copy is
+        // far cheaper than the per-sample loop below
+        if (holdSamples <= 1) {
+          outL.set(inL);
+          outR.set(inR);
+          return;
+        }
         for (let i = 0; i < inL.length; i++) {
           if (this._lofiCounter <= 0) {
             this._lofiHoldL = inL[i];
@@ -880,7 +895,7 @@
       const p = this.params;
 
       if (this.autoDice && now >= this.nextAutoDiceTime) {
-        const keys = Object.keys(this.knobs);
+        const keys = Object.keys(this.knobs).filter((k) => this.knobs[k].hasDice);
         if (keys.length) {
           const k = keys[Math.floor(Math.random() * keys.length)];
           this.knobs[k].roll();
@@ -1220,7 +1235,7 @@
           track.crossBA.gain.setTargetAtTime(v * 0.3, ctx.currentTime, 0.02);
         }
       },
-      dice: () => rand(0, 0.7),
+      noDice: true,
     });
     addKnob(space, {
       key: "delayMix", label: "d.mix", min: 0, max: 1, value: track.params.delayMix,
@@ -1258,7 +1273,7 @@
       key: "lofiCrush", label: "crush", min: 0, max: 1, value: track.params.lofiCrush,
       format: (v) => Math.round(v * 100) + "%",
       onChange: (v) => { track.params.lofiCrush = v; },
-      dice: () => rand(0, 1),
+      noDice: true,
     });
     addKnob(lofi, {
       key: "lofiWow", label: "wow", min: 0, max: 1, value: track.params.lofiWow,
@@ -1271,7 +1286,7 @@
           track.wowLFO.frequency.setTargetAtTime(0.6 + v * 3, now, 0.1);
         }
       },
-      dice: () => rand(0, 1),
+      noDice: true,
     });
     addKnob(lofi, {
       key: "lofiAge", label: "age", min: 0, max: 1, value: track.params.lofiAge,
@@ -1280,7 +1295,7 @@
         track.params.lofiAge = v;
         if (track.ageFilter) track.ageFilter.frequency.setTargetAtTime(ageFreqFromKnob(v), ctx.currentTime, 0.02);
       },
-      dice: () => rand(0, 1),
+      noDice: true,
     });
     knobsWrap.appendChild(lofi.wrap);
 
@@ -1386,6 +1401,21 @@
       peaks[i] = max;
     }
     track._peaks = peaks;
+
+    // pre-render the static bars once into an offscreen canvas so the
+    // per-frame draw (60fps x 4 tracks) is a single cheap blit instead
+    // of hundreds of fillRect calls every frame
+    if (!track._waveformImg) track._waveformImg = document.createElement("canvas");
+    track._waveformImg.width = canvas.width;
+    track._waveformImg.height = canvas.height;
+    const wc = track._waveformImg.getContext("2d");
+    wc.clearRect(0, 0, canvas.width, canvas.height);
+    wc.fillStyle = `hsla(${track.hue}, 55%, 65%, 0.55)`;
+    const mid = canvas.height / 2;
+    for (let i = 0; i < peaks.length; i++) {
+      const p = peaks[i] * mid * 0.95;
+      wc.fillRect(i, mid - p, 1, p * 2);
+    }
   }
 
   function renderTrackCanvas(track, now) {
@@ -1402,15 +1432,7 @@
       return;
     }
 
-    const peaks = track._peaks;
-    if (peaks) {
-      c.fillStyle = `hsla(${track.hue}, 55%, 65%, 0.55)`;
-      const mid = h / 2;
-      for (let i = 0; i < peaks.length; i++) {
-        const p = peaks[i] * mid * 0.95;
-        c.fillRect(i, mid - p, 1, p * 2);
-      }
-    }
+    if (track._waveformImg) c.drawImage(track._waveformImg, 0, 0);
 
     // loop window
     if (track.params.mode === "loop" && track._visLoop) {
