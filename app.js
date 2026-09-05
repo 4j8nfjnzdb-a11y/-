@@ -364,6 +364,100 @@
   }
 
   // ---------------------------------------------------------------
+  // mic recording — captures raw PCM straight off the mic input, so
+  // there's no codec/container to fail decoding later.
+  // ---------------------------------------------------------------
+
+  async function startRecording(track) {
+    if (track.isRecording) return;
+    for (const t of tracks) {
+      if (t !== track && t.isRecording) stopRecording(t);
+    }
+    await ensureAudioContext();
+
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+      setLoadStatus(track, "マイクを使用できませんでした: " + err.message);
+      return;
+    }
+
+    const source = audioCtx.createMediaStreamSource(stream);
+    const processor = audioCtx.createScriptProcessor(4096, 1, 1);
+    const silentGain = audioCtx.createGain();
+    silentGain.gain.value = 0;
+    const chunks = [];
+
+    processor.onaudioprocess = (e) => {
+      chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+    };
+    source.connect(processor);
+    processor.connect(silentGain).connect(audioCtx.destination);
+
+    track.isRecording = true;
+    track.mediaStream = stream;
+    track.recSource = source;
+    track.recProcessor = processor;
+    track.recSilentGain = silentGain;
+    track.recChunks = chunks;
+    track.recBtn.classList.add("recording");
+    track.recBtn.textContent = "⏺ REC…";
+    setLoadStatus(track, "");
+  }
+
+  function stopRecording(track) {
+    if (!track.isRecording) return;
+    track.isRecording = false;
+    track.recBtn.classList.remove("recording");
+    track.recBtn.textContent = "🎙 REC";
+
+    track.recProcessor.disconnect();
+    track.recSource.disconnect();
+    track.recSilentGain.disconnect();
+    track.mediaStream.getTracks().forEach((t) => t.stop());
+
+    const chunks = track.recChunks;
+    const totalLen = chunks.reduce((sum, c) => sum + c.length, 0);
+    track.mediaStream = null;
+    track.recSource = null;
+    track.recProcessor = null;
+    track.recSilentGain = null;
+    track.recChunks = null;
+
+    if (totalLen < 1024) {
+      setLoadStatus(track, "録音が短すぎます。もう一度試してください");
+      return;
+    }
+
+    const data = new Float32Array(totalLen);
+    let offset = 0;
+    for (const c of chunks) {
+      data.set(c, offset);
+      offset += c.length;
+    }
+    const buffer = audioCtx.createBuffer(1, data.length, audioCtx.sampleRate);
+    buffer.getChannelData(0).set(data);
+
+    const stamp = new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+    stopTrack(track);
+    track.pool = [{ name: `🎙 REC ${stamp}`, buffer, reversedBuffer: null }];
+    track.activeIndex = 0;
+    track.reversed = false;
+    track.loopStart = undefined;
+    track.loopLength = undefined;
+    if (track.revBtn.classList.contains("on")) track.revBtn.classList.remove("on");
+
+    setLoadStatus(track, "");
+    drawWaveform(track);
+    updateLoopOverlay(track);
+    updateTrackName(track);
+    updatePoolCount(track);
+    setTrackEnabled(track, true);
+  }
+
+  // ---------------------------------------------------------------
   // loop-region picking
   // ---------------------------------------------------------------
 
@@ -783,6 +877,7 @@
       dropzoneEl: el.querySelector('[data-role="dropzone"]'),
       fileBtn: el.querySelector('[data-role="fileBtn"]'),
       folderBtn: el.querySelector('[data-role="folderBtn"]'),
+      recBtn: el.querySelector('[data-role="recBtn"]'),
       fileInput: el.querySelector('[data-role="fileInput"]'),
       folderInput: el.querySelector('[data-role="folderInput"]'),
       poolCountEl: el.querySelector('[data-role="poolCount"]'),
@@ -799,6 +894,8 @@
       wobbleEnabled: false,
       autoEnabled: false,
       autoTimer: null,
+      isRecording: false,
+      mediaStream: null,
       isPlaying: false,
       chain: null,
       source: null,
@@ -810,6 +907,10 @@
 
     track.fileBtn.addEventListener("click", () => track.fileInput.click());
     track.folderBtn.addEventListener("click", () => track.folderInput.click());
+    track.recBtn.addEventListener("click", () => {
+      if (track.isRecording) stopRecording(track);
+      else startRecording(track);
+    });
     track.fileInput.addEventListener("change", (e) => {
       loadFilesIntoTrack(track, e.target.files, { filter: false });
       e.target.value = "";

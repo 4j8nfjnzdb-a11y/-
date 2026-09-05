@@ -232,6 +232,22 @@ html, body {
   display: none;
 }
 
+.recBtn.recording {
+  background: linear-gradient(180deg, var(--danger), #6b1d14);
+  border-color: #ff8b7a;
+  color: #ffece8;
+  animation: rec-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes rec-pulse {
+  0%, 100% { box-shadow: 0 0 0 rgba(194, 58, 44, 0); }
+  50% { box-shadow: 0 0 10px rgba(194, 58, 44, 0.8); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .recBtn.recording { animation: none; }
+}
+
 button {
   font-family: inherit;
   cursor: pointer;
