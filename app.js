@@ -705,6 +705,9 @@
       this.playing = true;
       if (this.params.mode === "loop") this.restartLoopSource();
       else this.nextGrainTime = ctx.currentTime + 0.03;
+      // avoid a "catch up" burst of crackle bursts if noise was already
+      // turned up while stopped, or the track sat idle a while
+      this.nextCrackleTime = ctx.currentTime + 0.03;
       this.onPlayStateChanged && this.onPlayStateChanged(true);
     }
 
@@ -846,21 +849,25 @@
 
         if (p.mode === "scatter") {
           const rate = 1 + p.density * 24;
-          while (this.nextGrainTime < now + 0.25) {
+          // cap iterations so a stale timestamp (e.g. a throttled
+          // background tab) can never fire a burst of catch-up grains
+          for (let guard = 0; guard < 40 && this.nextGrainTime < now + 0.25; guard++) {
             this.spawnGrain(this.nextGrainTime);
             const jitter = 1 + (Math.random() * 2 - 1) * p.flux * 0.7;
             this.nextGrainTime += Math.max(0.02, (1 / rate) * jitter);
           }
+          if (this.nextGrainTime < now) this.nextGrainTime = now + 0.03;
         } else {
           this.applyLoopBounds(now);
         }
 
         if (p.lofiNoise > 0.04) {
           const rate = 0.5 + p.lofiNoise * 10;
-          while (this.nextCrackleTime < now + 0.25) {
+          for (let guard = 0; guard < 40 && this.nextCrackleTime < now + 0.25; guard++) {
             this.spawnCrackle(this.nextCrackleTime);
             this.nextCrackleTime += (1 / rate) * (0.6 + Math.random() * 0.8);
           }
+          if (this.nextCrackleTime < now) this.nextCrackleTime = now + 0.03;
         } else {
           this.nextCrackleTime = now;
         }
