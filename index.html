@@ -3,40 +3,182 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>kizashi — generative ambient</title>
+<title>JUNK LOOP — 4-track junk looper</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <canvas id="bg"></canvas>
+  <div class="grain"></div>
 
-  <main class="ui">
-    <header>
-      <h1>kizashi <span class="sub">きざし</span></h1>
-      <p class="tagline">反復に見せかけて、予測の像を結ぶ寸前でかわし続けるアンビエント。</p>
-    </header>
+  <header class="masthead">
+    <h1>JUNK<span class="dash">/</span>LOOP <span class="jp">がらくたループ</span></h1>
+    <p class="tagline">拾ってきた音を放り込むと、勝手に切り刻んでループさせる四トラックのジャンク・マシン。CYCLEを押すたびにループの位置と長さが変わる。</p>
+  </header>
 
-    <div class="transport">
-      <button id="playBtn" class="playBtn">再生</button>
-      <button id="paletteBtn" class="ghostBtn">配色を変える</button>
-    </div>
+  <main class="rack" id="rack">
 
-    <div class="controls">
-      <label class="slider">
-        <span>密度 <em>density</em></span>
-        <input id="density" type="range" min="0" max="100" value="42" />
-      </label>
-      <label class="slider">
-        <span>明暗 <em>tone</em></span>
-        <input id="tone" type="range" min="0" max="100" value="50" />
-      </label>
-      <label class="slider">
-        <span>揺らぎ <em>swerve</em></span>
-        <input id="swerve" type="range" min="0" max="100" value="55" />
-      </label>
-    </div>
+    <section class="track" data-track="0">
+      <div class="track-plate">
+        <span class="rivet tl"></span><span class="rivet tr"></span>
+        <span class="rivet bl"></span><span class="rivet br"></span>
 
-    <p class="hint">音は毎回、一度きりのものです。同じ配列は二度と戻ってきません。</p>
+        <div class="track-head">
+          <span class="track-num">01</span>
+          <span class="track-name" data-role="name">— 空 EMPTY —</span>
+        </div>
+
+        <div class="drop-zone" data-role="dropzone">
+          <canvas data-role="waveform"></canvas>
+          <div class="loop-overlay" data-role="loopOverlay"></div>
+          <div class="playhead" data-role="playhead"></div>
+          <div class="drop-hint" data-role="hint">ファイル or フォルダを<br>ここにドロップ</div>
+        </div>
+
+        <div class="loadbar">
+          <button type="button" class="loadBtn" data-role="fileBtn">📄 FILE</button>
+          <button type="button" class="loadBtn" data-role="folderBtn">📁 FOLDER</button>
+          <input type="file" accept="audio/*" multiple hidden data-role="fileInput">
+          <input type="file" webkitdirectory directory multiple hidden data-role="folderInput">
+          <span class="pool-count" data-role="poolCount"></span>
+        </div>
+
+        <div class="transport-row">
+          <button type="button" class="bigBtn playBtn" data-role="playBtn" disabled>▶ PLAY</button>
+          <button type="button" class="bigBtn cycleBtn" data-role="cycleBtn" disabled>⟲ CYCLE</button>
+          <button type="button" class="toggleBtn small" data-role="wobbleBtn" disabled>WOW</button>
+          <button type="button" class="toggleBtn small" data-role="revBtn" disabled>REV</button>
+        </div>
+
+        <div class="loop-info" data-role="loopInfo">loop: —</div>
+
+        <div class="knob-row" data-role="knobs"></div>
+      </div>
+    </section>
+
+    <section class="track" data-track="1">
+      <div class="track-plate">
+        <span class="rivet tl"></span><span class="rivet tr"></span>
+        <span class="rivet bl"></span><span class="rivet br"></span>
+
+        <div class="track-head">
+          <span class="track-num">02</span>
+          <span class="track-name" data-role="name">— 空 EMPTY —</span>
+        </div>
+
+        <div class="drop-zone" data-role="dropzone">
+          <canvas data-role="waveform"></canvas>
+          <div class="loop-overlay" data-role="loopOverlay"></div>
+          <div class="playhead" data-role="playhead"></div>
+          <div class="drop-hint" data-role="hint">ファイル or フォルダを<br>ここにドロップ</div>
+        </div>
+
+        <div class="loadbar">
+          <button type="button" class="loadBtn" data-role="fileBtn">📄 FILE</button>
+          <button type="button" class="loadBtn" data-role="folderBtn">📁 FOLDER</button>
+          <input type="file" accept="audio/*" multiple hidden data-role="fileInput">
+          <input type="file" webkitdirectory directory multiple hidden data-role="folderInput">
+          <span class="pool-count" data-role="poolCount"></span>
+        </div>
+
+        <div class="transport-row">
+          <button type="button" class="bigBtn playBtn" data-role="playBtn" disabled>▶ PLAY</button>
+          <button type="button" class="bigBtn cycleBtn" data-role="cycleBtn" disabled>⟲ CYCLE</button>
+          <button type="button" class="toggleBtn small" data-role="wobbleBtn" disabled>WOW</button>
+          <button type="button" class="toggleBtn small" data-role="revBtn" disabled>REV</button>
+        </div>
+
+        <div class="loop-info" data-role="loopInfo">loop: —</div>
+
+        <div class="knob-row" data-role="knobs"></div>
+      </div>
+    </section>
+
+    <section class="track" data-track="2">
+      <div class="track-plate">
+        <span class="rivet tl"></span><span class="rivet tr"></span>
+        <span class="rivet bl"></span><span class="rivet br"></span>
+
+        <div class="track-head">
+          <span class="track-num">03</span>
+          <span class="track-name" data-role="name">— 空 EMPTY —</span>
+        </div>
+
+        <div class="drop-zone" data-role="dropzone">
+          <canvas data-role="waveform"></canvas>
+          <div class="loop-overlay" data-role="loopOverlay"></div>
+          <div class="playhead" data-role="playhead"></div>
+          <div class="drop-hint" data-role="hint">ファイル or フォルダを<br>ここにドロップ</div>
+        </div>
+
+        <div class="loadbar">
+          <button type="button" class="loadBtn" data-role="fileBtn">📄 FILE</button>
+          <button type="button" class="loadBtn" data-role="folderBtn">📁 FOLDER</button>
+          <input type="file" accept="audio/*" multiple hidden data-role="fileInput">
+          <input type="file" webkitdirectory directory multiple hidden data-role="folderInput">
+          <span class="pool-count" data-role="poolCount"></span>
+        </div>
+
+        <div class="transport-row">
+          <button type="button" class="bigBtn playBtn" data-role="playBtn" disabled>▶ PLAY</button>
+          <button type="button" class="bigBtn cycleBtn" data-role="cycleBtn" disabled>⟲ CYCLE</button>
+          <button type="button" class="toggleBtn small" data-role="wobbleBtn" disabled>WOW</button>
+          <button type="button" class="toggleBtn small" data-role="revBtn" disabled>REV</button>
+        </div>
+
+        <div class="loop-info" data-role="loopInfo">loop: —</div>
+
+        <div class="knob-row" data-role="knobs"></div>
+      </div>
+    </section>
+
+    <section class="track" data-track="3">
+      <div class="track-plate">
+        <span class="rivet tl"></span><span class="rivet tr"></span>
+        <span class="rivet bl"></span><span class="rivet br"></span>
+
+        <div class="track-head">
+          <span class="track-num">04</span>
+          <span class="track-name" data-role="name">— 空 EMPTY —</span>
+        </div>
+
+        <div class="drop-zone" data-role="dropzone">
+          <canvas data-role="waveform"></canvas>
+          <div class="loop-overlay" data-role="loopOverlay"></div>
+          <div class="playhead" data-role="playhead"></div>
+          <div class="drop-hint" data-role="hint">ファイル or フォルダを<br>ここにドロップ</div>
+        </div>
+
+        <div class="loadbar">
+          <button type="button" class="loadBtn" data-role="fileBtn">📄 FILE</button>
+          <button type="button" class="loadBtn" data-role="folderBtn">📁 FOLDER</button>
+          <input type="file" accept="audio/*" multiple hidden data-role="fileInput">
+          <input type="file" webkitdirectory directory multiple hidden data-role="folderInput">
+          <span class="pool-count" data-role="poolCount"></span>
+        </div>
+
+        <div class="transport-row">
+          <button type="button" class="bigBtn playBtn" data-role="playBtn" disabled>▶ PLAY</button>
+          <button type="button" class="bigBtn cycleBtn" data-role="cycleBtn" disabled>⟲ CYCLE</button>
+          <button type="button" class="toggleBtn small" data-role="wobbleBtn" disabled>WOW</button>
+          <button type="button" class="toggleBtn small" data-role="revBtn" disabled>REV</button>
+        </div>
+
+        <div class="loop-info" data-role="loopInfo">loop: —</div>
+
+        <div class="knob-row" data-role="knobs"></div>
+      </div>
+    </section>
+
   </main>
+
+  <footer class="masterbar">
+    <span class="brand-mark">⚠ JUNK LOOP ⚠</span>
+    <div class="master-knobs" data-role="masterKnobs"></div>
+    <div class="master-right">
+      <button type="button" class="toggleBtn" id="staticBtn">📻 STATIC</button>
+      <button type="button" class="toggleBtn" id="crackleBtn">💥 CRACKLE</button>
+      <button type="button" class="bigBtn stopAllBtn" id="stopAllBtn">■ ALL STOP</button>
+    </div>
+  </footer>
 
   <script src="app.js"></script>
 </body>

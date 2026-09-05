@@ -1,418 +1,892 @@
-// kizashi — generative ambient
+// JUNK LOOP — a 4-track junk sampler/looper.
 //
-// The idea: build a texture that reads as "repetition" (steady pulse,
-// familiar scale, cyclic pads) while every layer runs on its own
-// incommensurate clock and a slowly-drifting probability of firing at
-// all. The listener's short-term predictive model never quite locks in
-// — each layer swerves a little before it would become obvious — but
-// nothing is ever pure noise either. That balance is tuned by the
-// "swerve" and "density" sliders.
+// Drop a file (or a whole folder) onto a track. CYCLE grabs a random
+// window inside that audio — random start point, random length (a
+// stutter, a bar, a long smear) — and loops it. Press CYCLE again and
+// the window jumps somewhere else. Every track runs its own junk-radio
+// effects chain: bitcrush, grit (waveshaper distortion), a squelchy
+// filter, and a send to a shared broken-delay bus.
 
 (() => {
-  const playBtn = document.getElementById("playBtn");
-  const paletteBtn = document.getElementById("paletteBtn");
-  const densitySlider = document.getElementById("density");
-  const toneSlider = document.getElementById("tone");
-  const swerveSlider = document.getElementById("swerve");
-  const canvas = document.getElementById("bg");
-  const ctx2d = canvas.getContext("2d");
+  const TRACK_COUNT = 4;
 
   let audioCtx = null;
-  let master, dry, wet, reverbNode, delayA, delayB, delayFeedbackA, delayFeedbackB;
-  let padVoices = [];
-  let bellLayers = [];
-  let running = false;
-  let schedulerTimer = null;
+  let workletReady = null; // promise
+  let masterGain, compressor;
+  let delayNode, delayFeedback, delayDamp, delayReturn;
+  let staticSource, staticGain, staticFilter;
+  let crackleEnabled = false;
 
-  // ---- musical material -------------------------------------------
+  const tracks = [];
 
-  const SCALES = {
-    // semitone offsets from root, chosen to always sound consonant
-    // no matter which degree becomes the melodic center
-    warm: [0, 2, 3, 7, 9, 10],      // dorian-ish, dusky
-    mid: [0, 2, 4, 7, 9, 11],       // major/ionian, open
-    bright: [0, 2, 4, 6, 9, 11],    // lydian-ish, lifted
-  };
+  // ---------------------------------------------------------------
+  // audio context / master bus
+  // ---------------------------------------------------------------
 
-  const ROOTS = [48, 50, 53, 55, 57]; // C, D, F, G, A (midi, low register)
-
-  let palette = makePalette();
-
-  function makePalette() {
-    const roots = ROOTS.slice();
-    const root = roots[Math.floor(Math.random() * roots.length)];
-    const hue = Math.random() * 360;
-    return { root, hue };
-  }
-
-  function midiToFreq(m) {
-    return 440 * Math.pow(2, (m - 69) / 12);
-  }
-
-  function scaleForTone(tone) {
-    // tone: 0..100 -> warm..bright
-    if (tone < 33) return SCALES.warm;
-    if (tone < 66) return SCALES.mid;
-    return SCALES.bright;
-  }
-
-  function pickDegree(layer) {
-    const scale = scaleForTone(+toneSlider.value);
-    const degree = scale[Math.floor(Math.random() * scale.length)];
-    return palette.root + degree + layer.octave * 12;
-  }
-
-  // ---- smoothed randomness (organic "swerve", not white noise) -----
-
-  function makeDrift(min, max, start) {
-    let value = start ?? (min + max) / 2;
-    let target = value;
-    return {
-      get value() { return value; },
-      tick(rate) {
-        if (Math.random() < 0.08) {
-          target = min + Math.random() * (max - min);
-        }
-        value += (target - value) * rate;
-        return value;
-      },
-    };
-  }
-
-  // ---- audio graph ---------------------------------------------------
-
-  function buildImpulseResponse(context, duration, decay) {
-    const rate = context.sampleRate;
-    const length = Math.floor(rate * duration);
-    const impulse = context.createBuffer(2, length, rate);
-    for (let ch = 0; ch < 2; ch++) {
-      const data = impulse.getChannelData(ch);
-      for (let i = 0; i < length; i++) {
-        const t = i / length;
-        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, decay);
-      }
+  function ensureAudioContext() {
+    if (audioCtx) {
+      if (audioCtx.state === "suspended") audioCtx.resume();
+      return workletReady;
     }
-    return impulse;
-  }
-
-  function initAudio() {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-    master = audioCtx.createGain();
-    master.gain.value = 0.85;
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = 0.8;
 
-    const compressor = audioCtx.createDynamicsCompressor();
-    compressor.threshold.value = -18;
-    compressor.ratio.value = 3;
+    compressor = audioCtx.createDynamicsCompressor();
+    compressor.threshold.value = -14;
+    compressor.ratio.value = 4;
+    compressor.attack.value = 0.003;
+    compressor.release.value = 0.25;
 
-    master.connect(compressor).connect(audioCtx.destination);
+    masterGain.connect(compressor).connect(audioCtx.destination);
 
-    dry = audioCtx.createGain();
-    dry.gain.value = 0.55;
-    dry.connect(master);
+    buildDelayBus();
+    buildStaticLayer();
+    scheduleCrackle();
 
-    wet = audioCtx.createGain();
-    wet.gain.value = 0.9;
-
-    reverbNode = audioCtx.createConvolver();
-    reverbNode.buffer = buildImpulseResponse(audioCtx, 5.5, 3.0);
-    reverbNode.connect(wet);
-    wet.connect(master);
-
-    // two non-multiple delay lines, damped feedback, for a soft
-    // shimmering space that never quite settles into a fixed comb
-    delayA = audioCtx.createDelay(2.0);
-    delayA.delayTime.value = 0.372;
-    delayFeedbackA = audioCtx.createGain();
-    delayFeedbackA.gain.value = 0.38;
-    const dampA = audioCtx.createBiquadFilter();
-    dampA.type = "lowpass";
-    dampA.frequency.value = 2200;
-    delayA.connect(dampA).connect(delayFeedbackA).connect(delayA);
-    delayA.connect(wet);
-
-    delayB = audioCtx.createDelay(2.0);
-    delayB.delayTime.value = 0.551;
-    delayFeedbackB = audioCtx.createGain();
-    delayFeedbackB.gain.value = 0.33;
-    const dampB = audioCtx.createBiquadFilter();
-    dampB.type = "lowpass";
-    dampB.frequency.value = 1800;
-    delayB.connect(dampB).connect(delayFeedbackB).connect(delayB);
-    delayB.connect(wet);
-
-    buildPads();
-    buildBellLayers();
-  }
-
-  function sendToSpace(node, delayAmt, reverbAmt, dryAmt) {
-    const dg = audioCtx.createGain();
-    dg.gain.value = dryAmt;
-    node.connect(dg).connect(dry);
-
-    const rg = audioCtx.createGain();
-    rg.gain.value = reverbAmt;
-    node.connect(rg).connect(reverbNode);
-
-    const dla = audioCtx.createGain();
-    dla.gain.value = delayAmt;
-    node.connect(dla).connect(delayA);
-    node.connect(dla).connect(delayB);
-  }
-
-  // ---- pad drone layer: slow, cyclic-feeling, never exactly cyclic --
-
-  function buildPads() {
-    padVoices.forEach((v) => v.stopAll && v.stopAll());
-    padVoices = [];
-
-    const intervals = [0, 7, 12, 16]; // root, fifth, octave, tenth-ish
-    intervals.forEach((iv, i) => {
-      const osc = audioCtx.createOscillator();
-      osc.type = i % 2 === 0 ? "sine" : "triangle";
-      const detune = (Math.random() * 2 - 1) * 6;
-      osc.detune.value = detune;
-
-      const gain = audioCtx.createGain();
-      gain.gain.value = 0;
-
-      const filter = audioCtx.createBiquadFilter();
-      filter.type = "lowpass";
-      filter.frequency.value = 900;
-      filter.Q.value = 0.4;
-
-      osc.connect(filter).connect(gain);
-      sendToSpace(gain, 0.5, 0.8, 0.25);
-
-      osc.start();
-
-      // each voice's filter LFO period is an irrational-ish multiple
-      // of the others, so the ensemble never repeats a combined shape
-      const lfoPeriod = 17 + i * 6.28 + Math.random() * 4;
-      padVoices.push({
-        osc, gain, filter, interval: iv,
-        lfoPeriod, phase: Math.random() * Math.PI * 2,
-        targetGain: 0.05 + Math.random() * 0.03,
-        stopAll() { try { osc.stop(); } catch (e) {} },
-      });
+    workletReady = audioCtx.audioWorklet.addModule(bitcrusherWorkletURL()).then(() => {
+      tracks.forEach((t) => buildTrackChain(t));
     });
 
-    crossfadePadsToPalette(4);
+    return workletReady;
   }
 
-  function crossfadePadsToPalette(rampSeconds) {
+  function buildDelayBus() {
+    delayNode = audioCtx.createDelay(2.0);
+    delayNode.delayTime.value = 0.28 + Math.random() * 0.2;
+
+    delayDamp = audioCtx.createBiquadFilter();
+    delayDamp.type = "lowpass";
+    delayDamp.frequency.value = 2200;
+
+    delayFeedback = audioCtx.createGain();
+    delayFeedback.gain.value = 0.4;
+
+    delayNode.connect(delayDamp).connect(delayFeedback).connect(delayNode);
+
+    delayReturn = audioCtx.createGain();
+    delayReturn.gain.value = 0.9;
+    delayNode.connect(delayReturn).connect(masterGain);
+  }
+
+  function buildStaticLayer() {
+    const len = audioCtx.sampleRate * 2;
+    const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+
+    staticSource = audioCtx.createBufferSource();
+    staticSource.buffer = buf;
+    staticSource.loop = true;
+
+    staticFilter = audioCtx.createBiquadFilter();
+    staticFilter.type = "bandpass";
+    staticFilter.frequency.value = 2600;
+    staticFilter.Q.value = 0.7;
+
+    staticGain = audioCtx.createGain();
+    staticGain.gain.value = 0;
+
+    staticSource.connect(staticFilter).connect(staticGain).connect(masterGain);
+    staticSource.start();
+  }
+
+  function scheduleCrackle() {
+    const next = 60 + Math.random() * 500;
+    setTimeout(() => {
+      if (crackleEnabled && audioCtx) fireCrackle();
+      scheduleCrackle();
+    }, next);
+  }
+
+  function fireCrackle() {
     const now = audioCtx.currentTime;
-    padVoices.forEach((v) => {
-      const freq = midiToFreq(palette.root + v.interval);
-      v.osc.frequency.cancelScheduledValues(now);
-      v.osc.frequency.setValueAtTime(v.osc.frequency.value || freq, now);
-      v.osc.frequency.linearRampToValueAtTime(freq, now + rampSeconds);
+    const dur = 0.01 + Math.random() * 0.02;
+    const len = Math.floor(audioCtx.sampleRate * dur);
+    const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
 
-      v.gain.gain.cancelScheduledValues(now);
-      v.gain.gain.setValueAtTime(v.gain.gain.value, now);
-      v.gain.gain.linearRampToValueAtTime(0, now + rampSeconds * 0.5);
-      v.gain.gain.linearRampToValueAtTime(v.targetGain, now + rampSeconds * 2);
-    });
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    const g = audioCtx.createGain();
+    g.gain.value = 0.35 + Math.random() * 0.35;
+    src.connect(g).connect(masterGain);
+    src.start(now);
   }
 
-  function updatePads(t) {
-    padVoices.forEach((v) => {
-      const lfo = Math.sin((t / v.lfoPeriod) * Math.PI * 2 + v.phase);
-      const tone = +toneSlider.value / 100;
-      const base = 500 + tone * 1400;
-      v.filter.frequency.setTargetAtTime(base + lfo * 260, audioCtx.currentTime, 0.6);
-    });
+  // Inline AudioWorkletProcessor for lo-fi bit + sample-rate reduction,
+  // loaded from a Blob so the app stays a plain set of static files.
+  function bitcrusherWorkletURL() {
+    const code = `
+      class JunkBitcrusher extends AudioWorkletProcessor {
+        static get parameterDescriptors() {
+          return [
+            { name: 'bits', defaultValue: 16, minValue: 1, maxValue: 16 },
+            { name: 'reduction', defaultValue: 1, minValue: 1, maxValue: 60 },
+          ];
+        }
+        constructor() {
+          super();
+          this._counter = 0;
+          this._held = [0, 0];
+        }
+        process(inputs, outputs, parameters) {
+          const input = inputs[0];
+          const output = outputs[0];
+          if (!output || !output.length) return true;
+          const bitsParam = parameters.bits;
+          const redParam = parameters.reduction;
+          const frames = output[0].length;
+          for (let i = 0; i < frames; i++) {
+            const bits = bitsParam.length > 1 ? bitsParam[i] : bitsParam[0];
+            const red = Math.max(1, Math.round(redParam.length > 1 ? redParam[i] : redParam[0]));
+            const hold = this._counter % red === 0;
+            const steps = Math.pow(2, bits);
+            for (let ch = 0; ch < output.length; ch++) {
+              const inCh = input[ch] || input[0];
+              if (hold && inCh) {
+                this._held[ch] = Math.round(inCh[i] * steps) / steps;
+              }
+              output[ch][i] = this._held[ch] || 0;
+            }
+            this._counter++;
+          }
+          return true;
+        }
+      }
+      registerProcessor('junk-bitcrusher', JunkBitcrusher);
+    `;
+    const blob = new Blob([code], { type: "application/javascript" });
+    return URL.createObjectURL(blob);
   }
 
-  // ---- sparse melodic "bell" layers ----------------------------------
-  // Each layer keeps its own clock. On every tick it may or may not
-  // fire, governed by a probability that random-walks between a low
-  // and high bound — the swerve control widens or narrows that walk.
+  function makeDistortionCurve(amount) {
+    const k = amount;
+    const n = 1024;
+    const curve = new Float32Array(n);
+    const deg = Math.PI / 180;
+    for (let i = 0; i < n; i++) {
+      const x = (i * 2) / n - 1;
+      curve[i] = ((3 + k) * x * 20 * deg) / (Math.PI + k * Math.abs(x));
+    }
+    return curve;
+  }
 
-  function buildBellLayers() {
-    bellLayers = [
-      { octave: 1, baseInterval: 2.6, gain: 0.16, decayMin: 1.8, decayMax: 4.5,
-        prob: makeDrift(0.15, 0.7, 0.4), jitter: makeDrift(-1, 1, 0), nextTime: 0 },
-      { octave: 2, baseInterval: 1.7, gain: 0.11, decayMin: 1.2, decayMax: 3.0,
-        prob: makeDrift(0.1, 0.65, 0.3), jitter: makeDrift(-1, 1, 0), nextTime: 0 },
-      { octave: 3, baseInterval: 4.1, gain: 0.09, decayMin: 2.0, decayMax: 5.5,
-        prob: makeDrift(0.08, 0.5, 0.2), jitter: makeDrift(-1, 1, 0), nextTime: 0 },
+  // ---------------------------------------------------------------
+  // knob widget
+  // ---------------------------------------------------------------
+
+  function createKnob({ label, min, max, value, step = 1, format, onChange }) {
+    const wrap = document.createElement("div");
+    wrap.className = "knob";
+
+    const dial = document.createElement("div");
+    dial.className = "knob-dial";
+    const mark = document.createElement("div");
+    mark.className = "knob-mark";
+    dial.appendChild(mark);
+
+    const valueEl = document.createElement("div");
+    valueEl.className = "knob-value";
+    const labelEl = document.createElement("div");
+    labelEl.className = "knob-label";
+    labelEl.textContent = label;
+
+    wrap.appendChild(dial);
+    wrap.appendChild(valueEl);
+    wrap.appendChild(labelEl);
+
+    const range = max - min;
+    const fmt = format || ((v) => Math.round(v));
+    let current = value;
+
+    function render() {
+      const frac = (current - min) / range;
+      const angle = -135 + frac * 270;
+      mark.style.transform = `translateX(-50%) rotate(${angle}deg)`;
+      valueEl.textContent = fmt(current);
+    }
+
+    function setValue(v, fire) {
+      current = Math.min(max, Math.max(min, v));
+      render();
+      if (fire !== false) onChange(current);
+    }
+
+    let dragging = false;
+    let startY = 0;
+    let startVal = 0;
+
+    dial.addEventListener("pointerdown", (e) => {
+      dragging = true;
+      startY = e.clientY;
+      startVal = current;
+      dial.setPointerCapture(e.pointerId);
+      wrap.classList.add("active");
+    });
+    dial.addEventListener("pointermove", (e) => {
+      if (!dragging) return;
+      const dy = startY - e.clientY;
+      setValue(startVal + (dy / 140) * range);
+    });
+    function endDrag() {
+      dragging = false;
+      wrap.classList.remove("active");
+    }
+    dial.addEventListener("pointerup", endDrag);
+    dial.addEventListener("pointercancel", endDrag);
+    dial.addEventListener("dblclick", () => setValue(value));
+    dial.addEventListener(
+      "wheel",
+      (e) => {
+        e.preventDefault();
+        setValue(current - Math.sign(e.deltaY) * step * 2);
+      },
+      { passive: false }
+    );
+
+    render();
+    return { el: wrap, setValue: (v) => setValue(v, false), getValue: () => current };
+  }
+
+  // ---------------------------------------------------------------
+  // file handling
+  // ---------------------------------------------------------------
+
+  function isAudioFile(file) {
+    if (file.type && file.type.startsWith("audio/")) return true;
+    return /\.(mp3|wav|ogg|oga|m4a|aac|flac|webm|opus|aiff|aif)$/i.test(file.name);
+  }
+
+  async function collectFilesFromDataTransfer(dataTransfer) {
+    const items = dataTransfer.items;
+    if (items && items.length && items[0].webkitGetAsEntry) {
+      const entries = [];
+      for (const item of items) {
+        const entry = item.webkitGetAsEntry && item.webkitGetAsEntry();
+        if (entry) entries.push(entry);
+      }
+      const files = [];
+      async function walk(entry) {
+        if (entry.isFile) {
+          const file = await new Promise((res, rej) => entry.file(res, rej));
+          if (isAudioFile(file)) files.push(file);
+        } else if (entry.isDirectory) {
+          const reader = entry.createReader();
+          const readBatch = () => new Promise((res, rej) => reader.readEntries(res, rej));
+          let batch;
+          do {
+            batch = await readBatch();
+            for (const e of batch) await walk(e);
+          } while (batch.length > 0);
+        }
+      }
+      for (const entry of entries) await walk(entry);
+      return files;
+    }
+    return Array.from(dataTransfer.files || []).filter(isAudioFile);
+  }
+
+  function reverseBuffer(buffer) {
+    const rev = audioCtx.createBuffer(buffer.numberOfChannels, buffer.length, buffer.sampleRate);
+    for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+      const src = buffer.getChannelData(ch);
+      const dst = rev.getChannelData(ch);
+      const n = src.length;
+      for (let i = 0; i < n; i++) dst[i] = src[n - 1 - i];
+    }
+    return rev;
+  }
+
+  function getActiveBuffer(track) {
+    const entry = track.pool[track.activeIndex];
+    if (!entry) return null;
+    if (!track.reversed) return entry.buffer;
+    if (!entry.reversedBuffer) entry.reversedBuffer = reverseBuffer(entry.buffer);
+    return entry.reversedBuffer;
+  }
+
+  async function loadFilesIntoTrack(track, fileList) {
+    const files = Array.from(fileList).filter(isAudioFile);
+    if (!files.length) return;
+    await ensureAudioContext();
+    await workletReady;
+
+    const pool = [];
+    for (const file of files) {
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+        pool.push({ name: file.name, buffer: audioBuffer, reversedBuffer: null });
+      } catch (err) {
+        console.warn("decode failed:", file.name, err);
+      }
+    }
+    if (!pool.length) return;
+
+    stopTrack(track);
+    track.pool = pool;
+    track.activeIndex = Math.floor(Math.random() * pool.length);
+    track.reversed = false;
+    track.loopStart = undefined;
+    track.loopLength = undefined;
+    if (track.revBtn.classList.contains("on")) track.revBtn.classList.remove("on");
+
+    drawWaveform(track);
+    updateLoopOverlay(track);
+    updateTrackName(track);
+    updatePoolCount(track);
+    setTrackEnabled(track, true);
+  }
+
+  // ---------------------------------------------------------------
+  // loop-region picking
+  // ---------------------------------------------------------------
+
+  function pickLoopRegion(duration) {
+    const rawBuckets = [
+      { min: 0.12, max: 0.5, weight: 3 }, // stutter
+      { min: 0.5, max: 1.8, weight: 4 }, // short loop
+      { min: 1.8, max: 4.5, weight: 2 }, // longer loop
+      { min: 4.5, max: 9, weight: 1 }, // long smear
     ];
-    const now = audioCtx.currentTime;
-    bellLayers.forEach((l, i) => { l.nextTime = now + 1 + i * 0.7; });
+    const buckets = rawBuckets
+      .map((b) => ({ min: Math.min(b.min, duration), max: Math.min(b.max, duration), weight: b.weight }))
+      .filter((b) => b.max - b.min > 0.02 || b.max >= duration - 0.001);
+
+    let bucket = buckets[0] || { min: duration * 0.5, max: duration, weight: 1 };
+    const totalWeight = buckets.reduce((s, b) => s + b.weight, 0);
+    let r = Math.random() * totalWeight;
+    for (const b of buckets) {
+      if (r < b.weight) {
+        bucket = b;
+        break;
+      }
+      r -= b.weight;
+    }
+
+    const lo = Math.min(bucket.min, duration);
+    const hi = Math.max(lo, Math.min(bucket.max, duration));
+    let length = lo + Math.random() * (hi - lo);
+    length = Math.max(0.05, Math.min(length, duration));
+
+    const maxStart = Math.max(0, duration - length);
+    const start = Math.random() * maxStart;
+    return { start, length };
   }
 
-  function triggerBell(layer, time) {
-    const midi = pickDegree(layer);
-    const freq = midiToFreq(midi);
-    const decay = layer.decayMin + Math.random() * (layer.decayMax - layer.decayMin);
+  // ---------------------------------------------------------------
+  // per-track audio chain
+  // ---------------------------------------------------------------
 
-    const osc = audioCtx.createOscillator();
-    osc.type = "sine";
-    osc.frequency.value = freq;
+  function buildTrackChain(track) {
+    if (track.chain) return;
 
-    const partial = audioCtx.createOscillator();
-    partial.type = "sine";
-    partial.frequency.value = freq * 2.01;
-    const partialGain = audioCtx.createGain();
-    partialGain.gain.value = 0.18;
+    const waveshaper = audioCtx.createWaveShaper();
+    waveshaper.curve = makeDistortionCurve(10);
+    waveshaper.oversample = "2x";
 
-    const env = audioCtx.createGain();
-    env.gain.setValueAtTime(0, time);
-    env.gain.linearRampToValueAtTime(layer.gain, time + 0.03);
-    env.gain.exponentialRampToValueAtTime(0.0005, time + decay);
+    const bitcrusher = new AudioWorkletNode(audioCtx, "junk-bitcrusher", {
+      numberOfInputs: 1,
+      numberOfOutputs: 1,
+      outputChannelCount: [2],
+    });
 
     const filter = audioCtx.createBiquadFilter();
     filter.type = "lowpass";
-    const tone = +toneSlider.value / 100;
-    filter.frequency.value = 700 + tone * 3500;
-    filter.Q.value = 0.6;
+    filter.frequency.value = 14000;
+    filter.Q.value = 4;
 
-    const panner = audioCtx.createStereoPanner();
-    panner.pan.value = (Math.random() * 2 - 1) * 0.7;
+    const trackGain = audioCtx.createGain();
+    trackGain.gain.value = 0.8;
 
-    osc.connect(filter);
-    partial.connect(partialGain).connect(filter);
-    filter.connect(env).connect(panner);
+    const delaySend = audioCtx.createGain();
+    delaySend.gain.value = 0.09;
 
-    sendToSpace(panner, 0.55, 0.7, 0.35);
+    const wobbleOsc = audioCtx.createOscillator();
+    wobbleOsc.type = "sine";
+    wobbleOsc.frequency.value = 3 + Math.random() * 3;
+    const wobbleDepth = audioCtx.createGain();
+    wobbleDepth.gain.value = 0.015;
+    wobbleOsc.connect(wobbleDepth);
+    wobbleOsc.start();
 
-    osc.start(time);
-    partial.start(time);
-    osc.stop(time + decay + 0.2);
-    partial.stop(time + decay + 0.2);
+    waveshaper.connect(bitcrusher).connect(filter).connect(trackGain);
+    trackGain.connect(masterGain);
+    trackGain.connect(delaySend).connect(delayNode);
 
-    spawnParticle(midi, panner.pan.value, decay);
+    track.chain = {
+      waveshaper,
+      bitcrusher,
+      filter,
+      trackGain,
+      delaySend,
+      wobbleOsc,
+      wobbleDepth,
+      inputNode: waveshaper,
+    };
+
+    if (track.pendingKnobs) {
+      track.pendingKnobs.forEach((fn) => fn());
+      track.pendingKnobs = null;
+    }
   }
 
-  function scheduleBells() {
-    const now = audioCtx.currentTime;
-    const lookahead = 0.25;
-    const density = +densitySlider.value / 100;
-    const swerve = +swerveSlider.value / 100;
+  function stopTrack(track) {
+    if (track.source) {
+      try {
+        track.source.stop();
+      } catch (e) {}
+      try {
+        track.source.disconnect();
+      } catch (e) {}
+      if (track.chain && track.wobbleConnected) {
+        try {
+          track.chain.wobbleDepth.disconnect(track.source.playbackRate);
+        } catch (e) {}
+      }
+      track.source = null;
+    }
+    track.isPlaying = false;
+    track.wobbleConnected = false;
+    track.playBtn.textContent = "▶ PLAY";
+    track.playBtn.classList.remove("playing");
+  }
 
-    bellLayers.forEach((layer) => {
-      while (layer.nextTime < now + lookahead) {
-        const t = layer.nextTime;
+  async function startTrackPlayback(track) {
+    await ensureAudioContext();
+    await workletReady;
+    if (!track.chain) buildTrackChain(track);
+    if (!track.pool.length) return;
 
-        // probability itself drifts — this is the "dodge the
-        // prediction just before it forms" mechanism
-        const walkRate = 0.05 + swerve * 0.25;
-        const p = layer.prob.tick(walkRate);
-        const effectiveP = Math.min(0.95, p + density * 0.35);
+    const buffer = getActiveBuffer(track);
+    if (!buffer) return;
 
-        if (Math.random() < effectiveP) {
-          triggerBell(layer, t);
-        }
+    if (track.loopStart === undefined) {
+      const region = pickLoopRegion(buffer.duration);
+      track.loopStart = region.start;
+      track.loopLength = region.length;
+    }
 
-        const jitterAmt = layer.jitter.tick(0.15) * (0.15 + swerve * 0.35);
-        const interval = layer.baseInterval * (1 + jitterAmt) / (0.4 + density * 0.9);
-        layer.nextTime = t + Math.max(0.35, interval);
+    if (track.source) {
+      try {
+        track.source.stop();
+        track.source.disconnect();
+      } catch (e) {}
+    }
+
+    const src = audioCtx.createBufferSource();
+    src.buffer = buffer;
+    src.loop = true;
+    src.loopStart = track.loopStart;
+    src.loopEnd = Math.min(track.loopStart + track.loopLength, buffer.duration);
+    src.connect(track.chain.inputNode);
+
+    if (track.wobbleEnabled) {
+      track.chain.wobbleDepth.connect(src.playbackRate);
+      track.wobbleConnected = true;
+    } else {
+      track.wobbleConnected = false;
+    }
+
+    src.start(audioCtx.currentTime, track.loopStart);
+    track.source = src;
+    track.isPlaying = true;
+    track.playStartTime = audioCtx.currentTime;
+
+    track.playBtn.textContent = "■ STOP";
+    track.playBtn.classList.add("playing");
+  }
+
+  async function cycleTrack(track) {
+    await ensureAudioContext();
+    await workletReady;
+    if (!track.pool.length) return;
+
+    if (track.pool.length > 1 && Math.random() < 0.35) {
+      let idx;
+      do {
+        idx = Math.floor(Math.random() * track.pool.length);
+      } while (idx === track.activeIndex);
+      track.activeIndex = idx;
+      updateTrackName(track);
+      drawWaveform(track);
+    }
+
+    const buffer = getActiveBuffer(track);
+    if (!buffer) return;
+    const region = pickLoopRegion(buffer.duration);
+    track.loopStart = region.start;
+    track.loopLength = region.length;
+
+    await startTrackPlayback(track);
+    updateLoopOverlay(track);
+    updateLoopInfo(track);
+    flashPanel(track);
+  }
+
+  function flashPanel(track) {
+    track.plate.classList.add("flash");
+    clearTimeout(track.flashTimer);
+    track.flashTimer = setTimeout(() => track.plate.classList.remove("flash"), 260);
+  }
+
+  // ---------------------------------------------------------------
+  // UI helpers
+  // ---------------------------------------------------------------
+
+  function updateTrackName(track) {
+    const entry = track.pool[track.activeIndex];
+    if (!entry) {
+      track.nameEl.textContent = "— 空 EMPTY —";
+      track.nameEl.classList.remove("loaded");
+      return;
+    }
+    track.nameEl.textContent = entry.name + (track.reversed ? " ◄REV" : "");
+    track.nameEl.classList.add("loaded");
+  }
+
+  function updatePoolCount(track) {
+    track.poolCountEl.textContent = track.pool.length > 1 ? `${track.pool.length} files` : "";
+  }
+
+  function updateLoopInfo(track) {
+    if (track.loopStart === undefined) {
+      track.loopInfoEl.textContent = "loop: —";
+      return;
+    }
+    track.loopInfoEl.textContent = `loop: ${track.loopStart.toFixed(2)}s → +${track.loopLength.toFixed(2)}s`;
+  }
+
+  function setTrackEnabled(track, enabled) {
+    [track.playBtn, track.cycleBtn, track.wobbleBtn, track.revBtn].forEach((b) => (b.disabled = !enabled));
+  }
+
+  function resizeCanvas(canvas) {
+    const dpr = window.devicePixelRatio || 1;
+    const w = Math.max(1, canvas.clientWidth);
+    const h = Math.max(1, canvas.clientHeight);
+    const targetW = Math.round(w * dpr);
+    const targetH = Math.round(h * dpr);
+    if (canvas.width !== targetW || canvas.height !== targetH) {
+      canvas.width = targetW;
+      canvas.height = targetH;
+      return true;
+    }
+    return false;
+  }
+
+  function drawWaveform(track) {
+    const canvas = track.waveformEl;
+    resizeCanvas(canvas);
+    const ctx = canvas.getContext("2d");
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    const entry = track.pool[track.activeIndex];
+    if (!entry) return;
+    const buffer = entry.buffer;
+    const data = buffer.getChannelData(0);
+    const step = Math.max(1, Math.ceil(data.length / w));
+
+    ctx.fillStyle = "rgba(232, 179, 48, 0.85)";
+    for (let x = 0; x < w; x++) {
+      let min = 1.0;
+      let max = -1.0;
+      const start = x * step;
+      const end = Math.min(data.length, start + step);
+      for (let i = start; i < end; i++) {
+        const v = data[i];
+        if (v < min) min = v;
+        if (v > max) max = v;
+      }
+      if (max < min) {
+        min = 0;
+        max = 0;
+      }
+      const y1 = ((1 + min) * 0.5) * h;
+      const y2 = ((1 + max) * 0.5) * h;
+      ctx.fillRect(x, y1, 1, Math.max(1, y2 - y1));
+    }
+  }
+
+  function updateLoopOverlay(track) {
+    const entry = track.pool[track.activeIndex];
+    if (!entry || track.loopStart === undefined) {
+      track.loopOverlayEl.style.display = "none";
+      return;
+    }
+    const buffer = getActiveBuffer(track);
+    const duration = buffer.duration;
+    const leftPct = (track.loopStart / duration) * 100;
+    const widthPct = (track.loopLength / duration) * 100;
+    track.loopOverlayEl.style.display = "block";
+    track.loopOverlayEl.style.left = leftPct + "%";
+    track.loopOverlayEl.style.width = Math.max(0.6, widthPct) + "%";
+  }
+
+  // ---------------------------------------------------------------
+  // per-track knob params
+  // ---------------------------------------------------------------
+
+  function withChain(track, fn) {
+    if (track.chain) {
+      fn(track.chain);
+    } else {
+      track.pendingKnobs = track.pendingKnobs || [];
+      track.pendingKnobs.push(() => fn(track.chain));
+    }
+  }
+
+  function setupKnobs(track) {
+    const knobRow = track.el.querySelector('[data-role="knobs"]');
+
+    const crush = createKnob({
+      label: "CRUSH",
+      min: 0,
+      max: 100,
+      value: 15,
+      format: (v) => Math.round(v),
+      onChange: (v) => {
+        withChain(track, (chain) => {
+          const now = audioCtx.currentTime;
+          const bits = 16 - (v / 100) * 12;
+          const reduction = 1 + (v / 100) * 40;
+          chain.bitcrusher.parameters.get("bits").setTargetAtTime(bits, now, 0.01);
+          chain.bitcrusher.parameters.get("reduction").setTargetAtTime(reduction, now, 0.01);
+        });
+      },
+    });
+
+    const grit = createKnob({
+      label: "GRIT",
+      min: 0,
+      max: 100,
+      value: 10,
+      format: (v) => Math.round(v),
+      onChange: (v) => {
+        withChain(track, (chain) => {
+          chain.waveshaper.curve = makeDistortionCurve((v / 100) * 300);
+        });
+      },
+    });
+
+    const filterKnob = createKnob({
+      label: "FILTER",
+      min: 0,
+      max: 100,
+      value: 100,
+      format: (v) => Math.round(v),
+      onChange: (v) => {
+        withChain(track, (chain) => {
+          const now = audioCtx.currentTime;
+          const freq = 300 * Math.pow(14000 / 300, v / 100);
+          chain.filter.frequency.setTargetAtTime(freq, now, 0.01);
+        });
+      },
+    });
+
+    const delayKnob = createKnob({
+      label: "DELAY",
+      min: 0,
+      max: 100,
+      value: 12,
+      format: (v) => Math.round(v),
+      onChange: (v) => {
+        withChain(track, (chain) => {
+          chain.delaySend.gain.setTargetAtTime((v / 100) * 0.6, audioCtx.currentTime, 0.01);
+        });
+      },
+    });
+
+    const vol = createKnob({
+      label: "VOL",
+      min: 0,
+      max: 100,
+      value: 80,
+      format: (v) => Math.round(v),
+      onChange: (v) => {
+        withChain(track, (chain) => {
+          chain.trackGain.gain.setTargetAtTime(v / 100, audioCtx.currentTime, 0.01);
+        });
+      },
+    });
+
+    [crush, grit, filterKnob, delayKnob, vol].forEach((k) => knobRow.appendChild(k.el));
+  }
+
+  // ---------------------------------------------------------------
+  // track wiring
+  // ---------------------------------------------------------------
+
+  function setupTrack(index) {
+    const el = document.querySelector(`.track[data-track="${index}"]`);
+    const track = {
+      index,
+      el,
+      plate: el.querySelector(".track-plate"),
+      nameEl: el.querySelector('[data-role="name"]'),
+      waveformEl: el.querySelector('[data-role="waveform"]'),
+      loopOverlayEl: el.querySelector('[data-role="loopOverlay"]'),
+      playheadEl: el.querySelector('[data-role="playhead"]'),
+      hintEl: el.querySelector('[data-role="hint"]'),
+      dropzoneEl: el.querySelector('[data-role="dropzone"]'),
+      fileBtn: el.querySelector('[data-role="fileBtn"]'),
+      folderBtn: el.querySelector('[data-role="folderBtn"]'),
+      fileInput: el.querySelector('[data-role="fileInput"]'),
+      folderInput: el.querySelector('[data-role="folderInput"]'),
+      poolCountEl: el.querySelector('[data-role="poolCount"]'),
+      playBtn: el.querySelector('[data-role="playBtn"]'),
+      cycleBtn: el.querySelector('[data-role="cycleBtn"]'),
+      wobbleBtn: el.querySelector('[data-role="wobbleBtn"]'),
+      revBtn: el.querySelector('[data-role="revBtn"]'),
+      loopInfoEl: el.querySelector('[data-role="loopInfo"]'),
+      pool: [],
+      activeIndex: 0,
+      reversed: false,
+      wobbleEnabled: false,
+      isPlaying: false,
+      chain: null,
+      source: null,
+      loopStart: undefined,
+      loopLength: undefined,
+    };
+
+    setupKnobs(track);
+
+    track.fileBtn.addEventListener("click", () => track.fileInput.click());
+    track.folderBtn.addEventListener("click", () => track.folderInput.click());
+    track.fileInput.addEventListener("change", (e) => {
+      loadFilesIntoTrack(track, e.target.files);
+      e.target.value = "";
+    });
+    track.folderInput.addEventListener("change", (e) => {
+      loadFilesIntoTrack(track, e.target.files);
+      e.target.value = "";
+    });
+
+    track.dropzoneEl.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      track.dropzoneEl.classList.add("dragover");
+    });
+    track.dropzoneEl.addEventListener("dragleave", () => {
+      track.dropzoneEl.classList.remove("dragover");
+    });
+    track.dropzoneEl.addEventListener("drop", async (e) => {
+      e.preventDefault();
+      track.dropzoneEl.classList.remove("dragover");
+      const files = await collectFilesFromDataTransfer(e.dataTransfer);
+      if (files.length) loadFilesIntoTrack(track, files);
+    });
+
+    track.playBtn.addEventListener("click", () => {
+      if (track.isPlaying) {
+        stopTrack(track);
+      } else {
+        startTrackPlayback(track);
       }
     });
+
+    track.cycleBtn.addEventListener("click", () => cycleTrack(track));
+
+    track.wobbleBtn.addEventListener("click", async () => {
+      track.wobbleEnabled = !track.wobbleEnabled;
+      track.wobbleBtn.classList.toggle("on", track.wobbleEnabled);
+      if (track.source && track.chain) {
+        if (track.wobbleEnabled && !track.wobbleConnected) {
+          track.chain.wobbleDepth.connect(track.source.playbackRate);
+          track.wobbleConnected = true;
+        } else if (!track.wobbleEnabled && track.wobbleConnected) {
+          try {
+            track.chain.wobbleDepth.disconnect(track.source.playbackRate);
+          } catch (e) {}
+          track.wobbleConnected = false;
+        }
+      }
+    });
+
+    track.revBtn.addEventListener("click", () => {
+      track.reversed = !track.reversed;
+      track.revBtn.classList.toggle("on", track.reversed);
+      updateTrackName(track);
+      if (track.pool.length) {
+        track.loopStart = undefined;
+        cycleTrack(track);
+      }
+    });
+
+    tracks.push(track);
   }
 
-  // ---- transport -------------------------------------------------
+  function setupMaster() {
+    const masterKnobRow = document.querySelector('[data-role="masterKnobs"]');
+    const masterVol = createKnob({
+      label: "MASTER",
+      min: 0,
+      max: 100,
+      value: 80,
+      format: (v) => Math.round(v),
+      onChange: (v) => {
+        if (masterGain) masterGain.gain.setTargetAtTime(v / 100, audioCtx.currentTime, 0.01);
+      },
+    });
+    masterKnobRow.appendChild(masterVol.el);
 
-  let lastPadUpdate = 0;
+    const staticBtn = document.getElementById("staticBtn");
+    staticBtn.addEventListener("click", async () => {
+      await ensureAudioContext();
+      const on = staticBtn.classList.toggle("on");
+      staticGain.gain.setTargetAtTime(on ? 0.045 : 0, audioCtx.currentTime, 0.4);
+    });
 
-  function schedulerLoop() {
-    if (!running) return;
-    scheduleBells();
-    const t = audioCtx.currentTime;
-    if (t - lastPadUpdate > 0.08) {
-      updatePads(t);
-      lastPadUpdate = t;
+    const crackleBtn = document.getElementById("crackleBtn");
+    crackleBtn.addEventListener("click", () => {
+      crackleEnabled = !crackleEnabled;
+      crackleBtn.classList.toggle("on", crackleEnabled);
+    });
+
+    const stopAllBtn = document.getElementById("stopAllBtn");
+    stopAllBtn.addEventListener("click", () => {
+      tracks.forEach((t) => stopTrack(t));
+    });
+  }
+
+  // ---------------------------------------------------------------
+  // playhead animation
+  // ---------------------------------------------------------------
+
+  function animate() {
+    requestAnimationFrame(animate);
+    if (!audioCtx) return;
+    for (const track of tracks) {
+      if (!track.isPlaying) {
+        track.playheadEl.style.display = "none";
+        continue;
+      }
+      const buffer = getActiveBuffer(track);
+      if (!buffer) continue;
+      const loopLen = track.loopLength || 0.001;
+      const elapsed = audioCtx.currentTime - track.playStartTime;
+      const posInLoop = track.loopStart + (elapsed % loopLen);
+      const frac = posInLoop / buffer.duration;
+      track.playheadEl.style.display = "block";
+      track.playheadEl.style.left = frac * 100 + "%";
     }
-    schedulerTimer = setTimeout(schedulerLoop, 60);
   }
 
-  function start() {
-    if (!audioCtx) initAudio();
-    if (audioCtx.state === "suspended") audioCtx.resume();
-    running = true;
-    schedulerLoop();
-    playBtn.textContent = "停止";
-    playBtn.classList.add("playing");
-  }
-
-  function stop() {
-    running = false;
-    clearTimeout(schedulerTimer);
-    if (audioCtx) {
-      const now = audioCtx.currentTime;
-      master.gain.setTargetAtTime(0, now, 0.3);
-      setTimeout(() => {
-        if (!running) master.gain.setTargetAtTime(0.85, audioCtx.currentTime, 0.01);
-      }, 1200);
-    }
-    playBtn.textContent = "再生";
-    playBtn.classList.remove("playing");
-  }
-
-  playBtn.addEventListener("click", () => {
-    if (running) stop(); else start();
+  window.addEventListener("resize", () => {
+    tracks.forEach((t) => {
+      if (t.pool.length) {
+        drawWaveform(t);
+        updateLoopOverlay(t);
+      }
+    });
   });
 
-  paletteBtn.addEventListener("click", () => {
-    palette = makePalette();
-    if (audioCtx) crossfadePadsToPalette(6);
-  });
-
-  // ---- visual: quiet drifting field, loosely tied to note events -----
-
-  let particles = [];
-  let hue = palette.hue;
-
-  function resizeCanvas() {
-    canvas.width = window.innerWidth * devicePixelRatio;
-    canvas.height = window.innerHeight * devicePixelRatio;
-  }
-  window.addEventListener("resize", resizeCanvas);
-  resizeCanvas();
-
-  function spawnParticle(midi, pan, decay) {
-    const w = canvas.width, h = canvas.height;
-    const x = ((midi % 24) / 24) * w * 0.8 + w * 0.1;
-    const y = h * 0.5 - pan * h * 0.32 + (Math.random() - 0.5) * h * 0.15;
-    particles.push({
-      x, y,
-      r: 4 * devicePixelRatio,
-      life: 0,
-      maxLife: Math.max(1.5, decay),
-      vx: (Math.random() - 0.5) * 6,
-      vy: (Math.random() - 0.5) * 6,
-    });
-    if (particles.length > 120) particles.shift();
-  }
-
-  function draw() {
-    const w = canvas.width, h = canvas.height;
-    hue = (hue + 0.01) % 360;
-    const targetHue = palette.hue;
-    hue += (targetHue - hue) * 0.0015;
-
-    ctx2d.fillStyle = `hsla(${hue}, 30%, 4%, 0.18)`;
-    ctx2d.fillRect(0, 0, w, h);
-
-    particles.forEach((p) => {
-      p.life += 1 / 60;
-      p.x += p.vx * 0.016;
-      p.y += p.vy * 0.016;
-      const t = p.life / p.maxLife;
-      const alpha = Math.max(0, 1 - t) * 0.5;
-      const r = p.r * (1 + t * 8);
-      const grad = ctx2d.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
-      grad.addColorStop(0, `hsla(${hue}, 60%, 75%, ${alpha})`);
-      grad.addColorStop(1, `hsla(${hue}, 60%, 75%, 0)`);
-      ctx2d.fillStyle = grad;
-      ctx2d.beginPath();
-      ctx2d.arc(p.x, p.y, r, 0, Math.PI * 2);
-      ctx2d.fill();
-    });
-    particles = particles.filter((p) => p.life < p.maxLife);
-
-    requestAnimationFrame(draw);
-  }
-  requestAnimationFrame(draw);
+  for (let i = 0; i < TRACK_COUNT; i++) setupTrack(i);
+  setupMaster();
+  requestAnimationFrame(animate);
 })();
