@@ -16,10 +16,12 @@
   let delayNode, delayFeedback, delayDamp, delayReturn;
   let staticSource, staticGain, staticFilter;
   let crackleEnabled = false;
-  let masterRecorder = null;
-  let masterRecDest = null;
+  let masterRecActive = false;
+  let masterRecProcessor = null;
+  let masterRecSilentGain = null;
   let masterRecChunks = [];
   let masterRecUrl = null;
+  let masterRecBlob = null;
 
   const tracks = [];
 
@@ -291,6 +293,38 @@
       return files;
     }
     return Array.from(dataTransfer.files || []).filter(isAudioFile);
+  }
+
+  // Encodes mono Float32 samples as a 16-bit PCM WAV Blob — plays and
+  // saves everywhere, no MediaRecorder codec/container guessing needed.
+  function encodeWav(samples, sampleRate) {
+    const bytesPerSample = 2;
+    const dataSize = samples.length * bytesPerSample;
+    const buffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(buffer);
+    const writeString = (offset, str) => {
+      for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+    };
+    writeString(0, "RIFF");
+    view.setUint32(4, 36 + dataSize, true);
+    writeString(8, "WAVE");
+    writeString(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * bytesPerSample, true);
+    view.setUint16(32, bytesPerSample, true);
+    view.setUint16(34, 16, true);
+    writeString(36, "data");
+    view.setUint32(40, dataSize, true);
+    let offset = 44;
+    for (let i = 0; i < samples.length; i++) {
+      const s = Math.max(-1, Math.min(1, samples[i]));
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+      offset += 2;
+    }
+    return new Blob([view], { type: "audio/wav" });
   }
 
   function reverseBuffer(buffer) {
@@ -1047,48 +1081,70 @@
   // playing (post-compressor) to a file the user can play back / save.
   // ---------------------------------------------------------------
 
-  function pickRecorderMime() {
-    if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return "";
-    const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"];
-    return candidates.find((c) => MediaRecorder.isTypeSupported(c)) || "";
-  }
-
   async function startMasterRecording(recAllBtn) {
     await ensureAudioContext();
-    if (!window.MediaRecorder) {
-      alert("このブラウザは録音(MediaRecorder)に対応していません");
-      return;
-    }
 
-    masterRecDest = audioCtx.createMediaStreamDestination();
-    compressor.connect(masterRecDest);
-
-    const mime = pickRecorderMime();
     masterRecChunks = [];
-    masterRecorder = mime ? new MediaRecorder(masterRecDest.stream, { mimeType: mime }) : new MediaRecorder(masterRecDest.stream);
-    masterRecorder.ondataavailable = (e) => {
-      if (e.data && e.data.size) masterRecChunks.push(e.data);
+    const processor = audioCtx.createScriptProcessor(4096, 1, 1);
+    const silentGain = audioCtx.createGain();
+    silentGain.gain.value = 0;
+    processor.onaudioprocess = (e) => {
+      masterRecChunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
     };
-    masterRecorder.onstop = () => {
-      const blob = new Blob(masterRecChunks, { type: masterRecorder.mimeType || "audio/webm" });
-      if (masterRecUrl) URL.revokeObjectURL(masterRecUrl);
-      masterRecUrl = URL.createObjectURL(blob);
-      showMasterRecording(masterRecUrl);
-      try {
-        compressor.disconnect(masterRecDest);
-      } catch (e) {}
-      masterRecDest = null;
-    };
-    masterRecorder.start();
+    compressor.connect(processor);
+    processor.connect(silentGain).connect(audioCtx.destination);
+
+    masterRecActive = true;
+    masterRecProcessor = processor;
+    masterRecSilentGain = silentGain;
 
     recAllBtn.classList.add("recording");
     recAllBtn.textContent = "⏺ REC MIX…";
   }
 
   function stopMasterRecording(recAllBtn) {
-    if (masterRecorder && masterRecorder.state !== "inactive") masterRecorder.stop();
+    if (!masterRecActive) return;
+    masterRecActive = false;
     recAllBtn.classList.remove("recording");
     recAllBtn.textContent = "⏺ ALL REC";
+
+    try {
+      compressor.disconnect(masterRecProcessor);
+    } catch (e) {}
+    try {
+      masterRecProcessor.disconnect();
+    } catch (e) {}
+    try {
+      masterRecSilentGain.disconnect();
+    } catch (e) {}
+    masterRecProcessor = null;
+    masterRecSilentGain = null;
+
+    const chunks = masterRecChunks;
+    masterRecChunks = [];
+    const totalLen = chunks.reduce((sum, c) => sum + c.length, 0);
+    if (totalLen < 1024) {
+      setMasterRecStatus("録音が短すぎます。もう一度試してください");
+      return;
+    }
+
+    const data = new Float32Array(totalLen);
+    let offset = 0;
+    for (const c of chunks) {
+      data.set(c, offset);
+      offset += c.length;
+    }
+
+    const blob = encodeWav(data, audioCtx.sampleRate);
+    masterRecBlob = blob;
+    if (masterRecUrl) URL.revokeObjectURL(masterRecUrl);
+    masterRecUrl = URL.createObjectURL(blob);
+    showMasterRecording(masterRecUrl);
+  }
+
+  function setMasterRecStatus(message) {
+    const el = document.getElementById("recStatus");
+    if (el) el.textContent = message || "";
   }
 
   function showMasterRecording(url) {
@@ -1098,6 +1154,17 @@
     audioEl.src = url;
     if (downloadEl) downloadEl.href = url;
     panel.hidden = false;
+    setMasterRecStatus("");
+  }
+
+  function resetTrackEffects(track) {
+    if (!track.knobs) return;
+    const k = track.knobs;
+    k.crush.setValue(0);
+    k.grit.setValue(0);
+    k.filter.setValue(100);
+    k.delay.setValue(0);
+    k.pitch.setValue(0);
   }
 
   function setupMaster() {
@@ -1146,9 +1213,15 @@
     const fxAllBtn = document.getElementById("fxAllBtn");
     fxAllBtn.addEventListener("click", () => setFxAutoEnabled(!fxAutoEnabled, fxAllBtn));
 
+    const fxResetBtn = document.getElementById("fxResetBtn");
+    fxResetBtn.addEventListener("click", () => {
+      setFxAutoEnabled(false, fxAllBtn);
+      tracks.forEach((t) => resetTrackEffects(t));
+    });
+
     const recAllBtn = document.getElementById("recAllBtn");
     recAllBtn.addEventListener("click", () => {
-      if (masterRecorder && masterRecorder.state !== "inactive") stopMasterRecording(recAllBtn);
+      if (masterRecActive) stopMasterRecording(recAllBtn);
       else startMasterRecording(recAllBtn);
     });
 
@@ -1156,7 +1229,7 @@
     stopAllBtn.addEventListener("click", () => {
       autoAllBtn.classList.remove("on");
       setFxAutoEnabled(false, fxAllBtn);
-      if (masterRecorder && masterRecorder.state !== "inactive") stopMasterRecording(recAllBtn);
+      if (masterRecActive) stopMasterRecording(recAllBtn);
       tracks.forEach((t) => {
         if (t.autoEnabled) setAutoEnabled(t, false);
         stopTrack(t);

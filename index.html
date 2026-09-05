@@ -185,7 +185,7 @@
   <div class="rec-panel" id="recPanel" hidden>
     <span class="rec-panel-label">🎛 MIX REC</span>
     <audio controls id="recAudio"></audio>
-    <a class="loadBtn" id="recDownload" download="junk-loop-mix.webm">💾 保存</a>
+    <a class="loadBtn" id="recDownload" download="junk-loop-mix.wav">💾 保存 (wav)</a>
   </div>
 
   <footer class="masterbar">
@@ -195,9 +195,11 @@
       <button type="button" class="toggleBtn" id="staticBtn">📻 STATIC</button>
       <button type="button" class="toggleBtn" id="crackleBtn">💥 CRACKLE</button>
       <button type="button" class="toggleBtn" id="fxAllBtn">🎲 ALL FX</button>
+      <button type="button" class="loadBtn" id="fxResetBtn">↺ FX RESET</button>
       <button type="button" class="bigBtn startAllBtn" id="startAllBtn">▶ ALL START</button>
       <button type="button" class="toggleBtn" id="autoAllBtn">🎲 ALL AUTO</button>
       <button type="button" class="loadBtn recBtn" id="recAllBtn">⏺ ALL REC</button>
+      <span class="rec-status" id="recStatus"></span>
       <button type="button" class="bigBtn stopAllBtn" id="stopAllBtn">■ ALL STOP</button>
     </div>
   </footer>
