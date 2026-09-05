@@ -897,35 +897,41 @@
       const p = this.params;
       const buf = p.reverse ? this.getReversedBuffer() : this.buffer;
       if (!buf) return;
-      const dur = buf.duration;
-      const wanderOff = this.wander.value * p.flux * (0.15 + p.spread * 0.5);
-      const center = clamp(p.position + wanderOff, 0, 1);
-      const posJitter = (Math.random() * 2 - 1) * p.spread * 0.35;
-      const frac = clamp(center + posJitter, 0, 0.97);
-      const grainLen = 0.035 + p.spread * 0.5;
-      const startOffset = frac * dur;
-      const maxLen = Math.max(0.02, dur - startOffset - 0.005);
-      const grainDur = Math.min(grainLen, maxLen);
-      const rate = semitoneToRate(p.pitch + (Math.random() * 2 - 1) * p.flux * 4);
+      try {
+        const dur = buf.duration;
+        const wanderOff = this.wander.value * p.flux * (0.15 + p.spread * 0.5);
+        const center = clamp(p.position + wanderOff, 0, 1);
+        const posJitter = (Math.random() * 2 - 1) * p.spread * 0.35;
+        const frac = clamp(center + posJitter, 0, 0.97);
+        const grainLen = 0.035 + p.spread * 0.5;
+        const startOffset = frac * dur;
+        const maxLen = Math.max(0.02, dur - startOffset - 0.005);
+        const grainDur = Math.min(grainLen, maxLen);
+        const rate = semitoneToRate(p.pitch + (Math.random() * 2 - 1) * p.flux * 4);
 
-      const src = ctx.createBufferSource();
-      src.buffer = buf;
-      src.playbackRate.value = rate;
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.playbackRate.value = rate;
 
-      const env = ctx.createGain();
-      const peak = 0.8;
-      const atk = Math.max(0.004, grainDur * 0.25);
-      env.gain.setValueAtTime(0, time);
-      env.gain.linearRampToValueAtTime(peak, time + atk);
-      env.gain.linearRampToValueAtTime(0, time + grainDur);
+        const env = ctx.createGain();
+        const peak = 0.8;
+        const atk = Math.max(0.004, grainDur * 0.25);
+        env.gain.setValueAtTime(0, time);
+        env.gain.linearRampToValueAtTime(peak, time + atk);
+        env.gain.linearRampToValueAtTime(0, time + grainDur);
 
-      src.connect(env).connect(this.filterNode);
-      src.start(time, startOffset, grainDur + 0.02);
-      src.stop(time + grainDur + 0.05);
-      src.onended = () => { try { src.disconnect(); env.disconnect(); } catch (e) {} };
+        src.connect(env).connect(this.filterNode);
+        src.start(time, startOffset, grainDur + 0.02);
+        src.stop(time + grainDur + 0.05);
+        src.onended = () => { try { src.disconnect(); env.disconnect(); } catch (e) {} };
 
-      this.activeGrains.push({ start: time, dur: grainDur, frac });
-      if (this.activeGrains.length > 64) this.activeGrains.shift();
+        this.activeGrains.push({ start: time, dur: grainDur, frac });
+        if (this.activeGrains.length > 64) this.activeGrains.shift();
+        this.grainSpawnCount = (this.grainSpawnCount || 0) + 1;
+      } catch (e) {
+        this.grainErrorCount = (this.grainErrorCount || 0) + 1;
+        this.lastGrainError = e.message;
+      }
     }
 
     schedulerTick(now) {
@@ -1659,6 +1665,15 @@
           `track${t.index + 1}: buffer=${dur} playing=${t.playing} mode=${t.params.mode} `
           + `level=${t.params.level.toFixed(2)} reverse=${t.params.reverse} loopSrc=${!!t.loopSource}`
         );
+        if (t.params.mode === "scatter") {
+          const nextIn = ctx ? (t.nextGrainTime - ctx.currentTime).toFixed(3) : "n/a";
+          lines.push(
+            `  scatter: density=${t.params.density.toFixed(2)} spread=${t.params.spread.toFixed(2)} `
+            + `flux=${t.params.flux.toFixed(2)} activeGrains=${t.activeGrains.length} `
+            + `spawned=${t.grainSpawnCount || 0} errors=${t.grainErrorCount || 0} nextGrainIn=${nextIn}s`
+          );
+          if (t.lastGrainError) lines.push(`  lastGrainError: ${t.lastGrainError}`);
+        }
       });
       return lines.join("\n");
     }
