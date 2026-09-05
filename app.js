@@ -988,7 +988,7 @@
     const fileInput = document.createElement("input");
     fileInput.type = "file";
     fileInput.accept = "audio/*";
-    fileInput.hidden = true;
+    fileInput.className = "visuallyHiddenInput";
     loadBtn.addEventListener("click", () => { ensureAudio(); fileInput.click(); });
     fileInput.addEventListener("change", async () => {
       const f = fileInput.files[0];
@@ -1024,7 +1024,7 @@
     folderInput.type = "file";
     folderInput.multiple = true;
     folderInput.webkitdirectory = true;
-    folderInput.hidden = true;
+    folderInput.className = "visuallyHiddenInput";
     folderBtn.addEventListener("click", () => { ensureAudio(); folderInput.click(); });
     folderInput.addEventListener("change", async () => {
       const files = Array.from(folderInput.files).filter(isAudioFile);
