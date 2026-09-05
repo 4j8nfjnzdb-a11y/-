@@ -729,8 +729,16 @@
     setBuffer(buf) {
       this.stop();
       this.buffer = buf;
-      this.reversedBuffer = this.buildReversed(buf);
+      // reversed copy is expensive for real (multi-minute) audio files —
+      // build it lazily, only the first time reverse is actually used,
+      // instead of blocking the main thread on every single sample load
+      this.reversedBuffer = null;
       this.onBufferChanged && this.onBufferChanged();
+    }
+
+    getReversedBuffer() {
+      if (!this.reversedBuffer && this.buffer) this.reversedBuffer = this.buildReversed(this.buffer);
+      return this.reversedBuffer;
     }
 
     buildReversed(buf) {
@@ -814,7 +822,7 @@
       if (!this.buffer) return;
       this.stopLoopSource();
       const p = this.params;
-      const buf = p.reverse ? this.reversedBuffer : this.buffer;
+      const buf = p.reverse ? this.getReversedBuffer() : this.buffer;
       const dur = buf.duration;
       const loopLen = clamp(0.02 * dur + p.spread * 0.95 * dur, 0.03, dur);
       const start = clamp(p.position * dur, 0, Math.max(0, dur - 0.02));
@@ -858,7 +866,7 @@
 
     spawnGrain(time) {
       const p = this.params;
-      const buf = p.reverse ? this.reversedBuffer : this.buffer;
+      const buf = p.reverse ? this.getReversedBuffer() : this.buffer;
       if (!buf) return;
       const dur = buf.duration;
       const wanderOff = this.wander.value * p.flux * (0.15 + p.spread * 0.5);
@@ -1020,7 +1028,11 @@
     folderBtn.addEventListener("click", () => { ensureAudio(); folderInput.click(); });
     folderInput.addEventListener("change", async () => {
       const files = Array.from(folderInput.files).filter(isAudioFile);
-      if (!files.length) { alert("フォルダ内に音声ファイルが見つかりませんでした。"); return; }
+      if (!files.length) {
+        flashButtonMessage(folderBtn, "音声ファイルなし");
+        alert("フォルダ内に音声ファイルが見つかりませんでした。");
+        return;
+      }
       const first = folderInput.files[0];
       const folderName = (first.webkitRelativePath || first.name).split("/")[0];
       track.setFolderFiles(files, folderName);
@@ -1033,7 +1045,11 @@
     folderRandBtn.title = "割り当てたフォルダからランダムに1曲差し替え";
     folderRandBtn.addEventListener("click", async () => {
       ensureAudio();
-      if (!track.folderFiles.length) { alert("先に FOLDER でサンプルフォルダを選んでください。"); return; }
+      if (!track.folderFiles.length) {
+        flashButtonMessage(folderRandBtn, "先に FOLDER を");
+        alert("先に FOLDER でサンプルフォルダを選んでください。");
+        return;
+      }
       await track.pickRandomFromFolder();
     });
 
@@ -1365,17 +1381,36 @@
     tracks.forEach((t) => randomizeTrack(t));
   }
 
+  // briefly swap a button's label to show feedback that doesn't depend
+  // on alert() — alert() is silently a no-op in some sandboxed hosts
+  // (e.g. a published Artifact without modal permission), which made
+  // "no folder assigned yet" look like the button just did nothing
+  function flashButtonMessage(btn, msg, duration = 2200) {
+    if (!btn) return;
+    if (btn._flashTimeout) clearTimeout(btn._flashTimeout);
+    if (btn._origText === undefined) btn._origText = btn.textContent;
+    btn.textContent = msg;
+    btn._flashTimeout = setTimeout(() => {
+      btn.textContent = btn._origText;
+      btn._flashTimeout = null;
+    }, duration);
+  }
+
   // pick a random subset (1..N) of tracks that have a folder assigned,
   // and load a new random sample from each of their own folders
   function randomizeSamplesFromFolders() {
     ensureAudio();
+    const btn = document.getElementById("randomSamplesBtn");
     const eligible = tracks.filter((t) => t.folderFiles.length > 0);
     if (!eligible.length) {
+      flashButtonMessage(btn, "先に FOLDER でサンプルフォルダを選んでください");
       alert("フォルダが割り当てられたトラックがありません。各トラックの FOLDER ボタンで先にサンプルフォルダを選んでください。");
       return;
     }
     const shuffled = eligible.slice().sort(() => Math.random() - 0.5);
     const count = 1 + Math.floor(Math.random() * shuffled.length);
+    const names = shuffled.slice(0, count).map((t) => `T${t.index + 1}`);
+    flashButtonMessage(btn, `🎲📁 ${names.join("/")} 差し替え中…`, 1400);
     shuffled.slice(0, count).forEach((t) => t.pickRandomFromFolder());
   }
 
