@@ -393,3 +393,10 @@ button:not(:disabled):active {
   color: #ffece8;
   font-weight: 900;
 }
+
+.startAllBtn {
+  background: linear-gradient(180deg, var(--ok), #2c4a1e);
+  border-color: #b6e59a;
+  color: #eaffe0;
+  font-weight: 900;
+}

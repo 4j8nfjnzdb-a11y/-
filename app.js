@@ -533,6 +533,31 @@
     track.flashTimer = setTimeout(() => track.plate.classList.remove("flash"), 260);
   }
 
+  // Each track rolls its own dice on its own clock, so with several
+  // tracks running AUTO the whole rack keeps mutating out of sync with
+  // itself instead of everything re-rolling in lockstep.
+  function scheduleAutoCycle(track) {
+    clearTimeout(track.autoTimer);
+    if (!track.autoEnabled) return;
+    const delay = 700 + Math.random() * 7000;
+    track.autoTimer = setTimeout(async () => {
+      if (!track.autoEnabled) return;
+      await cycleTrack(track);
+      scheduleAutoCycle(track);
+    }, delay);
+  }
+
+  function setAutoEnabled(track, enabled) {
+    track.autoEnabled = enabled;
+    track.autoBtn.classList.toggle("on", enabled);
+    if (enabled) {
+      cycleTrack(track);
+      scheduleAutoCycle(track);
+    } else {
+      clearTimeout(track.autoTimer);
+    }
+  }
+
   // ---------------------------------------------------------------
   // UI helpers
   // ---------------------------------------------------------------
@@ -561,7 +586,7 @@
   }
 
   function setTrackEnabled(track, enabled) {
-    [track.playBtn, track.cycleBtn, track.wobbleBtn, track.revBtn].forEach((b) => (b.disabled = !enabled));
+    [track.playBtn, track.cycleBtn, track.wobbleBtn, track.revBtn, track.autoBtn].forEach((b) => (b.disabled = !enabled));
   }
 
   function resizeCanvas(canvas) {
@@ -743,11 +768,14 @@
       cycleBtn: el.querySelector('[data-role="cycleBtn"]'),
       wobbleBtn: el.querySelector('[data-role="wobbleBtn"]'),
       revBtn: el.querySelector('[data-role="revBtn"]'),
+      autoBtn: el.querySelector('[data-role="autoBtn"]'),
       loopInfoEl: el.querySelector('[data-role="loopInfo"]'),
       pool: [],
       activeIndex: 0,
       reversed: false,
       wobbleEnabled: false,
+      autoEnabled: false,
+      autoTimer: null,
       isPlaying: false,
       chain: null,
       source: null,
@@ -784,6 +812,7 @@
 
     track.playBtn.addEventListener("click", () => {
       if (track.isPlaying) {
+        if (track.autoEnabled) setAutoEnabled(track, false);
         stopTrack(track);
       } else {
         startTrackPlayback(track);
@@ -791,6 +820,8 @@
     });
 
     track.cycleBtn.addEventListener("click", () => cycleTrack(track));
+
+    track.autoBtn.addEventListener("click", () => setAutoEnabled(track, !track.autoEnabled));
 
     track.wobbleBtn.addEventListener("click", async () => {
       track.wobbleEnabled = !track.wobbleEnabled;
@@ -848,9 +879,29 @@
       crackleBtn.classList.toggle("on", crackleEnabled);
     });
 
+    const startAllBtn = document.getElementById("startAllBtn");
+    startAllBtn.addEventListener("click", () => {
+      tracks.forEach((t) => {
+        if (t.pool.length) startTrackPlayback(t);
+      });
+    });
+
+    const autoAllBtn = document.getElementById("autoAllBtn");
+    autoAllBtn.addEventListener("click", () => {
+      const turnOn = tracks.some((t) => t.pool.length && !t.autoEnabled);
+      autoAllBtn.classList.toggle("on", turnOn);
+      tracks.forEach((t) => {
+        if (t.pool.length) setAutoEnabled(t, turnOn);
+      });
+    });
+
     const stopAllBtn = document.getElementById("stopAllBtn");
     stopAllBtn.addEventListener("click", () => {
-      tracks.forEach((t) => stopTrack(t));
+      autoAllBtn.classList.remove("on");
+      tracks.forEach((t) => {
+        if (t.autoEnabled) setAutoEnabled(t, false);
+        stopTrack(t);
+      });
     });
   }
 
