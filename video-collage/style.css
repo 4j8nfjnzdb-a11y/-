@@ -1,0 +1,362 @@
+:root {
+  --ink: #f0eaf5;
+  --ink-dim: rgba(240, 234, 245, 0.55);
+  --bg: #0a090d;
+  --panel: #131118;
+  --accent: #ff3d7f;
+  --accent2: #37e0d8;
+  --line: rgba(240, 234, 245, 0.14);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Hiragino Sans", "Yu Gothic", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.app {
+  max-width: 68rem;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+header h1 {
+  font-weight: 300;
+  font-size: 1.9rem;
+  letter-spacing: 0.06em;
+  margin: 0;
+}
+
+header h1 .sub {
+  font-size: 1rem;
+  color: var(--ink-dim);
+  margin-left: 0.6em;
+  font-weight: 300;
+}
+
+.tagline {
+  margin: 0.75rem 0 0;
+  color: var(--ink-dim);
+  font-size: 0.85rem;
+  max-width: 42em;
+  line-height: 1.8;
+}
+
+.stageWrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+#stage {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.stageEmpty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2rem;
+  color: var(--ink-dim);
+  font-size: 0.85rem;
+  letter-spacing: 0.03em;
+  pointer-events: none;
+}
+
+.transport {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.btn {
+  font-family: inherit;
+  font-size: 0.8rem;
+  letter-spacing: 0.03em;
+  padding: 0.6rem 1.1rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.25s ease, border-color 0.25s ease, opacity 0.25s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+.btn:hover {
+  border-color: rgba(240, 234, 245, 0.5);
+}
+
+.btn.primary {
+  background: rgba(255, 61, 127, 0.18);
+  border-color: rgba(255, 61, 127, 0.5);
+}
+
+.btn.playing {
+  background: rgba(255, 61, 127, 0.06);
+  opacity: 0.75;
+}
+
+.btn.recording {
+  background: rgba(255, 61, 127, 0.9);
+  border-color: var(--accent);
+  color: #100;
+}
+
+.addBtn {
+  font-size: 0.75rem;
+  padding: 0.5rem 0.9rem;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  font-size: 0.76rem;
+  color: var(--ink-dim);
+  letter-spacing: 0.03em;
+  cursor: pointer;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1.1rem 1.25rem 1.3rem;
+}
+
+.panel h2 {
+  margin: 0 0 0.9rem;
+  font-size: 0.95rem;
+  font-weight: 400;
+  letter-spacing: 0.05em;
+}
+
+.panel h2 .sub {
+  font-size: 0.7rem;
+  color: var(--ink-dim);
+  margin-left: 0.5em;
+  font-weight: 300;
+}
+
+.sliders {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.4rem 1.8rem;
+}
+
+.slider {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+  color: var(--ink-dim);
+  width: 9rem;
+}
+
+.slider em {
+  font-style: normal;
+  opacity: 0.6;
+  margin-left: 0.35em;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 2px;
+  background: rgba(240, 234, 245, 0.28);
+  border-radius: 999px;
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(255, 61, 127, 0.6);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 11px;
+  height: 11px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(255, 61, 127, 0.6);
+}
+
+.hint {
+  margin: 1rem 0 0;
+  color: var(--ink-dim);
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  line-height: 1.7;
+  max-width: 46em;
+}
+
+.tracksHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.9rem;
+}
+
+.tracksHeader h2 { margin: 0; }
+
+.trackList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.trackListEmpty {
+  color: var(--ink-dim);
+  font-size: 0.78rem;
+  line-height: 1.7;
+  margin: 0;
+}
+
+.track {
+  display: grid;
+  grid-template-columns: 4.4rem 1fr;
+  gap: 0.9rem;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.track.muted { opacity: 0.45; }
+.track.locked { border-color: rgba(55, 224, 216, 0.5); }
+
+.trackThumb {
+  width: 4.4rem;
+  height: 4.4rem;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #000;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.trackThumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.trackThumb .kind {
+  position: absolute;
+  bottom: 2px;
+  right: 3px;
+  font-size: 0.6rem;
+  background: rgba(0,0,0,0.6);
+  padding: 0.05em 0.35em;
+  border-radius: 3px;
+  color: var(--ink-dim);
+}
+
+.trackBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.trackTop {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.trackName {
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 11rem;
+}
+
+.trackTop .spacer { flex: 1; }
+
+.iconBtn {
+  font-family: inherit;
+  font-size: 0.72rem;
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-dim);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.iconBtn.active {
+  color: var(--accent2);
+  border-color: rgba(55, 224, 216, 0.6);
+}
+
+.iconBtn.danger:hover {
+  color: var(--accent);
+  border-color: rgba(255, 61, 127, 0.6);
+}
+
+.trackTop select {
+  font-family: inherit;
+  font-size: 0.7rem;
+  background: transparent;
+  color: var(--ink-dim);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.28rem 0.5rem;
+}
+
+.trackSliders {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem 1.1rem;
+}
+
+.trackSliders .slider {
+  width: 6.2rem;
+  font-size: 0.62rem;
+}
+
+@media (max-width: 560px) {
+  header h1 { font-size: 1.5rem; }
+  .track { grid-template-columns: 3.4rem 1fr; }
+  .trackThumb { width: 3.4rem; height: 3.4rem; }
+  .trackName { max-width: 7rem; }
+}
