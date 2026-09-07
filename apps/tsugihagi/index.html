@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>継ぎ接ぎ tsugihagi — generative video cut-up collage</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+    <header>
+      <h1>継ぎ接ぎ <span class="sub">tsugihagi</span></h1>
+      <p class="tagline">画面を切り分け、映像を継ぎ足し、サイコロで壊していく——目的地のないまま複雑さだけがゆっくり育っていくコラージュ・ジェネレーター。</p>
+    </header>
+
+    <div class="stageWrap">
+      <canvas id="stage" width="1280" height="720"></canvas>
+      <div id="stageEmpty" class="stageEmpty">左下の「＋ 素材を追加」から画像や動画を読み込んでください</div>
+    </div>
+
+    <div class="transport">
+      <button id="playBtn" class="btn primary">再生</button>
+      <button id="diceBtn" class="btn">🎲 全体をふる</button>
+      <button id="recBtn" class="btn">⏺ 録画</button>
+      <button id="snapBtn" class="btn">📷 静止画</button>
+      <label class="toggle">
+        <input type="checkbox" id="autoEvolve" checked />
+        <span>自動進化</span>
+      </label>
+      <label class="toggle">
+        <input type="checkbox" id="glitchTex" />
+        <span>走査線ノイズ</span>
+      </label>
+    </div>
+
+    <section class="panel globalPanel">
+      <h2>全体 <span class="sub">global</span></h2>
+      <div class="sliders">
+        <label class="slider">
+          <span>密度 <em>density</em></span>
+          <input id="density" type="range" min="1" max="4" step="1" value="2" />
+        </label>
+        <label class="slider">
+          <span>速度 <em>speed</em></span>
+          <input id="speed" type="range" min="10" max="300" value="100" />
+        </label>
+        <label class="slider">
+          <span>混沌の上限 <em>chaos ceiling</em></span>
+          <input id="chaos" type="range" min="0" max="100" value="70" />
+        </label>
+        <label class="slider">
+          <span>カット⇄溶暗 <em>cut / fade</em></span>
+          <input id="fadeBalance" type="range" min="0" max="100" value="45" />
+        </label>
+        <label class="slider">
+          <span>色相 <em>hue</em></span>
+          <input id="globalHue" type="range" min="0" max="360" value="0" />
+        </label>
+        <label class="slider">
+          <span>彩度 <em>saturation</em></span>
+          <input id="globalSat" type="range" min="0" max="200" value="100" />
+        </label>
+        <label class="slider">
+          <span>暗さ <em>darkness</em></span>
+          <input id="darkness" type="range" min="0" max="80" value="0" />
+        </label>
+      </div>
+      <p class="hint">「混沌の上限」は再生時間とともに育っていく複雑さの天井です。育ちすぎたら勝手に一度息をつくので、飛び散りっぱなしにはなりません。</p>
+    </section>
+
+    <section class="panel tracksPanel">
+      <div class="tracksHeader">
+        <h2>トラック <span class="sub">tracks</span></h2>
+        <label class="btn addBtn">
+          ＋ 素材を追加
+          <input id="fileInput" type="file" accept="image/*,video/*" multiple hidden />
+        </label>
+      </div>
+      <div id="trackList" class="trackList">
+        <p class="trackListEmpty">まだ素材がありません。画像・動画を複数追加すると、それぞれが独立したトラックになります。</p>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

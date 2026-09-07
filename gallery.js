@@ -63,6 +63,7 @@
     { appId: "voice-morph", title: "VOICE MORPH STUDIO", src: "apps/voice-morph/index.html", w: 560, h: 620 },
     { appId: "drift-rack", title: "drift rack", src: "apps/drift-rack/index.html", w: 640, h: 620 },
     { appId: "kizami", title: "kizami", src: "apps/kizami/index.html", w: 560, h: 640 },
+    { appId: "tsugihagi", title: "継ぎ接ぎ tsugihagi", src: "apps/tsugihagi/index.html", w: 640, h: 640 },
   ];
 
   const stage = document.getElementById("stage");
