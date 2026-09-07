@@ -174,7 +174,6 @@ function drawQuad(ctx, a, b, c, d) {
 
 const photoCanvas = document.getElementById("photoCanvas");
 const pctx = photoCanvas.getContext("2d");
-const photoFlash = document.getElementById("photoFlash");
 const hiddenVideoPool = document.getElementById("hiddenVideoPool");
 
 let photoFrame = defaultFrame();
@@ -258,12 +257,6 @@ function shutterClick() {
 }
 
 function triggerFlash() {
-  photoFlash.style.transition = "none";
-  photoFlash.style.opacity = "0.9";
-  requestAnimationFrame(() => {
-    photoFlash.style.transition = `opacity ${FLASH_MS}ms ease`;
-    photoFlash.style.opacity = "0";
-  });
   shutterClick();
 }
 
