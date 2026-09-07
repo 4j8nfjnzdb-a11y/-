@@ -3,39 +3,44 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>kizashi — generative ambient</title>
+<title>がらくた — found footage cut-up</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <canvas id="bg"></canvas>
+  <canvas id="stage"></canvas>
+  <div id="flash" class="flash"></div>
 
   <main class="ui">
     <header>
-      <h1>kizashi <span class="sub">きざし</span></h1>
-      <p class="tagline">反復に見せかけて、予測の像を結ぶ寸前でかわし続けるアンビエント。</p>
+      <h1>がらくた <span class="sub">GARAKUTA</span></h1>
+      <p class="tagline">すでにどこかで撮られた映像を、切って、繋いで、音をつける。ただそれだけで、別の世界がここに生まれる。</p>
     </header>
 
     <div class="transport">
-      <button id="playBtn" class="playBtn">再生</button>
-      <button id="paletteBtn" class="ghostBtn">配色を変える</button>
+      <button id="playBtn" class="playBtn">上映開始</button>
+      <button id="diceBtn" class="ghostBtn diceBtn">🎲 サイコロを振る</button>
+      <label class="ghostBtn fileBtn">
+        素材を投げ込む
+        <input id="fileInput" type="file" accept="image/*,video/*" multiple hidden />
+      </label>
     </div>
 
     <div class="controls">
       <label class="slider">
-        <span>密度 <em>density</em></span>
-        <input id="density" type="range" min="0" max="100" value="42" />
+        <span>テンポ <em>cut rate</em></span>
+        <input id="tempo" type="range" min="0" max="100" value="45" />
       </label>
       <label class="slider">
-        <span>明暗 <em>tone</em></span>
-        <input id="tone" type="range" min="0" max="100" value="50" />
+        <span>カオス <em>chaos</em></span>
+        <input id="chaos" type="range" min="0" max="100" value="50" />
       </label>
       <label class="slider">
-        <span>揺らぎ <em>swerve</em></span>
-        <input id="swerve" type="range" min="0" max="100" value="55" />
+        <span>粒子 <em>grain</em></span>
+        <input id="grain" type="range" min="0" max="100" value="40" />
       </label>
     </div>
 
-    <p class="hint">音は毎回、一度きりのものです。同じ配列は二度と戻ってきません。</p>
+    <p class="hint" id="regimeHint">サイコロが、次に何を映すかを決めます。同じ順番は二度と起こりません。</p>
   </main>
 
   <script src="app.js"></script>
