@@ -18,8 +18,8 @@
   </header>
 
   <nav class="tabs" role="tablist">
-    <button class="tab active" data-tab="photo" role="tab" aria-selected="true">写真</button>
-    <button class="tab" data-tab="video" role="tab" aria-selected="false">動画</button>
+    <button class="tab active" data-tab="photo" role="tab" aria-selected="true">リール</button>
+    <button class="tab" data-tab="video" role="tab" aria-selected="false">動画（単体）</button>
   </nav>
 
   <section class="panel" data-panel="photo">
@@ -29,6 +29,8 @@
     </div>
 
     <div class="controls">
+      <div class="reelList" id="reelList"></div>
+
       <div class="modeToggle" id="photoModeToggle">
         <label><input type="radio" name="photoMode" value="normal" /> ノーマルズーム</label>
         <label><input type="radio" name="photoMode" value="spacy" checked /> spacy式（再撮影）</label>
@@ -36,10 +38,10 @@
 
       <div class="row">
         <button id="photoPlay" class="primary">駆動する</button>
-        <button id="photoStep" class="ghost">1ステップ進める</button>
+        <button id="photoStep" class="ghost">進める</button>
         <button id="photoEditFrame" class="ghost">フレームを編集</button>
-        <button id="photoReset" class="ghost">サンプルに戻す</button>
-        <label class="fileBtn">写真を選ぶ<input id="photoFile" type="file" accept="image/*" hidden /></label>
+        <button id="photoReset" class="ghost">リールをリセット</button>
+        <label class="fileBtn">写真・動画を追加<input id="photoFile" type="file" accept="image/*,video/*" multiple hidden /></label>
       </div>
 
       <div class="sliders">
@@ -51,13 +53,18 @@
           <span>間 <em>interval</em></span>
           <input id="photoSpeed" type="range" min="0" max="100" value="55" />
         </label>
+        <label class="slider">
+          <span>1カットの長さ <em id="lengthVal">12コマ / 16秒</em></span>
+          <input id="segmentLength" type="range" min="0" max="100" value="40" />
+        </label>
         <label class="checkline">
           <input id="photoSound" type="checkbox" checked /> シャッター音
         </label>
       </div>
 
-      <p class="note" id="photoNote">駆動すると、フレームへ向かって短くズームし、切り替わる瞬間に一度だけ「撮影」される。これが1回の再撮影＝1コマの時間経過。</p>
+      <p class="note" id="photoNote">駆動すると、フレームへ向かって短くズームし、切り替わる瞬間に一度だけ「撮影」される。設定したコマ数だけ再撮影を繰り返したら、リールの次の写真・動画へ切り替わる。動画は切り替わっている間、再生されながらフレームの中に自分自身を重ね続ける。フェーダーを最大にすると、1カットがかなり長く続く。</p>
     </div>
+    <div id="hiddenVideoPool" hidden></div>
   </section>
 
   <section class="panel" data-panel="video" hidden>

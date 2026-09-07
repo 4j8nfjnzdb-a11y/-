@@ -123,6 +123,47 @@ canvas.editing {
   gap: 1rem;
 }
 
+.reelList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  color: var(--ink-dim);
+  background: rgba(234, 230, 223, 0.06);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.35rem 0.4rem 0.35rem 0.75rem;
+}
+
+.chip.current {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(226, 185, 106, 0.1);
+}
+
+.chip .chipX {
+  all: unset;
+  cursor: pointer;
+  font-size: 0.8rem;
+  line-height: 1;
+  padding: 0.15rem 0.4rem;
+  border-radius: 999px;
+  color: inherit;
+  opacity: 0.6;
+}
+
+.chip .chipX:hover {
+  opacity: 1;
+  background: rgba(234, 230, 223, 0.12);
+}
+
 .modeToggle {
   display: flex;
   gap: 1.4rem;

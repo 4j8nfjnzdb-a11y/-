@@ -162,18 +162,36 @@ function drawQuad(ctx, a, b, c, d) {
 }
 
 /* ============================================================
-   PHOTO MODE
+   REEL (photo tab) — a queue of photos and videos.
+   Photos step through recursive re-photograph generations; videos
+   play back live while feeding into themselves the same way the
+   dedicated video tab does. After a configurable number of steps
+   (photos) or seconds (videos), the reel cuts to the next item.
    ============================================================ */
 
 const photoCanvas = document.getElementById("photoCanvas");
 const pctx = photoCanvas.getContext("2d");
 const photoFlash = document.getElementById("photoFlash");
+const hiddenVideoPool = document.getElementById("hiddenVideoPool");
 
-let photoSourceImg = null; // null => use procedural room scene
 let photoFrame = defaultFrame();
 let photoDepth = 6;
 let gens = [];
 let currentIndex = 0;
+let photoSourceImg = null; // current reel image (null => procedural room scene)
+
+let reelItems = [{ type: "image", img: null, label: "標準" }];
+let reelIndex = 0;
+let segmentSteps = 0;
+
+function faderValue() { return Number(document.getElementById("segmentLength").value); }
+function stepsForFader(v) { return Math.max(1, Math.round(1 + (v / 100) * 29)); } // 1..30 re-photographs
+function secondsForFader(v) { return 2 + (v / 100) * 28; } // 2..30s per video segment
+
+function updateLengthReadout() {
+  const v = faderValue();
+  document.getElementById("lengthVal").textContent = `${stepsForFader(v)}コマ / ${secondsForFader(v).toFixed(0)}秒`;
+}
 
 function photoBaseDraw(ctx) {
   if (photoSourceImg) drawCover(ctx, photoSourceImg, photoSourceImg.naturalWidth || photoSourceImg.width, photoSourceImg.naturalHeight || photoSourceImg.height, W, H);
@@ -195,13 +213,21 @@ function buildGenerations() {
   currentIndex = photoDepth;
 }
 
-/* step state machine: hold -> zoom -> flash -> hold ... */
+/* step state machine (image items): hold -> zoom -> flash -> hold ... */
 let photoPhase = "hold";
 let phaseStart = 0;
 let photoPlaying = false;
 let photoEditing = false;
 let soundOn = true;
+let pendingAdvance = false;
 const HOLD_BASE = 260, ZOOM_MS = 480, FLASH_MS = 110;
+
+/* video-segment feedback buffers, reused for whichever reel item is a video */
+const reelAccumA = document.createElement("canvas"); reelAccumA.width = W; reelAccumA.height = H;
+const reelAccumB = document.createElement("canvas"); reelAccumB.width = W; reelAccumB.height = H;
+let reelUseA = true;
+let reelLastDst = reelAccumA;
+let videoSegmentStart = 0;
 
 function holdDuration() {
   const speed = Number(document.getElementById("photoSpeed").value); // 0..100
@@ -228,14 +254,113 @@ function shutterClick() {
   } catch (e) { /* audio unavailable, ignore */ }
 }
 
+function triggerFlash() {
+  photoFlash.style.transition = "none";
+  photoFlash.style.opacity = "0.9";
+  requestAnimationFrame(() => {
+    photoFlash.style.transition = `opacity ${FLASH_MS}ms ease`;
+    photoFlash.style.opacity = "0";
+  });
+  shutterClick();
+}
+
 function stepForward() {
   if (photoPhase !== "hold") return;
   photoPhase = "zoom";
   phaseStart = performance.now();
 }
 
+/* ---------- reel management ---------- */
+
+function enterCurrentReelItem() {
+  const item = reelItems[reelIndex];
+  if (item.type === "image") {
+    photoSourceImg = item.img;
+    buildGenerations();
+    photoPhase = "hold";
+    phaseStart = performance.now();
+  } else {
+    videoSegmentStart = performance.now();
+    reelAccumA.getContext("2d").clearRect(0, 0, W, H);
+    reelAccumB.getContext("2d").clearRect(0, 0, W, H);
+    reelUseA = true;
+    reelLastDst = reelAccumA;
+    try { item.videoEl.currentTime = 0; } catch (e) { /* not seekable yet */ }
+    if (photoPlaying) item.videoEl.play().catch(() => {});
+  }
+}
+
+function advanceReelItem() {
+  const prev = reelItems[reelIndex];
+  if (prev.type === "video") prev.videoEl.pause();
+  reelIndex = (reelIndex + 1) % reelItems.length;
+  segmentSteps = 0;
+  enterCurrentReelItem();
+  renderReelList();
+}
+
+function removeReelItem(i) {
+  const [removed] = reelItems.splice(i, 1);
+  if (removed.type === "video") { removed.videoEl.pause(); removed.videoEl.remove(); }
+  if (reelItems.length === 0) reelItems.push({ type: "image", img: null, label: "標準" });
+  if (reelIndex >= reelItems.length) reelIndex = 0;
+  segmentSteps = 0;
+  enterCurrentReelItem();
+  renderReelList();
+}
+
+function renderReelList() {
+  const list = document.getElementById("reelList");
+  list.innerHTML = "";
+  reelItems.forEach((item, i) => {
+    const chip = document.createElement("span");
+    chip.className = "chip" + (i === reelIndex ? " current" : "");
+    const kind = item.type === "image" ? (item.img ? "写真" : "標準") : "動画";
+    const text = document.createElement("span");
+    text.textContent = `${i + 1} ${kind}`;
+    chip.appendChild(text);
+    if (reelItems.length > 1) {
+      const x = document.createElement("button");
+      x.textContent = "×";
+      x.className = "chipX";
+      x.type = "button";
+      x.title = "削除";
+      x.addEventListener("click", (ev) => { ev.stopPropagation(); removeReelItem(i); });
+      chip.appendChild(x);
+    }
+    list.appendChild(chip);
+  });
+}
+
+/* ---------- render loop ---------- */
+
+function tickVideoSegment(videoEl) {
+  const src = reelUseA ? reelAccumA : reelAccumB;
+  const dst = reelUseA ? reelAccumB : reelAccumA;
+  const dctx = dst.getContext("2d");
+  dctx.clearRect(0, 0, W, H);
+  if (videoEl.readyState >= 2) drawCover(dctx, videoEl, videoEl.videoWidth, videoEl.videoHeight, W, H);
+  const loss = 0.18;
+  drawWarped(dctx, src, W, H, photoFrame, 1 - loss * 0.4, loss * 3);
+  pctx.clearRect(0, 0, W, H);
+  pctx.drawImage(dst, 0, 0);
+  reelLastDst = dst;
+  reelUseA = !reelUseA;
+}
+
 function renderPhotoFrame(now) {
-  if (!photoEditing) {
+  const item = reelItems[reelIndex];
+
+  if (photoEditing) {
+    pctx.clearRect(0, 0, W, H);
+    if (item.type === "video") drawCover(pctx, item.videoEl, item.videoEl.videoWidth || 1, item.videoEl.videoHeight || 1, W, H);
+    else photoBaseDraw(pctx);
+    drawFrameHandles(pctx, photoFrame);
+    requestAnimationFrame(renderPhotoFrame);
+    return;
+  }
+
+  if (item.type === "image") {
     if (photoPhase === "hold") {
       pctx.clearRect(0, 0, W, H);
       pctx.drawImage(gens[currentIndex], 0, 0);
@@ -272,25 +397,34 @@ function renderPhotoFrame(now) {
       if (p >= 1) {
         photoPhase = "flash";
         phaseStart = now;
-        photoFlash.style.transition = "none";
-        photoFlash.style.opacity = "0.9";
-        requestAnimationFrame(() => {
-          photoFlash.style.transition = `opacity ${FLASH_MS}ms ease`;
-          photoFlash.style.opacity = "0";
-        });
-        shutterClick();
+        triggerFlash();
         if (mode === "spacy") {
           currentIndex -= 1;
           if (currentIndex < 0) currentIndex = photoDepth;
         }
+        segmentSteps += 1;
+        if (reelItems.length > 1 && segmentSteps >= stepsForFader(faderValue())) pendingAdvance = true;
       }
     } else if (photoPhase === "flash") {
       pctx.drawImage(gens[currentIndex], 0, 0);
-      if (now - phaseStart >= FLASH_MS) { photoPhase = "hold"; phaseStart = now; }
+      if (now - phaseStart >= FLASH_MS) {
+        if (pendingAdvance) { pendingAdvance = false; advanceReelItem(); }
+        else { photoPhase = "hold"; phaseStart = now; }
+      }
+    }
+  } else {
+    /* video reel item */
+    if (photoPlaying) {
+      tickVideoSegment(item.videoEl);
+      if (reelItems.length > 1 && now - videoSegmentStart >= secondsForFader(faderValue()) * 1000) {
+        triggerFlash();
+        advanceReelItem();
+      }
+    } else {
+      pctx.clearRect(0, 0, W, H);
+      pctx.drawImage(reelLastDst, 0, 0);
     }
   }
-
-  if (photoEditing) drawFrameHandles(pctx, photoFrame);
 
   requestAnimationFrame(renderPhotoFrame);
 }
@@ -321,20 +455,32 @@ function drawFrameHandles(ctx, frame) {
 document.getElementById("photoDepth").addEventListener("input", (e) => {
   photoDepth = Number(e.target.value);
   document.getElementById("depthVal").textContent = photoDepth;
-  buildGenerations();
+  if (reelItems[reelIndex].type === "image") buildGenerations();
 });
+
+document.getElementById("segmentLength").addEventListener("input", updateLengthReadout);
 
 const photoPlayBtn = document.getElementById("photoPlay");
 photoPlayBtn.addEventListener("click", () => {
   photoPlaying = !photoPlaying;
   photoPlayBtn.textContent = photoPlaying ? "止める" : "駆動する";
   photoPlayBtn.classList.toggle("playing", photoPlaying);
-  if (photoPlaying && photoPhase === "hold") phaseStart = performance.now();
+  const item = reelItems[reelIndex];
+  if (item.type === "image") {
+    if (photoPlaying && photoPhase === "hold") phaseStart = performance.now();
+  } else if (photoPlaying) {
+    videoSegmentStart = performance.now();
+    item.videoEl.play().catch(() => {});
+  } else {
+    item.videoEl.pause();
+  }
 });
 
 document.getElementById("photoStep").addEventListener("click", () => {
   if (photoEditing) return;
-  stepForward();
+  const item = reelItems[reelIndex];
+  if (item.type === "image") stepForward();
+  else { triggerFlash(); advanceReelItem(); }
 });
 
 document.querySelectorAll('input[name="photoMode"]').forEach((r) => {
@@ -348,21 +494,35 @@ photoEditBtn.addEventListener("click", () => {
   photoEditing = !photoEditing;
   photoEditBtn.classList.toggle("active", photoEditing);
   photoCanvas.classList.toggle("editing", photoEditing);
-  if (!photoEditing) buildGenerations();
+  if (!photoEditing && reelItems[reelIndex].type === "image") buildGenerations();
 });
 
 document.getElementById("photoReset").addEventListener("click", () => {
-  photoSourceImg = null;
+  reelItems.forEach((it) => { if (it.type === "video") { it.videoEl.pause(); it.videoEl.remove(); } });
+  reelItems = [{ type: "image", img: null, label: "標準" }];
+  reelIndex = 0;
+  segmentSteps = 0;
   photoFrame = defaultFrame();
-  buildGenerations();
+  enterCurrentReelItem();
+  renderReelList();
 });
 
 document.getElementById("photoFile").addEventListener("change", (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const img = new Image();
-  img.onload = () => { photoSourceImg = img; photoFrame = defaultFrame(); buildGenerations(); };
-  img.src = URL.createObjectURL(file);
+  const files = Array.from(e.target.files);
+  files.forEach((file) => {
+    if (file.type.startsWith("image/")) {
+      const img = new Image();
+      img.onload = () => { reelItems.push({ type: "image", img }); renderReelList(); };
+      img.src = URL.createObjectURL(file);
+    } else if (file.type.startsWith("video/")) {
+      const v = document.createElement("video");
+      v.muted = true; v.playsInline = true; v.loop = true;
+      hiddenVideoPool.appendChild(v);
+      v.addEventListener("loadeddata", () => { reelItems.push({ type: "video", videoEl: v }); renderReelList(); }, { once: true });
+      v.src = URL.createObjectURL(file);
+    }
+  });
+  e.target.value = "";
 });
 
 let dragKey = null;
@@ -391,7 +551,9 @@ window.addEventListener("mousemove", (evt) => {
 });
 window.addEventListener("mouseup", () => { dragKey = null; });
 
-buildGenerations();
+renderReelList();
+enterCurrentReelItem();
+updateLengthReadout();
 requestAnimationFrame(renderPhotoFrame);
 
 /* ============================================================
