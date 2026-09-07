@@ -1,418 +1,731 @@
-// kizashi — generative ambient
-//
-// The idea: build a texture that reads as "repetition" (steady pulse,
-// familiar scale, cyclic pads) while every layer runs on its own
-// incommensurate clock and a slowly-drifting probability of firing at
-// all. The listener's short-term predictive model never quite locks in
-// — each layer swerves a little before it would become obvious — but
-// nothing is ever pure noise either. That balance is tuned by the
-// "swerve" and "density" sliders.
+(function () {
+  'use strict';
 
-(() => {
-  const playBtn = document.getElementById("playBtn");
-  const paletteBtn = document.getElementById("paletteBtn");
-  const densitySlider = document.getElementById("density");
-  const toneSlider = document.getElementById("tone");
-  const swerveSlider = document.getElementById("swerve");
-  const canvas = document.getElementById("bg");
-  const ctx2d = canvas.getContext("2d");
+  // ---------------------------------------------------------------------
+  // small utils
+  // ---------------------------------------------------------------------
+  function rand(a, b) { return a + Math.random() * (b - a); }
+  function randInt(a, b) { return Math.floor(rand(a, b + 1)); }
+  function clamp(v, a, b) { return Math.min(b, Math.max(a, v)); }
+  function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function mulColor(c, m) { return [clamp01(c[0] * m), clamp01(c[1] * m), clamp01(c[2] * m)]; }
+  function lerpColor(a, b, t) { return [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)]; }
 
-  let audioCtx = null;
-  let master, dry, wet, reverbNode, delayA, delayB, delayFeedbackA, delayFeedbackB;
-  let padVoices = [];
-  let bellLayers = [];
-  let running = false;
-  let schedulerTimer = null;
+  function hsl2rgb(h, s, l) {
+    h = ((h % 360) + 360) % 360 / 360;
+    const a = s * Math.min(l, 1 - l);
+    const f = (n) => {
+      const k = (n + h * 12) % 12;
+      return l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+    };
+    return [f(0), f(8), f(4)];
+  }
 
-  // ---- musical material -------------------------------------------
+  // ---------------------------------------------------------------------
+  // mat4 (column-major, matches WebGL)
+  // ---------------------------------------------------------------------
+  function mat4Identity() {
+    return new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+  }
+  function mat4Multiply(a, b) {
+    const out = new Float32Array(16);
+    for (let col = 0; col < 4; col++) {
+      for (let row = 0; row < 4; row++) {
+        let sum = 0;
+        for (let k = 0; k < 4; k++) sum += a[k * 4 + row] * b[col * 4 + k];
+        out[col * 4 + row] = sum;
+      }
+    }
+    return out;
+  }
+  function mat4Perspective(fovy, aspect, near, far) {
+    const f = 1 / Math.tan(fovy / 2);
+    const nf = 1 / (near - far);
+    const out = new Float32Array(16);
+    out[0] = f / aspect; out[5] = f; out[10] = (far + near) * nf; out[11] = -1; out[14] = 2 * far * near * nf;
+    return out;
+  }
+  function mat4Translation(x, y, z) {
+    const out = mat4Identity(); out[12] = x; out[13] = y; out[14] = z; return out;
+  }
+  function mat4RotateX(r) {
+    const c = Math.cos(r), s = Math.sin(r);
+    const out = mat4Identity();
+    out[5] = c; out[6] = s; out[9] = -s; out[10] = c;
+    return out;
+  }
+  function mat4RotateY(r) {
+    const c = Math.cos(r), s = Math.sin(r);
+    const out = mat4Identity();
+    out[0] = c; out[2] = -s; out[8] = s; out[10] = c;
+    return out;
+  }
+  function mat4RotateZ(r) {
+    const c = Math.cos(r), s = Math.sin(r);
+    const out = mat4Identity();
+    out[0] = c; out[1] = s; out[4] = -s; out[5] = c;
+    return out;
+  }
+  function buildViewMatrix(pos, yaw, pitch, roll) {
+    // yaw=0 / pitch=0 looks down world +Z, matching the direction cells are generated in.
+    const t = mat4Translation(-pos.x, -pos.y, -pos.z);
+    const ry = mat4RotateY(Math.PI - yaw);
+    const rx = mat4RotateX(-pitch);
+    const rz = mat4RotateZ(-roll);
+    return mat4Multiply(rz, mat4Multiply(rx, mat4Multiply(ry, t)));
+  }
 
-  const SCALES = {
-    // semitone offsets from root, chosen to always sound consonant
-    // no matter which degree becomes the melodic center
-    warm: [0, 2, 3, 7, 9, 10],      // dorian-ish, dusky
-    mid: [0, 2, 4, 7, 9, 11],       // major/ionian, open
-    bright: [0, 2, 4, 6, 9, 11],    // lydian-ish, lifted
+  // ---------------------------------------------------------------------
+  // GL setup
+  // ---------------------------------------------------------------------
+  const canvas = document.getElementById('gl');
+  const gl = canvas.getContext('webgl', { antialias: false, alpha: false, powerPreference: 'low-power', depth: true });
+  if (!gl) {
+    document.body.innerHTML = '<p style="color:#eaf6ff;padding:2rem;font-family:monospace;">このブラウザは WebGL に対応していません。</p>';
+    return;
+  }
+
+  const VS_SRC = `
+    attribute vec3 aPosition;
+    attribute vec3 aColor;
+    attribute float aFloor;
+    attribute float aSlide;
+
+    uniform mat4 uViewProj;
+    uniform vec3 uCamPos;
+    uniform float uDoorOpen;
+    uniform float uSnap;
+
+    varying vec3 vColor;
+    varying float vFloor;
+    varying vec3 vWorldPos;
+    varying float vFogDist;
+
+    void main() {
+      vec3 pos = aPosition;
+      pos.x += aSlide * uDoorOpen;
+      vColor = aColor;
+      vFloor = aFloor;
+      vWorldPos = pos;
+      vFogDist = distance(pos, uCamPos);
+      vec4 clip = uViewProj * vec4(pos, 1.0);
+      if (uSnap > 0.0 && clip.w > 0.0) {
+        float w = clip.w;
+        clip.xy = floor(clip.xy / w * uSnap) / uSnap * w;
+      }
+      gl_Position = clip;
+    }
+  `;
+
+  const FS_SRC = `
+    precision mediump float;
+    varying vec3 vColor;
+    varying float vFloor;
+    varying vec3 vWorldPos;
+    varying float vFogDist;
+
+    uniform vec3 uFogColor;
+    uniform float uFogDensity;
+    uniform vec3 uGridColor;
+    uniform float uTime;
+
+    void main() {
+      vec3 base = vColor;
+
+      if (vFloor > 0.5) {
+        vec2 g = fract(vWorldPos.xz / 2.0);
+        float dx = min(g.x, 1.0 - g.x);
+        float dz = min(g.y, 1.0 - g.y);
+        float d = min(dx, dz);
+        float line = 1.0 - smoothstep(0.0, 0.035, d);
+        float flicker = 0.82 + 0.18 * sin(uTime * 6.0 + vWorldPos.x * 1.7 + vWorldPos.z * 0.6);
+        base = mix(base, uGridColor, line * flicker);
+      }
+
+      float fog = 1.0 - exp(-uFogDensity * vFogDist);
+      fog = clamp(fog, 0.0, 1.0);
+      vec3 color = mix(base, uFogColor, fog);
+      color = pow(color, vec3(0.82)); // lift shadows a touch, PS1 CRTs were never truly black
+
+      float noise = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
+      float levels = 22.0;
+      color = floor(color * levels + noise) / levels;
+
+      gl_FragColor = vec4(color, 1.0);
+    }
+  `;
+
+  function compileShader(type, src) {
+    const sh = gl.createShader(type);
+    gl.shaderSource(sh, src);
+    gl.compileShader(sh);
+    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+      console.error(gl.getShaderInfoLog(sh));
+      throw new Error('shader compile failed');
+    }
+    return sh;
+  }
+  const program = gl.createProgram();
+  gl.attachShader(program, compileShader(gl.VERTEX_SHADER, VS_SRC));
+  gl.attachShader(program, compileShader(gl.FRAGMENT_SHADER, FS_SRC));
+  gl.linkProgram(program);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    console.error(gl.getProgramInfoLog(program));
+    throw new Error('program link failed');
+  }
+  gl.useProgram(program);
+
+  const loc = {
+    aPosition: gl.getAttribLocation(program, 'aPosition'),
+    aColor: gl.getAttribLocation(program, 'aColor'),
+    aFloor: gl.getAttribLocation(program, 'aFloor'),
+    aSlide: gl.getAttribLocation(program, 'aSlide'),
+    uViewProj: gl.getUniformLocation(program, 'uViewProj'),
+    uCamPos: gl.getUniformLocation(program, 'uCamPos'),
+    uDoorOpen: gl.getUniformLocation(program, 'uDoorOpen'),
+    uSnap: gl.getUniformLocation(program, 'uSnap'),
+    uFogColor: gl.getUniformLocation(program, 'uFogColor'),
+    uFogDensity: gl.getUniformLocation(program, 'uFogDensity'),
+    uGridColor: gl.getUniformLocation(program, 'uGridColor'),
+    uTime: gl.getUniformLocation(program, 'uTime'),
   };
 
-  const ROOTS = [48, 50, 53, 55, 57]; // C, D, F, G, A (midi, low register)
+  const vbo = gl.createBuffer();
+  const STRIDE = 8 * 4; // 8 floats per vertex
+  gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+  gl.enableVertexAttribArray(loc.aPosition);
+  gl.enableVertexAttribArray(loc.aColor);
+  gl.enableVertexAttribArray(loc.aFloor);
+  gl.enableVertexAttribArray(loc.aSlide);
+  gl.vertexAttribPointer(loc.aPosition, 3, gl.FLOAT, false, STRIDE, 0);
+  gl.vertexAttribPointer(loc.aColor, 3, gl.FLOAT, false, STRIDE, 12);
+  gl.vertexAttribPointer(loc.aFloor, 1, gl.FLOAT, false, STRIDE, 24);
+  gl.vertexAttribPointer(loc.aSlide, 1, gl.FLOAT, false, STRIDE, 28);
 
-  let palette = makePalette();
+  gl.disable(gl.CULL_FACE);
+  gl.enable(gl.DEPTH_TEST);
 
-  function makePalette() {
-    const roots = ROOTS.slice();
-    const root = roots[Math.floor(Math.random() * roots.length)];
-    const hue = Math.random() * 360;
-    return { root, hue };
+  // ---------------------------------------------------------------------
+  // geometry builders
+  // ---------------------------------------------------------------------
+  function pushQuad(arr, p0, p1, p2, p3, color, isFloor, slide) {
+    const pts = [p0, p1, p2, p0, p2, p3];
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i];
+      arr.push(p[0], p[1], p[2], color[0], color[1], color[2], isFloor ? 1 : 0, slide || 0);
+    }
   }
 
-  function midiToFreq(m) {
-    return 440 * Math.pow(2, (m - 69) / 12);
+  function pushBox(arr, cx, cy, cz, sx, sy, sz, color) {
+    const x0 = cx - sx / 2, x1 = cx + sx / 2;
+    const y0 = cy - sy / 2, y1 = cy + sy / 2;
+    const z0 = cz - sz / 2, z1 = cz + sz / 2;
+    const shade = (m) => mulColor(color, m);
+    pushQuad(arr, [x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1], shade(1.25), false, 0); // top
+    pushQuad(arr, [x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1], shade(0.5), false, 0);  // bottom
+    pushQuad(arr, [x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0], shade(0.85), false, 0); // front
+    pushQuad(arr, [x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], shade(1.0), false, 0);  // back
+    pushQuad(arr, [x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0], shade(0.7), false, 0);  // left
+    pushQuad(arr, [x1, y0, z0], [x1, y0, z1], [x1, y1, z1], [x1, y1, z0], shade(1.1), false, 0);  // right
   }
 
-  function scaleForTone(tone) {
-    // tone: 0..100 -> warm..bright
-    if (tone < 33) return SCALES.warm;
-    if (tone < 66) return SCALES.mid;
-    return SCALES.bright;
+  function buildCellGeometry(cell) {
+    const arr = [];
+    if (cell.mode === 'exterior') {
+      pushQuad(arr,
+        [cell.cx - cell.halfW, 0, cell.z0], [cell.cx + cell.halfW, 0, cell.z0],
+        [cell.cx + cell.halfW, 0, cell.z1], [cell.cx - cell.halfW, 0, cell.z1],
+        cell.floorColor, true, 0);
+      for (let i = 0; i < cell.silhouettes.length; i++) {
+        const s = cell.silhouettes[i];
+        pushBox(arr, s.x, s.h / 2, s.z, s.w, s.h, s.d, s.color);
+      }
+    } else {
+      pushQuad(arr,
+        [cell.cx - cell.halfW, 0, cell.z0], [cell.cx + cell.halfW, 0, cell.z0],
+        [cell.cx + cell.halfW, 0, cell.z1], [cell.cx - cell.halfW, 0, cell.z1],
+        cell.floorColor, true, 0);
+      pushQuad(arr,
+        [cell.cx - cell.halfW, cell.height, cell.z0], [cell.cx - cell.halfW, cell.height, cell.z1],
+        [cell.cx + cell.halfW, cell.height, cell.z1], [cell.cx + cell.halfW, cell.height, cell.z0],
+        cell.ceilColor, false, 0);
+      pushQuad(arr,
+        [cell.cx - cell.halfW, 0, cell.z0], [cell.cx - cell.halfW, cell.height, cell.z0],
+        [cell.cx - cell.halfW, cell.height, cell.z1], [cell.cx - cell.halfW, 0, cell.z1],
+        cell.wallColor, false, 0);
+      pushQuad(arr,
+        [cell.cx + cell.halfW, 0, cell.z0], [cell.cx + cell.halfW, 0, cell.z1],
+        [cell.cx + cell.halfW, cell.height, cell.z1], [cell.cx + cell.halfW, cell.height, cell.z0],
+        cell.wallColor, false, 0);
+
+      if (cell.hasSofa) {
+        const s = cell.sofa;
+        pushBox(arr, s.x, s.h / 2, s.z, s.w, s.h, s.d, cell.furnitureColor);
+      }
+
+      if (cell.mode === 'threshold') {
+        const hw = cell.halfW, h = cell.height - 0.12, z = cell.z1;
+        const slideAmt = hw * 0.96;
+        pushQuad(arr, [cell.cx - hw, 0, z], [cell.cx, 0, z], [cell.cx, h, z], [cell.cx - hw, h, z], cell.doorColor, false, -slideAmt);
+        pushQuad(arr, [cell.cx, 0, z], [cell.cx + hw, 0, z], [cell.cx + hw, h, z], [cell.cx, h, z], cell.doorColor, false, slideAmt);
+      }
+    }
+    return new Float32Array(arr);
   }
 
-  function pickDegree(layer) {
-    const scale = scaleForTone(+toneSlider.value);
-    const degree = scale[Math.floor(Math.random() * scale.length)];
-    return palette.root + degree + layer.octave * 12;
+  // ---------------------------------------------------------------------
+  // procedural world generation
+  // ---------------------------------------------------------------------
+  const gs = { z: 0, cx: 0, hue: rand(0, 360), mode: 'interior', counter: randInt(5, 9) };
+
+  function makeInterior() {
+    const depth = rand(5, 8.5);
+    const halfW = rand(2.3, 3.6);
+    const height = rand(2.8, 4.2);
+    gs.cx = clamp(gs.cx + rand(-0.6, 0.6), -3.2, 3.2);
+    gs.hue = (gs.hue + rand(-8, 8) + 360) % 360;
+    const wallColor = hsl2rgb(gs.hue, 0.48, 0.22);
+    const floorColor = hsl2rgb(gs.hue + 15, 0.4, 0.12);
+    const ceilColor = hsl2rgb(gs.hue - 15, 0.38, 0.15);
+    const gridColor = hsl2rgb(gs.hue + 180, 0.9, 0.62);
+    const furnitureColor = hsl2rgb(gs.hue + 100, 0.65, 0.46);
+    const fogColor = hsl2rgb(gs.hue, 0.5, 0.09);
+    const z0 = gs.z, z1 = gs.z + depth; gs.z = z1;
+    const cell = {
+      mode: 'interior', z0, z1, cx: gs.cx, halfW, height,
+      wallColor, floorColor, ceilColor, gridColor, furnitureColor, fogColor,
+      fogDensity: 0.065, hasSofa: false,
+    };
+    if (Math.random() < 0.55) {
+      const side = Math.random() < 0.5 ? -1 : 1;
+      const w = rand(1.3, 1.9), d = rand(0.55, 0.8), h = rand(0.45, 0.6);
+      cell.hasSofa = true;
+      cell.sofa = {
+        x: cell.cx + side * (cell.halfW - 0.55 - d / 2),
+        z: cell.z0 + (cell.z1 - cell.z0) * rand(0.3, 0.7),
+        w, d, h,
+      };
+    }
+    return cell;
   }
 
-  // ---- smoothed randomness (organic "swerve", not white noise) -----
-
-  function makeDrift(min, max, start) {
-    let value = start ?? (min + max) / 2;
-    let target = value;
+  function makeThreshold() {
+    const depth = rand(9, 15);
+    const halfW = rand(1.5, 2.1);
+    const height = rand(2.6, 3.1);
+    const wallColor = hsl2rgb(gs.hue, 0.16, 0.09);
+    const floorColor = hsl2rgb(gs.hue, 0.2, 0.06);
+    const gridColor = hsl2rgb(gs.hue + 180, 1.0, 0.68);
+    const doorColor = hsl2rgb(gs.hue + 180, 0.85, 0.55);
+    const fogColor = hsl2rgb(gs.hue, 0.28, 0.035);
+    const z0 = gs.z, z1 = gs.z + depth; gs.z = z1;
     return {
-      get value() { return value; },
-      tick(rate) {
-        if (Math.random() < 0.08) {
-          target = min + Math.random() * (max - min);
-        }
-        value += (target - value) * rate;
-        return value;
-      },
+      mode: 'threshold', z0, z1, cx: gs.cx, halfW, height,
+      wallColor, floorColor, ceilColor: wallColor, gridColor, doorColor, fogColor,
+      fogDensity: 0.095, hasSofa: false, doorOpen: 0,
     };
   }
 
-  // ---- audio graph ---------------------------------------------------
+  function makeExterior() {
+    const depth = rand(9, 15);
+    const halfW = rand(9, 17);
+    gs.cx = clamp(gs.cx + rand(-1.2, 1.2), -6, 6);
+    gs.hue = (gs.hue + rand(-6, 6) + 360) % 360;
+    const floorColor = hsl2rgb(gs.hue, 0.35, 0.09);
+    const gridColor = hsl2rgb(gs.hue + 150, 0.8, 0.6);
+    const fogColor = hsl2rgb(gs.hue + 25, 0.5, 0.2);
+    const z0 = gs.z, z1 = gs.z + depth; gs.z = z1;
+    const cell = {
+      mode: 'exterior', z0, z1, cx: gs.cx, halfW, height: 0,
+      floorColor, gridColor, fogColor, fogDensity: 0.045, hasSofa: false,
+    };
+    const n = randInt(2, 4);
+    const silhouettes = [];
+    for (let i = 0; i < n; i++) {
+      const side = Math.random() < 0.5 ? -1 : 1;
+      const dist = rand(halfW + 6, halfW + 30);
+      silhouettes.push({
+        x: cell.cx + side * dist,
+        z: rand(z0, z1),
+        h: rand(5, 26),
+        w: rand(1.2, 4),
+        d: rand(1.2, 4),
+        color: mulColor(fogColor, 0.35),
+      });
+    }
+    cell.silhouettes = silhouettes;
+    return cell;
+  }
 
-  function buildImpulseResponse(context, duration, decay) {
-    const rate = context.sampleRate;
-    const length = Math.floor(rate * duration);
-    const impulse = context.createBuffer(2, length, rate);
+  function nextCell() {
+    let cell;
+    if (gs.mode === 'interior') {
+      cell = makeInterior();
+      gs.counter--;
+      if (gs.counter <= 0) gs.mode = 'threshold_in';
+    } else if (gs.mode === 'threshold_in') {
+      cell = makeThreshold();
+      gs.mode = 'exterior';
+      gs.counter = randInt(4, 7);
+      gs.hue = (gs.hue + rand(110, 230)) % 360;
+    } else if (gs.mode === 'exterior') {
+      cell = makeExterior();
+      gs.counter--;
+      if (gs.counter <= 0) gs.mode = 'threshold_out';
+    } else {
+      cell = makeThreshold();
+      gs.mode = 'interior';
+      gs.counter = randInt(5, 9);
+      gs.hue = (gs.hue + rand(110, 230)) % 360;
+    }
+    cell.geometry = buildCellGeometry(cell);
+    return cell;
+  }
+
+  const LOAD_AHEAD = 45;
+  const PRUNE_BEHIND = 18;
+  let activeCells = [];
+  let vertexCount = 0;
+
+  function rebuildBuffer() {
+    let total = 0;
+    for (let i = 0; i < activeCells.length; i++) total += activeCells[i].geometry.length;
+    const merged = new Float32Array(total);
+    let off = 0;
+    for (let i = 0; i < activeCells.length; i++) {
+      merged.set(activeCells[i].geometry, off);
+      off += activeCells[i].geometry.length;
+    }
+    gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+    gl.bufferData(gl.ARRAY_BUFFER, merged, gl.DYNAMIC_DRAW);
+    vertexCount = total / 8;
+  }
+
+  function ensureCells(playerZ) {
+    let changed = false;
+    while (activeCells.length === 0 || activeCells[activeCells.length - 1].z1 < playerZ + LOAD_AHEAD) {
+      activeCells.push(nextCell());
+      changed = true;
+    }
+    while (activeCells.length && activeCells[0].z1 < playerZ - PRUNE_BEHIND) {
+      activeCells.shift();
+      changed = true;
+    }
+    if (changed) rebuildBuffer();
+  }
+
+  function getCellAt(z) {
+    for (let i = 0; i < activeCells.length; i++) {
+      if (z >= activeCells[i].z0 && z < activeCells[i].z1) return activeCells[i];
+    }
+    if (activeCells.length) return z < activeCells[0].z0 ? activeCells[0] : activeCells[activeCells.length - 1];
+    return null;
+  }
+
+  // ---------------------------------------------------------------------
+  // player + input
+  // ---------------------------------------------------------------------
+  const player = { x: 0, y: 1.62, z: -2, yaw: 0, pitch: 0 };
+  const keys = Object.create(null);
+  let locked = false;
+  let started = false;
+  let justLocked = false;
+  let walkPhase = 0;
+  let movingBlend = 0;
+
+  const KEY_MAP = {
+    'KeyW': 'f', 'ArrowUp': 'f',
+    'KeyS': 'b', 'ArrowDown': 'b',
+    'KeyA': 'l', 'ArrowLeft': 'l',
+    'KeyD': 'r', 'ArrowRight': 'r',
+  };
+
+  window.addEventListener('keydown', (e) => { const k = KEY_MAP[e.code]; if (k) keys[k] = true; });
+  window.addEventListener('keyup', (e) => { const k = KEY_MAP[e.code]; if (k) keys[k] = false; });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!locked) return;
+    if (justLocked) { justLocked = false; return; }
+    player.yaw -= e.movementX * 0.0022;
+    player.pitch = clamp(player.pitch - e.movementY * 0.0022, -1.25, 1.25);
+  });
+
+  document.addEventListener('pointerlockchange', () => {
+    locked = document.pointerLockElement === canvas;
+    document.getElementById('crosshair').classList.toggle('visible', locked);
+    if (locked) {
+      justLocked = true;
+      document.getElementById('startScreen').classList.add('hidden');
+      document.getElementById('pauseScreen').classList.add('hidden');
+      const hint = document.getElementById('hint');
+      hint.classList.add('visible');
+    } else if (started) {
+      document.getElementById('pauseScreen').classList.remove('hidden');
+    }
+  });
+
+  document.getElementById('startBtn').addEventListener('click', () => {
+    started = true;
+    initAudio();
+    canvas.requestPointerLock();
+  });
+  document.getElementById('resumeBtn').addEventListener('click', () => {
+    canvas.requestPointerLock();
+  });
+
+  // ---------------------------------------------------------------------
+  // audio (ambient drone + footsteps), self-contained WebAudio
+  // ---------------------------------------------------------------------
+  let actx = null, master = null, reverbSend = null;
+  function makeImpulse(ctx, seconds, decay) {
+    const rate = ctx.sampleRate;
+    const len = Math.floor(rate * seconds);
+    const buf = ctx.createBuffer(2, len, rate);
     for (let ch = 0; ch < 2; ch++) {
-      const data = impulse.getChannelData(ch);
-      for (let i = 0; i < length; i++) {
-        const t = i / length;
-        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, decay);
+      const data = buf.getChannelData(ch);
+      for (let i = 0; i < len; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
       }
     }
-    return impulse;
+    return buf;
   }
 
   function initAudio() {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (actx) return;
+    try {
+      actx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch (e) { return; }
 
-    master = audioCtx.createGain();
-    master.gain.value = 0.85;
+    master = actx.createGain();
+    master.gain.value = 0.5;
+    master.connect(actx.destination);
 
-    const compressor = audioCtx.createDynamicsCompressor();
-    compressor.threshold.value = -18;
-    compressor.ratio.value = 3;
+    const convolver = actx.createConvolver();
+    convolver.buffer = makeImpulse(actx, 3.2, 2.4);
+    reverbSend = actx.createGain();
+    reverbSend.gain.value = 0.55;
+    reverbSend.connect(convolver);
+    convolver.connect(master);
 
-    master.connect(compressor).connect(audioCtx.destination);
+    // ambient pad
+    const padGain = actx.createGain();
+    padGain.gain.value = 0.16;
+    const filter = actx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 700;
+    filter.Q.value = 0.7;
 
-    dry = audioCtx.createGain();
-    dry.gain.value = 0.55;
-    dry.connect(master);
-
-    wet = audioCtx.createGain();
-    wet.gain.value = 0.9;
-
-    reverbNode = audioCtx.createConvolver();
-    reverbNode.buffer = buildImpulseResponse(audioCtx, 5.5, 3.0);
-    reverbNode.connect(wet);
-    wet.connect(master);
-
-    // two non-multiple delay lines, damped feedback, for a soft
-    // shimmering space that never quite settles into a fixed comb
-    delayA = audioCtx.createDelay(2.0);
-    delayA.delayTime.value = 0.372;
-    delayFeedbackA = audioCtx.createGain();
-    delayFeedbackA.gain.value = 0.38;
-    const dampA = audioCtx.createBiquadFilter();
-    dampA.type = "lowpass";
-    dampA.frequency.value = 2200;
-    delayA.connect(dampA).connect(delayFeedbackA).connect(delayA);
-    delayA.connect(wet);
-
-    delayB = audioCtx.createDelay(2.0);
-    delayB.delayTime.value = 0.551;
-    delayFeedbackB = audioCtx.createGain();
-    delayFeedbackB.gain.value = 0.33;
-    const dampB = audioCtx.createBiquadFilter();
-    dampB.type = "lowpass";
-    dampB.frequency.value = 1800;
-    delayB.connect(dampB).connect(delayFeedbackB).connect(delayB);
-    delayB.connect(wet);
-
-    buildPads();
-    buildBellLayers();
-  }
-
-  function sendToSpace(node, delayAmt, reverbAmt, dryAmt) {
-    const dg = audioCtx.createGain();
-    dg.gain.value = dryAmt;
-    node.connect(dg).connect(dry);
-
-    const rg = audioCtx.createGain();
-    rg.gain.value = reverbAmt;
-    node.connect(rg).connect(reverbNode);
-
-    const dla = audioCtx.createGain();
-    dla.gain.value = delayAmt;
-    node.connect(dla).connect(delayA);
-    node.connect(dla).connect(delayB);
-  }
-
-  // ---- pad drone layer: slow, cyclic-feeling, never exactly cyclic --
-
-  function buildPads() {
-    padVoices.forEach((v) => v.stopAll && v.stopAll());
-    padVoices = [];
-
-    const intervals = [0, 7, 12, 16]; // root, fifth, octave, tenth-ish
-    intervals.forEach((iv, i) => {
-      const osc = audioCtx.createOscillator();
-      osc.type = i % 2 === 0 ? "sine" : "triangle";
-      const detune = (Math.random() * 2 - 1) * 6;
-      osc.detune.value = detune;
-
-      const gain = audioCtx.createGain();
-      gain.gain.value = 0;
-
-      const filter = audioCtx.createBiquadFilter();
-      filter.type = "lowpass";
-      filter.frequency.value = 900;
-      filter.Q.value = 0.4;
-
-      osc.connect(filter).connect(gain);
-      sendToSpace(gain, 0.5, 0.8, 0.25);
-
+    const freqs = [55, 82.4, 110, 138.6];
+    freqs.forEach((f, i) => {
+      const osc = actx.createOscillator();
+      osc.type = i % 2 === 0 ? 'sawtooth' : 'sine';
+      osc.frequency.value = f * (1 + rand(-0.003, 0.003));
+      const g = actx.createGain();
+      g.gain.value = 0.22 / (i + 1);
+      osc.connect(g);
+      g.connect(filter);
       osc.start();
-
-      // each voice's filter LFO period is an irrational-ish multiple
-      // of the others, so the ensemble never repeats a combined shape
-      const lfoPeriod = 17 + i * 6.28 + Math.random() * 4;
-      padVoices.push({
-        osc, gain, filter, interval: iv,
-        lfoPeriod, phase: Math.random() * Math.PI * 2,
-        targetGain: 0.05 + Math.random() * 0.03,
-        stopAll() { try { osc.stop(); } catch (e) {} },
-      });
     });
+    filter.connect(padGain);
+    padGain.connect(master);
+    padGain.connect(reverbSend);
 
-    crossfadePadsToPalette(4);
+    const lfo = actx.createOscillator();
+    lfo.frequency.value = 0.045;
+    const lfoGain = actx.createGain();
+    lfoGain.gain.value = 380;
+    lfo.connect(lfoGain);
+    lfoGain.connect(filter.frequency);
+    lfo.start();
+
+    scheduleBlip();
   }
 
-  function crossfadePadsToPalette(rampSeconds) {
-    const now = audioCtx.currentTime;
-    padVoices.forEach((v) => {
-      const freq = midiToFreq(palette.root + v.interval);
-      v.osc.frequency.cancelScheduledValues(now);
-      v.osc.frequency.setValueAtTime(v.osc.frequency.value || freq, now);
-      v.osc.frequency.linearRampToValueAtTime(freq, now + rampSeconds);
-
-      v.gain.gain.cancelScheduledValues(now);
-      v.gain.gain.setValueAtTime(v.gain.gain.value, now);
-      v.gain.gain.linearRampToValueAtTime(0, now + rampSeconds * 0.5);
-      v.gain.gain.linearRampToValueAtTime(v.targetGain, now + rampSeconds * 2);
-    });
+  function scheduleBlip() {
+    const delay = rand(14, 32);
+    setTimeout(() => {
+      if (actx && started) playBlip();
+      scheduleBlip();
+    }, delay * 1000);
   }
 
-  function updatePads(t) {
-    padVoices.forEach((v) => {
-      const lfo = Math.sin((t / v.lfoPeriod) * Math.PI * 2 + v.phase);
-      const tone = +toneSlider.value / 100;
-      const base = 500 + tone * 1400;
-      v.filter.frequency.setTargetAtTime(base + lfo * 260, audioCtx.currentTime, 0.6);
-    });
+  function playBlip() {
+    const osc = actx.createOscillator();
+    osc.type = 'sine';
+    const base = rand(500, 1400);
+    osc.frequency.setValueAtTime(base, actx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(base * rand(0.5, 1.8), actx.currentTime + 0.4);
+    const g = actx.createGain();
+    g.gain.setValueAtTime(0.0001, actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.05, actx.currentTime + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + 0.9);
+    const pan = actx.createStereoPanner ? actx.createStereoPanner() : null;
+    osc.connect(g);
+    if (pan) { pan.pan.value = rand(-0.8, 0.8); g.connect(pan); pan.connect(master); pan.connect(reverbSend); }
+    else { g.connect(master); g.connect(reverbSend); }
+    osc.start();
+    osc.stop(actx.currentTime + 1.0);
   }
 
-  // ---- sparse melodic "bell" layers ----------------------------------
-  // Each layer keeps its own clock. On every tick it may or may not
-  // fire, governed by a probability that random-walks between a low
-  // and high bound — the swerve control widens or narrows that walk.
-
-  function buildBellLayers() {
-    bellLayers = [
-      { octave: 1, baseInterval: 2.6, gain: 0.16, decayMin: 1.8, decayMax: 4.5,
-        prob: makeDrift(0.15, 0.7, 0.4), jitter: makeDrift(-1, 1, 0), nextTime: 0 },
-      { octave: 2, baseInterval: 1.7, gain: 0.11, decayMin: 1.2, decayMax: 3.0,
-        prob: makeDrift(0.1, 0.65, 0.3), jitter: makeDrift(-1, 1, 0), nextTime: 0 },
-      { octave: 3, baseInterval: 4.1, gain: 0.09, decayMin: 2.0, decayMax: 5.5,
-        prob: makeDrift(0.08, 0.5, 0.2), jitter: makeDrift(-1, 1, 0), nextTime: 0 },
-    ];
-    const now = audioCtx.currentTime;
-    bellLayers.forEach((l, i) => { l.nextTime = now + 1 + i * 0.7; });
+  let stepSide = 1;
+  function playFootstep() {
+    if (!actx) return;
+    const bufSize = actx.sampleRate * 0.05;
+    const buf = actx.createBuffer(1, bufSize, actx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufSize);
+    const src = actx.createBufferSource();
+    src.buffer = buf;
+    const bp = actx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = rand(500, 900);
+    bp.Q.value = 1.2;
+    const g = actx.createGain();
+    g.gain.value = 0.28;
+    stepSide *= -1;
+    const pan = actx.createStereoPanner ? actx.createStereoPanner() : null;
+    src.connect(bp);
+    bp.connect(g);
+    if (pan) { pan.pan.value = stepSide * 0.25; g.connect(pan); pan.connect(master); pan.connect(reverbSend); }
+    else { g.connect(master); g.connect(reverbSend); }
+    src.start();
   }
 
-  function triggerBell(layer, time) {
-    const midi = pickDegree(layer);
-    const freq = midiToFreq(midi);
-    const decay = layer.decayMin + Math.random() * (layer.decayMax - layer.decayMin);
-
-    const osc = audioCtx.createOscillator();
-    osc.type = "sine";
-    osc.frequency.value = freq;
-
-    const partial = audioCtx.createOscillator();
-    partial.type = "sine";
-    partial.frequency.value = freq * 2.01;
-    const partialGain = audioCtx.createGain();
-    partialGain.gain.value = 0.18;
-
-    const env = audioCtx.createGain();
-    env.gain.setValueAtTime(0, time);
-    env.gain.linearRampToValueAtTime(layer.gain, time + 0.03);
-    env.gain.exponentialRampToValueAtTime(0.0005, time + decay);
-
-    const filter = audioCtx.createBiquadFilter();
-    filter.type = "lowpass";
-    const tone = +toneSlider.value / 100;
-    filter.frequency.value = 700 + tone * 3500;
-    filter.Q.value = 0.6;
-
-    const panner = audioCtx.createStereoPanner();
-    panner.pan.value = (Math.random() * 2 - 1) * 0.7;
-
-    osc.connect(filter);
-    partial.connect(partialGain).connect(filter);
-    filter.connect(env).connect(panner);
-
-    sendToSpace(panner, 0.55, 0.7, 0.35);
-
-    osc.start(time);
-    partial.start(time);
-    osc.stop(time + decay + 0.2);
-    partial.stop(time + decay + 0.2);
-
-    spawnParticle(midi, panner.pan.value, decay);
+  // ---------------------------------------------------------------------
+  // resize
+  // ---------------------------------------------------------------------
+  const TARGET_H = 210;
+  let aspect = 16 / 9;
+  function resize() {
+    aspect = window.innerWidth / window.innerHeight;
+    const h = TARGET_H;
+    const w = Math.max(160, Math.round(h * aspect));
+    canvas.width = w;
+    canvas.height = h;
+    gl.viewport(0, 0, w, h);
   }
+  window.addEventListener('resize', resize);
+  resize();
 
-  function scheduleBells() {
-    const now = audioCtx.currentTime;
-    const lookahead = 0.25;
-    const density = +densitySlider.value / 100;
-    const swerve = +swerveSlider.value / 100;
+  // ---------------------------------------------------------------------
+  // main loop
+  // ---------------------------------------------------------------------
+  let curFog = hsl2rgb(gs.hue, 0.5, 0.09);
+  let curFogDensity = 0.065;
+  let curGrid = hsl2rgb(gs.hue + 180, 0.9, 0.62);
+  let distSinceStep = 0;
+  let lastT = performance.now();
+  const WALK_SPEED = 2.6;
 
-    bellLayers.forEach((layer) => {
-      while (layer.nextTime < now + lookahead) {
-        const t = layer.nextTime;
+  function update(dt, t) {
+    ensureCells(player.z);
+    const cell = getCellAt(player.z) || { mode: 'interior', cx: 0, halfW: 3, fogColor: curFog, fogDensity: curFogDensity, gridColor: curGrid };
 
-        // probability itself drifts — this is the "dodge the
-        // prediction just before it forms" mechanism
-        const walkRate = 0.05 + swerve * 0.25;
-        const p = layer.prob.tick(walkRate);
-        const effectiveP = Math.min(0.95, p + density * 0.35);
+    let moveX = 0, moveZ = 0;
+    if (locked) {
+      if (keys.f) moveZ += 1;
+      if (keys.b) moveZ -= 1;
+      if (keys.r) moveX += 1;
+      if (keys.l) moveX -= 1;
+    } else if (!started) {
+      moveZ = 1; // idle demo drift before the player clicks start
+    }
 
-        if (Math.random() < effectiveP) {
-          triggerBell(layer, t);
-        }
+    const moving = (moveX !== 0 || moveZ !== 0);
+    let dx = 0, dz = 0;
+    if (moving) {
+      const len = Math.hypot(moveX, moveZ) || 1;
+      moveX /= len; moveZ /= len;
+      const sy = Math.sin(player.yaw), cy = Math.cos(player.yaw);
+      const speed = WALK_SPEED * (started ? 1 : 0.6) * dt;
+      dx = (sy * moveZ + cy * moveX) * speed;
+      dz = (cy * moveZ - sy * moveX) * speed;
+    }
+    movingBlend = lerp(movingBlend, moving ? 1 : 0, 1 - Math.exp(-dt * 6));
 
-        const jitterAmt = layer.jitter.tick(0.15) * (0.15 + swerve * 0.35);
-        const interval = layer.baseInterval * (1 + jitterAmt) / (0.4 + density * 0.9);
-        layer.nextTime = t + Math.max(0.35, interval);
+    let desiredX = player.x + dx;
+    let desiredZ = player.z + dz;
+    const targetCell = getCellAt(desiredZ) || cell;
+
+    if (targetCell.mode !== 'exterior') {
+      const margin = 0.4;
+      desiredX = clamp(desiredX, targetCell.cx - targetCell.halfW + margin, targetCell.cx + targetCell.halfW - margin);
+    } else {
+      desiredX = clamp(desiredX, targetCell.cx - targetCell.halfW + 1, targetCell.cx + targetCell.halfW - 1);
+    }
+
+    if (targetCell.mode === 'threshold') {
+      const distToDoor = targetCell.z1 - player.z;
+      if (distToDoor < 3.2) {
+        targetCell.doorOpen = clamp(targetCell.doorOpen + dt / 1.3, 0, 1);
       }
-    });
-  }
-
-  // ---- transport -------------------------------------------------
-
-  let lastPadUpdate = 0;
-
-  function schedulerLoop() {
-    if (!running) return;
-    scheduleBells();
-    const t = audioCtx.currentTime;
-    if (t - lastPadUpdate > 0.08) {
-      updatePads(t);
-      lastPadUpdate = t;
+      if (targetCell.doorOpen < 0.97 && desiredZ > targetCell.z1 - 0.55) {
+        desiredZ = targetCell.z1 - 0.55;
+      }
     }
-    schedulerTimer = setTimeout(schedulerLoop, 60);
-  }
 
-  function start() {
-    if (!audioCtx) initAudio();
-    if (audioCtx.state === "suspended") audioCtx.resume();
-    running = true;
-    schedulerLoop();
-    playBtn.textContent = "停止";
-    playBtn.classList.add("playing");
-  }
+    const moved = Math.hypot(desiredX - player.x, desiredZ - player.z);
+    player.x = desiredX;
+    player.z = desiredZ;
 
-  function stop() {
-    running = false;
-    clearTimeout(schedulerTimer);
-    if (audioCtx) {
-      const now = audioCtx.currentTime;
-      master.gain.setTargetAtTime(0, now, 0.3);
-      setTimeout(() => {
-        if (!running) master.gain.setTargetAtTime(0.85, audioCtx.currentTime, 0.01);
-      }, 1200);
+    if (moving && moved > 0.0001) {
+      distSinceStep += moved;
+      walkPhase += moved * 2.1;
+      if (distSinceStep > 0.78) { distSinceStep = 0; playFootstep(); }
     }
-    playBtn.textContent = "再生";
-    playBtn.classList.remove("playing");
+
+    // find nearest threshold door for the shader uniform
+    let doorOpen = 0;
+    for (let i = 0; i < activeCells.length; i++) {
+      if (activeCells[i].mode === 'threshold' && activeCells[i].z1 > player.z - 2 && activeCells[i].z0 < player.z + LOAD_AHEAD) {
+        doorOpen = activeCells[i].doorOpen;
+        break;
+      }
+    }
+
+    const liveCell = getCellAt(player.z) || cell;
+    const smoothing = 1 - Math.exp(-dt * 1.4);
+    curFog = lerpColor(curFog, liveCell.fogColor, smoothing);
+    curFogDensity = lerp(curFogDensity, liveCell.fogDensity, smoothing);
+    curGrid = lerpColor(curGrid, liveCell.gridColor, smoothing);
+
+    const bob = Math.sin(walkPhase) * 0.045 * movingBlend;
+    const roll = Math.sin(walkPhase * 0.5) * 0.012 * movingBlend;
+    player.eyeY = 1.62 + bob;
+    player.roll = roll;
+
+    return doorOpen;
   }
 
-  playBtn.addEventListener("click", () => {
-    if (running) stop(); else start();
-  });
+  function render(doorOpen) {
+    gl.clearColor(curFog[0], curFog[1], curFog[2], 1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-  paletteBtn.addEventListener("click", () => {
-    palette = makePalette();
-    if (audioCtx) crossfadePadsToPalette(6);
-  });
+    const proj = mat4Perspective((72 * Math.PI) / 180, aspect, 0.08, 90);
+    const view = buildViewMatrix({ x: player.x, y: player.eyeY, z: player.z }, player.yaw, player.pitch, player.roll || 0);
+    const viewProj = mat4Multiply(proj, view);
 
-  // ---- visual: quiet drifting field, loosely tied to note events -----
+    gl.uniformMatrix4fv(loc.uViewProj, false, viewProj);
+    gl.uniform3f(loc.uCamPos, player.x, player.eyeY, player.z);
+    gl.uniform1f(loc.uDoorOpen, doorOpen);
+    gl.uniform1f(loc.uSnap, 130.0);
+    gl.uniform3f(loc.uFogColor, curFog[0], curFog[1], curFog[2]);
+    gl.uniform1f(loc.uFogDensity, curFogDensity);
+    gl.uniform3f(loc.uGridColor, curGrid[0], curGrid[1], curGrid[2]);
+    gl.uniform1f(loc.uTime, performance.now() / 1000);
 
-  let particles = [];
-  let hue = palette.hue;
-
-  function resizeCanvas() {
-    canvas.width = window.innerWidth * devicePixelRatio;
-    canvas.height = window.innerHeight * devicePixelRatio;
-  }
-  window.addEventListener("resize", resizeCanvas);
-  resizeCanvas();
-
-  function spawnParticle(midi, pan, decay) {
-    const w = canvas.width, h = canvas.height;
-    const x = ((midi % 24) / 24) * w * 0.8 + w * 0.1;
-    const y = h * 0.5 - pan * h * 0.32 + (Math.random() - 0.5) * h * 0.15;
-    particles.push({
-      x, y,
-      r: 4 * devicePixelRatio,
-      life: 0,
-      maxLife: Math.max(1.5, decay),
-      vx: (Math.random() - 0.5) * 6,
-      vy: (Math.random() - 0.5) * 6,
-    });
-    if (particles.length > 120) particles.shift();
+    if (vertexCount > 0) gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
   }
 
-  function draw() {
-    const w = canvas.width, h = canvas.height;
-    hue = (hue + 0.01) % 360;
-    const targetHue = palette.hue;
-    hue += (targetHue - hue) * 0.0015;
-
-    ctx2d.fillStyle = `hsla(${hue}, 30%, 4%, 0.18)`;
-    ctx2d.fillRect(0, 0, w, h);
-
-    particles.forEach((p) => {
-      p.life += 1 / 60;
-      p.x += p.vx * 0.016;
-      p.y += p.vy * 0.016;
-      const t = p.life / p.maxLife;
-      const alpha = Math.max(0, 1 - t) * 0.5;
-      const r = p.r * (1 + t * 8);
-      const grad = ctx2d.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
-      grad.addColorStop(0, `hsla(${hue}, 60%, 75%, ${alpha})`);
-      grad.addColorStop(1, `hsla(${hue}, 60%, 75%, 0)`);
-      ctx2d.fillStyle = grad;
-      ctx2d.beginPath();
-      ctx2d.arc(p.x, p.y, r, 0, Math.PI * 2);
-      ctx2d.fill();
-    });
-    particles = particles.filter((p) => p.life < p.maxLife);
-
-    requestAnimationFrame(draw);
+  function frame(now) {
+    const dt = Math.min(0.05, (now - lastT) / 1000);
+    lastT = now;
+    const doorOpen = update(dt, now / 1000);
+    render(doorOpen);
+    requestAnimationFrame(frame);
   }
-  requestAnimationFrame(draw);
+
+  ensureCells(player.z);
+  requestAnimationFrame(frame);
 })();
