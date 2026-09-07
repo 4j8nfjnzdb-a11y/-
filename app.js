@@ -973,8 +973,6 @@
       playheadEl: el.querySelector('[data-role="playhead"]'),
       hintEl: el.querySelector('[data-role="hint"]'),
       dropzoneEl: el.querySelector('[data-role="dropzone"]'),
-      fileBtn: el.querySelector('[data-role="fileBtn"]'),
-      folderBtn: el.querySelector('[data-role="folderBtn"]'),
       recBtn: el.querySelector('[data-role="recBtn"]'),
       fileInput: el.querySelector('[data-role="fileInput"]'),
       folderInput: el.querySelector('[data-role="folderInput"]'),
@@ -1005,8 +1003,6 @@
 
     setupKnobs(track);
 
-    track.fileBtn.addEventListener("click", () => track.fileInput.click());
-    track.folderBtn.addEventListener("click", () => track.folderInput.click());
     track.recBtn.addEventListener("click", () => {
       if (track.isRecording) stopRecording(track);
       else startRecording(track);
