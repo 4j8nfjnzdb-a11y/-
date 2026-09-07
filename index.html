@@ -11,9 +11,30 @@
 
   <div class="scanlines" aria-hidden="true"></div>
   <div class="vignette" aria-hidden="true"></div>
+  <canvas id="noiseLayer" class="noiseLayer" width="64" height="64" aria-hidden="true"></canvas>
   <div class="crosshair" id="crosshair" aria-hidden="true"></div>
+  <div class="stick" id="moveStick" aria-hidden="true"><div class="thumb"></div></div>
 
   <div class="hint" id="hint">扉を抜けるたび、景色は違う場所になる。</div>
+
+  <button id="fxToggle" class="fxToggle" aria-label="エフェクト" aria-expanded="false">✦ FX</button>
+  <div class="fxPanel hidden" id="fxPanel">
+    <div class="fxGrid">
+      <button class="fxBtn" data-fx="blackout"><span class="ic">🌑</span>暗闇</button>
+      <button class="fxBtn" data-fx="lightsOn"><span class="ic">💡</span>点灯</button>
+      <button class="fxBtn" data-fx="mist"><span class="ic">🌫️</span>もや</button>
+      <button class="fxBtn" data-fx="blur"><span class="ic">🫧</span>ぼかし</button>
+      <button class="fxBtn" data-fx="vhs"><span class="ic">📼</span>VHS</button>
+      <button class="fxBtn" data-fx="mono"><span class="ic">🖤</span>白黒</button>
+      <button class="fxBtn" data-fx="negative"><span class="ic">🔄</span>ネガ</button>
+      <button class="fxBtn" data-fx="vivid"><span class="ic">🌈</span>極彩色</button>
+      <button class="fxBtn" data-fx="hueSpin"><span class="ic">🎡</span>色相回転</button>
+      <button class="fxBtn" data-fx="thermal"><span class="ic">🌡️</span>サーモ</button>
+      <button class="fxBtn" data-fx="nightVision"><span class="ic">🕶️</span>夜視</button>
+      <button class="fxBtn" data-fx="staticNoise"><span class="ic">📺</span>ノイズ</button>
+    </div>
+    <button id="fxReset" class="fxResetBtn">リセット</button>
+  </div>
 
   <main class="overlay" id="startScreen">
     <div class="panel">
@@ -21,7 +42,8 @@
       <p class="tagline">部屋の中に、また部屋。<br />終わらない廊下を歩いて、扉の向こうへ。</p>
       <button id="startBtn" class="startBtn">CLICK TO ENTER</button>
       <p class="controls-hint">
-        WASD / 矢印キー — 歩く&nbsp;&nbsp;&nbsp;マウス — 見回す&nbsp;&nbsp;&nbsp;Esc — 一時停止
+        <b>PC</b> — WASD / 矢印キーで歩く、マウスで見回す、Fでエフェクト、Escで一時停止<br />
+        <b>スマホ</b> — 左側をドラッグで歩く、右側をドラッグで見回す、右上のFXボタンでエフェクト
       </p>
     </div>
   </main>

@@ -129,6 +129,7 @@
     uniform float uFogDensity;
     uniform vec3 uGridColor;
     uniform float uTime;
+    uniform float uBrightBoost;
 
     void main() {
       vec3 base = vColor;
@@ -146,7 +147,8 @@
       float fog = 1.0 - exp(-uFogDensity * vFogDist);
       fog = clamp(fog, 0.0, 1.0);
       vec3 color = mix(base, uFogColor, fog);
-      color = pow(color, vec3(0.82)); // lift shadows a touch, PS1 CRTs were never truly black
+      color = pow(color, vec3(0.82));
+      color = clamp(color * uBrightBoost, 0.0, 1.0);
 
       float noise = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
       float levels = 22.0;
@@ -187,12 +189,13 @@
     uSnap: gl.getUniformLocation(program, 'uSnap'),
     uFogColor: gl.getUniformLocation(program, 'uFogColor'),
     uFogDensity: gl.getUniformLocation(program, 'uFogDensity'),
+    uBrightBoost: gl.getUniformLocation(program, 'uBrightBoost'),
     uGridColor: gl.getUniformLocation(program, 'uGridColor'),
     uTime: gl.getUniformLocation(program, 'uTime'),
   };
 
   const vbo = gl.createBuffer();
-  const STRIDE = 8 * 4; // 8 floats per vertex
+  const STRIDE = 8 * 4;
   gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
   gl.enableVertexAttribArray(loc.aPosition);
   gl.enableVertexAttribArray(loc.aColor);
@@ -222,12 +225,12 @@
     const y0 = cy - sy / 2, y1 = cy + sy / 2;
     const z0 = cz - sz / 2, z1 = cz + sz / 2;
     const shade = (m) => mulColor(color, m);
-    pushQuad(arr, [x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1], shade(1.25), false, 0); // top
-    pushQuad(arr, [x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1], shade(0.5), false, 0);  // bottom
-    pushQuad(arr, [x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0], shade(0.85), false, 0); // front
-    pushQuad(arr, [x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], shade(1.0), false, 0);  // back
-    pushQuad(arr, [x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0], shade(0.7), false, 0);  // left
-    pushQuad(arr, [x1, y0, z0], [x1, y0, z1], [x1, y1, z1], [x1, y1, z0], shade(1.1), false, 0);  // right
+    pushQuad(arr, [x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1], shade(1.25), false, 0);
+    pushQuad(arr, [x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1], shade(0.5), false, 0);
+    pushQuad(arr, [x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0], shade(0.85), false, 0);
+    pushQuad(arr, [x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], shade(1.0), false, 0);
+    pushQuad(arr, [x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0], shade(0.7), false, 0);
+    pushQuad(arr, [x1, y0, z0], [x1, y0, z1], [x1, y1, z1], [x1, y1, z0], shade(1.1), false, 0);
   }
 
   function buildCellGeometry(cell) {
@@ -424,15 +427,29 @@
   }
 
   // ---------------------------------------------------------------------
-  // player + input
+  // player + input (keyboard/mouse for desktop, drag for touch, with
+  // Pointer Lock used opportunistically and a drag-look fallback for
+  // sandboxes that don't grant it)
   // ---------------------------------------------------------------------
   const player = { x: 0, y: 1.62, z: -2, yaw: 0, pitch: 0 };
   const keys = Object.create(null);
   let locked = false;
   let started = false;
+  let paused = false;
   let justLocked = false;
   let walkPhase = 0;
   let movingBlend = 0;
+  const LOOK_SENS = 0.0024;
+
+  const startScreenEl = document.getElementById('startScreen');
+  const pauseScreenEl = document.getElementById('pauseScreen');
+  const crosshairEl = document.getElementById('crosshair');
+  const hintEl = document.getElementById('hint');
+  const moveStickEl = document.getElementById('moveStick');
+  const fxToggleEl = document.getElementById('fxToggle');
+  const fxPanelEl = document.getElementById('fxPanel');
+  const fxResetEl = document.getElementById('fxReset');
+  const noiseLayerEl = document.getElementById('noiseLayer');
 
   const KEY_MAP = {
     'KeyW': 'f', 'ArrowUp': 'f',
@@ -441,37 +458,190 @@
     'KeyD': 'r', 'ArrowRight': 'r',
   };
 
-  window.addEventListener('keydown', (e) => { const k = KEY_MAP[e.code]; if (k) keys[k] = true; });
+  window.addEventListener('keydown', (e) => {
+    const k = KEY_MAP[e.code];
+    if (k) keys[k] = true;
+    if (e.code === 'Escape' && started && !paused) {
+      paused = true;
+      pauseScreenEl.classList.remove('hidden');
+      if (document.pointerLockElement === canvas) { try { document.exitPointerLock(); } catch (e2) {} }
+    }
+    if (e.code === 'KeyF' && started && !paused) toggleFxPanel();
+  });
   window.addEventListener('keyup', (e) => { const k = KEY_MAP[e.code]; if (k) keys[k] = false; });
 
+  // pointer-lock look (desktop, when the host permits it)
   document.addEventListener('mousemove', (e) => {
     if (!locked) return;
     if (justLocked) { justLocked = false; return; }
-    player.yaw -= e.movementX * 0.0022;
-    player.pitch = clamp(player.pitch - e.movementY * 0.0022, -1.25, 1.25);
+    player.yaw -= e.movementX * LOOK_SENS;
+    player.pitch = clamp(player.pitch - e.movementY * LOOK_SENS, -1.25, 1.25);
   });
 
   document.addEventListener('pointerlockchange', () => {
     locked = document.pointerLockElement === canvas;
-    document.getElementById('crosshair').classList.toggle('visible', locked);
-    if (locked) {
-      justLocked = true;
-      document.getElementById('startScreen').classList.add('hidden');
-      document.getElementById('pauseScreen').classList.add('hidden');
-      const hint = document.getElementById('hint');
-      hint.classList.add('visible');
-    } else if (started) {
-      document.getElementById('pauseScreen').classList.remove('hidden');
-    }
+    if (locked) justLocked = true;
   });
+
+  // drag-to-look fallback (desktop mouse without pointer lock)
+  let dragging = false, dragX = 0, dragY = 0;
+  canvas.addEventListener('mousedown', (e) => {
+    if (!started || paused || locked) return;
+    dragging = true; dragX = e.clientX; dragY = e.clientY;
+  });
+  window.addEventListener('mouseup', () => { dragging = false; });
+  window.addEventListener('mousemove', (e) => {
+    if (!dragging || locked) return;
+    const dx = e.clientX - dragX, dy = e.clientY - dragY;
+    dragX = e.clientX; dragY = e.clientY;
+    player.yaw -= dx * LOOK_SENS;
+    player.pitch = clamp(player.pitch - dy * LOOK_SENS, -1.25, 1.25);
+  });
+
+  // touch controls: left half = move stick, right half = look drag
+  const touchState = { moveId: null, moveVec: { x: 0, z: 0 }, lookId: null, lookX: 0, lookY: 0 };
+  function stickVisual(active, x, y, dx, dy) {
+    if (!active) { moveStickEl.classList.remove('active'); return; }
+    moveStickEl.classList.add('active');
+    moveStickEl.style.left = x + 'px';
+    moveStickEl.style.top = y + 'px';
+    const thumb = moveStickEl.firstElementChild;
+    thumb.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+  }
+  canvas.addEventListener('touchstart', (e) => {
+    if (!started || paused) return;
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const t = e.changedTouches[i];
+      const isLeft = t.clientX < window.innerWidth / 2;
+      if (isLeft && touchState.moveId === null) {
+        touchState.moveId = t.identifier;
+        touchState.moveX0 = t.clientX; touchState.moveY0 = t.clientY;
+        touchState.moveVec = { x: 0, z: 0 };
+        stickVisual(true, t.clientX, t.clientY, 0, 0);
+      } else if (!isLeft && touchState.lookId === null) {
+        touchState.lookId = t.identifier;
+        touchState.lookX = t.clientX; touchState.lookY = t.clientY;
+      }
+    }
+    e.preventDefault();
+  }, { passive: false });
+  canvas.addEventListener('touchmove', (e) => {
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const t = e.changedTouches[i];
+      if (t.identifier === touchState.moveId) {
+        const R = 42;
+        let dx = t.clientX - touchState.moveX0, dy = t.clientY - touchState.moveY0;
+        const len = Math.hypot(dx, dy);
+        if (len > R) { dx = dx / len * R; dy = dy / len * R; }
+        touchState.moveVec = { x: dx / R, z: -dy / R };
+        stickVisual(true, touchState.moveX0, touchState.moveY0, dx, dy);
+      } else if (t.identifier === touchState.lookId) {
+        const dx = t.clientX - touchState.lookX, dy = t.clientY - touchState.lookY;
+        touchState.lookX = t.clientX; touchState.lookY = t.clientY;
+        player.yaw -= dx * LOOK_SENS * 1.3;
+        player.pitch = clamp(player.pitch - dy * LOOK_SENS * 1.3, -1.25, 1.25);
+      }
+    }
+    e.preventDefault();
+  }, { passive: false });
+  function touchEnd(e) {
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const t = e.changedTouches[i];
+      if (t.identifier === touchState.moveId) {
+        touchState.moveId = null;
+        touchState.moveVec = { x: 0, z: 0 };
+        stickVisual(false);
+      } else if (t.identifier === touchState.lookId) {
+        touchState.lookId = null;
+      }
+    }
+  }
+  canvas.addEventListener('touchend', touchEnd, { passive: false });
+  canvas.addEventListener('touchcancel', touchEnd, { passive: false });
 
   document.getElementById('startBtn').addEventListener('click', () => {
     started = true;
+    paused = false;
+    startScreenEl.classList.add('hidden');
+    crosshairEl.classList.add('visible');
+    hintEl.classList.add('visible');
+    fxToggleEl.classList.add('visible');
     initAudio();
-    canvas.requestPointerLock();
+    try { canvas.requestPointerLock(); } catch (e) {}
   });
   document.getElementById('resumeBtn').addEventListener('click', () => {
-    canvas.requestPointerLock();
+    paused = false;
+    pauseScreenEl.classList.add('hidden');
+    try { canvas.requestPointerLock(); } catch (e) {}
+  });
+  canvas.addEventListener('click', () => {
+    if (started && !paused && !locked) { try { canvas.requestPointerLock(); } catch (e) {} }
+  });
+
+  // ---------------------------------------------------------------------
+  // screen-effects drawer
+  // ---------------------------------------------------------------------
+  const noiseCtx = noiseLayerEl.getContext('2d');
+  const noiseImgData = noiseCtx.createImageData(64, 64);
+  let noiseTimer = null;
+  function drawNoise() {
+    const d = noiseImgData.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const v = Math.random() * 255;
+      d[i] = v; d[i + 1] = v; d[i + 2] = v; d[i + 3] = 255;
+    }
+    noiseCtx.putImageData(noiseImgData, 0, 0);
+  }
+
+  function toggleFxPanel() {
+    const willOpen = fxPanelEl.classList.contains('hidden');
+    fxPanelEl.classList.toggle('hidden', !willOpen);
+    fxToggleEl.classList.toggle('open', willOpen);
+    fxToggleEl.setAttribute('aria-expanded', String(willOpen));
+    // pointer lock swallows clicks meant for the panel's buttons, so release
+    // it whenever the drawer opens; the player can click back into the
+    // world to re-lock once they're done picking effects.
+    if (willOpen && document.pointerLockElement === canvas) { try { document.exitPointerLock(); } catch (e) {} }
+  }
+  fxToggleEl.addEventListener('click', toggleFxPanel);
+
+  document.querySelectorAll('.fxBtn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.fx;
+      if (id === 'blackout' || id === 'lightsOn') {
+        const turningOn = !activeFx.has(id);
+        activeFx.delete('blackout'); activeFx.delete('lightsOn');
+        document.querySelectorAll('.fxBtn[data-fx="blackout"],.fxBtn[data-fx="lightsOn"]').forEach((b) => b.classList.remove('active'));
+        if (turningOn) {
+          activeFx.add(id);
+          btn.classList.add('active');
+          setLightMode(id === 'lightsOn' ? 'on' : 'off');
+        } else {
+          setLightMode('normal');
+        }
+      } else {
+        if (activeFx.has(id)) { activeFx.delete(id); btn.classList.remove('active'); }
+        else { activeFx.add(id); btn.classList.add('active'); }
+        if (id === 'staticNoise') {
+          const active = activeFx.has('staticNoise');
+          noiseLayerEl.classList.toggle('active', active);
+          if (active && !noiseTimer) { noiseTimer = setInterval(drawNoise, 70); drawNoise(); }
+          else if (!active && noiseTimer) { clearInterval(noiseTimer); noiseTimer = null; }
+        }
+        if (id === 'hueSpin' && !activeFx.has('hueSpin')) hueSpinDeg = 0;
+      }
+      applyScreenFilter();
+    });
+  });
+
+  fxResetEl.addEventListener('click', () => {
+    activeFx.clear();
+    document.querySelectorAll('.fxBtn').forEach((b) => b.classList.remove('active'));
+    setLightMode('normal');
+    if (noiseTimer) { clearInterval(noiseTimer); noiseTimer = null; }
+    noiseLayerEl.classList.remove('active');
+    hueSpinDeg = 0;
+    applyScreenFilter();
   });
 
   // ---------------------------------------------------------------------
@@ -484,18 +654,14 @@
     const buf = ctx.createBuffer(2, len, rate);
     for (let ch = 0; ch < 2; ch++) {
       const data = buf.getChannelData(ch);
-      for (let i = 0; i < len; i++) {
-        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
-      }
+      for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
     }
     return buf;
   }
 
   function initAudio() {
     if (actx) return;
-    try {
-      actx = new (window.AudioContext || window.webkitAudioContext)();
-    } catch (e) { return; }
+    try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
 
     master = actx.createGain();
     master.gain.value = 0.5;
@@ -508,7 +674,6 @@
     reverbSend.connect(convolver);
     convolver.connect(master);
 
-    // ambient pad
     const padGain = actx.createGain();
     padGain.gain.value = 0.16;
     const filter = actx.createBiquadFilter();
@@ -618,24 +783,74 @@
   let lastT = performance.now();
   const WALK_SPEED = 2.6;
 
-  function update(dt, t) {
+  // ---------------------------------------------------------------------
+  // screen effects (a photobooth drawer of CSS filters + a couple of
+  // shader/scene-level toggles for "lights on/off")
+  // ---------------------------------------------------------------------
+  const CSS_EFFECTS = {
+    mist: 'blur(1.5px) contrast(0.88) brightness(1.06)',
+    blur: 'blur(5px)',
+    vhs: 'sepia(0.65) contrast(1.15) saturate(1.5) brightness(0.95)',
+    mono: 'grayscale(1) contrast(1.25)',
+    negative: 'invert(1) hue-rotate(180deg)',
+    vivid: 'saturate(3) contrast(1.15)',
+    thermal: 'hue-rotate(120deg) saturate(4) contrast(1.3) brightness(1.15)',
+    nightVision: 'grayscale(0.5) sepia(1) hue-rotate(62deg) saturate(4.5) brightness(1.3) contrast(1.2)',
+  };
+  const activeFx = new Set();
+  let hueSpinDeg = 0;
+  let lightMode = 'normal';
+  let brightBoost = 1.0, targetBright = 1.0;
+  let fogMul = 1.0, targetFogMul = 1.0;
+
+  const screenEls = [canvas, document.querySelector('.scanlines'), document.querySelector('.vignette')];
+  function applyScreenFilter() {
+    const parts = [];
+    activeFx.forEach((id) => { if (CSS_EFFECTS[id]) parts.push(CSS_EFFECTS[id]); });
+    if (activeFx.has('blackout')) parts.push('brightness(0.55)');
+    if (activeFx.has('lightsOn')) parts.push('brightness(1.25)');
+    if (activeFx.has('hueSpin')) parts.push('hue-rotate(' + hueSpinDeg.toFixed(0) + 'deg)');
+    const str = parts.length ? parts.join(' ') : 'none';
+    for (let i = 0; i < screenEls.length; i++) if (screenEls[i]) screenEls[i].style.filter = str;
+  }
+
+  function setLightMode(mode) {
+    lightMode = mode;
+    if (mode === 'on') {
+      targetFogMul = 0.18;
+      const seq = [0.3, 1.7, 0.35, 1.8, 1.0, 1.55];
+      seq.forEach((v, i) => setTimeout(() => { if (lightMode === 'on') targetBright = v; }, i * 70));
+    } else if (mode === 'off') {
+      targetBright = 0.4;
+      targetFogMul = 2.4;
+    } else {
+      targetBright = 1.0;
+      targetFogMul = 1.0;
+    }
+  }
+
+  function update(dt) {
     ensureCells(player.z);
     const cell = getCellAt(player.z) || { mode: 'interior', cx: 0, halfW: 3, fogColor: curFog, fogDensity: curFogDensity, gridColor: curGrid };
 
     let moveX = 0, moveZ = 0;
-    if (locked) {
+    if (paused) {
+      // frozen
+    } else if (started) {
       if (keys.f) moveZ += 1;
       if (keys.b) moveZ -= 1;
       if (keys.r) moveX += 1;
       if (keys.l) moveX -= 1;
-    } else if (!started) {
+      moveX += touchState.moveVec.x;
+      moveZ += touchState.moveVec.z;
+    } else {
       moveZ = 1; // idle demo drift before the player clicks start
     }
 
-    const moving = (moveX !== 0 || moveZ !== 0);
+    const moving = (Math.abs(moveX) > 0.01 || Math.abs(moveZ) > 0.01);
     let dx = 0, dz = 0;
     if (moving) {
-      const len = Math.hypot(moveX, moveZ) || 1;
+      const len = Math.max(1, Math.hypot(moveX, moveZ));
       moveX /= len; moveZ /= len;
       const sy = Math.sin(player.yaw), cy = Math.cos(player.yaw);
       const speed = WALK_SPEED * (started ? 1 : 0.6) * dt;
@@ -657,12 +872,8 @@
 
     if (targetCell.mode === 'threshold') {
       const distToDoor = targetCell.z1 - player.z;
-      if (distToDoor < 3.2) {
-        targetCell.doorOpen = clamp(targetCell.doorOpen + dt / 1.3, 0, 1);
-      }
-      if (targetCell.doorOpen < 0.97 && desiredZ > targetCell.z1 - 0.55) {
-        desiredZ = targetCell.z1 - 0.55;
-      }
+      if (distToDoor < 3.2) targetCell.doorOpen = clamp(targetCell.doorOpen + dt / 1.3, 0, 1);
+      if (targetCell.doorOpen < 0.97 && desiredZ > targetCell.z1 - 0.55) desiredZ = targetCell.z1 - 0.55;
     }
 
     const moved = Math.hypot(desiredX - player.x, desiredZ - player.z);
@@ -675,7 +886,6 @@
       if (distSinceStep > 0.78) { distSinceStep = 0; playFootstep(); }
     }
 
-    // find nearest threshold door for the shader uniform
     let doorOpen = 0;
     for (let i = 0; i < activeCells.length; i++) {
       if (activeCells[i].mode === 'threshold' && activeCells[i].z1 > player.z - 2 && activeCells[i].z0 < player.z + LOAD_AHEAD) {
@@ -687,8 +897,15 @@
     const liveCell = getCellAt(player.z) || cell;
     const smoothing = 1 - Math.exp(-dt * 1.4);
     curFog = lerpColor(curFog, liveCell.fogColor, smoothing);
-    curFogDensity = lerp(curFogDensity, liveCell.fogDensity, smoothing);
+    fogMul = lerp(fogMul, targetFogMul, 1 - Math.exp(-dt * 3));
+    curFogDensity = lerp(curFogDensity, liveCell.fogDensity * fogMul, smoothing);
     curGrid = lerpColor(curGrid, liveCell.gridColor, smoothing);
+    brightBoost = lerp(brightBoost, targetBright, 1 - Math.exp(-dt * 10));
+
+    if (activeFx.has('hueSpin')) {
+      hueSpinDeg = (hueSpinDeg + dt * 70) % 360;
+      applyScreenFilter();
+    }
 
     const bob = Math.sin(walkPhase) * 0.045 * movingBlend;
     const roll = Math.sin(walkPhase * 0.5) * 0.012 * movingBlend;
@@ -712,6 +929,7 @@
     gl.uniform1f(loc.uSnap, 130.0);
     gl.uniform3f(loc.uFogColor, curFog[0], curFog[1], curFog[2]);
     gl.uniform1f(loc.uFogDensity, curFogDensity);
+    gl.uniform1f(loc.uBrightBoost, brightBoost);
     gl.uniform3f(loc.uGridColor, curGrid[0], curGrid[1], curGrid[2]);
     gl.uniform1f(loc.uTime, performance.now() / 1000);
 
@@ -721,7 +939,7 @@
   function frame(now) {
     const dt = Math.min(0.05, (now - lastT) / 1000);
     lastT = now;
-    const doorOpen = update(dt, now / 1000);
+    const doorOpen = update(dt);
     render(doorOpen);
     requestAnimationFrame(frame);
   }
