@@ -12,6 +12,7 @@
 
   let audioCtx = null;
   let workletReady = null; // promise
+  let bitcrusherAvailable = true;
   let masterGain, compressor;
   let delayNode, delayFeedback, delayDamp, delayReturn;
   let staticSource, staticGain, staticFilter;
@@ -51,9 +52,22 @@
     buildStaticLayer();
     scheduleCrackle();
 
-    workletReady = audioCtx.audioWorklet.addModule(bitcrusherWorkletURL()).then(() => {
-      tracks.forEach((t) => buildTrackChain(t));
-    });
+    // AudioWorklet can fail to load its module in some contexts (most
+    // notably: the page opened directly via file:// instead of served
+    // over http/https) — fall back to a ScriptProcessor bitcrusher
+    // rather than leaving every await on workletReady hanging forever.
+    workletReady = audioCtx.audioWorklet
+      .addModule(bitcrusherWorkletURL())
+      .then(() => {
+        bitcrusherAvailable = true;
+      })
+      .catch((err) => {
+        console.warn("AudioWorklet unavailable, falling back to a ScriptProcessor bitcrusher:", err);
+        bitcrusherAvailable = false;
+      })
+      .then(() => {
+        tracks.forEach((t) => buildTrackChain(t));
+      });
 
     return workletReady;
   }
@@ -533,6 +547,54 @@
     return { start, length };
   }
 
+  // Wraps either an AudioWorkletNode (preferred) or a ScriptProcessorNode
+  // fallback behind the same {node, setBits, setReduction} shape, so the
+  // rest of the chain and the CRUSH knob don't need to know which one is
+  // actually running.
+  function createBitcrusher() {
+    if (bitcrusherAvailable) {
+      const node = new AudioWorkletNode(audioCtx, "junk-bitcrusher", {
+        numberOfInputs: 1,
+        numberOfOutputs: 1,
+        outputChannelCount: [2],
+      });
+      return {
+        node,
+        setBits: (v) => node.parameters.get("bits").setTargetAtTime(v, audioCtx.currentTime, 0.01),
+        setReduction: (v) => node.parameters.get("reduction").setTargetAtTime(v, audioCtx.currentTime, 0.01),
+      };
+    }
+
+    const node = audioCtx.createScriptProcessor(1024, 2, 2);
+    const state = { bits: 16, reduction: 1, counter: 0, held: [0, 0] };
+    node.onaudioprocess = (e) => {
+      const input = e.inputBuffer;
+      const output = e.outputBuffer;
+      const steps = Math.pow(2, state.bits);
+      const red = Math.max(1, Math.round(state.reduction));
+      for (let ch = 0; ch < output.numberOfChannels; ch++) {
+        const inCh = input.getChannelData(Math.min(ch, input.numberOfChannels - 1));
+        const outCh = output.getChannelData(ch);
+        for (let i = 0; i < outCh.length; i++) {
+          if ((state.counter + i) % red === 0) {
+            state.held[ch] = Math.round(inCh[i] * steps) / steps;
+          }
+          outCh[i] = state.held[ch] || 0;
+        }
+      }
+      state.counter += output.getChannelData(0).length;
+    };
+    return {
+      node,
+      setBits: (v) => {
+        state.bits = v;
+      },
+      setReduction: (v) => {
+        state.reduction = v;
+      },
+    };
+  }
+
   // ---------------------------------------------------------------
   // per-track audio chain
   // ---------------------------------------------------------------
@@ -544,11 +606,7 @@
     waveshaper.curve = makeDistortionCurve(10);
     waveshaper.oversample = "2x";
 
-    const bitcrusher = new AudioWorkletNode(audioCtx, "junk-bitcrusher", {
-      numberOfInputs: 1,
-      numberOfOutputs: 1,
-      outputChannelCount: [2],
-    });
+    const bitcrusher = createBitcrusher();
 
     const filter = audioCtx.createBiquadFilter();
     filter.type = "lowpass";
@@ -569,7 +627,7 @@
     wobbleOsc.connect(wobbleDepth);
     wobbleOsc.start();
 
-    waveshaper.connect(bitcrusher).connect(filter).connect(trackGain);
+    waveshaper.connect(bitcrusher.node).connect(filter).connect(trackGain);
     trackGain.connect(masterGain);
     trackGain.connect(delaySend).connect(delayNode);
 
@@ -876,11 +934,10 @@
       format: (v) => Math.round(v),
       onChange: (v) => {
         withChain(track, (chain) => {
-          const now = audioCtx.currentTime;
           const bits = 16 - (v / 100) * 12;
           const reduction = 1 + (v / 100) * 40;
-          chain.bitcrusher.parameters.get("bits").setTargetAtTime(bits, now, 0.01);
-          chain.bitcrusher.parameters.get("reduction").setTargetAtTime(reduction, now, 0.01);
+          chain.bitcrusher.setBits(bits);
+          chain.bitcrusher.setReduction(reduction);
         });
       },
     });
@@ -973,8 +1030,6 @@
       playheadEl: el.querySelector('[data-role="playhead"]'),
       hintEl: el.querySelector('[data-role="hint"]'),
       dropzoneEl: el.querySelector('[data-role="dropzone"]'),
-      fileBtn: el.querySelector('[data-role="fileBtn"]'),
-      folderBtn: el.querySelector('[data-role="folderBtn"]'),
       recBtn: el.querySelector('[data-role="recBtn"]'),
       fileInput: el.querySelector('[data-role="fileInput"]'),
       folderInput: el.querySelector('[data-role="folderInput"]'),
@@ -1005,8 +1060,6 @@
 
     setupKnobs(track);
 
-    track.fileBtn.addEventListener("click", () => track.fileInput.click());
-    track.folderBtn.addEventListener("click", () => track.folderInput.click());
     track.recBtn.addEventListener("click", () => {
       if (track.isRecording) stopRecording(track);
       else startRecording(track);

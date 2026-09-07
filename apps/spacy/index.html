@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>spacy study — 空間の時間的生成</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<main class="wrap">
+
+  <header>
+    <h1>spacy study <span class="sub">空間は、時間から生成される</span></h1>
+    <p class="intro">
+      カメラはほとんど動かない。動いて見えるのは、写真を再撮影し、フレームの中にフレームを重ねていく——という時間的な操作を反復しているから。
+      伊藤高志『Spacy』の方法にならった、駆動する実験装置です。サンプルは全てブラウザ内で生成されるので、そのまま再生できます。
+    </p>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-tab="photo" role="tab" aria-selected="true">写真</button>
+    <button class="tab" data-tab="video" role="tab" aria-selected="false">動画</button>
+  </nav>
+
+  <section class="panel" data-panel="photo">
+    <div class="stage">
+      <canvas id="photoCanvas" width="960" height="600"></canvas>
+      <div class="flash" id="photoFlash"></div>
+    </div>
+
+    <div class="controls">
+      <div class="modeToggle" id="photoModeToggle">
+        <label><input type="radio" name="photoMode" value="normal" /> ノーマルズーム</label>
+        <label><input type="radio" name="photoMode" value="spacy" checked /> spacy式（再撮影）</label>
+      </div>
+
+      <div class="row">
+        <button id="photoPlay" class="primary">駆動する</button>
+        <button id="photoStep" class="ghost">1ステップ進める</button>
+        <button id="photoEditFrame" class="ghost">フレームを編集</button>
+        <button id="photoReset" class="ghost">サンプルに戻す</button>
+        <label class="fileBtn">写真を選ぶ<input id="photoFile" type="file" accept="image/*" hidden /></label>
+      </div>
+
+      <div class="sliders">
+        <label class="slider">
+          <span>再帰の深さ <em id="depthVal">6</em></span>
+          <input id="photoDepth" type="range" min="2" max="8" value="6" />
+        </label>
+        <label class="slider">
+          <span>間 <em>interval</em></span>
+          <input id="photoSpeed" type="range" min="0" max="100" value="55" />
+        </label>
+        <label class="checkline">
+          <input id="photoSound" type="checkbox" checked /> シャッター音
+        </label>
+      </div>
+
+      <p class="note" id="photoNote">駆動すると、フレームへ向かって短くズームし、切り替わる瞬間に一度だけ「撮影」される。これが1回の再撮影＝1コマの時間経過。</p>
+    </div>
+  </section>
+
+  <section class="panel" data-panel="video" hidden>
+    <div class="stage">
+      <canvas id="videoCanvas" width="960" height="600"></canvas>
+      <video id="videoSource" hidden loop muted playsinline></video>
+    </div>
+
+    <div class="controls">
+      <div class="row">
+        <button id="videoPlay" class="primary">駆動する</button>
+        <button id="videoEditFrame" class="ghost">フレームを編集</button>
+        <button id="videoReset" class="ghost">サンプルに戻す</button>
+        <label class="fileBtn">動画を選ぶ<input id="videoFile" type="file" accept="video/*" hidden /></label>
+      </div>
+
+      <div class="sliders">
+        <label class="slider">
+          <span>世代ロス <em id="lossVal">18%</em></span>
+          <input id="videoLoss" type="range" min="0" max="60" value="18" />
+        </label>
+      </div>
+
+      <p class="note">映像そのものはほぼ静止している。フレームの中に、直前の1フレームを再帰的に重ね続けることで、奥へ進むような時間が毎フレーム生成される。</p>
+    </div>
+  </section>
+
+  <footer>
+    <p>すべてブラウザ内で（Canvas 2D のみで）生成しています。外部の画像・動画ファイルは使用していません。フレームの角（○ ×）はドラッグで動かせます。</p>
+  </footer>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

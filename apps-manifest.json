@@ -21,6 +21,9 @@
   "apps/drift-rack/index.html",
   "apps/drift-rack/spatial-track-processor.js",
   "apps/drift-rack/style.css",
+  "apps/emulsion/app.js",
+  "apps/emulsion/index.html",
+  "apps/emulsion/style.css",
   "apps/fourtrack-looper/index.html",
   "apps/genetic-drift/index.html",
   "apps/glitch-cam/app.js",
@@ -67,6 +70,9 @@
   "apps/random-pitch-sister/index.html",
   "apps/rhythm-box/index.html",
   "apps/senon/index.html",
+  "apps/spacy/app.js",
+  "apps/spacy/index.html",
+  "apps/spacy/style.css",
   "apps/swerve-sampler/index.html",
   "apps/tayutau/app.js",
   "apps/tayutau/index.html",
@@ -80,5 +86,8 @@
   "apps/voice-morph/app.js",
   "apps/voice-morph/index.html",
   "apps/voice-morph/pitch-processor.js",
-  "apps/voice-morph/style.css"
+  "apps/voice-morph/style.css",
+  "apps/zure/app.js",
+  "apps/zure/index.html",
+  "apps/zure/style.css"
 ]

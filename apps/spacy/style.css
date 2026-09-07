@@ -1,0 +1,265 @@
+:root {
+  --ink: #eae6df;
+  --ink-dim: rgba(234, 230, 223, 0.55);
+  --bg: #0b0d10;
+  --panel: #14171b;
+  --line: rgba(234, 230, 223, 0.14);
+  --accent: #e2b96a;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Hiragino Sans", "Yu Gothic", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.wrap {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 4rem;
+}
+
+header h1 {
+  font-weight: 300;
+  font-size: 1.7rem;
+  letter-spacing: 0.05em;
+  margin: 0 0 0.9rem;
+}
+
+header h1 .sub {
+  display: block;
+  font-size: 0.95rem;
+  color: var(--ink-dim);
+  margin-top: 0.5rem;
+  font-weight: 300;
+  letter-spacing: 0.04em;
+}
+
+.intro {
+  color: var(--ink-dim);
+  font-size: 0.86rem;
+  line-height: 1.9;
+  max-width: 58em;
+  margin: 0 0 2rem;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.6rem;
+  margin-bottom: 1.2rem;
+}
+
+.tab {
+  font-family: inherit;
+  font-size: 0.82rem;
+  letter-spacing: 0.05em;
+  padding: 0.6rem 1.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-dim);
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.tab.active {
+  color: var(--ink);
+  background: rgba(234, 230, 223, 0.08);
+  border-color: rgba(234, 230, 223, 0.4);
+}
+
+.panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.4rem;
+}
+
+.panel[hidden] {
+  display: none;
+}
+
+.stage {
+  position: relative;
+  width: 100%;
+  background: #000;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  line-height: 0;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  cursor: default;
+}
+
+canvas.editing {
+  cursor: crosshair;
+}
+
+.flash {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.controls {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 1.2rem 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.modeToggle {
+  display: flex;
+  gap: 1.4rem;
+  font-size: 0.82rem;
+  color: var(--ink-dim);
+}
+
+.modeToggle label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+button, .fileBtn {
+  font-family: inherit;
+  font-size: 0.8rem;
+  letter-spacing: 0.03em;
+  padding: 0.6rem 1.2rem;
+  border-radius: 999px;
+  border: 1px solid rgba(234, 230, 223, 0.3);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.25s ease, border-color 0.25s ease, opacity 0.25s ease;
+}
+
+.fileBtn {
+  display: inline-flex;
+  align-items: center;
+}
+
+button.primary {
+  background: var(--accent);
+  color: #201705;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+button.primary.playing {
+  background: rgba(226, 185, 106, 0.18);
+  color: var(--accent);
+}
+
+button.ghost:hover, .fileBtn:hover {
+  border-color: rgba(234, 230, 223, 0.7);
+}
+
+button.ghost.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.sliders {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.8rem;
+  align-items: center;
+}
+
+.slider {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  color: var(--ink-dim);
+  width: 11rem;
+}
+
+.slider em {
+  font-style: normal;
+  opacity: 0.65;
+  margin-left: 0.4em;
+}
+
+.checkline {
+  font-size: 0.78rem;
+  color: var(--ink-dim);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 2px;
+  background: rgba(234, 230, 223, 0.3);
+  border-radius: 999px;
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+}
+
+.note {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: 0.76rem;
+  line-height: 1.7;
+  max-width: 40em;
+}
+
+footer p {
+  margin-top: 2.5rem;
+  color: var(--ink-dim);
+  font-size: 0.7rem;
+  letter-spacing: 0.03em;
+  opacity: 0.6;
+}
+
+@media (max-width: 620px) {
+  header h1 { font-size: 1.35rem; }
+  .slider { width: 8.5rem; }
+}

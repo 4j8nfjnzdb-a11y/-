@@ -257,7 +257,8 @@ html, body {
   .recBtn.recording { animation: none; }
 }
 
-button {
+button,
+label.loadBtn {
   font-family: inherit;
   cursor: pointer;
   color: var(--ink);
@@ -265,15 +266,18 @@ button {
   border: 1px solid var(--panel-border);
   border-radius: 3px;
   letter-spacing: 0.03em;
+  display: inline-block;
 }
 button:disabled {
   opacity: 0.35;
   cursor: not-allowed;
 }
-button:not(:disabled):hover {
+button:not(:disabled):hover,
+label.loadBtn:hover {
   border-color: var(--hazard-dim);
 }
-button:not(:disabled):active {
+button:not(:disabled):active,
+label.loadBtn:active {
   transform: translateY(1px);
 }
 

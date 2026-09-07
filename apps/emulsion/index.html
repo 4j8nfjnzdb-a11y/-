@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>EMULSION — light / noise / particles</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <canvas id="gl"></canvas>
+
+  <div id="dropHint" class="dropHint">ここに動画・写真をドロップ</div>
+
+  <button id="uiToggle" class="uiToggle" title="H でパネル表示/非表示">☰</button>
+
+  <main id="panel" class="panel">
+    <header>
+      <h1>EMULSION</h1>
+      <p class="tagline">映像を「映像」として成立させない。光・ノイズ・粒子へ。<br /><span class="ref">ref. Stan Brakhage / 牧野貴</span></p>
+    </header>
+
+    <section class="group">
+      <h2>ソース <em>source</em></h2>
+      <div class="row wrap">
+        <select id="sampleSelect">
+          <option value="waves">サンプル: 波光 (video)</option>
+          <option value="city">サンプル: 灯火 (video)</option>
+          <option value="bloom">サンプル: 滲み (photo)</option>
+        </select>
+        <button id="loadSampleBtn" class="btn">読み込む</button>
+      </div>
+      <div class="row wrap">
+        <label class="fileBtn btn">
+          動画を選ぶ
+          <input id="videoInput" type="file" accept="video/*" hidden />
+        </label>
+        <label class="fileBtn btn">
+          写真を選ぶ
+          <input id="photoInput" type="file" accept="image/*" hidden />
+        </label>
+        <button id="webcamBtn" class="btn">カメラ</button>
+      </div>
+      <div class="row">
+        <button id="playBtn" class="btn wide">一時停止</button>
+      </div>
+    </section>
+
+    <section class="group">
+      <h2>分解 <em>decompose</em></h2>
+      <label class="slider"><span>トレイル <em>trail</em></span><input id="trail" type="range" min="0" max="95" value="55" /></label>
+      <label class="slider"><span>粒状感 <em>grain</em></span><input id="grain" type="range" min="0" max="100" value="35" /></label>
+      <label class="slider"><span>色ズレ <em>aberration</em></span><input id="aberration" type="range" min="0" max="100" value="30" /></label>
+      <label class="slider"><span>傷 <em>scratches</em></span><input id="scratches" type="range" min="0" max="100" value="25" /></label>
+      <label class="slider"><span>明滅 <em>flicker</em> <small>⚠ 点滅注意</small></span><input id="flicker" type="range" min="0" max="100" value="12" /></label>
+    </section>
+
+    <section class="group">
+      <h2>粒子 <em>particles</em></h2>
+      <label class="slider"><span>密度 <em>density</em></span><input id="pDensity" type="range" min="0" max="100" value="55" /></label>
+      <label class="slider"><span>大きさ <em>size</em></span><input id="pSize" type="range" min="10" max="100" value="45" /></label>
+      <label class="slider"><span>速度 <em>speed</em></span><input id="pSpeed" type="range" min="0" max="100" value="40" /></label>
+      <label class="slider"><span>乱流 <em>turbulence</em></span><input id="pTurb" type="range" min="0" max="100" value="35" /></label>
+      <label class="row">
+        <span class="selLabel">流れ <em>flow</em></span>
+        <select id="pFlow">
+          <option value="up">上昇</option>
+          <option value="out">拡散</option>
+          <option value="swirl">渦</option>
+          <option value="none">無風</option>
+        </select>
+      </label>
+    </section>
+
+    <section class="group">
+      <h2>色 <em>tone</em></h2>
+      <label class="row">
+        <span class="selLabel">モード</span>
+        <select id="colorMode">
+          <option value="color">カラー</option>
+          <option value="mono">モノクローム</option>
+          <option value="duotone">デュオトーン</option>
+          <option value="invert">反転</option>
+        </select>
+      </label>
+      <div class="row wrap" id="duotoneRow" hidden>
+        <label class="swatch">暗部<input id="colorShadow" type="color" value="#050014" /></label>
+        <label class="swatch">明部<input id="colorHigh" type="color" value="#ffe9b0" /></label>
+      </div>
+    </section>
+
+    <section class="group">
+      <div class="row wrap">
+        <button id="randomBtn" class="btn">偶然性 <em>chance</em></button>
+        <button id="resetBtn" class="btn">初期化</button>
+      </div>
+      <div class="row wrap">
+        <button id="saveFrameBtn" class="btn">静止画保存</button>
+        <button id="recordBtn" class="btn">● 録画</button>
+        <button id="fullscreenBtn" class="btn">全画面</button>
+      </div>
+    </section>
+
+    <p class="hint">映像・写真をドロップ、またはウェブカメラで撮影し、光とノイズの粒子に分解します。</p>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

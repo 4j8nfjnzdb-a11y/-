@@ -64,6 +64,9 @@
     { appId: "drift-rack", title: "drift rack", src: "apps/drift-rack/index.html", w: 640, h: 620 },
     { appId: "kizami", title: "kizami", src: "apps/kizami/index.html", w: 560, h: 640 },
     { appId: "tsugihagi", title: "継ぎ接ぎ tsugihagi", src: "apps/tsugihagi/index.html", w: 640, h: 640 },
+    { appId: "spacy", title: "spacy study", src: "apps/spacy/index.html", w: 640, h: 680 },
+    { appId: "zure", title: "ZURE", src: "apps/zure/index.html", w: 640, h: 640 },
+    { appId: "emulsion", title: "EMULSION", src: "apps/emulsion/index.html", w: 640, h: 640 },
   ];
 
   const stage = document.getElementById("stage");
