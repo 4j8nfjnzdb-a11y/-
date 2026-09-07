@@ -17,6 +17,11 @@
     return;
   }
 
+  // Canvas 2D uploads rows top-to-bottom; WebGL's texture v=0 means the FIRST
+  // uploaded row is treated as the bottom of the image. Without this flag every
+  // source frame renders upside down.
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+
   // ---------- shader helpers ----------
   function compile(type, src) {
     const sh = gl.createShader(type);
@@ -261,6 +266,17 @@
     ctx.drawImage(media, sx, sy, sw, sh, 0, 0, dw, dh);
   }
 
+  // Show the whole photo (letterboxed) instead of cropping it to fill the frame —
+  // uploaded photos are rarely 16:9, and cover-fit was cutting most of them away.
+  function drawContain(ctx, media, mw, mh, dw, dh) {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, dw, dh);
+    const scale = Math.min(dw / mw, dh / mh);
+    const w = mw * scale, h = mh * scale;
+    const x = (dw - w) / 2, y = (dh - h) / 2;
+    ctx.drawImage(media, x, y, w, h);
+  }
+
   // ---------- media state ----------
   const state = {
     mode: 'sample',        // 'sample' | 'video' | 'photo'
@@ -296,11 +312,26 @@
 
   function loadPhotoFile(file) {
     stopWebcam();
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => { state.photoImg = img; };
-    img.src = url;
     state.mode = 'photo';
+    // iPhone photos carry an EXIF rotation tag; drawImage ignores it and reads
+    // raw sensor pixels, which is what made portrait photos come in sideways
+    // and cropped. createImageBitmap's imageOrientation option bakes the
+    // correct rotation into the decoded bitmap.
+    if (window.createImageBitmap) {
+      createImageBitmap(file, { imageOrientation: 'from-image' })
+        .then(bitmap => { state.photoImg = bitmap; })
+        .catch(() => {
+          const url = URL.createObjectURL(file);
+          const img = new Image();
+          img.onload = () => { state.photoImg = img; };
+          img.src = url;
+        });
+    } else {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => { state.photoImg = img; };
+      img.src = url;
+    }
   }
 
   async function useWebcam() {
@@ -525,6 +556,7 @@
     sampleSelect: $('sampleSelect'), loadSampleBtn: $('loadSampleBtn'),
     videoInput: $('videoInput'), photoInput: $('photoInput'), webcamBtn: $('webcamBtn'),
     playBtn: $('playBtn'), randomBtn: $('randomBtn'), resetBtn: $('resetBtn'),
+    chaosBtn: $('chaosBtn'), chaosSpeed: $('chaosSpeed'),
     saveFrameBtn: $('saveFrameBtn'), recordBtn: $('recordBtn'), fullscreenBtn: $('fullscreenBtn'),
     panel: $('panel'), uiToggle: $('uiToggle'), dropHint: $('dropHint'),
   };
@@ -594,6 +626,95 @@
   });
 
   ui.resetBtn.addEventListener('click', applyDefaults);
+
+  // ---------- chaos / auto-evolve ----------
+  // Continuously drifts parameters toward fresh random targets instead of the
+  // one-shot jump "chance" does — each parameter retargets and eases on its
+  // own clock so the whole piece keeps mutating unpredictably, at a rate set
+  // by the speed slider.
+  const CHAOS_PARAMS = [
+    { el: ui.trail, min: 20, max: 88 },
+    { el: ui.grain, min: 10, max: 80 },
+    { el: ui.aberration, min: 0, max: 70 },
+    { el: ui.scratches, min: 0, max: 70 },
+    { el: ui.flicker, min: 0, max: 30 },
+    { el: ui.pDensity, min: 20, max: 90 },
+    { el: ui.pSize, min: 20, max: 80 },
+    { el: ui.pSpeed, min: 15, max: 85 },
+    { el: ui.pTurb, min: 10, max: 80 },
+  ].map(p => ({ ...p, current: parseFloat(p.el.value), target: parseFloat(p.el.value), nextChange: 0 }));
+
+  const FLOW_OPTIONS = ['up', 'out', 'swirl', 'none'];
+  const COLOR_MODE_OPTIONS = ['color', 'mono', 'duotone', 'invert'];
+
+  function hslToHex(h, s, l) {
+    s /= 100; l /= 100;
+    const k = n => (n + h / 30) % 12;
+    const a = s * Math.min(l, 1 - l);
+    const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+    const toHex = v => Math.round(v * 255).toString(16).padStart(2, '0');
+    return `#${toHex(f(0))}${toHex(f(8))}${toHex(f(4))}`;
+  }
+
+  let chaosActive = false;
+  let chaosNextFlow = 0;
+  let chaosNextColorMode = 0;
+
+  function chaosSpeedMult() {
+    return 0.15 + (ui.chaosSpeed.value / 100) * 2.85;
+  }
+
+  function startChaos() {
+    chaosActive = true;
+    const now = performance.now() / 1000;
+    for (const p of CHAOS_PARAMS) {
+      p.current = parseFloat(p.el.value);
+      p.target = p.current;
+      p.nextChange = now;
+    }
+    chaosNextFlow = now + 8;
+    chaosNextColorMode = now + 20;
+    ui.chaosBtn.classList.add('active');
+    ui.chaosBtn.textContent = '◑ 自動変化を停止';
+  }
+
+  function stopChaos() {
+    chaosActive = false;
+    ui.chaosBtn.classList.remove('active');
+    ui.chaosBtn.textContent = '◐ 自動変化を開始';
+  }
+
+  ui.chaosBtn.addEventListener('click', () => {
+    if (chaosActive) stopChaos(); else startChaos();
+  });
+
+  function updateChaos(dt, now) {
+    if (!chaosActive) return;
+    const speedMult = chaosSpeedMult();
+    const easeRate = 0.5 * speedMult;
+    for (const p of CHAOS_PARAMS) {
+      if (now >= p.nextChange) {
+        p.target = p.min + Math.random() * (p.max - p.min);
+        p.nextChange = now + (3 + Math.random() * 6) / speedMult;
+      }
+      p.current += (p.target - p.current) * (1 - Math.exp(-dt * easeRate));
+      p.el.value = p.current;
+    }
+    if (now >= chaosNextFlow) {
+      ui.pFlow.value = FLOW_OPTIONS[(Math.random() * FLOW_OPTIONS.length) | 0];
+      chaosNextFlow = now + (10 + Math.random() * 15) / speedMult;
+    }
+    if (now >= chaosNextColorMode) {
+      ui.colorMode.value = COLOR_MODE_OPTIONS[(Math.random() * COLOR_MODE_OPTIONS.length) | 0];
+      ui.duotoneRow.hidden = ui.colorMode.value !== 'duotone';
+      if (ui.colorMode.value === 'duotone') {
+        const hue = Math.random() * 360;
+        ui.colorShadow.value = hslToHex((hue + 180) % 360, 40 + Math.random() * 20, 8 + Math.random() * 6);
+        ui.colorHigh.value = hslToHex(hue, 55 + Math.random() * 25, 78 + Math.random() * 12);
+      }
+      chaosNextColorMode = now + (20 + Math.random() * 20) / speedMult;
+    }
+  }
 
   ui.uiToggle.addEventListener('click', () => ui.panel.classList.toggle('hidden'));
   window.addEventListener('keydown', e => {
@@ -670,7 +791,9 @@
       const vw = state.videoEl.videoWidth || SRC_W, vh = state.videoEl.videoHeight || SRC_H;
       drawCover(srcCtx, state.videoEl, vw, vh, SRC_W, SRC_H);
     } else if (state.mode === 'photo' && state.photoImg) {
-      drawCover(srcCtx, state.photoImg, state.photoImg.naturalWidth, state.photoImg.naturalHeight, SRC_W, SRC_H);
+      const p = state.photoImg;
+      const pw = p.naturalWidth || p.width, ph = p.naturalHeight || p.height;
+      drawContain(srcCtx, p, pw, ph, SRC_W, SRC_H);
     } else {
       renderSample(state.sampleName, t, srcCtx, SRC_W, SRC_H);
     }
@@ -687,6 +810,7 @@
     if (frameCount % 10 === 0) randomizeScratchTex();
     if (frameCount % 3 === 0) flickerSlotSeed = Math.random() * 1000;
 
+    updateChaos(dt, now / 1000);
     updateSourceCanvas(t);
 
     sampleFrameCounter++;
