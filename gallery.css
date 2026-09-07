@@ -285,6 +285,24 @@ html, body {
 
 .pill:hover { border-color: rgba(234, 230, 223, 0.7); }
 
+.offline-status {
+  position: fixed;
+  top: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  margin: 0;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  background: rgba(234, 230, 223, 0.12);
+  border: 1px solid rgba(234, 230, 223, 0.25);
+  color: var(--ink-dim);
+  font-size: 0.7rem;
+  letter-spacing: 0.03em;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
 .hint {
   position: fixed;
   bottom: 1.25rem;

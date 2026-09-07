@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>torso — 4 track sound sculpture</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <canvas id="bg"></canvas>
+
+  <div id="startOverlay" class="startOverlay">
+    <div class="startBox">
+      <h1>torso</h1>
+      <p>4 track sound sculpture / ambient granular mixer</p>
+      <button id="startBtn">tap to begin</button>
+    </div>
+  </div>
+
+  <main class="app" id="app" hidden>
+    <header class="appHeader">
+      <h1>torso <span class="sub">4track sculpture</span></h1>
+      <p class="tagline">4本のトラックそれぞれが独立した時間軸を持ち、サンプルの中を漂いながら、削れ、遅延し、反射していく。</p>
+    </header>
+
+    <div id="tracks" class="tracks"></div>
+
+    <footer class="globalPanel">
+      <div class="globalSection">
+        <div class="knobSlot" id="masterKnobSlot"></div>
+      </div>
+      <div class="globalSection globalButtons">
+        <button id="playAllBtn" class="ghostBtn">▶ all</button>
+        <button id="stopAllBtn" class="ghostBtn">■ all</button>
+      </div>
+      <div class="globalSection">
+        <button id="randomAllBtn" class="glitchBtn">⚄ RANDOMIZE ALL / GLITCH</button>
+      </div>
+      <div class="globalSection">
+        <button id="randomSamplesBtn" class="glitchBtn glitchBtn--alt">🎲📁 RANDOM SAMPLES</button>
+      </div>
+      <div class="globalSection">
+        <button id="masterRecBtn" class="toggleBtn recBtn">● REC</button>
+        <span id="masterRecStatus" class="recStatus"></span>
+      </div>
+      <div class="globalSection">
+        <button id="debugBtn" class="ghostBtn">🔧 DEBUG</button>
+        <button id="testToneBtn" class="ghostBtn">🔊 TEST TONE (1s)</button>
+      </div>
+    </footer>
+    <pre id="debugPanel" class="debugPanel" hidden></pre>
+    <p class="hint">各ノブ横の 🎲 でそのパラメータだけをランダム化。各トラックの ⚄ でトラック全体をランダム化。「RANDOMIZE ALL / GLITCH」で全トラックのパラメータを一気に揺さぶる。各トラックの FOLDER でフォルダを割り当てておくと、隣の 🎲📁 でそのトラックだけ新しいサンプルに差し替え、下の「RANDOM SAMPLES」で複数トラックのサンプルをまとめて差し替えられる（LOAD の単体選択はそのまま使えます）。右下の ● REC で全体のミックスと4トラックそれぞれのステムを同時に録音し、停止すると WAV 5個（全体＋track1〜4）をまとめた1つの ZIP ファイルとして保存されます。音が出ない時は 🔧 DEBUG を押すと、音声エンジンの内部状態が文字で表示されます。🔊 TEST TONE は、トラックの仕組みを一切通らない単純な音を1秒鳴らして、そもそも端末から音が出るかどうかだけを確認します。</p>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

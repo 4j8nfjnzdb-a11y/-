@@ -50,6 +50,19 @@
     { appId: "graindeck", title: "GrainDeck", src: "apps/graindeck/index.html", w: 620, h: 560 },
     { appId: "mojihoukai", title: "文字崩壊", src: "apps/mojihoukai/index.html", w: 560, h: 640 },
     { appId: "kirikizami", title: "kirikizami", src: "apps/kirikizami/index.html", w: 560, h: 700 },
+    { appId: "tayutau", title: "たゆたう", src: "apps/tayutau/index.html", w: 480, h: 620 },
+    { appId: "glitch-cam", title: "glitch cam", src: "apps/glitch-cam/index.html", w: 560, h: 680 },
+    { appId: "glitchmix", title: "glitchmix", src: "apps/glitchmix/index.html", w: 560, h: 680 },
+    { appId: "random-pitch-4tr", title: "4trランダムピッチループ", src: "apps/random-pitch-4tr/index.html", w: 640, h: 640 },
+    { appId: "breaks", title: "breaks", src: "apps/breaks/index.html", w: 560, h: 640 },
+    { appId: "ma", title: "間 ma", src: "apps/ma/index.html", w: 560, h: 620 },
+    { appId: "pulsar-23", title: "PULSAR-23", src: "apps/pulsar-23/index.html", w: 640, h: 640 },
+    { appId: "glitch-decoder", title: "GLITCH DECODER", src: "apps/glitch-decoder/index.html", w: 560, h: 680 },
+    { appId: "torso", title: "torso", src: "apps/torso/index.html", w: 640, h: 640 },
+    { appId: "junk-loop", title: "JUNK LOOP", src: "apps/junk-loop/index.html", w: 640, h: 640 },
+    { appId: "voice-morph", title: "VOICE MORPH STUDIO", src: "apps/voice-morph/index.html", w: 560, h: 620 },
+    { appId: "drift-rack", title: "drift rack", src: "apps/drift-rack/index.html", w: 640, h: 620 },
+    { appId: "kizami", title: "kizami", src: "apps/kizami/index.html", w: 560, h: 640 },
   ];
 
   const stage = document.getElementById("stage");

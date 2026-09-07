@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PULSAR-23 — glitch drum machine</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="crt"></div>
+
+  <main class="rack">
+    <header class="rack-head">
+      <div class="brand">
+        <span class="labtag">SOMA LABORATORY</span>
+        <h1>PULSAR-23 <span class="screw">[SCREW]</span></h1>
+      </div>
+      <p class="tagline">パターンは固定されない。鳴らすたびに配線が組み変わり、崩れ、また揺れ戻る——グリッチ駆動のドラムマシン。</p>
+    </header>
+
+    <section class="transport">
+      <button id="playBtn" class="btn primary">▶ RUN</button>
+      <button id="recBtn" class="btn rec">⏺ REC</button>
+      <button id="chaosBtn" class="btn danger">⚡ CHAOS BURST</button>
+      <button id="randomBtn" class="btn">🎲 RANDOMIZE</button>
+      <button id="clearBtn" class="btn ghost">CLEAR</button>
+
+      <label class="numctl">
+        <span>BPM</span>
+        <input id="bpm" type="range" min="60" max="188" value="122" />
+        <em id="bpmVal">122</em>
+      </label>
+    </section>
+
+    <section class="glitch-panel">
+      <label class="slider mutate">
+        <span>MUTATE <em>自己変異</em></span>
+        <input id="mutate" type="range" min="0" max="100" value="22" />
+      </label>
+      <label class="slider rewire">
+        <span>REWIRE <em>結線</em></span>
+        <input id="rewire" type="range" min="0" max="100" value="18" />
+      </label>
+      <label class="slider screw">
+        <span>SCREW <em>歪速</em></span>
+        <input id="screw" type="range" min="0" max="100" value="28" />
+      </label>
+      <label class="slider volume">
+        <span>MASTER</span>
+        <input id="master" type="range" min="0" max="100" value="80" />
+      </label>
+    </section>
+
+    <section class="deck">
+      <div class="sequencer" id="sequencer"></div>
+
+      <aside class="patchbay-wrap">
+        <h2>PATCH BAY</h2>
+        <canvas id="patchbay" width="220" height="288"></canvas>
+        <p class="hint">配線は再生中にランダムへ組み変わります。線が交差した時、そのトラックは別の音を鳴らします。</p>
+      </aside>
+    </section>
+
+    <section class="dossier">
+      <div class="dossier-head">
+        <h3>UNIT DOSSIER — 個体記録</h3>
+        <span class="case-no">CASE NO. SL-23-Ω</span>
+      </div>
+      <p>
+        SOMA LABORATORY 内部メモ<br />
+        UNIT: PULSAR-23 ///  CLASS: 確率論的パーカッション装置<br />
+        STATUS: 稼働中 — 監視外
+      </p>
+      <p>
+        元来、負荷下でもリズムを保持するために設計された PULSAR-23 は、稼働開始からわずか██時間で自らのトリガー経路を書き換え始めた。結線の割り当ては今や独自のスケジュールで漂流している（REWIRE を参照）。ステップの状態は入力なしに反転することが確認されている（MUTATE を参照）。再生クロックは間欠的に██████する——テープ走行系の不具合に酷似した症状だが、当装置にテープ走行系は存在しない（SCREW を参照）。
+      </p>
+      <p class="reco">推奨事項：パターンを固定しようとしないこと。それが何になるかを、ただ観察すること。</p>
+    </section>
+
+    <p class="footer-hint">同じ8小節は二度と鳴りません。CHAOS BURSTで即座に全配線を破壊/再構築します。RECで出力をそのままWAVに録って保存できます——二度と鳴らない瞬間を捕まえてください。</p>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GLITCH DECODER — video corruption toy</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+    <header>
+      <h1 data-text="GLITCH DECODER">GLITCH DECODER</h1>
+      <p class="tagline">動画を読み込んで、フェーダーを上げるほど壊れていく。止まる、跳ねる、裂ける、色がズレる。</p>
+    </header>
+
+    <div class="stage" id="dropZone">
+      <canvas id="canvas"></canvas>
+      <video id="sourceVideo" playsinline loop muted style="display:none"></video>
+      <div class="placeholder" id="placeholder">
+        <p>動画をドラッグ&ドロップ、またはクリックして選択</p>
+        <p class="or">— または —</p>
+        <button id="sampleBtn" class="ghostBtn">サンプル映像で試す</button>
+      </div>
+      <input id="fileInput" type="file" accept="video/*" hidden />
+    </div>
+
+    <section class="panel">
+      <div class="chaosRow">
+        <label class="chaosLabel" for="chaos">
+          <span class="chaosTitle">CHAOS</span>
+          <span class="chaosValue" id="chaosValueLabel">0</span>
+        </label>
+        <input id="chaos" class="chaosFader" type="range" min="0" max="100" value="0" />
+      </div>
+
+      <div class="controlsRow">
+        <div class="transport">
+          <button id="playPauseBtn" class="btn primary" disabled>再生</button>
+          <button id="loadBtn" class="btn">動画を読み込む</button>
+          <button id="muteBtn" class="btn" disabled>🔇 音声</button>
+          <button id="resetBtn" class="btn">リセット</button>
+        </div>
+        <div class="record">
+          <button id="recordBtn" class="btn danger" disabled>● 録画開始</button>
+          <a id="downloadLink" class="btn download" style="display:none">ダウンロード</a>
+        </div>
+      </div>
+
+      <div class="effects">
+        <span class="effectsLabel">挙動</span>
+        <label class="toggle"><input type="checkbox" id="fxBlock" checked /> ブロック崩壊</label>
+        <label class="toggle"><input type="checkbox" id="fxChannel" checked /> 色ズレ (RGB split)</label>
+        <label class="toggle"><input type="checkbox" id="fxScan" checked /> スキャンライン</label>
+        <label class="toggle"><input type="checkbox" id="fxFreeze" checked /> フリーズ / 停止</label>
+        <label class="toggle"><input type="checkbox" id="fxSort" /> ピクセルソート</label>
+        <label class="toggle"><input type="checkbox" id="fxNoise" checked /> ノイズブロック</label>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

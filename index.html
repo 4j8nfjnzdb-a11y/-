@@ -4,6 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>atelier — app gallery &amp; mixer</title>
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icon.svg" type="image/svg+xml" />
 <link rel="stylesheet" href="gallery.css" />
 </head>
 <body>
@@ -26,6 +28,8 @@
   <p class="hint">
     背景ドラッグで移動 / ホイールで空間ズーム / カードにホイールで奥行き調整
   </p>
+
+  <p class="offline-status" id="offlineStatus" hidden></p>
 
   <div class="modal-backdrop" id="modalBackdrop" hidden>
     <div class="modal" role="dialog" aria-label="アイテムを追加">
@@ -63,5 +67,18 @@
   </div>
 
   <script src="gallery.js"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").then(() => {
+          const status = document.getElementById("offlineStatus");
+          if (!status) return;
+          status.hidden = false;
+          status.textContent = "オフライン保存済み — ネットなしでも開けます";
+          setTimeout(() => { status.hidden = true; }, 4000);
+        }).catch(() => {});
+      });
+    }
+  </script>
 </body>
 </html>
