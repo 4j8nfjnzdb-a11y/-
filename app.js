@@ -14,6 +14,7 @@
   const dropzone = document.getElementById("dropzone");
   const fileInput = document.getElementById("fileInput");
   const stageSection = document.getElementById("stage");
+  const canvasWrap = document.getElementById("canvasWrap");
   const stageCanvas = document.getElementById("stageCanvas");
   const spectralCanvas = document.getElementById("spectralCanvas");
   const statusLine = document.getElementById("statusLine");
@@ -29,8 +30,10 @@
   const autoDiceToggle = document.getElementById("autoDice");
   const specToggle = document.getElementById("specToggle");
   const muteToggle = document.getElementById("muteToggle");
+  const zoomAutoToggle = document.getElementById("zoomAutoToggle");
 
   const speedSlider = document.getElementById("speedSlider");
+  const zoomSlider = document.getElementById("zoomSlider");
   const ghostSlider = document.getElementById("ghostSlider");
   const blurSlider = document.getElementById("blurSlider");
   const hueSlider = document.getElementById("hueSlider");
@@ -333,7 +336,14 @@
     workCtx.clearRect(0, 0, W, H);
     workCtx.filter = "none";
     workCtx.globalAlpha = 1;
-    workCtx.drawImage(bmp, 0, 0, W, H);
+
+    const zoomScale = 1 + (clamp(+zoomSlider.value, 0, 100) / 100) * 2.5;
+    if (zoomScale > 1.001) {
+      const srcW = W / zoomScale, srcH = H / zoomScale;
+      workCtx.drawImage(bmp, (W - srcW) / 2, (H - srcH) / 2, srcW, srcH, 0, 0, W, H);
+    } else {
+      workCtx.drawImage(bmp, 0, 0, W, H);
+    }
 
     if (toggles.slice) applySliceGlitch(idx);
     if (toggles.chroma) applyChromaShift();
@@ -386,21 +396,38 @@
     if (customMsg) { statusLine.textContent = customMsg; return; }
     if (!buffer.length) { statusLine.textContent = ""; return; }
     const speedMag = (+speedSlider.value / 100).toFixed(2);
-    statusLine.textContent = `${modeLabel(mode)} ×${speedMag} / ${buffer.length}f`;
+    const zoomScale = (1 + (clamp(+zoomSlider.value, 0, 100) / 100) * 2.5).toFixed(1);
+    statusLine.textContent = `${modeLabel(mode)} ×${speedMag} / zoom ${zoomScale}x / ${buffer.length}f`;
   }
 
   let loopStarted = false;
+  let zoomAutoPhase = 0;
+  let lastStatusTs = 0;
+
+  // A slow, continuous zoom drift — Michael Snow's single unbroken zoom
+  // (Wavelength) as an automatic mode, ~50s to complete one push in and back.
+  function advanceZoomAuto(dtMs) {
+    if (!zoomAutoToggle.checked) return;
+    zoomAutoPhase += dtMs * 0.000126;
+    zoomSlider.value = Math.round((Math.sin(zoomAutoPhase) * 0.5 + 0.5) * 100);
+  }
 
   function tick(ts) {
     if (lastTs === null) lastTs = ts;
     const dt = Math.min(100, ts - lastTs);
     lastTs = ts;
 
+    advanceZoomAuto(dt);
+
     if (buffer.length > 1) {
       advance(dt);
       renderFrame(Math.round(playhead));
     }
     if (specToggle.checked) drawSpectralColumn();
+    if (ts - lastStatusTs > 250) {
+      lastStatusTs = ts;
+      updateStatus();
+    }
 
     requestAnimationFrame(tick);
   }
@@ -548,6 +575,37 @@
   speedSlider.addEventListener("input", () => {
     video.playbackRate = clamp(+speedSlider.value / 100, 0.25, 4);
   });
+
+  // interactive zoom: mouse wheel, and two-finger pinch on touch devices
+  canvasWrap.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -4 : 4;
+    zoomSlider.value = clamp(+zoomSlider.value + delta, 0, 100);
+  }, { passive: false });
+
+  let pinchStartDist = null;
+  let pinchStartZoom = 0;
+  function touchDist(touches) {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.hypot(dx, dy);
+  }
+  canvasWrap.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 2) {
+      pinchStartDist = touchDist(e.touches);
+      pinchStartZoom = +zoomSlider.value;
+    }
+  }, { passive: true });
+  canvasWrap.addEventListener("touchmove", (e) => {
+    if (e.touches.length === 2 && pinchStartDist) {
+      e.preventDefault();
+      const ratio = touchDist(e.touches) / pinchStartDist;
+      zoomSlider.value = clamp(pinchStartZoom + (ratio - 1) * 140, 0, 100);
+    }
+  }, { passive: false });
+  canvasWrap.addEventListener("touchend", (e) => {
+    if (e.touches.length < 2) pinchStartDist = null;
+  }, { passive: true });
 
   rangeLenSlider.addEventListener("input", updateRangeLenLabel);
   resampleBtn.addEventListener("click", () => {

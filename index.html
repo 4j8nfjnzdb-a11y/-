@@ -36,11 +36,12 @@
     </section>
 
     <section id="stage" class="stage" hidden>
-      <div class="canvasWrap">
+      <div class="canvasWrap" id="canvasWrap">
         <canvas id="stageCanvas" width="480" height="270"></canvas>
         <canvas id="spectralCanvas" width="480" height="270" hidden></canvas>
         <div id="statusLine" class="statusLine"></div>
       </div>
+      <p class="zoomHint">スクロール／ピンチで画面にズームできます</p>
 
       <div class="rangeRow">
         <span class="rangeLabel">サンプル範囲 <em id="rangeLenLabel">4.0s</em></span>
@@ -68,12 +69,20 @@
           <input id="muteToggle" type="checkbox" />
           <span>ミュート</span>
         </label>
+        <label class="toggleChip">
+          <input id="zoomAutoToggle" type="checkbox" />
+          <span>ズームし続ける</span>
+        </label>
       </div>
 
       <div class="sliders">
         <label class="slider">
           <span>速度 <em>speed</em></span>
           <input id="speedSlider" type="range" min="10" max="400" value="100" />
+        </label>
+        <label class="slider">
+          <span>ズーム <em>zoom</em></span>
+          <input id="zoomSlider" type="range" min="0" max="100" value="0" />
         </label>
         <label class="slider">
           <span>幽霊 <em>ghost</em></span>

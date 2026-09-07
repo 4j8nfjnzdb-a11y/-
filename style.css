@@ -137,6 +137,14 @@ html, body {
   height: 100%;
 }
 
+.zoomHint {
+  margin: 0.5rem 0 0;
+  font-size: 0.66rem;
+  color: var(--ink-dim);
+  opacity: 0.6;
+  letter-spacing: 0.03em;
+}
+
 .statusLine {
   position: absolute;
   top: 0.5rem;
