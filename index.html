@@ -10,7 +10,7 @@
   <main class="app">
     <header>
       <h1 data-text="GLITCH DECODER">GLITCH DECODER</h1>
-      <p class="tagline">動画を読み込んで、フェーダーを上げるほど壊れていく。止まる、跳ねる、裂ける、色がズレる。</p>
+      <p class="tagline">動画を読み込んで、フェーダーを上げるほど壊れていく。ズームは無限に加速し、止まる、跳ねる、裂ける、色がズレる。</p>
     </header>
 
     <div class="stage" id="dropZone">
@@ -48,6 +48,7 @@
 
       <div class="effects">
         <span class="effectsLabel">挙動</span>
+        <label class="toggle"><input type="checkbox" id="fxZoom" checked /> 無限ズーム</label>
         <label class="toggle"><input type="checkbox" id="fxBlock" checked /> ブロック崩壊</label>
         <label class="toggle"><input type="checkbox" id="fxChannel" checked /> 色ズレ (RGB split)</label>
         <label class="toggle"><input type="checkbox" id="fxScan" checked /> スキャンライン</label>

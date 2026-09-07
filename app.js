@@ -27,6 +27,7 @@
   const chaosValueLabel = document.getElementById("chaosValueLabel");
 
   const fx = {
+    zoom: document.getElementById("fxZoom"),
     block: document.getElementById("fxBlock"),
     channel: document.getElementById("fxChannel"),
     scan: document.getElementById("fxScan"),
@@ -42,6 +43,10 @@
   const tintRedCtx = tintRed.getContext("2d");
   const tintCyan = document.createElement("canvas");
   const tintCyanCtx = tintCyan.getContext("2d");
+  const zoomBuf = document.createElement("canvas");
+  const zoomBufCtx = zoomBuf.getContext("2d");
+  const zoomTemp = document.createElement("canvas");
+  const zoomTempCtx = zoomTemp.getContext("2d");
 
   let w = 640, h = 360;
   let mode = null; // "video" | "sample"
@@ -54,6 +59,7 @@
   let channelDrift = 0;
   let channelDriftTarget = 0;
   let sortFrameCounter = 0;
+  let zoomAngle = 0;
   let recorder = null;
   let recording = false;
   let recordedChunks = [];
@@ -78,6 +84,11 @@
     tintRed.height = h;
     tintCyan.width = w;
     tintCyan.height = h;
+    zoomBuf.width = w;
+    zoomBuf.height = h;
+    zoomTemp.width = w;
+    zoomTemp.height = h;
+    zoomAngle = 0;
   }
   setWorkSize(640, 360);
 
@@ -166,6 +177,35 @@
   }
 
   // ---- glitch effects ---------------------------------------------
+
+  // A video-feedback tunnel: each frame, the *previous* accumulated
+  // result is scaled up and spun slightly before the fresh frame is
+  // bled back in on top. Because the scale-up compounds frame over
+  // frame, this is the one effect that never settles — it keeps
+  // diving inward for as long as chaos (and the checkbox) stay on,
+  // rather than resolving to a fixed corrupted still like the others.
+  function applyInfiniteZoom(chaosNorm) {
+    const scale = 1 + chaosNorm * chaosNorm * 0.05;
+    zoomAngle += chaosNorm * chaosNorm * 0.025;
+    const cx = w / 2, cy = h / 2;
+
+    zoomTempCtx.clearRect(0, 0, w, h);
+    zoomTempCtx.drawImage(zoomBuf, 0, 0, w, h);
+
+    zoomBufCtx.save();
+    zoomBufCtx.clearRect(0, 0, w, h);
+    zoomBufCtx.translate(cx, cy);
+    zoomBufCtx.rotate(zoomAngle);
+    zoomBufCtx.scale(scale, scale);
+    zoomBufCtx.translate(-cx, -cy);
+    zoomBufCtx.drawImage(zoomTemp, 0, 0, w, h);
+    zoomBufCtx.restore();
+
+    // more chaos = the tunnel drowns out the source frame faster
+    zoomBufCtx.globalAlpha = clamp(0.6 - chaosNorm * 0.5, 0.08, 0.6);
+    zoomBufCtx.drawImage(fb, 0, 0, w, h);
+    zoomBufCtx.globalAlpha = 1;
+  }
 
   function applyChannelShift(chaosNorm) {
     if (Math.random() < 0.05) channelDriftTarget = Math.random() * 2 - 1;
@@ -319,7 +359,15 @@
     }
 
     mainCtx.clearRect(0, 0, w, h);
-    mainCtx.drawImage(fb, 0, 0, w, h);
+    if (fx.zoom.checked && chaosNorm > 0) {
+      applyInfiniteZoom(chaosNorm);
+      mainCtx.drawImage(zoomBuf, 0, 0, w, h);
+    } else {
+      zoomBufCtx.clearRect(0, 0, w, h);
+      zoomBufCtx.drawImage(fb, 0, 0, w, h);
+      zoomAngle = 0;
+      mainCtx.drawImage(fb, 0, 0, w, h);
+    }
 
     if (chaosNorm > 0) {
       if (fx.channel.checked) applyChannelShift(chaosNorm);
