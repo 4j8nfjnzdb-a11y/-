@@ -58,16 +58,19 @@ function drawWarped(ctx, img, srcW, srcH, frame, alpha, blurPx) {
   ctx.restore();
 }
 
-function coverRect(sw, sh, dw, dh) {
+function containRect(sw, sh, dw, dh) {
   const srcRatio = sw / sh, dstRatio = dw / dh;
   let cw, ch;
-  if (srcRatio > dstRatio) { ch = sh; cw = sh * dstRatio; } else { cw = sw; ch = sw / dstRatio; }
-  return { sx: (sw - cw) / 2, sy: (sh - ch) / 2, sw: cw, sh: ch };
+  if (srcRatio > dstRatio) { cw = dw; ch = dw / srcRatio; } else { ch = dh; cw = dh * srcRatio; }
+  return { dx: (dw - cw) / 2, dy: (dh - ch) / 2, dw: cw, dh: ch };
 }
 
-function drawCover(ctx, img, sw, sh, dw, dh) {
-  const r = coverRect(sw, sh, dw, dh);
-  ctx.drawImage(img, r.sx, r.sy, r.sw, r.sh, 0, 0, dw, dh);
+/* draws the whole source image/video, uncropped, letterboxed to fit dw x dh */
+function drawContain(ctx, img, sw, sh, dw, dh) {
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, dw, dh);
+  const r = containRect(sw, sh, dw, dh);
+  ctx.drawImage(img, 0, 0, sw, sh, r.dx, r.dy, r.dw, r.dh);
 }
 
 /* ---------- procedural room scene (the built-in "photo") ---------- */
@@ -194,7 +197,7 @@ function updateLengthReadout() {
 }
 
 function photoBaseDraw(ctx) {
-  if (photoSourceImg) drawCover(ctx, photoSourceImg, photoSourceImg.naturalWidth || photoSourceImg.width, photoSourceImg.naturalHeight || photoSourceImg.height, W, H);
+  if (photoSourceImg) drawContain(ctx, photoSourceImg, photoSourceImg.naturalWidth || photoSourceImg.width, photoSourceImg.naturalHeight || photoSourceImg.height, W, H);
   else drawRoomScene(ctx, 0, photoFrame);
 }
 
@@ -339,7 +342,7 @@ function tickVideoSegment(videoEl) {
   const dst = reelUseA ? reelAccumB : reelAccumA;
   const dctx = dst.getContext("2d");
   dctx.clearRect(0, 0, W, H);
-  if (videoEl.readyState >= 2) drawCover(dctx, videoEl, videoEl.videoWidth, videoEl.videoHeight, W, H);
+  if (videoEl.readyState >= 2) drawContain(dctx, videoEl, videoEl.videoWidth, videoEl.videoHeight, W, H);
   const loss = 0.18;
   drawWarped(dctx, src, W, H, photoFrame, 1 - loss * 0.4, loss * 3);
   pctx.clearRect(0, 0, W, H);
@@ -353,7 +356,7 @@ function renderPhotoFrame(now) {
 
   if (photoEditing) {
     pctx.clearRect(0, 0, W, H);
-    if (item.type === "video") drawCover(pctx, item.videoEl, item.videoEl.videoWidth || 1, item.videoEl.videoHeight || 1, W, H);
+    if (item.type === "video") drawContain(pctx, item.videoEl, item.videoEl.videoWidth || 1, item.videoEl.videoHeight || 1, W, H);
     else photoBaseDraw(pctx);
     drawFrameHandles(pctx, photoFrame);
     requestAnimationFrame(renderPhotoFrame);
@@ -436,17 +439,16 @@ function drawFrameHandles(ctx, frame) {
   ctx.strokeStyle = "rgba(226,185,106,0.8)";
   drawQuad(ctx, O, X, { x: X.x + Y.x - O.x, y: X.y + Y.y - O.y }, Y);
   ctx.stroke();
-  const dot = (p, color, label) => {
+  const dot = (p, color) => {
     ctx.fillStyle = color;
     ctx.beginPath(); ctx.arc(p.x, p.y, 8, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#0b0d10";
-    ctx.font = "10px sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText(label, p.x, p.y + 3);
+    ctx.strokeStyle = "rgba(0,0,0,0.4)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
   };
-  dot(O, "#e2b96a", "O");
-  dot(X, "#7fd1ff", "X");
-  dot(Y, "#ff9f7f", "Y");
+  dot(O, "#e2b96a");
+  dot(X, "#7fd1ff");
+  dot(Y, "#ff9f7f");
   ctx.restore();
 }
 
@@ -583,7 +585,7 @@ function videoTick(now) {
 
     if (usingUploadedVideo && videoEl.readyState >= 2) {
       dctx.clearRect(0, 0, W, H);
-      drawCover(dctx, videoEl, videoEl.videoWidth, videoEl.videoHeight, W, H);
+      drawContain(dctx, videoEl, videoEl.videoWidth, videoEl.videoHeight, W, H);
     } else {
       drawRoomScene(dctx, t, videoFrame);
     }
@@ -598,12 +600,12 @@ function videoTick(now) {
     useA = !useA;
   } else if (videoEditing) {
     vctx.clearRect(0, 0, W, H);
-    if (usingUploadedVideo && videoEl.readyState >= 2) drawCover(vctx, videoEl, videoEl.videoWidth, videoEl.videoHeight, W, H);
+    if (usingUploadedVideo && videoEl.readyState >= 2) drawContain(vctx, videoEl, videoEl.videoWidth, videoEl.videoHeight, W, H);
     else drawRoomScene(vctx, (now - videoStartT) / 1000, videoFrame);
     drawFrameHandles(vctx, videoFrame);
   } else {
     vctx.clearRect(0, 0, W, H);
-    if (usingUploadedVideo && videoEl.readyState >= 2) drawCover(vctx, videoEl, videoEl.videoWidth, videoEl.videoHeight, W, H);
+    if (usingUploadedVideo && videoEl.readyState >= 2) drawContain(vctx, videoEl, videoEl.videoWidth, videoEl.videoHeight, W, H);
     else drawRoomScene(vctx, 0, videoFrame);
   }
   requestAnimationFrame(videoTick);
@@ -692,3 +694,7 @@ document.querySelectorAll(".tab").forEach((btn) => {
     document.querySelectorAll(".panel").forEach((p) => { p.hidden = p.dataset.panel !== target; });
   });
 });
+
+/* autoplay: both panels start driving on load, at whatever speed is set */
+photoPlayBtn.click();
+videoPlayBtn.click();
