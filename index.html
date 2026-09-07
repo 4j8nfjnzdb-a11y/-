@@ -3,40 +3,80 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>kizashi — generative ambient</title>
+<title>Quantum Cut — 量子力学的ビデオエディタ</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <canvas id="bg"></canvas>
-
-  <main class="ui">
-    <header>
-      <h1>kizashi <span class="sub">きざし</span></h1>
-      <p class="tagline">反復に見せかけて、予測の像を結ぶ寸前でかわし続けるアンビエント。</p>
+  <div class="app">
+    <header class="topbar">
+      <h1>Quantum Cut <span class="sub">量子力学的ビデオエディタ（サンプル）</span></h1>
+      <div class="topbar-actions">
+        <button id="playBtn" class="btn primary">▶ 再生</button>
+        <button id="recordBtn" class="btn danger">● 書き出し開始</button>
+        <span id="recStatus" class="rec-status"></span>
+      </div>
     </header>
 
-    <div class="transport">
-      <button id="playBtn" class="playBtn">再生</button>
-      <button id="paletteBtn" class="ghostBtn">配色を変える</button>
-    </div>
+    <main class="layout">
+      <section class="sources">
+        <h2>ソース</h2>
 
-    <div class="controls">
-      <label class="slider">
-        <span>密度 <em>density</em></span>
-        <input id="density" type="range" min="0" max="100" value="42" />
-      </label>
-      <label class="slider">
-        <span>明暗 <em>tone</em></span>
-        <input id="tone" type="range" min="0" max="100" value="50" />
-      </label>
-      <label class="slider">
-        <span>揺らぎ <em>swerve</em></span>
-        <input id="swerve" type="range" min="0" max="100" value="55" />
-      </label>
-    </div>
+        <div class="source-card" data-slot="A">
+          <h3>クリップ A</h3>
+          <div class="source-preview"><canvas id="previewA" width="160" height="90"></canvas></div>
+          <div class="source-controls">
+            <label class="file-btn">
+              ファイルを読み込み
+              <input type="file" accept="video/*" data-slot="A" class="file-input" />
+            </label>
+            <div class="sample-btns">
+              <button class="btn ghost sample-btn" data-slot="A" data-gen="doubleslit">サンプル: 二重スリット</button>
+              <button class="btn ghost sample-btn" data-slot="A" data-gen="wavepacket">サンプル: 波束</button>
+            </div>
+          </div>
+        </div>
 
-    <p class="hint">音は毎回、一度きりのものです。同じ配列は二度と戻ってきません。</p>
-  </main>
+        <div class="source-card" data-slot="B">
+          <h3>クリップ B</h3>
+          <div class="source-preview"><canvas id="previewB" width="160" height="90"></canvas></div>
+          <div class="source-controls">
+            <label class="file-btn">
+              ファイルを読み込み
+              <input type="file" accept="video/*" data-slot="B" class="file-input" />
+            </label>
+            <div class="sample-btns">
+              <button class="btn ghost sample-btn" data-slot="B" data-gen="wavepacket">サンプル: 波束</button>
+              <button class="btn ghost sample-btn" data-slot="B" data-gen="doubleslit">サンプル: 二重スリット</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="stage">
+        <div class="canvas-wrap">
+          <canvas id="output" width="480" height="270"></canvas>
+        </div>
+        <div class="formula-readout" id="formulaReadout">
+          <div class="formula-eq" id="formulaEq">—</div>
+          <div class="formula-values" id="formulaValues"></div>
+        </div>
+      </section>
+
+      <section class="effects">
+        <h2>量子エフェクト</h2>
+        <select id="effectSelect" class="effect-select"></select>
+        <p class="effect-desc" id="effectDesc"></p>
+        <div id="paramPanel" class="param-panel"></div>
+      </section>
+    </main>
+
+    <footer class="note">
+      各エフェクトは量子力学の実在の式（重ね合わせ、干渉、トンネル効果、不確定性原理、もつれ、経路積分、時間発展、波動関数の収縮）を映像処理のパラメータとして実際に計算に用いた、教育的・芸術的なデモです。学術的な量子シミュレーターではありません。
+    </footer>
+  </div>
+
+  <video id="videoA" playsinline muted loop style="display:none"></video>
+  <video id="videoB" playsinline muted loop style="display:none"></video>
 
   <script src="app.js"></script>
 </body>
