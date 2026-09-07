@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>波動関数エディタ — quantum sample editor</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <canvas id="cloud"></canvas>
+
+  <main class="wrap">
+    <header>
+      <h1>波動関数エディタ <span class="sub">quantum sample editor</span></h1>
+      <p class="tagline">
+        量子力学の実際の数式 — エルミート関数による調和振動子の固有状態、
+        シュレーディンガー方程式の分散関係、トンネル効果の透過係数、
+        ボルンの規則、ベル相関 — をそのまま音のサンプル編集に転用するエディタ。
+      </p>
+    </header>
+
+    <section class="card dropzone" id="dropzone">
+      <input type="file" id="fileInput" accept="audio/*" hidden />
+      <p><strong>音源サンプルをドロップ</strong> または <button id="browseBtn" class="linkBtn">ファイルを選択</button></p>
+      <p class="hint" id="fileInfo">まだ何も読み込まれていません</p>
+    </section>
+
+    <section class="card waveforms">
+      <div class="wave-block">
+        <div class="wave-head">
+          <span>元の波動 <em>|ψ⟩</em></span>
+          <button id="playOrig" class="ghostBtn" disabled>▶ 再生</button>
+        </div>
+        <canvas id="waveOrig" height="90"></canvas>
+      </div>
+      <div class="wave-block">
+        <div class="wave-head">
+          <span>崩壊後の波動 <em>⟨measurement|ψ⟩</em></span>
+          <button id="playProc" class="ghostBtn" disabled>▶ 再生</button>
+        </div>
+        <canvas id="waveProc" height="90"></canvas>
+      </div>
+    </section>
+
+    <section class="effects">
+
+      <div class="card effect">
+        <h2>不確定性原理 <em>Heisenberg window</em></h2>
+        <p class="formula">Δt · Δf ≈ 1 &nbsp; (cf. Δx · Δp ≥ ħ/2) — 窓を狭めれば時間分解能が上がり周波数分解能が落ちる</p>
+        <label class="slide">
+          <span>窓の確実性 <em id="winLabel">1024 sample</em></span>
+          <input type="range" id="windowSize" min="0" max="6" step="1" value="3" />
+        </label>
+        <p class="readout" id="heisenbergReadout"></p>
+      </div>
+
+      <div class="card effect">
+        <label class="toggle"><input type="checkbox" id="qhoEnable" /> <h2>調和振動子フィルタ <em>QHO eigenstates</em></h2></label>
+        <p class="formula">ψₙ(x) = Hₙ(x)·e^(−x²/2) &nbsp; スペクトルをエルミート多項式の固有状態 |ψₙ|² の形に成形する</p>
+        <label class="slide">
+          <span>量子数 <em id="qhoNLabel">n = 2</em></span>
+          <input type="range" id="qhoN" min="0" max="8" step="1" value="2" />
+        </label>
+        <label class="slide">
+          <span>混合率 <em id="qhoMixLabel">60%</em></span>
+          <input type="range" id="qhoMix" min="0" max="100" step="1" value="60" />
+        </label>
+      </div>
+
+      <div class="card effect">
+        <label class="toggle"><input type="checkbox" id="dispersionEnable" /> <h2>波束の拡散 <em>Schrödinger dispersion</em></h2></label>
+        <p class="formula">ω(k) ∝ k² &nbsp; 自由粒子の分散関係。高周波ほど位相が時間とともに二次的にずれ、波束が広がるように音が滲む</p>
+        <label class="slide">
+          <span>拡散の強さ <em id="dispersionLabel">40%</em></span>
+          <input type="range" id="dispersion" min="0" max="100" step="1" value="40" />
+        </label>
+      </div>
+
+      <div class="card effect">
+        <label class="toggle"><input type="checkbox" id="qftEnable" /> <h2>位相ゲート <em>QFT phase gate</em></h2></label>
+        <p class="formula">e^(2πi·k/N) &nbsp; 量子フーリエ変換の回転因子と同じ構造を各周波数ビンの位相に適用する</p>
+        <label class="slide">
+          <span>ゲート深度 <em id="qftLabel">25%</em></span>
+          <input type="range" id="qftDepth" min="0" max="100" step="1" value="25" />
+        </label>
+      </div>
+
+      <div class="card effect">
+        <label class="toggle"><input type="checkbox" id="granularEnable" /> <h2>波動関数の収縮 <em>Born-rule grains</em></h2></label>
+        <p class="formula">P(k) ∝ |amplitude(k)|² &nbsp; グレインの再生位置をガウス分布（波束）からモンテカルロ的に「観測・収縮」させて選ぶ</p>
+        <label class="slide">
+          <span>グレイン長 <em id="grainSizeLabel">60 ms</em></span>
+          <input type="range" id="grainSize" min="10" max="300" step="5" value="60" />
+        </label>
+        <label class="slide">
+          <span>波束の広がり σ <em id="grainSigmaLabel">1.5 grains</em></span>
+          <input type="range" id="grainSigma" min="0" max="60" step="1" value="15" />
+        </label>
+      </div>
+
+      <div class="card effect">
+        <label class="toggle"><input type="checkbox" id="tunnelEnable" /> <h2>トンネル効果 <em>Quantum tunneling echo</em></h2></label>
+        <p class="formula">T = 1 / (1 + sinh²(κL) / (4E(1−E))), &nbsp; κ = √(2(1−E)) &nbsp; — 障壁を透過するたびに振幅が T 倍されるエコー</p>
+        <label class="slide">
+          <span>粒子のエネルギー E <em id="tunnelELabel">0.30</em></span>
+          <input type="range" id="tunnelE" min="1" max="99" step="1" value="30" />
+        </label>
+        <label class="slide">
+          <span>障壁の厚さ L <em id="tunnelLLabel">2.0</em></span>
+          <input type="range" id="tunnelL" min="1" max="60" step="1" value="20" />
+        </label>
+        <label class="slide">
+          <span>遅延時間 <em id="tunnelDelayLabel">180 ms</em></span>
+          <input type="range" id="tunnelDelay" min="20" max="600" step="10" value="180" />
+        </label>
+        <label class="slide">
+          <span>ウェット量 <em id="tunnelWetLabel">70%</em></span>
+          <input type="range" id="tunnelWet" min="0" max="100" step="1" value="70" />
+        </label>
+        <p class="readout" id="tunnelReadout"></p>
+      </div>
+
+      <div class="card effect">
+        <label class="toggle"><input type="checkbox" id="entangleEnable" /> <h2>量子もつれ <em>Bell-correlated stereo</em></h2></label>
+        <p class="formula">E(a,b) = −cos(a−b) &nbsp; ベル状態の相関関数。左右チャンネルのトレモロ位相差として音に変換する</p>
+        <label class="slide">
+          <span>変調レート <em id="entRateLabel">0.6 Hz</em></span>
+          <input type="range" id="entRate" min="1" max="50" step="1" value="6" />
+        </label>
+        <label class="slide">
+          <span>深さ <em id="entDepthLabel">50%</em></span>
+          <input type="range" id="entDepth" min="0" max="100" step="1" value="50" />
+        </label>
+        <label class="slide">
+          <span>測定角度差 Δθ <em id="entAngleLabel">90°</em></span>
+          <input type="range" id="entAngle" min="0" max="180" step="1" value="90" />
+        </label>
+        <p class="readout" id="entangleReadout"></p>
+      </div>
+
+    </section>
+
+    <section class="card transport">
+      <button id="applyBtn" class="primaryBtn" disabled>崩壊を実行する <em>collapse the wavefunction</em></button>
+      <button id="exportBtn" class="ghostBtn" disabled>WAVでエクスポート</button>
+      <span id="status" class="status"></span>
+    </section>
+  </main>
+
+  <script src="quantum-dsp.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
