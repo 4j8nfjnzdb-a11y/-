@@ -11,6 +11,16 @@
 // is currently happening (a slow drift, a strobe of jump cuts, a
 // stutter of repeated frames), because Conner's films aren't cut at
 // one rhythm either.
+//
+// None of it is actually random. Every cut is one iterate of the
+// logistic map x[n+1] = r * x[n] * (1 - x[n]) — the textbook route
+// from order to chaos. The カオス slider sets r. Below r≈3 the map
+// settles onto a fixed point, so the edit gets stuck looping the same
+// shot; between 3 and ~3.57 it period-doubles into a stutter of 2, 4,
+// 8 repeating cuts; past ~3.57 it's fully chaotic. Same seed, same r,
+// same film, every time — but the dice button nudges the running
+// value by an unnoticeably small amount, and in the chaotic band that
+// nudge is enough to send the rest of the reel somewhere else entirely.
 
 (() => {
   const stage = document.getElementById("stage");
@@ -40,6 +50,70 @@
   function lerp(a, b, t) { return a + (b - a) * t; }
   function rand(a, b) { return a + Math.random() * (b - a); }
   function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+  // ---- the chaos engine ------------------------------------------------
+  // Every editorial decision (which material, which crop, how long the
+  // shot holds, whether it flashes or stutters) is drawn from this one
+  // deterministic sequence instead of Math.random(). Cosmetic texture
+  // (grain, dust, drone detune) stays genuinely random — it isn't part
+  // of "the edit".
+
+  const chaosStateEl = document.getElementById("chaosState");
+  const chaosGraphEl = document.getElementById("chaosGraph");
+  let chaosHistory = [];
+  let chaosX = 0.2 + Math.random() * 0.6; // avoid seeding exactly on a fixed point
+
+  function chaosR() { return lerp(2.5, 4.0, +chaosSlider.value / 100); }
+
+  function chaosNext() {
+    const r = chaosR();
+    chaosX = r * chaosX * (1 - chaosX);
+    if (!(chaosX > 0.0002 && chaosX < 0.9998)) chaosX = 0.5; // map can collapse toward 0 near r=1
+    chaosHistory.push(chaosX);
+    if (chaosHistory.length > 90) chaosHistory.shift();
+    return chaosX;
+  }
+  function chaosRand(a, b) { return a + chaosNext() * (b - a); }
+  function chaosPick(arr) { return arr[Math.min(arr.length - 1, Math.floor(chaosNext() * arr.length))]; }
+
+  function dynamicalLabel(r) {
+    if (r < 3.0) return "収束・fixed point";
+    if (r < 3.45) return "周期2・period-2";
+    if (r < 3.544) return "周期4・period-4";
+    if (r < 3.57) return "周期倍加・period-doubling";
+    return "カオス・chaotic";
+  }
+
+  function regimeForState(r, x) {
+    if (r < 3.0) return "archive";
+    if (r < 3.45) return "stutter";
+    if (r < 3.57) return x < 0.5 ? "stutter" : "flicker";
+    return x < 0.4 ? "drift" : x < 0.75 ? "assault" : "flicker";
+  }
+
+  function updateChaosReadout() {
+    const r = chaosR();
+    if (chaosStateEl) chaosStateEl.textContent = `r=${r.toFixed(2)} ・ ${dynamicalLabel(r)}`;
+    drawChaosGraph();
+  }
+
+  function drawChaosGraph() {
+    if (!chaosGraphEl) return;
+    const g = chaosGraphEl.getContext("2d");
+    const w = chaosGraphEl.width, h = chaosGraphEl.height;
+    g.clearRect(0, 0, w, h);
+    if (chaosHistory.length < 2) return;
+    g.strokeStyle = "rgba(234,230,223,0.7)";
+    g.lineWidth = 1;
+    g.beginPath();
+    chaosHistory.forEach((v, i) => {
+      const px = (i / (chaosHistory.length - 1)) * w;
+      const py = h - v * h;
+      if (i === 0) g.moveTo(px, py); else g.lineTo(px, py);
+    });
+    g.stroke();
+  }
+  chaosSlider.addEventListener("input", updateChaosReadout);
 
   // ---- procedural "found" material -----------------------------------
   // Nothing here is footage of anything in particular — it's the kind
@@ -247,46 +321,38 @@
     assault: { minDur: 0.15, maxDur: 0.6, flashChance: 0.22, stutterChance: 0.15, zoomRange: [0.5, 1.7], treatments: ["none", "invert", "hue", "sepia"] },
     archive: { minDur: 1.2, maxDur: 2.6, flashChance: 0.08, stutterChance: 0, zoomRange: [0.8, 1.2], treatments: ["sepia", "none"] },
   };
-  const REGIME_NAMES = Object.keys(REGIMES);
-
   const HINTS = {
     drift: ["同じ場面をただ見つめ続けるだけで、何かが変わって見えてくる。", "ズームは何かを説明しない。ただ寄っていくだけ。"],
     flicker: ["カットが速すぎて、何を見たのか誰も答えられない。", "コマとコマの間に、見えないフィルムが挟まっている。"],
-    stutter: ["同じコマが引っかかって、何度も同じ場所に戻る。", "フィルムが噛んだ。それも編集の一部にする。"],
+    stutter: ["同じコマが引っかかって、何度も同じ場所に戻る。壊れているのではなく、周期に落ちただけ。", "フィルムが噛んだ。それも編集の一部にする。"],
     assault: ["無関係な映像が、無関係な音楽の上で殴り合っている。", "誰かが捨てたフィルムだけで、世界はもう一度作れる。"],
-    archive: ["これは記録映像です。何の記録かは分かりません。", "倉庫の奥にあったリールに、ラベルはもう読めない。"],
+    archive: ["これは記録映像です。何の記録かは分かりません。", "初期値はもう安定した。しばらくは同じ場所に戻り続ける。"],
+    perturb: ["初期値に、ほんの少しだけ触れた。この先どうなるかは、もう誰にも分からない。", "同じ映画のはずだった。今のはもう、少し違う映画になった。"],
   };
 
-  function pickRegime(exclude) {
-    let name;
-    do { name = pick(REGIME_NAMES); } while (REGIME_NAMES.length > 1 && name === exclude);
-    return name;
-  }
-
-  function updateHint(regimeName) {
+  function updateHint(regimeName, perturb) {
     hintEl.style.opacity = 0;
     setTimeout(() => {
-      hintEl.textContent = pick(HINTS[regimeName]);
+      hintEl.textContent = perturb ? pick(HINTS.perturb) : pick(HINTS[regimeName]);
       hintEl.style.opacity = 0.65;
     }, 220);
   }
 
-  let currentRegimeName = pickRegime();
+  let currentRegimeName = regimeForState(chaosR(), chaosX);
 
   // ---- shot rolling ------------------------------------------------
 
   let currentShot = null;
   let shotElapsed = 0;
   let lastMaterial = null;
-  let cutCount = 0;
   let running = false;
   let clock = 0;
 
   function randomCrop(regime) {
-    const cx = rand(0.15, 0.85), cy = rand(0.15, 0.85);
-    const base = rand(0.25, 0.8);
-    const w0 = base * rand(0.8, 1.2), h0 = base * rand(0.8, 1.2);
-    const zoom = rand(regime.zoomRange[0], regime.zoomRange[1]);
+    const cx = chaosRand(0.15, 0.85), cy = chaosRand(0.15, 0.85);
+    const base = chaosRand(0.25, 0.8);
+    const w0 = base * chaosRand(0.8, 1.2), h0 = base * chaosRand(0.8, 1.2);
+    const zoom = chaosRand(regime.zoomRange[0], regime.zoomRange[1]);
     const w1 = clamp(w0 * zoom, 0.08, 1.4), h1 = clamp(h0 * zoom, 0.08, 1.4);
     const rectFor = (w, h) => {
       w = Math.min(w, 1); h = Math.min(h, 1);
@@ -302,49 +368,53 @@
   function chaosAmt() { return +chaosSlider.value / 100; }
 
   function rollShot() {
-    cutCount++;
-    if (cutCount % 5 === 0 && Math.random() < 0.35) {
-      currentRegimeName = pickRegime(currentRegimeName);
+    const r = chaosR();
+    const xRegime = chaosNext();
+    const nextRegimeName = regimeForState(r, xRegime);
+    if (nextRegimeName !== currentRegimeName) {
+      currentRegimeName = nextRegimeName;
       updateHint(currentRegimeName);
     }
+    updateChaosReadout();
     const regime = REGIMES[currentRegimeName];
-    const chaos = chaosAmt();
 
-    if (Math.random() < regime.flashChance * (0.5 + chaos)) {
-      currentShot = { kind: "flash", color: Math.random() < 0.5 ? "#fff" : "#000", dur: rand(0.03, 0.09) };
+    if (chaosNext() < regime.flashChance) {
+      currentShot = { kind: "flash", color: chaosNext() < 0.5 ? "#fff" : "#000", dur: chaosRand(0.03, 0.09) };
       shotElapsed = 0;
       triggerSplicePop();
       return;
     }
 
-    if (lastMaterial && Math.random() < regime.stutterChance) {
+    if (lastMaterial && chaosNext() < regime.stutterChance) {
       currentShot = {
         kind: "shot",
         material: lastMaterial,
         crop: randomCrop(regime),
-        filter: TREATMENTS[pick(regime.treatments)],
-        mirror: Math.random() < 0.15,
-        dur: Math.max(0.05, rand(0.06, 0.2) * tempoScale()),
+        filter: TREATMENTS[chaosPick(regime.treatments)],
+        mirror: chaosNext() < 0.15,
+        dur: Math.max(0.05, chaosRand(0.06, 0.2) * tempoScale()),
       };
       shotElapsed = 0;
       triggerSplicePop();
       return;
     }
 
-    let material = pick(materials);
-    if (materials.length > 1 && material === lastMaterial) material = pick(materials);
+    let idx = Math.floor(chaosNext() * materials.length) % materials.length;
+    let material = materials[idx];
+    if (materials.length > 1 && material === lastMaterial) {
+      idx = (idx + 1) % materials.length;
+      material = materials[idx];
+    }
     lastMaterial = material;
 
-    let dur = rand(regime.minDur, regime.maxDur) * tempoScale();
-    dur *= 1 + (Math.random() * 2 - 1) * chaos * 0.6;
-    dur = Math.max(0.05, dur);
+    const dur = Math.max(0.05, chaosRand(regime.minDur, regime.maxDur) * tempoScale());
 
     currentShot = {
       kind: "shot",
       material,
       crop: randomCrop(regime),
-      filter: TREATMENTS[pick(regime.treatments)],
-      mirror: Math.random() < 0.12,
+      filter: TREATMENTS[chaosPick(regime.treatments)],
+      mirror: chaosNext() < 0.12,
       dur,
     };
     shotElapsed = 0;
@@ -623,8 +693,14 @@
   playBtn.addEventListener("click", () => { running ? stop() : start(); });
 
   diceBtn.addEventListener("click", () => {
-    currentRegimeName = pickRegime(currentRegimeName);
-    updateHint(currentRegimeName);
+    // the dice don't choose the next shot — they nudge the running
+    // value of x by an amount too small to matter anywhere else. In
+    // the fixed-point/periodic bands the system shrugs it off and
+    // settles right back; in the chaotic band it's enough to send
+    // everything after this moment down a different path.
+    const epsilon = (Math.random() - 0.5) * 0.02;
+    chaosX = clamp(chaosX + epsilon, 0.0002, 0.9998);
+    updateHint(currentRegimeName, true);
     flashEl.style.transition = "none";
     flashEl.style.opacity = "0.4";
     requestAnimationFrame(() => {
@@ -636,6 +712,7 @@
 
   resize();
   buildGrainTile();
+  updateChaosReadout();
   updateHint(currentRegimeName);
   requestAnimationFrame(loop);
 })();
