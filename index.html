@@ -3,37 +3,113 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>kizashi — generative ambient</title>
+<title>ZURE — 一本の映像を壊し続けるサンプラー</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <canvas id="bg"></canvas>
+  <video id="srcVideo" playsinline></video>
 
-  <main class="ui">
-    <header>
-      <h1>kizashi <span class="sub">きざし</span></h1>
-      <p class="tagline">反復に見せかけて、予測の像を結ぶ寸前でかわし続けるアンビエント。</p>
+  <main class="app">
+    <header class="head">
+      <h1>ZURE <span class="sub">ズレ</span></h1>
+      <p class="tagline">同じ映像だけを、延々と変形しつづける。<br />
+        巻き戻し、早送り、故障して止まる、ある範囲をいききする —
+        映像が映像として成立する条件を、一個ずつずらしていく装置。</p>
+      <button id="refToggle" class="linkBtn" type="button">参考 / references ▾</button>
+      <div id="refPanel" class="refPanel" hidden>
+        <p><strong>B　時間を壊す</strong> — 「時間って何？」を不安定にする。</p>
+        <ul>
+          <li><strong>伊藤高志</strong> — オプチカルプリンティングで運動そのものを分解する。</li>
+          <li><strong>Michael Snow</strong> — 一つのズームやパンだけで持続を測り直す。</li>
+          <li><strong>Chantal Akerman</strong> — 実時間の反復が、逆に時間の不安を露わにする。</li>
+          <li><strong>Paul Sharits</strong> — フリッカーとコマ単位の操作で知覚のリズムを壊す。</li>
+        </ul>
+      </div>
     </header>
 
-    <div class="transport">
-      <button id="playBtn" class="playBtn">再生</button>
-      <button id="paletteBtn" class="ghostBtn">配色を変える</button>
-    </div>
+    <section id="loader" class="loader">
+      <label class="dropzone" id="dropzone" for="fileInput">
+        <span class="dzTitle">映像ファイルをドロップ、または選択</span>
+        <span class="dzSub">1本の動画だけを使います。他の映像は呼び出しません。</span>
+        <input id="fileInput" type="file" accept="video/*" hidden />
+      </label>
+    </section>
 
-    <div class="controls">
-      <label class="slider">
-        <span>密度 <em>density</em></span>
-        <input id="density" type="range" min="0" max="100" value="42" />
-      </label>
-      <label class="slider">
-        <span>明暗 <em>tone</em></span>
-        <input id="tone" type="range" min="0" max="100" value="50" />
-      </label>
-      <label class="slider">
-        <span>揺らぎ <em>swerve</em></span>
-        <input id="swerve" type="range" min="0" max="100" value="55" />
-      </label>
-    </div>
+    <section id="stage" class="stage" hidden>
+      <div class="canvasWrap">
+        <canvas id="stageCanvas" width="480" height="270"></canvas>
+        <canvas id="spectralCanvas" width="480" height="270" hidden></canvas>
+        <div id="statusLine" class="statusLine"></div>
+      </div>
+
+      <div class="rangeRow">
+        <span class="rangeLabel">サンプル範囲 <em id="rangeLenLabel">4.0s</em></span>
+        <input id="rangeLenSlider" type="range" min="1" max="8" step="0.5" value="4" />
+        <button id="resampleBtn" class="ghostBtn" type="button">🎲 新しい範囲を取り込む</button>
+      </div>
+
+      <div class="rangeRow">
+        <span class="rangeLabel">いききする範囲 <em id="trimLabel">0–100%</em></span>
+        <input id="trimStart" type="range" min="0" max="100" value="0" />
+        <input id="trimEnd" type="range" min="0" max="100" value="100" />
+      </div>
+
+      <div class="transport">
+        <button id="diceBtn" class="diceBtn" type="button">🎲 サイコロ（全部変える）</button>
+        <label class="toggleChip">
+          <input id="autoDice" type="checkbox" />
+          <span>自動でずらし続ける</span>
+        </label>
+        <label class="toggleChip">
+          <input id="specToggle" type="checkbox" />
+          <span>音を見る（スペクトラル）</span>
+        </label>
+        <label class="toggleChip">
+          <input id="muteToggle" type="checkbox" />
+          <span>ミュート</span>
+        </label>
+      </div>
+
+      <div class="sliders">
+        <label class="slider">
+          <span>速度 <em>speed</em></span>
+          <input id="speedSlider" type="range" min="10" max="400" value="100" />
+        </label>
+        <label class="slider">
+          <span>幽霊 <em>ghost</em></span>
+          <input id="ghostSlider" type="range" min="0" max="100" value="45" />
+        </label>
+        <label class="slider">
+          <span>ぼかし <em>blur</em></span>
+          <input id="blurSlider" type="range" min="0" max="100" value="0" />
+        </label>
+        <label class="slider">
+          <span>色相 <em>hue</em></span>
+          <input id="hueSlider" type="range" min="0" max="360" value="0" />
+        </label>
+        <label class="slider">
+          <span>故障率 <em>glitch</em></span>
+          <input id="glitchSlider" type="range" min="0" max="100" value="20" />
+        </label>
+      </div>
+
+      <div class="pads" id="pads">
+        <button class="pad mode" data-mode="forward">再生<br /><em>FWD</em></button>
+        <button class="pad mode" data-mode="reverse">逆再生<br /><em>REV</em></button>
+        <button class="pad mode" data-mode="pingpong">いきき<br /><em>PING</em></button>
+        <button class="pad mode" data-mode="freeze">静止<br /><em>FRZ</em></button>
+        <button class="pad mode" data-mode="rewind">巻戻し<br /><em>RWD</em></button>
+        <button class="pad mode" data-mode="fastforward">早送り<br /><em>FF</em></button>
+        <button class="pad mode" data-mode="stutter">故障<br /><em>STUT</em></button>
+        <button class="pad toggle" data-toggle="ghost">残像<br /><em>GHOST</em></button>
+        <button class="pad toggle" data-toggle="blurOn">ぼかし<br /><em>BLUR</em></button>
+        <button class="pad toggle" data-toggle="invert">反転<br /><em>INV</em></button>
+        <button class="pad toggle" data-toggle="chroma">色収差<br /><em>CHROMA</em></button>
+        <button class="pad toggle" data-toggle="slice">断裂<br /><em>SLICE</em></button>
+      </div>
+
+      <button id="newFileBtn" class="linkBtn" type="button">別の映像を読み込む</button>
+    </section>
 
     <p class="hint">音は毎回、一度きりのものです。同じ配列は二度と戻ってきません。</p>
   </main>
