@@ -189,6 +189,22 @@ button {
   white-space: nowrap;
 }
 .ghostBtn:hover { border-color: var(--accent); }
+.ghostBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  border-color: var(--line);
+}
+
+.recordBtn:not(:disabled) { border-color: var(--accent2); }
+.recordBtn.recording {
+  border-color: var(--accent2);
+  background: rgba(255, 94, 196, 0.14);
+  animation: recPulse 1.4s ease-in-out infinite;
+}
+@keyframes recPulse {
+  0%, 100% { box-shadow: 0 0 0 rgba(255, 94, 196, 0); }
+  50% { box-shadow: 0 0 12px rgba(255, 94, 196, 0.6); }
+}
 
 .transport {
   display: flex;

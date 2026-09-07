@@ -27,6 +27,8 @@
   const trimLabel = document.getElementById("trimLabel");
 
   const diceBtn = document.getElementById("diceBtn");
+  const fadersDiceBtn = document.getElementById("fadersDiceBtn");
+  const recordBtn = document.getElementById("recordBtn");
   const autoDiceToggle = document.getElementById("autoDice");
   const specToggle = document.getElementById("specToggle");
   const muteToggle = document.getElementById("muteToggle");
@@ -143,6 +145,7 @@
     playhead = 0; pingDir = 1;
     updateStatus();
     startAudioLoop(captureStart, captureEnd);
+    recordBtn.disabled = false;
   }
 
   function randomStart(duration, len) {
@@ -151,7 +154,7 @@
 
   // ---- audio (analysis + a steady loop of the sampled range) -------
 
-  let audioCtx = null, analyser = null, gainNode = null;
+  let audioCtx = null, analyser = null, gainNode = null, recDest = null;
   let audioLoopHandler = null;
   let spectralBuf = null;
 
@@ -167,6 +170,8 @@
       source.connect(analyser);
       analyser.connect(gainNode);
       gainNode.connect(audioCtx.destination);
+      recDest = audioCtx.createMediaStreamDestination();
+      gainNode.connect(recDest);
     } catch (e) {
       // Web Audio unavailable — silent visual-only mode.
     }
@@ -454,11 +459,27 @@
     if (!toggles.ghost) clearTrail();
 
     speedSlider.value = Math.round(20 + Math.random() * 300);
+    video.playbackRate = clamp(+speedSlider.value / 100, 0.25, 4);
+    zoomSlider.value = Math.round(Math.random() * 100);
     ghostSlider.value = Math.round(Math.random() * 100);
     blurSlider.value = Math.round(Math.random() * 70);
     hueSlider.value = Math.round(Math.random() * 360);
     glitchSlider.value = Math.round(Math.random() * 100);
 
+    updateStatus();
+  }
+
+  // Randomizes only the fader row (speed/zoom/ghost/blur/hue/glitch),
+  // leaving the current mode and toggle layers untouched — a lighter
+  // shuffle than the full dice() reshuffle.
+  function randomizeFaders() {
+    speedSlider.value = Math.round(20 + Math.random() * 300);
+    video.playbackRate = clamp(+speedSlider.value / 100, 0.25, 4);
+    zoomSlider.value = Math.round(Math.random() * 100);
+    ghostSlider.value = Math.round(Math.random() * 100);
+    blurSlider.value = Math.round(Math.random() * 100);
+    hueSlider.value = Math.round(Math.random() * 360);
+    glitchSlider.value = Math.round(Math.random() * 100);
     updateStatus();
   }
 
@@ -472,7 +493,8 @@
       () => { toggles.invert = !toggles.invert; syncToggleButtons(); },
       () => { toggles.chroma = !toggles.chroma; syncToggleButtons(); },
       () => { toggles.slice = !toggles.slice; syncToggleButtons(); },
-      () => { speedSlider.value = Math.round(20 + Math.random() * 300); },
+      () => { speedSlider.value = Math.round(20 + Math.random() * 300); video.playbackRate = clamp(+speedSlider.value / 100, 0.25, 4); },
+      () => { zoomSlider.value = Math.round(Math.random() * 100); },
       () => { hueSlider.value = Math.round(Math.random() * 360); },
       () => { ghostSlider.value = Math.round(Math.random() * 100); },
       () => { blurSlider.value = Math.round(Math.random() * 70); },
@@ -490,6 +512,66 @@
       driftOneParam();
       scheduleAutoDice();
     }, delay);
+  }
+
+  // ---- recording: capture the rendered canvas + live audio to a file --
+
+  let mediaRecorder = null;
+  let recordedChunks = [];
+  let recordTimer = null;
+  let recordStartTs = 0;
+
+  function pickRecordingMimeType() {
+    const candidates = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
+    for (const c of candidates) {
+      if (window.MediaRecorder && MediaRecorder.isTypeSupported(c)) return c;
+    }
+    return "";
+  }
+
+  function startRecording() {
+    if (mediaRecorder || !window.MediaRecorder) return;
+    const combined = new MediaStream();
+    stageCanvas.captureStream(30).getVideoTracks().forEach((t) => combined.addTrack(t));
+    if (recDest) recDest.stream.getAudioTracks().forEach((t) => combined.addTrack(t));
+
+    const mimeType = pickRecordingMimeType();
+    try {
+      mediaRecorder = new MediaRecorder(combined, mimeType ? { mimeType } : undefined);
+    } catch (e) {
+      updateStatus("この端末では録画に対応していません");
+      return;
+    }
+    recordedChunks = [];
+    mediaRecorder.ondataavailable = (e) => { if (e.data.size) recordedChunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || "video/webm" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `zure-${Date.now()}.webm`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      mediaRecorder = null;
+    };
+    mediaRecorder.start();
+    recordStartTs = performance.now();
+    recordBtn.classList.add("recording");
+    recordTimer = setInterval(() => {
+      const sec = Math.floor((performance.now() - recordStartTs) / 1000);
+      const m = Math.floor(sec / 60), s = sec % 60;
+      recordBtn.textContent = `⏹ 録画停止 ${m}:${String(s).padStart(2, "0")}`;
+    }, 500);
+  }
+
+  function stopRecording() {
+    if (!mediaRecorder) return;
+    mediaRecorder.stop();
+    clearInterval(recordTimer);
+    recordBtn.classList.remove("recording");
+    recordBtn.textContent = "⏺ 録画してダウンロード";
   }
 
   // ---- UI wiring -------------------------------------------------
@@ -558,6 +640,10 @@
   syncToggleButtons();
 
   diceBtn.addEventListener("click", dice);
+  fadersDiceBtn.addEventListener("click", randomizeFaders);
+  recordBtn.addEventListener("click", () => {
+    if (mediaRecorder) stopRecording(); else startRecording();
+  });
   autoDiceToggle.addEventListener("change", scheduleAutoDice);
 
   specToggle.addEventListener("change", () => {
