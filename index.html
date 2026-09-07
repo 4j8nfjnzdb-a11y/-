@@ -8,12 +8,13 @@
 </head>
 <body>
   <canvas id="gl"></canvas>
+  <canvas id="glitchLayer" class="glitchLayer" aria-hidden="true"></canvas>
 
   <div class="scanlines" aria-hidden="true"></div>
   <div class="vignette" aria-hidden="true"></div>
   <canvas id="noiseLayer" class="noiseLayer" width="64" height="64" aria-hidden="true"></canvas>
-  <div class="crosshair" id="crosshair" aria-hidden="true"></div>
   <div class="stick" id="moveStick" aria-hidden="true"><div class="thumb"></div></div>
+  <pre class="memoryOverlay" id="memoryOverlay" aria-hidden="true"></pre>
 
   <div class="hint" id="hint">扉を抜けるたび、景色は違う場所になる。</div>
 
@@ -32,6 +33,14 @@
       <button class="fxBtn" data-fx="thermal"><span class="ic">🌡️</span>サーモ</button>
       <button class="fxBtn" data-fx="nightVision"><span class="ic">🕶️</span>夜視</button>
       <button class="fxBtn" data-fx="staticNoise"><span class="ic">📺</span>ノイズ</button>
+    </div>
+    <div class="fxSection">RETRO BUGS</div>
+    <div class="fxGrid">
+      <button class="fxBtn glitchBtn" data-glitch="tear"><span class="ic">📉</span>テアリング</button>
+      <button class="fxBtn glitchBtn" data-glitch="block"><span class="ic">🧩</span>VRAM崩壊</button>
+      <button class="fxBtn glitchBtn" data-glitch="freeze"><span class="ic">🥶</span>フリーズ</button>
+      <button class="fxBtn glitchBtn" data-glitch="palette"><span class="ic">🎨</span>色化け</button>
+      <button class="fxBtn glitchBtn" data-glitch="memory"><span class="ic">💾</span>メモリ漏れ</button>
     </div>
     <button id="fxReset" class="fxResetBtn">リセット</button>
   </div>

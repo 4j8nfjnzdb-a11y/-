@@ -80,7 +80,7 @@
   // GL setup
   // ---------------------------------------------------------------------
   const canvas = document.getElementById('gl');
-  const gl = canvas.getContext('webgl', { antialias: false, alpha: false, powerPreference: 'low-power', depth: true });
+  const gl = canvas.getContext('webgl', { antialias: false, alpha: false, powerPreference: 'low-power', depth: true, preserveDrawingBuffer: true });
   if (!gl) {
     document.body.innerHTML = '<p style="color:#eaf6ff;padding:2rem;font-family:monospace;">このブラウザは WebGL に対応していません。</p>';
     return;
@@ -443,13 +443,14 @@
 
   const startScreenEl = document.getElementById('startScreen');
   const pauseScreenEl = document.getElementById('pauseScreen');
-  const crosshairEl = document.getElementById('crosshair');
   const hintEl = document.getElementById('hint');
   const moveStickEl = document.getElementById('moveStick');
   const fxToggleEl = document.getElementById('fxToggle');
   const fxPanelEl = document.getElementById('fxPanel');
   const fxResetEl = document.getElementById('fxReset');
   const noiseLayerEl = document.getElementById('noiseLayer');
+  const glitchLayerEl = document.getElementById('glitchLayer');
+  const memoryOverlayEl = document.getElementById('memoryOverlay');
 
   const KEY_MAP = {
     'KeyW': 'f', 'ArrowUp': 'f',
@@ -563,7 +564,6 @@
     started = true;
     paused = false;
     startScreenEl.classList.add('hidden');
-    crosshairEl.classList.add('visible');
     hintEl.classList.add('visible');
     fxToggleEl.classList.add('visible');
     initAudio();
@@ -605,7 +605,7 @@
   }
   fxToggleEl.addEventListener('click', toggleFxPanel);
 
-  document.querySelectorAll('.fxBtn').forEach((btn) => {
+  document.querySelectorAll('.fxBtn:not(.glitchBtn)').forEach((btn) => {
     btn.addEventListener('click', () => {
       const id = btn.dataset.fx;
       if (id === 'blackout' || id === 'lightsOn') {
@@ -634,8 +634,18 @@
     });
   });
 
+  document.querySelectorAll('.glitchBtn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.glitch;
+      if (activeGlitch.has(id)) { activeGlitch.delete(id); btn.classList.remove('active'); }
+      else { activeGlitch.add(id); btn.classList.add('active'); scheduleNextGlitch(performance.now() / 1000, true); }
+    });
+  });
+
   fxResetEl.addEventListener('click', () => {
     activeFx.clear();
+    activeGlitch.clear();
+    endGlitchBurst();
     document.querySelectorAll('.fxBtn').forEach((b) => b.classList.remove('active'));
     setLightMode('normal');
     if (noiseTimer) { clearInterval(noiseTimer); noiseTimer = null; }
@@ -757,6 +767,190 @@
     src.start();
   }
 
+  function glitchAudioZap(type) {
+    if (!actx) return;
+    const now = actx.currentTime;
+    if (type === 'freeze') {
+      master.gain.cancelScheduledValues(now);
+      master.gain.setValueAtTime(master.gain.value, now);
+      master.gain.linearRampToValueAtTime(0.04, now + 0.03);
+      master.gain.linearRampToValueAtTime(0.5, now + 0.3);
+      return;
+    }
+    const osc = actx.createOscillator();
+    osc.type = 'square';
+    const g = actx.createGain();
+    g.gain.value = 0.0001;
+    osc.connect(g); g.connect(master); g.connect(reverbSend);
+    const steps = type === 'memory' ? 11 : 5;
+    const stepLen = type === 'memory' ? 0.045 : 0.04;
+    for (let i = 0; i < steps; i++) {
+      const tt = now + i * stepLen;
+      osc.frequency.setValueAtTime(rand(110, 1900), tt);
+      g.gain.setValueAtTime(0.1, tt);
+      g.gain.exponentialRampToValueAtTime(0.0005, tt + stepLen * 0.6);
+    }
+    osc.start(now);
+    osc.stop(now + steps * stepLen + 0.05);
+  }
+
+  // ---------------------------------------------------------------------
+  // retro-bug glitch drawer: a handful of classic hardware/software
+  // failure modes (tearing, stale-VRAM tile corruption, a hard freeze,
+  // a palette flash, and a "memory leak" debug-text overlay) staged as
+  // short, randomly-spaced bursts layered over the real frame.
+  // ---------------------------------------------------------------------
+  const activeGlitch = new Set();
+  let glitchBurst = null;
+  let nextGlitchAt = Infinity;
+  let glitchFilterOverride = null;
+  const glitchCtx = glitchLayerEl.getContext('2d');
+  const glitchBuf = document.createElement('canvas');
+  const glitchBufCtx = glitchBuf.getContext('2d');
+  const frameHistory = [];
+  const FRAME_HISTORY_MAX = 3;
+  const PALETTE_STEPS = [
+    'invert(1) saturate(3)',
+    'hue-rotate(270deg) saturate(4) brightness(1.4)',
+    'grayscale(1) invert(1) contrast(1.6)',
+    'hue-rotate(90deg) saturate(5) contrast(1.3)',
+  ];
+
+  function scheduleNextGlitch(now, immediate) {
+    nextGlitchAt = now + (immediate ? rand(0.15, 0.9) : rand(1.6, 4.4));
+  }
+
+  function pushFrameHistory() {
+    const w = glitchLayerEl.width, h = glitchLayerEl.height;
+    if (w === 0 || h === 0) return;
+    const snap = document.createElement('canvas');
+    snap.width = w; snap.height = h;
+    snap.getContext('2d').drawImage(canvas, 0, 0);
+    frameHistory.push(snap);
+    if (frameHistory.length > FRAME_HISTORY_MAX) frameHistory.shift();
+  }
+
+  function drawTearFrame() {
+    const w = glitchLayerEl.width, h = glitchLayerEl.height;
+    if (w === 0 || h === 0) return;
+    glitchBuf.width = w; glitchBuf.height = h;
+    glitchBufCtx.drawImage(canvas, 0, 0);
+    glitchCtx.clearRect(0, 0, w, h);
+    const bandCount = randInt(6, 14);
+    let y = 0;
+    for (let i = 0; i < bandCount && y < h; i++) {
+      const bh = Math.min(h - y, Math.max(1, Math.round(h / bandCount + rand(-3, 3))));
+      const xOff = Math.round(rand(-18, 18));
+      glitchCtx.drawImage(glitchBuf, 0, y, w, bh, xOff, y, w, bh);
+      y += bh;
+    }
+  }
+
+  function drawBlockFrame() {
+    const w = glitchLayerEl.width, h = glitchLayerEl.height;
+    if (w === 0 || h === 0) return;
+    pushFrameHistory();
+    glitchCtx.clearRect(0, 0, w, h);
+    glitchCtx.drawImage(canvas, 0, 0);
+    const blocks = randInt(4, 9);
+    for (let i = 0; i < blocks; i++) {
+      const src = frameHistory[randInt(0, frameHistory.length - 1)];
+      const bw = randInt(Math.round(w * 0.08), Math.round(w * 0.32));
+      const bh = randInt(Math.round(h * 0.04), Math.round(h * 0.18));
+      const sx = randInt(0, Math.max(0, w - bw));
+      const sy = randInt(0, Math.max(0, h - bh));
+      const dx = randInt(0, Math.max(0, w - bw));
+      const dy = randInt(0, Math.max(0, h - bh));
+      glitchCtx.drawImage(src, sx, sy, bw, bh, dx, dy, bw, bh);
+    }
+  }
+
+  function drawFreezeFrame(b, now) {
+    const w = glitchLayerEl.width, h = glitchLayerEl.height;
+    if (w === 0 || h === 0 || !b.frozenFrame) return;
+    glitchCtx.clearRect(0, 0, w, h);
+    const jitter = Math.floor((now - b.start) / 0.09) % 2 === 0 ? 0 : 1;
+    glitchCtx.drawImage(b.frozenFrame, jitter, 0);
+  }
+
+  function drawPaletteFrame(t, duration) {
+    const idx = Math.floor((t / duration) * PALETTE_STEPS.length) % PALETTE_STEPS.length;
+    glitchFilterOverride = PALETTE_STEPS[idx];
+    applyScreenFilter();
+  }
+
+  function buildMemoryDump() {
+    const hex = () => '0x' + Math.floor(Math.random() * 0xffff).toString(16).toUpperCase().padStart(4, '0');
+    const cell = getCellAt(player.z);
+    return [
+      'SEG_FAULT @ ' + hex(),
+      'PLR X=' + player.x.toFixed(2) + ' Y=' + player.eyeY.toFixed(2) + ' Z=' + player.z.toFixed(2),
+      'ROOM ' + (cell ? cell.mode.toUpperCase() : '???') + ' HUE=' + gs.hue.toFixed(1),
+      'VTX=' + vertexCount + ' CELLS=' + activeCells.length,
+      hex() + ' ' + hex() + ' ' + hex() + ' ' + hex(),
+      'ITEM GET: ' + String.fromCharCode(0x25a0, 0x25b2, 0x2665) + hex(),
+    ].join('\n');
+  }
+
+  function drawMemoryFrame(b, now) {
+    if (now - (b.lastText || 0) > 0.075) {
+      b.lastText = now;
+      memoryOverlayEl.textContent = buildMemoryDump();
+      memoryOverlayEl.style.left = rand(2, 40) + '%';
+      memoryOverlayEl.style.top = rand(4, 70) + '%';
+    }
+    memoryOverlayEl.classList.add('active');
+  }
+
+  const GLITCH_DURATIONS = { tear: [0.2, 0.5], block: [0.25, 0.6], freeze: [0.12, 0.35], palette: [0.1, 0.24], memory: [0.4, 0.9] };
+
+  function startGlitchBurst(type, now) {
+    const range = GLITCH_DURATIONS[type] || [0.2, 0.4];
+    glitchBurst = { type, start: now, duration: rand(range[0], range[1]), lastText: 0 };
+    const w = glitchLayerEl.width, h = glitchLayerEl.height;
+    if (w > 0 && h > 0) glitchCtx.clearRect(0, 0, w, h);
+    if (type === 'freeze') {
+      const snap = document.createElement('canvas');
+      snap.width = w; snap.height = h;
+      snap.getContext('2d').drawImage(canvas, 0, 0);
+      glitchBurst.frozenFrame = snap;
+    }
+    glitchAudioZap(type);
+  }
+
+  function endGlitchBurst() {
+    glitchBurst = null;
+    const w = glitchLayerEl.width, h = glitchLayerEl.height;
+    if (w > 0 && h > 0) glitchCtx.clearRect(0, 0, w, h);
+    memoryOverlayEl.classList.remove('active');
+    if (glitchFilterOverride) { glitchFilterOverride = null; applyScreenFilter(); }
+    scheduleNextGlitch(performance.now() / 1000);
+  }
+
+  function updateGlitchSystem(now) {
+    if (!started || paused) {
+      if (glitchBurst) endGlitchBurst();
+      nextGlitchAt = Infinity;
+      return;
+    }
+    if (glitchBurst) {
+      const t = now - glitchBurst.start;
+      if (t > glitchBurst.duration) { endGlitchBurst(); return; }
+      if (glitchBurst.type === 'tear') drawTearFrame();
+      else if (glitchBurst.type === 'block') drawBlockFrame();
+      else if (glitchBurst.type === 'freeze') drawFreezeFrame(glitchBurst, now);
+      else if (glitchBurst.type === 'palette') drawPaletteFrame(t, glitchBurst.duration);
+      else if (glitchBurst.type === 'memory') drawMemoryFrame(glitchBurst, now);
+      return;
+    }
+    if (activeGlitch.size === 0) { nextGlitchAt = Infinity; return; }
+    if (nextGlitchAt === Infinity) { scheduleNextGlitch(now); return; }
+    if (now >= nextGlitchAt) {
+      const pool = Array.from(activeGlitch);
+      startGlitchBurst(pool[randInt(0, pool.length - 1)], now);
+    }
+  }
+
   // ---------------------------------------------------------------------
   // resize
   // ---------------------------------------------------------------------
@@ -769,6 +963,8 @@
     canvas.width = w;
     canvas.height = h;
     gl.viewport(0, 0, w, h);
+    glitchLayerEl.width = w;
+    glitchLayerEl.height = h;
   }
   window.addEventListener('resize', resize);
   resize();
@@ -805,12 +1001,17 @@
 
   const screenEls = [canvas, document.querySelector('.scanlines'), document.querySelector('.vignette')];
   function applyScreenFilter() {
-    const parts = [];
-    activeFx.forEach((id) => { if (CSS_EFFECTS[id]) parts.push(CSS_EFFECTS[id]); });
-    if (activeFx.has('blackout')) parts.push('brightness(0.55)');
-    if (activeFx.has('lightsOn')) parts.push('brightness(1.25)');
-    if (activeFx.has('hueSpin')) parts.push('hue-rotate(' + hueSpinDeg.toFixed(0) + 'deg)');
-    const str = parts.length ? parts.join(' ') : 'none';
+    let str;
+    if (glitchFilterOverride) {
+      str = glitchFilterOverride;
+    } else {
+      const parts = [];
+      activeFx.forEach((id) => { if (CSS_EFFECTS[id]) parts.push(CSS_EFFECTS[id]); });
+      if (activeFx.has('blackout')) parts.push('brightness(0.55)');
+      if (activeFx.has('lightsOn')) parts.push('brightness(1.25)');
+      if (activeFx.has('hueSpin')) parts.push('hue-rotate(' + hueSpinDeg.toFixed(0) + 'deg)');
+      str = parts.length ? parts.join(' ') : 'none';
+    }
     for (let i = 0; i < screenEls.length; i++) if (screenEls[i]) screenEls[i].style.filter = str;
   }
 
@@ -936,11 +1137,15 @@
     if (vertexCount > 0) gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
   }
 
-  function frame(now) {
-    const dt = Math.min(0.05, (now - lastT) / 1000);
-    lastT = now;
-    const doorOpen = update(dt);
-    render(doorOpen);
+  let lastDoorOpen = 0;
+  function frame(nowMs) {
+    const dt = Math.min(0.05, (nowMs - lastT) / 1000);
+    lastT = nowMs;
+    const now = nowMs / 1000;
+    const frozen = !!(glitchBurst && glitchBurst.type === 'freeze');
+    if (!frozen) lastDoorOpen = update(dt);
+    render(lastDoorOpen);
+    updateGlitchSystem(now);
     requestAnimationFrame(frame);
   }
 
