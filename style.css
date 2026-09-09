@@ -179,33 +179,6 @@ h1 .kana {
   opacity: 0.9;
 }
 
-/* touch move-stick, positioned dynamically by JS */
-.stick {
-  position: fixed;
-  z-index: 4;
-  width: 84px;
-  height: 84px;
-  margin: -42px 0 0 -42px;
-  border-radius: 50%;
-  border: 1px solid rgba(23, 247, 240, 0.4);
-  background: rgba(23, 247, 240, 0.06);
-  pointer-events: none;
-  display: none;
-}
-.stick.active { display: block; }
-.stick .thumb {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 34px;
-  height: 34px;
-  margin: -17px 0 0 -17px;
-  border-radius: 50%;
-  background: rgba(255, 43, 214, 0.25);
-  border: 1px solid rgba(255, 43, 214, 0.7);
-  box-shadow: 0 0 12px rgba(255, 43, 214, 0.4);
-}
-
 @media (max-width: 480px) {
   h1 { font-size: 2.2rem; }
   .panel { padding: 1.2rem; }

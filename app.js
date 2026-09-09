@@ -444,7 +444,6 @@
   const startScreenEl = document.getElementById('startScreen');
   const pauseScreenEl = document.getElementById('pauseScreen');
   const hintEl = document.getElementById('hint');
-  const moveStickEl = document.getElementById('moveStick');
   const fxToggleEl = document.getElementById('fxToggle');
   const fxPanelEl = document.getElementById('fxPanel');
   const fxResetEl = document.getElementById('fxReset');
@@ -499,16 +498,8 @@
     player.pitch = clamp(player.pitch - dy * LOOK_SENS, -1.25, 1.25);
   });
 
-  // touch controls: left half = move stick, right half = look drag
+  // touch controls: left half = move (invisible drag), right half = look drag
   const touchState = { moveId: null, moveVec: { x: 0, z: 0 }, lookId: null, lookX: 0, lookY: 0 };
-  function stickVisual(active, x, y, dx, dy) {
-    if (!active) { moveStickEl.classList.remove('active'); return; }
-    moveStickEl.classList.add('active');
-    moveStickEl.style.left = x + 'px';
-    moveStickEl.style.top = y + 'px';
-    const thumb = moveStickEl.firstElementChild;
-    thumb.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
-  }
   canvas.addEventListener('touchstart', (e) => {
     if (!started || paused) return;
     for (let i = 0; i < e.changedTouches.length; i++) {
@@ -518,7 +509,6 @@
         touchState.moveId = t.identifier;
         touchState.moveX0 = t.clientX; touchState.moveY0 = t.clientY;
         touchState.moveVec = { x: 0, z: 0 };
-        stickVisual(true, t.clientX, t.clientY, 0, 0);
       } else if (!isLeft && touchState.lookId === null) {
         touchState.lookId = t.identifier;
         touchState.lookX = t.clientX; touchState.lookY = t.clientY;
@@ -535,7 +525,6 @@
         const len = Math.hypot(dx, dy);
         if (len > R) { dx = dx / len * R; dy = dy / len * R; }
         touchState.moveVec = { x: dx / R, z: -dy / R };
-        stickVisual(true, touchState.moveX0, touchState.moveY0, dx, dy);
       } else if (t.identifier === touchState.lookId) {
         const dx = t.clientX - touchState.lookX, dy = t.clientY - touchState.lookY;
         touchState.lookX = t.clientX; touchState.lookY = t.clientY;
@@ -551,7 +540,6 @@
       if (t.identifier === touchState.moveId) {
         touchState.moveId = null;
         touchState.moveVec = { x: 0, z: 0 };
-        stickVisual(false);
       } else if (t.identifier === touchState.lookId) {
         touchState.lookId = null;
       }
