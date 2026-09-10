@@ -337,7 +337,7 @@
     const depth = rand(4.5, 7);
     const halfW = rand(1.8, 2.6);
     const height = rand(2.3, 2.8);
-    gs.cx = clamp(gs.cx + rand(-0.35, 0.35), -2.2, 2.2);
+    gs.cx = clamp(gs.cx + rand(-0.08, 0.08), -0.9, 0.9);
     gs.hue = (gs.hue + rand(-6, 6) + 360) % 360;
 
     const roll = Math.random();
@@ -353,7 +353,7 @@
     const fogColor = hsl2rgb(gs.hue, 0.4, 0.045);
     const z0 = gs.z, z1 = gs.z + depth; gs.z = z1;
     const floorY0 = gs.y, floorY1 = gs.y;
-    const doorWidth = rand(1.0, 1.25);
+    const doorWidth = rand(1.3, 1.6);
 
     const cell = {
       mode: 'interior', z0, z1, floorY0, floorY1, cx: gs.cx, halfW, height,
@@ -388,7 +388,7 @@
     const fogColor = hsl2rgb(gs.hue, 0.2, 0.03);
     const z0 = gs.z, z1 = gs.z + depth; gs.z = z1;
     const floorY0 = gs.y, floorY1 = gs.y + rise; gs.y = floorY1;
-    const doorWidth = 1.1;
+    const doorWidth = 1.35;
     const cell = {
       mode: 'stairs', z0, z1, floorY0, floorY1, cx: gs.cx, halfW, height: clearance,
       wallColor, floorColor, ceilColor: wallColor, gridColor, fogColor,
@@ -421,7 +421,7 @@
   function makeExteriorStretch(isFirst) {
     const depth = rand(9, 14);
     const halfW = rand(9, 16);
-    gs.cx = clamp(gs.cx + rand(-1, 1), -6, 6);
+    gs.cx = clamp(gs.cx + rand(-0.4, 0.4), -3, 3);
     gs.hue = (gs.hue + rand(-5, 5) + 360) % 360;
     const floorColor = hsl2rgb(gs.hue, 0.3, 0.07);
     const gridColor = hsl2rgb(gs.hue + 190, 0.7, 0.5);
@@ -663,7 +663,7 @@
   let walkPhase = 0;
   let movingBlend = 0;
   let cameraMode = 'first';
-  const LOOK_SENS = 0.0024;
+  const LOOK_SENS = 0.0019;
 
   const startScreenEl = document.getElementById('startScreen');
   const pauseScreenEl = document.getElementById('pauseScreen');

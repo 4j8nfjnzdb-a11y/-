@@ -286,7 +286,7 @@
     const depth = rand(5, 8.5);
     const halfW = rand(2.3, 3.6);
     const height = rand(2.8, 4.2);
-    gs.cx = clamp(gs.cx + rand(-0.6, 0.6), -3.2, 3.2);
+    gs.cx = clamp(gs.cx + rand(-0.2, 0.2), -1.4, 1.4);
     gs.hue = (gs.hue + rand(-8, 8) + 360) % 360;
     const wallColor = hsl2rgb(gs.hue, 0.48, 0.22);
     const floorColor = hsl2rgb(gs.hue + 15, 0.4, 0.12);
@@ -333,7 +333,7 @@
   function makeExterior() {
     const depth = rand(9, 15);
     const halfW = rand(9, 17);
-    gs.cx = clamp(gs.cx + rand(-1.2, 1.2), -6, 6);
+    gs.cx = clamp(gs.cx + rand(-0.5, 0.5), -3, 3);
     gs.hue = (gs.hue + rand(-6, 6) + 360) % 360;
     const floorColor = hsl2rgb(gs.hue, 0.35, 0.09);
     const gridColor = hsl2rgb(gs.hue + 150, 0.8, 0.6);
@@ -439,7 +439,7 @@
   let justLocked = false;
   let walkPhase = 0;
   let movingBlend = 0;
-  const LOOK_SENS = 0.0024;
+  const LOOK_SENS = 0.0019;
 
   const startScreenEl = document.getElementById('startScreen');
   const pauseScreenEl = document.getElementById('pauseScreen');
