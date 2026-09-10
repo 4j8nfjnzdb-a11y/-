@@ -145,6 +145,30 @@ html, body {
   letter-spacing: 0.03em;
 }
 
+.loadHint {
+  margin: 0.5rem 0 0;
+  font-size: 0.68rem;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+}
+
+.loadBar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.loadBarFill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+  transition: width 0.15s linear;
+}
+
 .statusLine {
   display: none;
   position: absolute;

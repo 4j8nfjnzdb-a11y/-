@@ -18,6 +18,9 @@
   const stageCanvas = document.getElementById("stageCanvas");
   const spectralCanvas = document.getElementById("spectralCanvas");
   const statusLine = document.getElementById("statusLine");
+  const loadBar = document.getElementById("loadBar");
+  const loadBarFill = document.getElementById("loadBarFill");
+  const loadHint = document.getElementById("loadHint");
 
   const rangeLenSlider = document.getElementById("rangeLenSlider");
   const rangeLenLabel = document.getElementById("rangeLenLabel");
@@ -77,6 +80,11 @@
 
   function seekTo(t) {
     return new Promise((resolve) => {
+      // If we're already essentially there (common for short clips whose
+      // random start lands on 0, the video's resting position), setting
+      // currentTime is a no-op and "seeked" never fires — resolve directly
+      // instead of hanging capture forever.
+      if (Math.abs(video.currentTime - t) < 0.03) { resolve(); return; }
       function onSeeked() { video.removeEventListener("seeked", onSeeked); resolve(); }
       video.addEventListener("seeked", onSeeked);
       video.currentTime = t;
@@ -98,6 +106,9 @@
     capturing = true;
     clearAudioLoop();
     updateStatus("サンプリング中…");
+    loadHint.hidden = false;
+    loadBar.hidden = false;
+    loadBarFill.style.width = "0%";
 
     buffer = [];
     const fit = computeFit(video.videoWidth, video.videoHeight);
@@ -107,8 +118,15 @@
 
     await seekTo(startSec);
 
+    // Sampling plays the source in real time to grab frames, so a long
+    // range otherwise means a long silent wait. Play it back faster
+    // (up to 4x) so capture wraps up in ~1.5s regardless of range length.
+    const captureRate = clamp(lengthSec / 1.5, 1, 4);
+    video.playbackRate = captureRate;
+
     const minInterval = 1000 / CAPTURE_FPS;
     let lastCapTs = -Infinity;
+    const expectedFrames = Math.min(CAPTURE_FPS * 10, Math.ceil(lengthSec * CAPTURE_FPS));
     const maxFrames = CAPTURE_FPS * 10;
 
     await new Promise((resolve) => {
@@ -121,6 +139,7 @@
         if (nowTs - lastCapTs >= minInterval - 2) {
           lastCapTs = nowTs;
           grabFrame(fit);
+          loadBarFill.style.width = `${Math.min(100, (buffer.length / expectedFrames) * 100)}%`;
         }
         schedule();
       }
@@ -137,6 +156,10 @@
       }
       video.play().then(schedule).catch(() => resolve());
     });
+
+    loadBarFill.style.width = "100%";
+    loadHint.hidden = true;
+    loadBar.hidden = true;
 
     capturing = false;
     trimStart = 0; trimEnd = 100;
