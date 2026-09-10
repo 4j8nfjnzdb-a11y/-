@@ -66,22 +66,6 @@ html, body {
   );
 }
 
-.hint {
-  position: fixed;
-  left: 1.4rem;
-  bottom: 1.2rem;
-  z-index: 3;
-  font-size: 1.05rem;
-  letter-spacing: 0.03em;
-  color: var(--ink-dim);
-  text-shadow: 0 0 8px rgba(255, 36, 81, 0.35);
-  opacity: 0;
-  transition: opacity 1.4s ease;
-  pointer-events: none;
-}
-
-.hint.visible { opacity: 0.75; }
-
 .overlay {
   position: fixed;
   inset: 0;
@@ -214,7 +198,7 @@ h1 .kana {
 
 .camToggle {
   position: fixed;
-  top: 1.2rem;
+  bottom: 1.2rem;
   left: 1.4rem;
   z-index: 4;
   font-family: var(--font-display);
@@ -239,7 +223,7 @@ h1 .kana {
 
 .fxToggle {
   position: fixed;
-  top: 1.2rem;
+  bottom: 1.2rem;
   right: 1.4rem;
   z-index: 4;
   font-family: var(--font-display);
@@ -264,7 +248,7 @@ h1 .kana {
 
 .fxPanel {
   position: fixed;
-  top: 3.6rem;
+  bottom: 3.6rem;
   right: 1.4rem;
   z-index: 4;
   width: 15.5rem;
@@ -280,7 +264,14 @@ h1 .kana {
   transform: translateY(0);
   transition: opacity 0.25s ease, transform 0.25s ease, visibility 0.25s ease;
 }
-.fxPanel.hidden { opacity: 0; transform: translateY(-8px); visibility: hidden; pointer-events: none; }
+.fxPanel.hidden { opacity: 0; transform: translateY(8px); visibility: hidden; pointer-events: none; }
+
+.uiHidden .fxToggle,
+.uiHidden .fxPanel,
+.uiHidden .camToggle {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
 
 .fxGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
 

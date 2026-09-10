@@ -443,7 +443,6 @@
 
   const startScreenEl = document.getElementById('startScreen');
   const pauseScreenEl = document.getElementById('pauseScreen');
-  const hintEl = document.getElementById('hint');
   const fxToggleEl = document.getElementById('fxToggle');
   const fxPanelEl = document.getElementById('fxPanel');
   const fxResetEl = document.getElementById('fxReset');
@@ -467,6 +466,7 @@
       if (document.pointerLockElement === canvas) { try { document.exitPointerLock(); } catch (e2) {} }
     }
     if (e.code === 'KeyF' && started && !paused) toggleFxPanel();
+    if (e.code === 'KeyH' && started && !paused) toggleUiHidden();
   });
   window.addEventListener('keyup', (e) => { const k = KEY_MAP[e.code]; if (k) keys[k] = false; });
 
@@ -552,7 +552,6 @@
     started = true;
     paused = false;
     startScreenEl.classList.add('hidden');
-    hintEl.classList.add('visible');
     fxToggleEl.classList.add('visible');
     initAudio();
     try { canvas.requestPointerLock(); } catch (e) {}
@@ -592,6 +591,13 @@
     if (willOpen && document.pointerLockElement === canvas) { try { document.exitPointerLock(); } catch (e) {} }
   }
   fxToggleEl.addEventListener('click', toggleFxPanel);
+
+  let uiHidden = false;
+  function toggleUiHidden() {
+    uiHidden = !uiHidden;
+    document.body.classList.toggle('uiHidden', uiHidden);
+    if (uiHidden && !fxPanelEl.classList.contains('hidden')) toggleFxPanel();
+  }
 
   document.querySelectorAll('.fxBtn:not(.glitchBtn)').forEach((btn) => {
     btn.addEventListener('click', () => {
