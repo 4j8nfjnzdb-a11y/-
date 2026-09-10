@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>VACANCY — 尽きない部屋</title>
+<title>NO VACANCY — 満室</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -15,8 +15,9 @@
   <canvas id="noiseLayer" class="noiseLayer" width="64" height="64" aria-hidden="true"></canvas>
   <pre class="memoryOverlay" id="memoryOverlay" aria-hidden="true"></pre>
 
-  <div class="hint" id="hint">扉を抜けるたび、景色は違う場所になる。</div>
+  <div class="hint" id="hint">灯りはついている。誰もいないのに。</div>
 
+  <button id="camToggle" class="camToggle" aria-label="視点切替">📷 視点</button>
   <button id="fxToggle" class="fxToggle" aria-label="エフェクト" aria-expanded="false">✦ FX</button>
   <div class="fxPanel hidden" id="fxPanel">
     <div class="fxGrid">
@@ -46,14 +47,14 @@
 
   <main class="overlay" id="startScreen">
     <div class="panel">
-      <h1>VACANCY<span class="kana">空室</span></h1>
-      <p class="tagline">部屋の中に、また部屋。<br />終わらない廊下を歩いて、扉の向こうへ。</p>
+      <h1>NO VACANCY<span class="kana">満室</span></h1>
+      <p class="tagline">扉を開けて、また扉。<br />灯りはついている。誰もいないのに。</p>
       <button id="startBtn" class="startBtn">CLICK TO ENTER</button>
       <p class="controls-hint">
-        <b>PC</b> — WASD / 矢印キーで歩く、マウスで見回す、Fでエフェクト、Escで一時停止<br />
+        <b>PC</b> — WASD / 矢印キーで歩く、マウスで見回す、Fでエフェクト、📷で視点切替、Escで一時停止<br />
         <b>スマホ</b> — 左側をドラッグで歩く、右側をドラッグで見回す、右上のFXボタンでエフェクト
       </p>
-      <a class="backLink" href="2/index.html">2 / NO VACANCY →</a>
+      <a class="backLink" href="../index.html">← 1 / VACANCY</a>
     </div>
   </main>
 
