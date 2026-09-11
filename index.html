@@ -76,8 +76,10 @@
       <div class="sourceRow">
         <button id="addVisualBtn" class="btn small">add visual</button>
         <button id="clearVisualBtn" class="btn small">clear visual</button>
-        <input id="visualFileInput" type="file" accept="image/*,video/*" hidden />
+        <span id="visualCount" class="dim">0 visuals</span>
+        <input id="visualFileInput" type="file" accept="image/*,video/*" multiple hidden />
       </div>
+      <div id="visualList" class="visualList"></div>
     </section>
 
     <section class="library">

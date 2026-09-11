@@ -39,6 +39,7 @@
   const loadDemoBtn = $("loadDemoBtn"), clearAudioBtn = $("clearAudioBtn");
   const addVisualBtn = $("addVisualBtn"), visualFileInput = $("visualFileInput");
   const clearVisualBtn = $("clearVisualBtn");
+  const visualList = $("visualList"), visualCount = $("visualCount");
 
   const libraryList = $("libraryList"), libraryCount = $("libraryCount");
   const randomEightBtn = $("randomEightBtn"), clearSelectionBtn = $("clearSelectionBtn");
@@ -61,15 +62,15 @@
   const patterns = new Map(); // laneId -> Array(STEPS) of hit|null
   const history = [];
 
-  let sampleUid = 0, laneUid = 0;
+  let sampleUid = 0, laneUid = 0, visualUid = 0;
 
   let playing = false;
   let schedulerTimer = null;
   let currentStep = 0;
   let nextStepTime = 0;
 
-  let visualSource = null; // HTMLCanvasElement | HTMLImageElement | HTMLVideoElement
-  let visualObjectUrl = null;
+  const visuals = []; // {id, name, kind, el, objectUrl}
+  let fallbackVisual = null; // HTMLCanvasElement, used when no visuals are loaded
   let flashes = [];
   let visualLoopRunning = false;
 
@@ -260,38 +261,84 @@
     return c;
   }
 
-  function setVisualFile(file) {
-    if (visualObjectUrl) URL.revokeObjectURL(visualObjectUrl);
-    visualObjectUrl = URL.createObjectURL(file);
-    if (file.type.startsWith("video/")) {
-      const video = document.createElement("video");
-      video.src = visualObjectUrl;
-      video.loop = true;
-      video.muted = true;
-      video.playsInline = true;
-      video.play().catch(() => {});
-      visualSource = video;
-    } else {
-      const img = new Image();
-      img.onload = () => { visualSource = img; };
-      img.src = visualObjectUrl;
+  function loadVisualFiles(files) {
+    for (const file of files) {
+      const objectUrl = URL.createObjectURL(file);
+      const isVideo = file.type.startsWith("video/");
+      const el = isVideo ? document.createElement("video") : new Image();
+      if (isVideo) {
+        el.loop = true;
+        el.muted = true;
+        el.playsInline = true;
+        el.src = objectUrl;
+        el.play().catch(() => {});
+      } else {
+        el.src = objectUrl;
+      }
+      visuals.push({ id: ++visualUid, name: file.name, kind: isVideo ? "video" : "image", el, objectUrl });
     }
+    renderVisualList();
   }
 
-  function clearVisual() {
-    if (visualObjectUrl) { URL.revokeObjectURL(visualObjectUrl); visualObjectUrl = null; }
-    visualSource = defaultVisual();
+  function removeVisual(id) {
+    const idx = visuals.findIndex((v) => v.id === id);
+    if (idx === -1) return;
+    URL.revokeObjectURL(visuals[idx].objectUrl);
+    visuals.splice(idx, 1);
+    renderVisualList();
+  }
+
+  function clearVisuals() {
+    visuals.forEach((v) => URL.revokeObjectURL(v.objectUrl));
+    visuals.length = 0;
+    renderVisualList();
+  }
+
+  function renderVisualList() {
+    visualCount.textContent = `${visuals.length} visuals`;
+    visualList.innerHTML = "";
+    visuals.forEach((v) => {
+      const row = document.createElement("div");
+      row.className = "visItem";
+      const name = document.createElement("span");
+      name.className = "name";
+      name.textContent = v.name;
+      const remove = document.createElement("button");
+      remove.className = "remove";
+      remove.textContent = "×";
+      remove.addEventListener("click", () => removeVisual(v.id));
+      row.append(name, remove);
+      visualList.appendChild(row);
+    });
+  }
+
+  // resolves which visual element a hit should draw from, falling back to
+  // the generated gradient when nothing (or the assigned index) is loaded
+  function resolveVisual(visIndex) {
+    if (visIndex >= 0 && visIndex < visuals.length) return visuals[visIndex].el;
+    return fallbackVisual;
   }
 
   // ---- pattern generation -----------------------------------------------------
 
   function randomHit() {
+    const vw = 0.28 + Math.random() * 0.42;
+    const vh = 0.28 + Math.random() * 0.42;
     return {
       offset: Math.random() * 0.75,
       len: 0.04 + Math.random() * (0.08 + chaos() * 0.4),
       rate: 1 + (Math.random() * 2 - 1) * (0.05 + chaos() * 0.35),
       gain: 0.55 + Math.random() * 0.4,
       pan: (Math.random() * 2 - 1) * 0.8,
+      // visual chop: which loaded photo/video, which crop of it, and where
+      // it lands on the stage — regenerated together with the audio slice
+      // by new phrase / recut / random replace, and restored by undo
+      visIndex: visuals.length ? Math.floor(Math.random() * visuals.length) : -1,
+      vsx: Math.random(),
+      vsy: Math.random(),
+      vw, vh,
+      vx: Math.random(),
+      vy: Math.random(),
     };
   }
 
@@ -466,18 +513,17 @@
   window.addEventListener("resize", resizeCanvas);
 
   function spawnFlash(lane, hit) {
+    const source = resolveVisual(hit.visIndex);
+    if (!source) return;
     if (flashes.length >= MAX_FLASHES) flashes.shift();
-    const w = 0.28 + Math.random() * 0.42;
-    const h = 0.28 + Math.random() * 0.42;
     flashes.push({
+      source,
       hue: lane.hue,
-      x: Math.random(),
-      y: Math.random(),
-      w, h,
-      sx: Math.random(),
-      sy: Math.random(),
+      x: hit.vx, y: hit.vy,
+      w: hit.vw, h: hit.vh,
+      sx: hit.vsx, sy: hit.vsy,
       born: performance.now(),
-      life: Math.max(160, hit.len * 1000 * 4),
+      life: Math.max(220, hit.len * 1000 * 5),
     });
     ensureVisualLoop();
   }
@@ -487,36 +533,46 @@
     return [src.width || 1, src.height || 1];
   }
 
+  function sourceReady(src) {
+    if (src instanceof HTMLVideoElement) return src.readyState >= 2;
+    if (src instanceof HTMLImageElement) return src.complete && src.naturalWidth > 0;
+    return true; // canvas fallback
+  }
+
   function drawVisualFrame() {
     const w = canvas.width, h = canvas.height;
     if (w === 0 || h === 0) { visualLoopRunning = false; return; }
 
-    vctx.fillStyle = "rgba(244, 242, 236, 0.14)";
+    vctx.fillStyle = "rgba(244, 242, 236, 0.16)";
     vctx.fillRect(0, 0, w, h);
 
     const now = performance.now();
     flashes = flashes.filter((f) => now - f.born < f.life);
 
-    if (visualSource && flashes.length) {
-      const [sw0, sh0] = sourceDims(visualSource);
-      vctx.globalCompositeOperation = "lighten";
-      for (const f of flashes) {
-        const t = (now - f.born) / f.life;
-        const alpha = Math.max(0, 1 - t) * 0.6;
-        if (alpha <= 0) continue;
-        vctx.globalAlpha = alpha;
-        vctx.filter = `hue-rotate(${f.hue}deg) saturate(1.4)`;
-        const sw = sw0 * f.w, sh = sh0 * f.h;
-        const sx = f.sx * Math.max(0, sw0 - sw);
-        const sy = f.sy * Math.max(0, sh0 - sh);
-        const dw = f.w * w, dh = f.h * h;
-        const dx = f.x * (w - dw), dy = f.y * (h - dh);
-        try { vctx.drawImage(visualSource, sx, sy, sw, sh, dx, dy, dw, dh); } catch (e) {}
-      }
-      vctx.filter = "none";
-      vctx.globalAlpha = 1;
-      vctx.globalCompositeOperation = "source-over";
+    // plain alpha compositing so real photos/video show their true colors —
+    // the earlier "lighten" blend hid anything but the brightest pixels
+    for (const f of flashes) {
+      if (!sourceReady(f.source)) continue;
+      const t = (now - f.born) / f.life;
+      const alpha = Math.max(0, 1 - t) * 0.72;
+      if (alpha <= 0) continue;
+
+      const [sw0, sh0] = sourceDims(f.source);
+      const sw = sw0 * f.w, sh = sh0 * f.h;
+      const sx = f.sx * Math.max(0, sw0 - sw);
+      const sy = f.sy * Math.max(0, sh0 - sh);
+      const dw = f.w * w, dh = f.h * h;
+      const dx = f.x * (w - dw), dy = f.y * (h - dh);
+
+      vctx.globalAlpha = alpha;
+      try { vctx.drawImage(f.source, sx, sy, sw, sh, dx, dy, dw, dh); } catch (e) {}
+
+      vctx.globalAlpha = alpha * 0.5;
+      vctx.strokeStyle = `hsl(${f.hue}, 70%, 55%)`;
+      vctx.lineWidth = Math.max(1, w / 300);
+      vctx.strokeRect(dx, dy, dw, dh);
     }
+    vctx.globalAlpha = 1;
 
     if (playing || flashes.length) {
       requestAnimationFrame(drawVisualFrame);
@@ -609,11 +665,10 @@
 
   addVisualBtn.addEventListener("click", () => visualFileInput.click());
   visualFileInput.addEventListener("change", (e) => {
-    const file = e.target.files[0];
-    if (file) setVisualFile(file);
+    loadVisualFiles(Array.from(e.target.files));
     e.target.value = "";
   });
-  clearVisualBtn.addEventListener("click", clearVisual);
+  clearVisualBtn.addEventListener("click", clearVisuals);
 
   randomEightBtn.addEventListener("click", randomEight);
   clearSelectionBtn.addEventListener("click", () => { samples.forEach((s) => (s.selected = false)); renderLibrary(); });
@@ -634,7 +689,8 @@
 
   // ---- init -----------------------------------------------------
 
-  visualSource = defaultVisual();
+  fallbackVisual = defaultVisual();
+  renderVisualList();
   resizeCanvas();
   ensureVisualLoop();
   updateStatus();

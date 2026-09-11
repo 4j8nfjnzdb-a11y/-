@@ -178,6 +178,40 @@ html, body {
   padding-top: 0.8rem;
 }
 
+.visualList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.visItem {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.68rem;
+}
+
+.visItem .name {
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.visItem .remove {
+  border: none;
+  background: transparent;
+  color: var(--ink-dim);
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0;
+}
+
+.visItem .remove:hover { color: var(--ink); }
+
 .library {
   border-top: 1px dashed var(--line);
   padding-top: 0.8rem;
