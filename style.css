@@ -207,7 +207,7 @@ html, body {
   white-space: nowrap;
 }
 
-.visItem .remove {
+.remove {
   border: none;
   background: transparent;
   color: var(--ink-dim);
@@ -216,7 +216,7 @@ html, body {
   padding: 0;
 }
 
-.visItem .remove:hover { color: var(--ink); }
+.remove:hover { color: var(--ink); }
 
 .library {
   border-top: 1px dashed var(--line);

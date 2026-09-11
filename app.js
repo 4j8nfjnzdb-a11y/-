@@ -19,6 +19,10 @@
   const LOOKAHEAD = 0.12; // seconds scheduled ahead
   const TICK_MS = 25;
   const HISTORY_LIMIT = 8;
+  const MAX_SAMPLES = 30; // caps decoded-PCM memory from repeated "add audio"
+  const MAX_VISUALS = 6;  // videos especially are expensive to keep decoding
+  const MAX_VOICES = 40;  // hard ceiling on overlapping one-shot voices
+  const VISUAL_MAX_DIM = 1024; // photos get downscaled to this on load
 
   // ---- dom -----------------------------------------------------------
 
@@ -303,6 +307,10 @@
   async function decodeFiles(files) {
     ensureAudio();
     for (const file of files) {
+      if (samples.length >= MAX_SAMPLES) {
+        statusEl.textContent = `音源は最大${MAX_SAMPLES}個まで(メモリ保護のため)。不要なものを削除してください`;
+        break;
+      }
       try {
         const arrayBuf = await file.arrayBuffer();
         const buffer = await audioCtx.decodeAudioData(arrayBuf);
@@ -312,6 +320,19 @@
       }
     }
     renderLibrary();
+  }
+
+  function removeSample(id) {
+    const idx = samples.findIndex((s) => s.id === id);
+    if (idx === -1) return;
+    samples.splice(idx, 1);
+    lanes.filter((l) => l.sampleId === id).forEach((l) => patterns.delete(l.id));
+    for (let i = lanes.length - 1; i >= 0; i--) {
+      if (lanes[i].sampleId === id) lanes.splice(i, 1);
+    }
+    renderLibrary();
+    renderLanes();
+    updateStatus();
   }
 
   function synthBuffer(kind, seed) {
@@ -378,21 +399,42 @@
     return c;
   }
 
+  // large phone-camera photos decode to huge in-memory bitmaps (a 12MP
+  // photo is ~50MB uncompressed); downscaling to a canvas up front keeps
+  // several loaded photos from adding up to real crash-risk memory
+  function downscaleImage(img) {
+    const scale = Math.min(1, VISUAL_MAX_DIM / Math.max(img.naturalWidth, img.naturalHeight));
+    if (scale >= 1) return img;
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(img.naturalWidth * scale));
+    c.height = Math.max(1, Math.round(img.naturalHeight * scale));
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    return c;
+  }
+
   function loadVisualFiles(files) {
     for (const file of files) {
+      if (visuals.length >= MAX_VISUALS) {
+        statusEl.textContent = `写真/動画は最大${MAX_VISUALS}個まで(メモリ保護のため)。不要なものを削除してください`;
+        break;
+      }
       const objectUrl = URL.createObjectURL(file);
       const isVideo = file.type.startsWith("video/");
-      const el = isVideo ? document.createElement("video") : new Image();
+      const entry = { id: ++visualUid, name: file.name, kind: isVideo ? "video" : "image", el: null, objectUrl };
       if (isVideo) {
-        el.loop = true;
-        el.muted = true;
-        el.playsInline = true;
-        el.src = objectUrl;
-        el.play().catch(() => {});
+        const video = document.createElement("video");
+        video.loop = true;
+        video.muted = true;
+        video.playsInline = true;
+        video.src = objectUrl;
+        video.play().catch(() => {});
+        entry.el = video;
       } else {
-        el.src = objectUrl;
+        const img = new Image();
+        img.onload = () => { entry.el = downscaleImage(img); };
+        img.src = objectUrl;
       }
-      visuals.push({ id: ++visualUid, name: file.name, kind: isVideo ? "video" : "image", el, objectUrl });
+      visuals.push(entry);
     }
     renderVisualList();
   }
@@ -412,7 +454,7 @@
   }
 
   function renderVisualList() {
-    visualCount.textContent = `${visuals.length} visuals`;
+    visualCount.textContent = `${visuals.length}/${MAX_VISUALS} visuals`;
     visualList.innerHTML = "";
     visuals.forEach((v) => {
       const row = document.createElement("div");
@@ -583,7 +625,13 @@
 
   // ---- scheduler -----------------------------------------------------
 
+  let activeVoices = 0;
+
   function playHit(lane, hit, time) {
+    // hard ceiling: cranking bpm/density/lane-count way up can otherwise
+    // pile up overlapping voices faster than the browser reclaims them,
+    // which is what eventually crashes the tab — so just drop the hit
+    if (activeVoices >= MAX_VOICES) return;
     const sample = sampleById(lane.sampleId);
     if (!sample) return;
     const slice = computeSlice(lane);
@@ -604,6 +652,15 @@
     src.connect(g).connect(pan).connect(filterNode);
     src.start(time, slice.offset * sample.buffer.duration, dur + 0.02);
     src.stop(time + dur + 0.05);
+
+    activeVoices++;
+    src.onended = () => {
+      activeVoices--;
+      // Safari in particular is slow to reclaim Web Audio nodes on its
+      // own; disconnecting explicitly once the voice is done keeps node
+      // count from creeping up over a long play session
+      try { src.disconnect(); g.disconnect(); pan.disconnect(); } catch (e) {}
+    };
 
     const delayMs = Math.max(0, (time - audioCtx.currentTime) * 1000);
     setTimeout(() => spawnFlash(lane, hit, dur), delayMs);
@@ -746,10 +803,10 @@
   // ---- ui rendering -----------------------------------------------------
 
   function renderLibrary() {
-    libraryCount.textContent = `${samples.length} files`;
+    libraryCount.textContent = `${samples.length}/${MAX_SAMPLES} files`;
     libraryList.innerHTML = "";
     samples.forEach((s) => {
-      const row = document.createElement("label");
+      const row = document.createElement("div");
       row.className = "libItem";
       const cb = document.createElement("input");
       cb.type = "checkbox";
@@ -761,7 +818,12 @@
       const dur = document.createElement("span");
       dur.className = "dur";
       dur.textContent = `${s.buffer.duration.toFixed(2)}s`;
-      row.append(cb, name, dur);
+      const remove = document.createElement("button");
+      remove.className = "remove";
+      remove.textContent = "×";
+      remove.title = "この音源を削除(メモリ解放)";
+      remove.addEventListener("click", () => removeSample(s.id));
+      row.append(cb, name, dur, remove);
       libraryList.appendChild(row);
     });
   }
@@ -894,6 +956,7 @@
 
   fallbackVisual = defaultVisual();
   renderVisualList();
+  renderLibrary();
   resizeCanvas();
   ensureVisualLoop();
   updateStatus();
