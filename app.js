@@ -27,6 +27,7 @@
   const newPhraseBtn = $("newPhraseBtn");
   const recutBtn = $("recutBtn");
   const randomReplaceBtn = $("randomReplaceBtn");
+  const randomMuteBtn = $("randomMuteBtn");
   const undoBtn = $("undoBtn");
   const recordBtn = $("recordBtn");
 
@@ -488,7 +489,10 @@
   }
 
   function pushHistory() {
-    history.push(snapshotPatterns());
+    history.push({
+      patterns: snapshotPatterns(),
+      muted: new Map(lanes.map((l) => [l.id, l.muted])),
+    });
     if (history.length > HISTORY_LIMIT) history.shift();
   }
 
@@ -519,11 +523,29 @@
     }
   }
 
+  // "replace2": rather than reslicing audio, randomly silences a chunk of
+  // lanes so the phrase gets actual blank/silent space between the parts
+  // that still play
+  function randomMute() {
+    if (!lanes.length) return;
+    pushHistory();
+    const muteFraction = 0.25 + Math.random() * 0.4;
+    lanes.forEach((lane) => { lane.muted = Math.random() < muteFraction; });
+    if (lanes.every((l) => l.muted)) {
+      lanes[Math.floor(Math.random() * lanes.length)].muted = false;
+    }
+    renderLanes();
+  }
+
   function undoPhrase() {
     const snap = history.pop();
     if (!snap) return;
     patterns.clear();
-    snap.forEach((pat, id) => patterns.set(id, pat));
+    snap.patterns.forEach((pat, id) => patterns.set(id, pat));
+    lanes.forEach((lane) => {
+      if (snap.muted.has(lane.id)) lane.muted = snap.muted.get(lane.id);
+    });
+    renderLanes();
   }
 
   // ---- lanes -----------------------------------------------------------
@@ -831,6 +853,7 @@
   newPhraseBtn.addEventListener("click", newPhrase);
   recutBtn.addEventListener("click", recut);
   randomReplaceBtn.addEventListener("click", randomReplace);
+  randomMuteBtn.addEventListener("click", randomMute);
   undoBtn.addEventListener("click", undoPhrase);
   recordBtn.addEventListener("click", () => { recording ? stopRecording() : startRecording(); });
 
