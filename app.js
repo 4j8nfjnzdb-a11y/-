@@ -352,12 +352,44 @@
     return rev;
   }
 
-  function getActiveBuffer(track) {
+  // Decodes a pool entry's audio on first use and caches the result —
+  // loading a folder full of files only has to enumerate filenames
+  // up front, not decode every file in it before the track is usable.
+  async function ensureEntryBuffer(entry) {
+    if (entry.buffer) return entry.buffer;
+    if (!entry.file) return null;
+    const arrayBuffer = await entry.file.arrayBuffer();
+    entry.buffer = await audioCtx.decodeAudioData(arrayBuffer);
+    return entry.buffer;
+  }
+
+  async function getActiveBuffer(track) {
     const entry = track.pool[track.activeIndex];
     if (!entry) return null;
-    if (!track.reversed) return entry.buffer;
-    if (!entry.reversedBuffer) entry.reversedBuffer = reverseBuffer(entry.buffer);
+    let buffer;
+    try {
+      buffer = await ensureEntryBuffer(entry);
+    } catch (err) {
+      console.warn("decode failed:", entry.name, err);
+      return null;
+    }
+    if (!buffer) return null;
+    if (!track.reversed) return buffer;
+    if (!entry.reversedBuffer) entry.reversedBuffer = reverseBuffer(buffer);
     return entry.reversedBuffer;
+  }
+
+  // Keeps memory bounded to roughly one decoded buffer per track: once
+  // a pool entry stops being the active one, drop its decoded audio so
+  // a large folder doesn't accumulate dozens of full decodes over a
+  // session (the file itself is kept, so it decodes again if revisited).
+  function evictEntryBuffer(track, index) {
+    if (index === undefined || index === track.activeIndex) return;
+    const entry = track.pool[index];
+    if (entry && entry.file) {
+      entry.buffer = null;
+      entry.reversedBuffer = null;
+    }
   }
 
   function setLoadStatus(track, message) {
@@ -381,33 +413,46 @@
     await ensureAudioContext();
     await workletReady;
 
-    const pool = [];
-    const failedNames = [];
-    for (const file of files) {
-      try {
-        const arrayBuffer = await file.arrayBuffer();
-        const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-        pool.push({ name: file.name, buffer: audioBuffer, reversedBuffer: null });
-      } catch (err) {
-        console.warn("decode failed:", file.name, err);
-        failedNames.push(file.name);
-      }
-    }
-
-    if (!pool.length) {
-      setLoadStatus(track, `読み込み失敗: ${failedNames.slice(0, 2).join(", ")}${failedNames.length > 2 ? " ほか" : ""}(非対応の形式かも)`);
-      return;
-    }
+    // Just wrap the File objects — nothing gets decoded here. Decoding
+    // every file in a big folder up front is what made loading slow
+    // and, once memory pressure hit, made later files fail to decode.
+    const pool = files.map((file) => ({ name: file.name, file, buffer: null, reversedBuffer: null }));
 
     stopTrack(track);
     track.pool = pool;
-    track.activeIndex = Math.floor(Math.random() * pool.length);
     track.reversed = false;
     track.loopStart = undefined;
     track.loopLength = undefined;
     if (track.revBtn.classList.contains("on")) track.revBtn.classList.remove("on");
 
-    setLoadStatus(track, failedNames.length ? `${failedNames.length}件は読み込めませんでした` : "");
+    // Decode just the one file that's about to actually play. If it
+    // happens to be unplayable, try a few other random picks rather
+    // than leaving the track stuck on a dead file.
+    let ready = false;
+    const tried = new Set();
+    for (let attempt = 0; attempt < Math.min(5, pool.length); attempt++) {
+      const idx = Math.floor(Math.random() * pool.length);
+      if (tried.has(idx)) continue;
+      tried.add(idx);
+      track.activeIndex = idx;
+      try {
+        await ensureEntryBuffer(pool[idx]);
+        ready = true;
+        break;
+      } catch (err) {
+        console.warn("decode failed:", pool[idx].name, err);
+      }
+    }
+
+    if (!ready) {
+      setLoadStatus(track, "読み込みに失敗しました(非対応の形式かも)");
+      updateTrackName(track);
+      updatePoolCount(track);
+      setTrackEnabled(track, false);
+      return;
+    }
+
+    setLoadStatus(track, "");
     drawWaveform(track);
     updateLoopOverlay(track);
     updateTrackName(track);
@@ -675,8 +720,11 @@
     if (!track.chain) buildTrackChain(track);
     if (!track.pool.length) return;
 
-    const buffer = getActiveBuffer(track);
-    if (!buffer) return;
+    const buffer = await getActiveBuffer(track);
+    if (!buffer) {
+      setLoadStatus(track, "この音声を再生できませんでした");
+      return;
+    }
 
     if (track.loopStart === undefined) {
       const region = pickLoopRegion(buffer.duration);
@@ -721,17 +769,34 @@
     if (!track.pool.length) return;
 
     if (track.pool.length > 1 && Math.random() < 0.35) {
-      let idx;
-      do {
-        idx = Math.floor(Math.random() * track.pool.length);
-      } while (idx === track.activeIndex);
-      track.activeIndex = idx;
-      updateTrackName(track);
-      drawWaveform(track);
+      const previousIndex = track.activeIndex;
+      const tried = new Set([previousIndex]);
+      const attempts = Math.min(4, track.pool.length - 1);
+      for (let attempt = 0; attempt < attempts; attempt++) {
+        let idx;
+        do {
+          idx = Math.floor(Math.random() * track.pool.length);
+        } while (tried.has(idx));
+        tried.add(idx);
+        try {
+          await ensureEntryBuffer(track.pool[idx]);
+          track.activeIndex = idx;
+          evictEntryBuffer(track, previousIndex);
+          updateTrackName(track);
+          drawWaveform(track);
+          break;
+        } catch (err) {
+          console.warn("skipping unplayable file:", track.pool[idx].name, err);
+        }
+      }
     }
 
-    const buffer = getActiveBuffer(track);
-    if (!buffer) return;
+    const buffer = await getActiveBuffer(track);
+    if (!buffer) {
+      setLoadStatus(track, "この音声を再生できませんでした");
+      return;
+    }
+    setLoadStatus(track, "");
     const region = pickLoopRegion(buffer.duration);
     track.loopStart = region.start;
     track.loopLength = region.length;
@@ -869,8 +934,8 @@
     ctx.clearRect(0, 0, w, h);
 
     const entry = track.pool[track.activeIndex];
-    if (!entry) return;
-    const buffer = entry.buffer;
+    if (!entry || !entry.buffer) return;
+    const buffer = track.reversed && entry.reversedBuffer ? entry.reversedBuffer : entry.buffer;
     const data = buffer.getChannelData(0);
     const step = Math.max(1, Math.ceil(data.length / w));
 
@@ -897,11 +962,11 @@
 
   function updateLoopOverlay(track) {
     const entry = track.pool[track.activeIndex];
-    if (!entry || track.loopStart === undefined) {
+    const buffer = track.reversed && entry && entry.reversedBuffer ? entry.reversedBuffer : entry && entry.buffer;
+    if (!entry || !buffer || track.loopStart === undefined) {
       track.loopOverlayEl.style.display = "none";
       return;
     }
-    const buffer = getActiveBuffer(track);
     const duration = buffer.duration;
     const leftPct = (track.loopStart / duration) * 100;
     const widthPct = (track.loopLength / duration) * 100;
@@ -1302,7 +1367,7 @@
         track.playheadEl.style.display = "none";
         continue;
       }
-      const buffer = getActiveBuffer(track);
+      const buffer = track.source && track.source.buffer;
       if (!buffer) continue;
       const loopLen = track.loopLength || 0.001;
       const elapsed = audioCtx.currentTime - track.playStartTime;
