@@ -28,6 +28,7 @@
   const recutBtn = $("recutBtn");
   const randomReplaceBtn = $("randomReplaceBtn");
   const undoBtn = $("undoBtn");
+  const recordBtn = $("recordBtn");
 
   const bpmSlider = $("bpm"), bpmVal = $("bpmVal");
   const densitySlider = $("density"), densityVal = $("densityVal");
@@ -56,6 +57,13 @@
   let audioCtx = null;
   let masterGain, compressor, filterNode, splitGain;
   let crushShaper, crushReturn, delayNode, delayFeedback, delayReturn, convolver, reverbReturn;
+  let mediaDest = null;
+
+  let mediaRecorder = null;
+  let recordedChunks = [];
+  let recording = false;
+  let recordSafetyTimer = null;
+  const MAX_RECORD_MS = 5 * 60 * 1000;
 
   const samples = []; // {id, name, buffer, selected}
   const lanes = [];   // {id, sampleId, muted, solo, hue}
@@ -96,6 +104,9 @@
     compressor.threshold.value = -16;
     compressor.ratio.value = 4;
     masterGain.connect(compressor).connect(audioCtx.destination);
+
+    mediaDest = audioCtx.createMediaStreamDestination();
+    compressor.connect(mediaDest); // parallel tap for recording; doesn't touch the audible path
 
     filterNode = audioCtx.createBiquadFilter();
     filterNode.type = "lowpass";
@@ -180,6 +191,111 @@
   }
 
   [fxTone, fxCrush, fxDelay, fxSpace].forEach((el) => el.addEventListener("input", applyFxParams));
+
+  // ---- recording (record → WAV download) ------------------------------
+
+  function pickRecorderMime() {
+    if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return "";
+    const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"];
+    return candidates.find((c) => MediaRecorder.isTypeSupported(c)) || "";
+  }
+
+  function encodeWav(buffer) {
+    const numCh = buffer.numberOfChannels;
+    const len = buffer.length;
+    const sampleRate = buffer.sampleRate;
+    const bytes = new ArrayBuffer(44 + len * numCh * 2);
+    const view = new DataView(bytes);
+    const writeStr = (off, s) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
+
+    writeStr(0, "RIFF");
+    view.setUint32(4, 36 + len * numCh * 2, true);
+    writeStr(8, "WAVE");
+    writeStr(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true); // PCM
+    view.setUint16(22, numCh, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * numCh * 2, true);
+    view.setUint16(32, numCh * 2, true);
+    view.setUint16(34, 16, true);
+    writeStr(36, "data");
+    view.setUint32(40, len * numCh * 2, true);
+
+    const channels = [];
+    for (let c = 0; c < numCh; c++) channels.push(buffer.getChannelData(c));
+    let offset = 44;
+    for (let i = 0; i < len; i++) {
+      for (let c = 0; c < numCh; c++) {
+        const s = Math.max(-1, Math.min(1, channels[c][i]));
+        view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+        offset += 2;
+      }
+    }
+    return new Blob([bytes], { type: "audio/wav" });
+  }
+
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+
+  function timestamp() {
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+  }
+
+  async function finishRecording() {
+    const chunks = recordedChunks;
+    recordedChunks = [];
+    if (!chunks.length) return;
+    recordBtn.textContent = "書き出し中…";
+    try {
+      const blob = new Blob(chunks, { type: mediaRecorder.mimeType || "audio/webm" });
+      const arrayBuf = await blob.arrayBuffer();
+      const buffer = await audioCtx.decodeAudioData(arrayBuf);
+      downloadBlob(encodeWav(buffer), `kizami_${timestamp()}.wav`);
+    } catch (e) {
+      console.warn("recording export failed", e);
+      statusEl.textContent = "録音の書き出しに失敗しました";
+    }
+    recordBtn.textContent = "● 録音";
+    recordBtn.classList.remove("recording");
+  }
+
+  function startRecording() {
+    ensureAudio();
+    if (!window.MediaRecorder) {
+      statusEl.textContent = "このブラウザは録音に対応していません";
+      return;
+    }
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    const mimeType = pickRecorderMime();
+    mediaRecorder = mimeType ? new MediaRecorder(mediaDest.stream, { mimeType }) : new MediaRecorder(mediaDest.stream);
+    recordedChunks = [];
+    mediaRecorder.ondataavailable = (e) => { if (e.data.size) recordedChunks.push(e.data); };
+    mediaRecorder.onstop = finishRecording;
+    mediaRecorder.start();
+    recording = true;
+    recordBtn.textContent = "■ 停止して書き出し";
+    recordBtn.classList.add("recording");
+    if (!playing) start();
+    recordSafetyTimer = setTimeout(stopRecording, MAX_RECORD_MS);
+  }
+
+  function stopRecording() {
+    if (!recording) return;
+    recording = false;
+    clearTimeout(recordSafetyTimer);
+    mediaRecorder.stop();
+  }
 
   // ---- sample loading -----------------------------------------------------
 
@@ -321,12 +437,26 @@
 
   // ---- pattern generation -----------------------------------------------------
 
+  // slice length/position: "auto" (dice) keeps re-rolling a fresh cut on
+  // every hit; otherwise the lane's own len/pos sliders decide, live, so
+  // dragging them (or the per-lane reroll button) is heard immediately
+  // without needing to regenerate the phrase
+  function computeSlice(lane) {
+    if (lane.autoRoll) {
+      return { offset: Math.random() * 0.75, len: 0.03 + Math.random() * 0.5 };
+    }
+    return { offset: lane.posRatio * 0.85, len: 0.03 + lane.lenRatio * 0.7 };
+  }
+
+  function rerollSlice(lane) {
+    lane.posRatio = Math.random() * 0.85;
+    lane.lenRatio = Math.random();
+  }
+
   function randomHit() {
     const vw = 0.28 + Math.random() * 0.42;
     const vh = 0.28 + Math.random() * 0.42;
     return {
-      offset: Math.random() * 0.75,
-      len: 0.04 + Math.random() * (0.08 + chaos() * 0.4),
       rate: 1 + (Math.random() * 2 - 1) * (0.05 + chaos() * 0.35),
       gain: 0.55 + Math.random() * 0.4,
       pan: (Math.random() * 2 - 1) * 0.8,
@@ -406,7 +536,10 @@
     for (const s of selected) {
       if (lanes.length >= MAX_LANES) break;
       if (lanes.some((l) => l.sampleId === s.id)) continue;
-      const lane = { id: ++laneUid, sampleId: s.id, muted: false, solo: false, hue: Math.random() * 360 };
+      const lane = {
+        id: ++laneUid, sampleId: s.id, muted: false, solo: false, hue: Math.random() * 360,
+        autoRoll: true, lenRatio: 0.2 + Math.random() * 0.3, posRatio: Math.random() * 0.6,
+      };
       lanes.push(lane);
       patterns.set(lane.id, generateLanePattern());
     }
@@ -431,12 +564,13 @@
   function playHit(lane, hit, time) {
     const sample = sampleById(lane.sampleId);
     if (!sample) return;
+    const slice = computeSlice(lane);
     const src = audioCtx.createBufferSource();
     src.buffer = sample.buffer;
     src.playbackRate.value = hit.rate;
 
     const g = audioCtx.createGain();
-    const dur = Math.min(hit.len, Math.max(0.02, sample.buffer.duration - hit.offset * sample.buffer.duration - 0.01));
+    const dur = Math.min(slice.len, Math.max(0.02, sample.buffer.duration - slice.offset * sample.buffer.duration - 0.01));
     g.gain.setValueAtTime(0, time);
     g.gain.linearRampToValueAtTime(hit.gain, time + 0.005);
     g.gain.setValueAtTime(hit.gain, Math.max(time + 0.006, time + dur - 0.02));
@@ -446,11 +580,11 @@
     pan.pan.value = hit.pan;
 
     src.connect(g).connect(pan).connect(filterNode);
-    src.start(time, hit.offset * sample.buffer.duration, dur + 0.02);
+    src.start(time, slice.offset * sample.buffer.duration, dur + 0.02);
     src.stop(time + dur + 0.05);
 
     const delayMs = Math.max(0, (time - audioCtx.currentTime) * 1000);
-    setTimeout(() => spawnFlash(lane, hit), delayMs);
+    setTimeout(() => spawnFlash(lane, hit, dur), delayMs);
     setTimeout(() => flashLaneRow(lane.id), delayMs);
   }
 
@@ -512,7 +646,7 @@
   }
   window.addEventListener("resize", resizeCanvas);
 
-  function spawnFlash(lane, hit) {
+  function spawnFlash(lane, hit, dur) {
     const source = resolveVisual(hit.visIndex);
     if (!source) return;
     if (flashes.length >= MAX_FLASHES) flashes.shift();
@@ -523,7 +657,7 @@
       w: hit.vw, h: hit.vh,
       sx: hit.vsx, sy: hit.vsy,
       born: performance.now(),
-      life: Math.max(220, hit.len * 1000 * 5),
+      life: Math.max(220, dur * 1000 * 5),
     });
     ensureVisualLoop();
   }
@@ -618,6 +752,9 @@
       const row = document.createElement("div");
       row.className = "laneRow";
       row.dataset.laneId = lane.id;
+
+      const top = document.createElement("div");
+      top.className = "laneTop";
       const name = document.createElement("span");
       name.className = "name";
       name.textContent = s ? s.name : "?";
@@ -629,7 +766,49 @@
       solo.className = "laneToggle" + (lane.solo ? " on" : "");
       solo.textContent = "s";
       solo.addEventListener("click", () => { lane.solo = !lane.solo; solo.classList.toggle("on", lane.solo); });
-      row.append(name, mute, solo);
+      const auto = document.createElement("button");
+      auto.className = "laneToggle dice" + (lane.autoRoll ? " on" : "");
+      auto.textContent = "🎲";
+      auto.title = "auto: 鳴るたびに長さ・位置を変え続ける";
+      top.append(name, auto, mute, solo);
+
+      const cut = document.createElement("div");
+      cut.className = "laneCut";
+      const lenSlider = document.createElement("input");
+      lenSlider.type = "range"; lenSlider.min = 0; lenSlider.max = 100;
+      lenSlider.value = Math.round(lane.lenRatio * 100);
+      lenSlider.title = "length";
+      lenSlider.addEventListener("input", () => { lane.lenRatio = +lenSlider.value / 100; });
+      const posSlider = document.createElement("input");
+      posSlider.type = "range"; posSlider.min = 0; posSlider.max = 100;
+      posSlider.value = Math.round(lane.posRatio * 100);
+      posSlider.title = "position";
+      posSlider.addEventListener("input", () => { lane.posRatio = +posSlider.value / 100; });
+      const reroll = document.createElement("button");
+      reroll.className = "laneToggle";
+      reroll.textContent = "↻";
+      reroll.title = "この音の長さ・位置を一回だけ変える";
+      reroll.addEventListener("click", () => {
+        rerollSlice(lane);
+        lenSlider.value = Math.round(lane.lenRatio * 100);
+        posSlider.value = Math.round(lane.posRatio * 100);
+      });
+
+      function syncCutDisabled() {
+        cut.classList.toggle("disabled", lane.autoRoll);
+      }
+      auto.addEventListener("click", () => {
+        lane.autoRoll = !lane.autoRoll;
+        auto.classList.toggle("on", lane.autoRoll);
+        if (!lane.autoRoll) rerollSlice(lane); // fresh, sensible starting point
+        lenSlider.value = Math.round(lane.lenRatio * 100);
+        posSlider.value = Math.round(lane.posRatio * 100);
+        syncCutDisabled();
+      });
+      syncCutDisabled();
+
+      cut.append(lenSlider, posSlider, reroll);
+      row.append(top, cut);
       lanesList.appendChild(row);
     });
   }
@@ -653,6 +832,7 @@
   recutBtn.addEventListener("click", recut);
   randomReplaceBtn.addEventListener("click", randomReplace);
   undoBtn.addEventListener("click", undoPhrase);
+  recordBtn.addEventListener("click", () => { recording ? stopRecording() : startRecording(); });
 
   bpmSlider.addEventListener("input", () => { bpmVal.textContent = bpmSlider.value; updateStatus(); });
   densitySlider.addEventListener("input", () => { densityVal.textContent = densitySlider.value; });

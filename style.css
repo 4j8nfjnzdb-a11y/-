@@ -115,6 +115,12 @@ html, body {
   border-color: var(--accent);
 }
 
+.btn.recording {
+  background: #c23b3b;
+  border-color: #c23b3b;
+  color: var(--paper);
+}
+
 .param {
   display: flex;
   flex-direction: column;
@@ -270,9 +276,9 @@ html, body {
 
 .laneRow {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.3rem 0;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.4rem 0;
   border-bottom: 1px solid var(--line);
   font-size: 0.72rem;
   transition: background-color 0.08s ease;
@@ -280,6 +286,12 @@ html, body {
 
 .laneRow.hit {
   background-color: rgba(14, 165, 176, 0.18);
+}
+
+.laneTop {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .laneRow .name {
@@ -292,6 +304,7 @@ html, body {
 .laneToggle {
   width: 1.5rem;
   height: 1.5rem;
+  flex: none;
   border: 1px solid var(--line);
   background: transparent;
   color: var(--ink-dim);
@@ -305,6 +318,52 @@ html, body {
   background: var(--ink);
   color: var(--paper);
   border-color: var(--ink);
+}
+
+.laneToggle.dice {
+  font-size: 0.8rem;
+}
+
+.laneCut {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding-left: 0.1rem;
+  transition: opacity 0.15s ease;
+}
+
+.laneCut.disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.laneCut input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1;
+  min-width: 0;
+  height: 2px;
+  background: var(--line);
+  outline: none;
+}
+
+.laneCut input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--ink);
+  cursor: pointer;
+}
+
+.laneCut input[type="range"]::-moz-range-thumb {
+  width: 9px;
+  height: 9px;
+  border: none;
+  border-radius: 50%;
+  background: var(--ink);
+  cursor: pointer;
 }
 
 .hint {
