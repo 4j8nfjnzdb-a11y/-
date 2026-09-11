@@ -724,7 +724,7 @@
       await ensureWorkletLoaded(ctx);
     } catch (err) {
       console.error(err);
-      setStatus("Live preview 非対応のブラウザです: " + err.message);
+      setStatus("LIVEはfile://では動きません。ローカルサーバー経由（例: python3 -m http.server）で開いてください");
       return;
     }
 
