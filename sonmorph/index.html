@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>son morph — spectral sound morphing</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="app-header">
+      <div class="brand">son <strong>morph</strong></div>
+      <div class="tagline">SPECTRAL SOUND MORPHING</div>
+      <button id="swapBtn" class="iconBtn" title="AとBを入れ替え">⇄</button>
+    </header>
+
+    <section class="sources">
+      <div class="sourceCard sourceA" data-slot="A">
+        <div class="sourceHead">
+          <span class="badge badgeA">A</span>
+          <span class="fileName" id="nameA">未読み込み</span>
+        </div>
+        <canvas class="specCanvas" id="specA"></canvas>
+        <div class="fileInfo" id="infoA">&nbsp;</div>
+        <div class="sourceButtons">
+          <button class="btn" data-action="load" data-slot="A">load</button>
+          <button class="btn iconOnly" data-action="play" data-slot="A" disabled>▶</button>
+          <button class="btn iconOnly" data-action="stop" data-slot="A" disabled>■</button>
+          <button class="btn" data-action="clear" data-slot="A" disabled>clear</button>
+        </div>
+        <input type="file" accept="audio/*" class="fileInput" id="fileA" hidden />
+      </div>
+
+      <div class="sourceCard sourceB" data-slot="B">
+        <div class="sourceHead">
+          <span class="badge badgeB">B</span>
+          <span class="fileName" id="nameB">未読み込み</span>
+        </div>
+        <canvas class="specCanvas" id="specB"></canvas>
+        <div class="fileInfo" id="infoB">&nbsp;</div>
+        <div class="sourceButtons">
+          <button class="btn" data-action="load" data-slot="B">load</button>
+          <button class="btn iconOnly" data-action="play" data-slot="B" disabled>▶</button>
+          <button class="btn iconOnly" data-action="stop" data-slot="B" disabled>■</button>
+          <button class="btn" data-action="clear" data-slot="B" disabled>clear</button>
+        </div>
+        <input type="file" accept="audio/*" class="fileInput" id="fileB" hidden />
+      </div>
+    </section>
+
+    <section class="trajectory">
+      <div class="sectionHead">
+        <span class="sectionTitle">TIME DISTRIBUTION <em>/</em> MORPH TRAJECTORY</span>
+        <div class="modeButtons">
+          <button class="modeBtn active" data-mode="segment">SEGMENT</button>
+          <button class="modeBtn" data-mode="node">NODE</button>
+          <button class="modeBtn" data-mode="freehand">FREEHAND</button>
+          <button class="modeBtn resetBtn" id="resetTrajBtn">RESET</button>
+        </div>
+      </div>
+
+      <canvas class="trajCanvas" id="trajCanvas"></canvas>
+
+      <div class="trajFoot">
+        <span class="trajReadout" id="trajReadout">A 100% / Morph 0% / B 0%</span>
+        <div class="trajOptions">
+          <label class="miniLabel">CURVE
+            <select id="curveType">
+              <option value="s-curve">S-Curve</option>
+              <option value="linear">Linear</option>
+              <option value="ease-in">Ease In</option>
+              <option value="ease-out">Ease Out</option>
+            </select>
+          </label>
+          <label class="miniLabel">TENSION
+            <input type="range" id="tension" min="0" max="100" value="50" />
+          </label>
+          <span class="tensionVal" id="tensionVal">50</span>
+        </div>
+      </div>
+
+      <label class="overmorphRow">
+        <input type="checkbox" id="overmorph" />
+        <span class="toggleTrack"><span class="toggleThumb"></span></span>
+        Overmorph (−40 – 140%)
+      </label>
+    </section>
+
+    <section class="lengthSection">
+      <div class="lengthRow">
+        <span class="lenLabel lenA">A</span>
+        <input type="range" id="lengthSlider" min="0" max="100" value="50" />
+        <span class="lenLabel lenB">B</span>
+        <span class="lenValue" id="lengthValue">—</span>
+      </div>
+    </section>
+
+    <section class="params">
+      <div class="paramGrid">
+
+        <div class="paramRow">
+          <label class="paramLabel">事前ピッチ合わせ<small>推定ピッチをそろえてからモーフ</small></label>
+          <select id="prePitch" class="paramSelect">
+            <option value="off">OFF</option>
+            <option value="toA">Bをaに合わせる</option>
+            <option value="toB">Aをbに合わせる</option>
+          </select>
+          <label class="toggleRow">
+            <span class="toggleName">位相ロック<small>位相ボコーダで安定合成</small></span>
+            <input type="checkbox" id="phaseLock" checked />
+            <span class="toggleTrack"><span class="toggleThumb"></span></span>
+          </label>
+        </div>
+
+        <div class="paramRow">
+          <label class="paramLabel">フォルマント融合<small>低次スペクトル包絡の混合度</small></label>
+          <input type="range" class="paramSlider" id="formantAmt" min="0" max="100" value="85" />
+          <span class="paramVal" id="formantAmtVal">85%</span>
+          <label class="toggleRow">
+            <span class="toggleName">密位相合成<small>ホップ幅を半分にして高密度合成</small></span>
+            <input type="checkbox" id="denseSynthesis" checked />
+            <span class="toggleTrack"><span class="toggleThumb"></span></span>
+          </label>
+        </div>
+
+        <div class="paramRow">
+          <label class="paramLabel">倍音系列<small>残差(励起)成分の混合カーブ</small></label>
+          <input type="range" class="paramSlider" id="harmonicAmt" min="0" max="100" value="100" />
+          <span class="paramVal" id="harmonicAmtVal">100%</span>
+          <label class="toggleRow">
+            <span class="toggleName">自動時間整合<small>DTWでエネルギー曲線を対応付け</small></span>
+            <input type="checkbox" id="autoTimeAlign" />
+            <span class="toggleTrack"><span class="toggleThumb"></span></span>
+          </label>
+        </div>
+
+        <div class="paramRow">
+          <label class="paramLabel">クロス合成<small>包絡と励起を入れ替えて合成</small></label>
+          <input type="range" class="paramSlider" id="crossSynthesis" min="0" max="100" value="0" />
+          <span class="paramVal" id="crossSynthesisVal">0%</span>
+          <label class="toggleRow">
+            <span class="toggleName">ラウドネス整合<small>RMSレベルをそろえてから混合</small></span>
+            <input type="checkbox" id="loudnessMatch" checked />
+            <span class="toggleTrack"><span class="toggleThumb"></span></span>
+          </label>
+        </div>
+
+        <div class="paramRow">
+          <label class="paramLabel">トランジェント保持<small>アタックの検出強度で片側にスナップ</small></label>
+          <input type="range" class="paramSlider" id="transientPreserve" min="0" max="100" value="55" />
+          <span class="paramVal" id="transientPreserveVal">55%</span>
+          <label class="toggleRow">
+            <span class="toggleName">ピーク正規化<small>-1.0 dBFS に合わせる</small></span>
+            <input type="checkbox" id="peakNormalize" checked />
+            <span class="toggleTrack"><span class="toggleThumb"></span></span>
+          </label>
+        </div>
+
+        <div class="paramRow">
+          <label class="paramLabel">打楽器・ノイズ分離<small>メディアンフィルタによる成分分離の強さ</small></label>
+          <input type="range" class="paramSlider" id="percussionSeparation" min="0" max="100" value="60" />
+          <span class="paramVal" id="percussionSeparationVal">60%</span>
+          <label class="toggleRow">
+            <span class="toggleName">TPDFディザ<small>書き出し時のみ、量子化前に付加</small></span>
+            <input type="checkbox" id="tpdfDither" checked />
+            <span class="toggleTrack"><span class="toggleThumb"></span></span>
+          </label>
+        </div>
+
+        <div class="paramRow single">
+          <label class="paramLabel">トーン⇄ノイズ<small>分離した調波/打楽器成分の混合比</small></label>
+          <input type="range" class="paramSlider" id="toneNoiseBalance" min="-100" max="100" value="0" />
+          <span class="paramVal" id="toneNoiseBalanceVal">0</span>
+        </div>
+
+        <div class="paramRow single">
+          <label class="paramLabel">解析窓長 (FFT サイズ)<small>大きいほど周波数分解能↑・時間分解能↓</small></label>
+          <select id="fftSize" class="paramSelect wide">
+            <option value="512">512</option>
+            <option value="1024">1024</option>
+            <option value="2048" selected>2048</option>
+            <option value="4096">4096</option>
+          </select>
+        </div>
+      </div>
+
+      <p class="hintText">
+        フォルマント融合と倍音系列を両方0%にすると素直なクロスフェードになります。まずそこを基準にして、上げていくと質感が混ざり始めます。
+      </p>
+    </section>
+
+    <section class="renderSection">
+      <div class="renderTransport">
+        <button class="pill pillMorph" id="playMorphBtn" disabled>Morphing</button>
+        <button class="btn iconOnly" id="stopMorphBtn" disabled>■</button>
+        <button class="pill pillRender" id="renderBtn" disabled>Rendering</button>
+        <button class="btn" id="downloadBtn" disabled>download wav</button>
+      </div>
+      <div class="progressTrack"><div class="progressFill" id="progressFill"></div></div>
+      <div class="statusLine" id="statusLine">READY</div>
+      <canvas class="specCanvas outputSpec" id="specOut"></canvas>
+    </section>
+  </main>
+
+  <script src="dsp.js"></script>
+  <script src="engine.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
