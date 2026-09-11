@@ -3,39 +3,106 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>kizashi — generative ambient</title>
+<title>kizami — phrase collage</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <canvas id="bg"></canvas>
-
-  <main class="ui">
-    <header>
-      <h1>kizashi <span class="sub">きざし</span></h1>
-      <p class="tagline">反復に見せかけて、予測の像を結ぶ寸前でかわし続けるアンビエント。</p>
+  <main class="app">
+    <header class="topbar">
+      <h1>kizami <span class="tag">beta</span></h1>
+      <p class="tagline">音源をランダムに刻んで並べ替え、映像を同期させて、気に入ったフレーズを探す実験アプリ。</p>
     </header>
 
-    <div class="transport">
-      <button id="playBtn" class="playBtn">再生</button>
-      <button id="paletteBtn" class="ghostBtn">配色を変える</button>
-    </div>
+    <section class="stage">
+      <canvas id="visual"></canvas>
+    </section>
 
-    <div class="controls">
-      <label class="slider">
-        <span>密度 <em>density</em></span>
-        <input id="density" type="range" min="0" max="100" value="42" />
-      </label>
-      <label class="slider">
-        <span>明暗 <em>tone</em></span>
-        <input id="tone" type="range" min="0" max="100" value="50" />
-      </label>
-      <label class="slider">
-        <span>揺らぎ <em>swerve</em></span>
-        <input id="swerve" type="range" min="0" max="100" value="55" />
-      </label>
-    </div>
+    <section class="status" id="status">sources: 0 · lanes 0/16 · position — / 64</section>
 
-    <p class="hint">音は毎回、一度きりのものです。同じ配列は二度と戻ってきません。</p>
+    <section class="transport">
+      <button id="playBtn" class="btn primary">再生</button>
+      <button id="newPhraseBtn" class="btn">new phrase</button>
+      <button id="recutBtn" class="btn">recut</button>
+      <button id="randomReplaceBtn" class="btn">random replace</button>
+      <button id="undoBtn" class="btn">undo phrase</button>
+    </section>
+
+    <section class="params">
+      <label class="param">
+        <span>bpm</span>
+        <input id="bpm" type="range" min="50" max="180" value="100" />
+        <em id="bpmVal">100</em>
+      </label>
+      <label class="param">
+        <span>density</span>
+        <input id="density" type="range" min="0" max="100" value="35" />
+        <em id="densityVal">35</em>
+      </label>
+      <label class="param">
+        <span>chaos</span>
+        <input id="chaos" type="range" min="0" max="100" value="40" />
+        <em id="chaosVal">40</em>
+      </label>
+    </section>
+
+    <section class="fx">
+      <span class="fxLabel">fx</span>
+      <label class="param">
+        <span>tone</span>
+        <input id="fxTone" type="range" min="0" max="100" value="85" />
+      </label>
+      <label class="param">
+        <span>crush</span>
+        <input id="fxCrush" type="range" min="0" max="100" value="0" />
+      </label>
+      <label class="param">
+        <span>delay</span>
+        <input id="fxDelay" type="range" min="0" max="100" value="15" />
+      </label>
+      <label class="param">
+        <span>space</span>
+        <input id="fxSpace" type="range" min="0" max="100" value="20" />
+      </label>
+    </section>
+
+    <section class="source">
+      <div class="sourceRow">
+        <span class="sectionLabel">source</span>
+        <button id="addAudioBtn" class="btn small">add audio</button>
+        <button id="loadDemoBtn" class="btn small">load demo kit</button>
+        <button id="clearAudioBtn" class="btn small">clear audio</button>
+        <input id="audioFileInput" type="file" accept="audio/*" multiple hidden />
+      </div>
+      <div class="sourceRow">
+        <button id="addVisualBtn" class="btn small">add visual</button>
+        <button id="clearVisualBtn" class="btn small">clear visual</button>
+        <input id="visualFileInput" type="file" accept="image/*,video/*" hidden />
+      </div>
+    </section>
+
+    <section class="library">
+      <div class="libraryHead">
+        <span class="sectionLabel">library</span>
+        <span id="libraryCount" class="dim">0 files</span>
+      </div>
+      <div id="libraryList" class="libraryList"></div>
+      <div class="libraryActions">
+        <button id="randomEightBtn" class="btn small">random 8</button>
+        <button id="clearSelectionBtn" class="btn small">clear</button>
+        <button id="replaceLanesBtn" class="btn small">replace</button>
+        <button id="addLanesBtn" class="btn small">add</button>
+      </div>
+    </section>
+
+    <section class="lanes">
+      <div class="lanesHead">
+        <button id="hideLanesBtn" class="btn small">hide lanes</button>
+        <span id="lanesCount" class="dim">lanes 0/16</span>
+      </div>
+      <div id="lanesList" class="lanesList"></div>
+    </section>
+
+    <p class="hint">音は毎回、その場限りの並び。気に入ったら「recut」ではなく操作をやめて聴き続けてください。</p>
   </main>
 
   <script src="app.js"></script>
