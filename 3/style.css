@@ -1,9 +1,9 @@
 :root {
-  --void: #0d0207;
-  --ink: #f5e9e2;
-  --ink-dim: rgba(245, 233, 226, 0.55);
-  --neon-a: #ff2451;
-  --neon-b: #ffb84d;
+  --void: #0a0518;
+  --ink: #eef0ff;
+  --ink-dim: rgba(238, 240, 255, 0.55);
+  --neon-a: #b48cff;
+  --neon-b: #ffd9a8;
   --font-display: "Hiragino Sans", "Yu Gothic", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "Hiragino Sans", "Yu Gothic", -apple-system, BlinkMacSystemFont, "Segoe UI", monospace;
 }
@@ -50,7 +50,7 @@ html, body {
     rgba(0, 0, 0, 0.12) 2px,
     rgba(0, 0, 0, 0.12) 3px
   );
-  opacity: 0.55;
+  opacity: 0.5;
 }
 
 .vignette {
@@ -61,8 +61,8 @@ html, body {
   background: radial-gradient(
     ellipse at center,
     rgba(0, 0, 0, 0) 40%,
-    rgba(13, 2, 7, 0.6) 85%,
-    rgba(13, 2, 7, 0.94) 100%
+    rgba(10, 5, 24, 0.6) 85%,
+    rgba(10, 5, 24, 0.94) 100%
   );
 }
 
@@ -73,7 +73,7 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(ellipse at center, rgba(40, 2, 12, 0.55) 0%, rgba(6, 1, 4, 0.92) 100%);
+  background: radial-gradient(ellipse at center, rgba(40, 20, 70, 0.5) 0%, rgba(6, 3, 14, 0.92) 100%);
   backdrop-filter: blur(2px);
   transition: opacity 0.5s ease, visibility 0.5s ease;
   -webkit-user-select: none;
@@ -97,13 +97,13 @@ h1 {
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 2.7rem;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.14em;
   color: var(--ink);
   text-wrap: balance;
   text-shadow:
-    0 0 6px rgba(255, 36, 81, 0.9),
-    0 0 22px rgba(255, 36, 81, 0.5),
-    0 0 44px rgba(255, 184, 77, 0.35);
+    0 0 6px rgba(180, 140, 255, 0.9),
+    0 0 22px rgba(180, 140, 255, 0.5),
+    0 0 44px rgba(255, 217, 168, 0.35);
 }
 
 h1.small { font-size: 1.9rem; }
@@ -116,7 +116,7 @@ h1 .kana {
   letter-spacing: 0.6em;
   margin-top: 0.6rem;
   color: var(--neon-b);
-  text-shadow: 0 0 10px rgba(255, 184, 77, 0.65);
+  text-shadow: 0 0 10px rgba(255, 217, 168, 0.65);
 }
 
 .tagline {
@@ -133,18 +133,18 @@ h1 .kana {
   letter-spacing: 0.14em;
   padding: 0.85rem 2rem;
   border-radius: 2px;
-  border: 1px solid rgba(255, 184, 77, 0.55);
-  background: rgba(255, 184, 77, 0.08);
+  border: 1px solid rgba(255, 217, 168, 0.55);
+  background: rgba(255, 217, 168, 0.08);
   color: var(--ink);
   cursor: pointer;
   transition: background 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease;
-  box-shadow: 0 0 14px rgba(255, 184, 77, 0.15);
+  box-shadow: 0 0 14px rgba(255, 217, 168, 0.15);
 }
 
 .startBtn:hover, .startBtn:focus-visible {
-  border-color: rgba(255, 36, 81, 0.85);
-  background: rgba(255, 36, 81, 0.12);
-  box-shadow: 0 0 22px rgba(255, 36, 81, 0.35);
+  border-color: rgba(180, 140, 255, 0.85);
+  background: rgba(180, 140, 255, 0.14);
+  box-shadow: 0 0 22px rgba(180, 140, 255, 0.35);
   outline: none;
 }
 
@@ -178,10 +178,10 @@ h1 .kana {
   color: var(--ink-dim);
   opacity: 0.55;
   text-decoration: none;
-  border-bottom: 1px solid rgba(245, 233, 226, 0.25);
+  border-bottom: 1px solid rgba(238, 240, 255, 0.25);
   transition: opacity 0.25s ease, border-color 0.25s ease;
 }
-.backLink:hover { opacity: 0.9; border-color: rgba(255, 184, 77, 0.7); }
+.backLink:hover { opacity: 0.9; border-color: rgba(180, 140, 255, 0.7); }
 
 @media (max-width: 480px) {
   h1 { font-size: 2rem; }
@@ -203,31 +203,6 @@ h1 .kana {
 }
 .noiseLayer.active { opacity: 0.4; }
 
-.camToggle {
-  position: fixed;
-  bottom: 1.2rem;
-  left: 1.4rem;
-  z-index: 4;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 0.85rem;
-  letter-spacing: 0.06em;
-  padding: 0.55rem 0.95rem;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 184, 77, 0.45);
-  background: rgba(13, 2, 7, 0.55);
-  color: var(--ink);
-  cursor: pointer;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.5s ease, border-color 0.3s ease, background 0.3s ease;
-}
-.camToggle.visible { opacity: 1; pointer-events: auto; }
-.camToggle:hover, .camToggle.third {
-  border-color: rgba(255, 36, 81, 0.75);
-  background: rgba(255, 36, 81, 0.14);
-}
-
 .fxToggle {
   position: fixed;
   bottom: 1.2rem;
@@ -239,8 +214,8 @@ h1 .kana {
   letter-spacing: 0.08em;
   padding: 0.55rem 0.95rem;
   border-radius: 999px;
-  border: 1px solid rgba(255, 184, 77, 0.45);
-  background: rgba(13, 2, 7, 0.55);
+  border: 1px solid rgba(255, 217, 168, 0.45);
+  background: rgba(10, 5, 20, 0.55);
   color: var(--ink);
   cursor: pointer;
   opacity: 0;
@@ -249,8 +224,8 @@ h1 .kana {
 }
 .fxToggle.visible { opacity: 1; pointer-events: auto; }
 .fxToggle:hover, .fxToggle.open {
-  border-color: rgba(255, 36, 81, 0.75);
-  background: rgba(255, 36, 81, 0.14);
+  border-color: rgba(180, 140, 255, 0.75);
+  background: rgba(180, 140, 255, 0.14);
 }
 
 .fxPanel {
@@ -263,8 +238,8 @@ h1 .kana {
   overflow-y: auto;
   padding: 0.9rem;
   border-radius: 10px;
-  border: 1px solid rgba(255, 184, 77, 0.35);
-  background: rgba(13, 2, 9, 0.87);
+  border: 1px solid rgba(255, 217, 168, 0.35);
+  background: rgba(10, 5, 22, 0.88);
   backdrop-filter: blur(6px);
   box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
   opacity: 1;
@@ -274,8 +249,7 @@ h1 .kana {
 .fxPanel.hidden { opacity: 0; transform: translateY(8px); visibility: hidden; pointer-events: none; }
 
 .uiHidden .fxToggle,
-.uiHidden .fxPanel,
-.uiHidden .camToggle {
+.uiHidden .fxPanel {
   opacity: 0 !important;
   pointer-events: none !important;
 }
@@ -290,8 +264,8 @@ h1 .kana {
   min-width: 0;
   padding: 0.55rem 0.2rem;
   border-radius: 6px;
-  border: 1px solid rgba(245, 233, 226, 0.18);
-  background: rgba(245, 233, 226, 0.04);
+  border: 1px solid rgba(238, 240, 255, 0.18);
+  background: rgba(238, 240, 255, 0.04);
   color: var(--ink-dim);
   font-family: var(--font-mono);
   font-size: 0.78rem;
@@ -302,12 +276,12 @@ h1 .kana {
   transition: border-color 0.25s ease, background 0.25s ease, color 0.25s ease, box-shadow 0.25s ease;
 }
 .fxBtn .ic { font-size: 1.2rem; line-height: 1; }
-.fxBtn:hover { border-color: rgba(255, 184, 77, 0.5); }
+.fxBtn:hover { border-color: rgba(255, 217, 168, 0.5); }
 .fxBtn.active {
   border-color: var(--neon-b);
-  background: rgba(255, 184, 77, 0.14);
+  background: rgba(255, 217, 168, 0.14);
   color: var(--ink);
-  box-shadow: 0 0 12px rgba(255, 184, 77, 0.35);
+  box-shadow: 0 0 12px rgba(255, 217, 168, 0.35);
 }
 
 .fxResetBtn {
@@ -315,7 +289,7 @@ h1 .kana {
   margin-top: 0.7rem;
   padding: 0.5rem;
   border-radius: 6px;
-  border: 1px solid rgba(255, 36, 81, 0.35);
+  border: 1px solid rgba(180, 140, 255, 0.35);
   background: transparent;
   color: var(--ink-dim);
   font-family: var(--font-mono);
@@ -323,22 +297,22 @@ h1 .kana {
   cursor: pointer;
   transition: border-color 0.25s ease, color 0.25s ease;
 }
-.fxResetBtn:hover { border-color: rgba(255, 36, 81, 0.8); color: var(--ink); }
+.fxResetBtn:hover { border-color: rgba(180, 140, 255, 0.8); color: var(--ink); }
 
 .fxSection {
   margin: 0.7rem 0 0.4rem;
   font-family: var(--font-mono);
   font-size: 0.72rem;
   letter-spacing: 0.16em;
-  color: rgba(255, 36, 81, 0.8);
-  text-shadow: 0 0 6px rgba(255, 36, 81, 0.4);
+  color: rgba(180, 140, 255, 0.85);
+  text-shadow: 0 0 6px rgba(180, 140, 255, 0.4);
 }
 .fxGrid + .fxSection { margin-top: 0.8rem; }
 
 .fxBtn.glitchBtn.active {
   border-color: var(--neon-a);
-  background: rgba(255, 36, 81, 0.16);
-  box-shadow: 0 0 12px rgba(255, 36, 81, 0.4);
+  background: rgba(180, 140, 255, 0.16);
+  box-shadow: 0 0 12px rgba(180, 140, 255, 0.4);
 }
 
 .glitchLayer {
@@ -356,15 +330,15 @@ h1 .kana {
   z-index: 3;
   max-width: 62%;
   padding: 0.45rem 0.65rem;
-  background: rgba(4, 0, 2, 0.8);
-  border: 1px solid rgba(255, 100, 60, 0.5);
-  color: #ff9e7c;
+  background: rgba(2, 1, 6, 0.8);
+  border: 1px solid rgba(180, 140, 255, 0.5);
+  color: #cbb8ff;
   font-family: "Courier New", monospace;
   font-size: 0.68rem;
   line-height: 1.45;
   white-space: pre;
   opacity: 0;
   pointer-events: none;
-  text-shadow: 0 0 4px rgba(255, 158, 124, 0.6);
+  text-shadow: 0 0 4px rgba(203, 184, 255, 0.6);
 }
 .memoryOverlay.active { opacity: 0.95; }

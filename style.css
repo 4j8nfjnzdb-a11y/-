@@ -163,9 +163,16 @@ h1 .kana {
   opacity: 0.9;
 }
 
+.seriesLinks {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 1.4rem;
+}
+
 .backLink {
   display: inline-block;
-  margin-top: 1.4rem;
   font-size: 0.8rem;
   letter-spacing: 0.04em;
   color: var(--ink-dim);
