@@ -38,6 +38,55 @@
 
   const MEDIAN_WIN = 9;
 
+  function lookupTable(table, t) {
+    if (!table) return t;
+    const pos = t * (table.length - 1);
+    const i0 = Math.floor(pos), frac = pos - i0;
+    const i1 = Math.min(table.length - 1, i0 + 1);
+    return table[i0] + (table[i1] - table[i0]) * frac;
+  }
+
+  // One-time whole-file analysis (pitch estimate, DTW time-alignment,
+  // loudness matching). Shared by the offline render below and by the
+  // live-preview worklet, which needs the same numbers but can't run
+  // this analysis itself (it only sees streamed audio blocks).
+  function computeAnalysis(A, B, p, outSR) {
+    const monoA = A.mono, monoB = B.mono;
+
+    let pitchRatioA = 1, pitchRatioB = 1;
+    if (p.prePitch !== "off") {
+      const f0A = D.estimatePitch(monoA, outSR, monoA.length / 2, 4096);
+      const f0B = D.estimatePitch(monoB, outSR, monoB.length / 2, 4096);
+      if (f0A && f0B) {
+        if (p.prePitch === "toA") pitchRatioB = f0A / f0B;
+        else pitchRatioA = f0B / f0A;
+      }
+    }
+
+    let warpTable = null;
+    if (p.autoTimeAlign) {
+      const pts = 150;
+      const envA = D.rmsEnergyContour(monoA, outSR, pts);
+      const envB = D.rmsEnergyContour(monoB, outSR, pts);
+      const maxA = Math.max(...envA, EPS), maxB = Math.max(...envB, EPS);
+      for (let i = 0; i < pts; i++) { envA[i] /= maxA; envB[i] /= maxB; }
+      const warpFn = D.dtwWarp(envA, envB);
+      const n = 256;
+      warpTable = new Float32Array(n);
+      for (let i = 0; i < n; i++) warpTable[i] = warpFn(i / (n - 1));
+    }
+
+    let gainA = 1, gainB = 1;
+    if (p.loudnessMatch) {
+      const rA = rms(monoA), rB = rms(monoB);
+      const target = (rA + rB) / 2;
+      gainA = target / Math.max(rA, EPS);
+      gainB = target / Math.max(rB, EPS);
+    }
+
+    return { pitchRatioA, pitchRatioB, warpTable, gainA, gainB };
+  }
+
   async function render(A, B, opts, onProgress) {
     const outSR = opts.outSampleRate;
     const durA = A.duration, durB = B.duration;
@@ -51,36 +100,8 @@
     const win = D.hannWindow(frameSize);
     const envRadius = Math.max(1, Math.round(frameSize / 128));
 
-    // -- optional analysis passes on mono mixdowns --------------------
-    const monoA = A.mono, monoB = B.mono;
-
-    let pitchRatioA = 1, pitchRatioB = 1;
-    if (p.prePitch !== "off") {
-      const f0A = D.estimatePitch(monoA, outSR, monoA.length / 2, 4096);
-      const f0B = D.estimatePitch(monoB, outSR, monoB.length / 2, 4096);
-      if (f0A && f0B) {
-        if (p.prePitch === "toA") pitchRatioB = f0A / f0B;
-        else pitchRatioA = f0B / f0A;
-      }
-    }
-
-    let warpFn = null;
-    if (p.autoTimeAlign) {
-      const pts = 150;
-      const envA = D.rmsEnergyContour(monoA, outSR, pts);
-      const envB = D.rmsEnergyContour(monoB, outSR, pts);
-      const maxA = Math.max(...envA, EPS), maxB = Math.max(...envB, EPS);
-      for (let i = 0; i < pts; i++) { envA[i] /= maxA; envB[i] /= maxB; }
-      warpFn = D.dtwWarp(envA, envB);
-    }
-
-    let gainA = 1, gainB = 1;
-    if (p.loudnessMatch) {
-      const rA = rms(monoA), rB = rms(monoB);
-      const target = (rA + rB) / 2;
-      gainA = target / Math.max(rA, EPS);
-      gainB = target / Math.max(rB, EPS);
-    }
+    const analysis = opts.analysis || computeAnalysis(A, B, p, outSR);
+    const { pitchRatioA, pitchRatioB, warpTable, gainA, gainB } = analysis;
 
     const numChannels = Math.max(A.channels.length, B.channels.length);
     const outChannels = [];
@@ -137,7 +158,7 @@
         const overshoot = w - wClamped;
 
         const tNormA = tNorm;
-        const tNormB = warpFn ? warpFn(tNormA) : tNorm;
+        const tNormB = warpTable ? lookupTable(warpTable, tNormA) : tNorm;
         const srcPosA = tNormA * durA * outSR;
         const srcPosB = tNormB * durB * outSR;
 
@@ -303,5 +324,5 @@
     };
   }
 
-  root.SonMorphEngine = { render };
+  root.SonMorphEngine = { render, computeAnalysis };
 })(typeof window !== "undefined" ? window : globalThis);

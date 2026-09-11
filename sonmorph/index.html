@@ -56,10 +56,14 @@
           <button class="modeBtn" data-mode="node">NODE</button>
           <button class="modeBtn" data-mode="freehand">FREEHAND</button>
           <button class="modeBtn resetBtn" id="resetTrajBtn">RESET</button>
+          <button class="modeBtn liveBtn" id="liveBtn" disabled>● LIVE</button>
         </div>
       </div>
 
       <canvas class="trajCanvas" id="trajCanvas"></canvas>
+      <p class="liveHint" id="liveHint" hidden>
+        LIVE中はカーブやパラメータをそのまま動かせば音が追従します（ピーク正規化・TPDFディザ・FFTサイズ・密位相合成は書き出しレンダリングのみ有効）。
+      </p>
 
       <div class="trajFoot">
         <span class="trajReadout" id="trajReadout">A 100% / Morph 0% / B 0%</span>

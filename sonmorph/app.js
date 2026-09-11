@@ -24,6 +24,8 @@
     lengthT: 0.5,
     rendered: null,
     audioCtx: null,
+    live: null, // { node } while a live-preview worklet is running
+    livePos: 0,
   };
 
   function getAudioCtx() {
@@ -374,7 +376,15 @@
     ctx.fillText("A 100%", 4 * dpr, midTop + 12 * dpr);
     ctx.fillText("B 100%", 4 * dpr, midBottom + stripH - 4 * dpr);
 
+    if (state.live) {
+      const x = state.livePos * w;
+      ctx.strokeStyle = "#ff5a7a";
+      ctx.lineWidth = 2 * dpr;
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+    }
+
     updateReadout();
+    pushLiveTrajectory();
   }
 
   // ---- trajectory pointer interaction --------------------------------
@@ -548,6 +558,7 @@
       }
     }
     drawTrajectory();
+    pushLiveParams();
   });
 
   // ---------------------------------------------------------------
@@ -560,6 +571,7 @@
   el("lengthSlider").addEventListener("input", (e) => {
     state.lengthT = +e.target.value / 100;
     updateLengthLabel();
+    pushLiveDuration();
   });
 
   // ---------------------------------------------------------------
@@ -574,6 +586,19 @@
   ["formantAmt", "harmonicAmt", "crossSynthesis", "transientPreserve", "percussionSeparation"].forEach((id) => bindSlider(id, "%"));
   bindSlider("toneNoiseBalance", "");
   updateTensionEnabled();
+
+  // Controls that only change cheap per-frame parameters take effect
+  // live immediately. prePitch/autoTimeAlign/loudnessMatch also need
+  // their whole-file analysis (pitch ratio, DTW warp, RMS gains)
+  // recomputed. denseSynthesis/fftSize are structural (frame size/hop)
+  // and stay locked while a live session is running.
+  ["formantAmt", "harmonicAmt", "crossSynthesis", "transientPreserve", "percussionSeparation", "toneNoiseBalance", "phaseLock"].forEach((id) => {
+    el(id).addEventListener("input", pushLiveParams);
+    el(id).addEventListener("change", pushLiveParams);
+  });
+  ["prePitch", "autoTimeAlign", "loudnessMatch"].forEach((id) => {
+    el(id).addEventListener("change", () => { pushLiveAnalysis(); pushLiveParams(); });
+  });
 
   function collectParams() {
     return {
@@ -636,6 +661,7 @@
   }
   function clearSource(slot) {
     stopSource(slot);
+    stopLive();
     state.sources[slot] = null;
     resetCardVisual(slot);
     updateLengthLabel();
@@ -644,6 +670,7 @@
   }
 
   el("swapBtn").addEventListener("click", () => {
+    stopLive();
     const tmp = state.sources.A;
     state.sources.A = state.sources.B;
     state.sources.B = tmp;
@@ -655,7 +682,134 @@
   });
 
   function updateRenderReadiness() {
-    el("renderBtn").disabled = !(state.sources.A && state.sources.B);
+    const ready = !!(state.sources.A && state.sources.B);
+    el("renderBtn").disabled = !ready;
+    el("liveBtn").disabled = !ready && !state.live;
+  }
+
+  // ---------------------------------------------------------------
+  // Live preview (AudioWorklet): the same phase-vocoder engine, run
+  // continuously in real time so trajectory edits and parameter tweaks
+  // are audible immediately instead of requiring a full re-render.
+  // ---------------------------------------------------------------
+  let workletReadyPromise = null;
+  function ensureWorkletLoaded(ctx) {
+    if (!workletReadyPromise) workletReadyPromise = ctx.audioWorklet.addModule("live-worklet.js");
+    return workletReadyPromise;
+  }
+
+  function sampleTrajectory(n) {
+    const arr = new Float32Array(n);
+    for (let i = 0; i < n; i++) arr[i] = evalTrajectory(i / (n - 1));
+    return arr;
+  }
+
+  function currentOutDuration() {
+    const A = state.sources.A, B = state.sources.B;
+    return (A && B) ? A.duration + (B.duration - A.duration) * state.lengthT : 0;
+  }
+
+  const LIVE_LOCKED_IDS = ["fftSize", "denseSynthesis"];
+  function setLiveLockedControlsDisabled(disabled) {
+    LIVE_LOCKED_IDS.forEach((id) => { el(id).disabled = disabled; });
+  }
+
+  async function startLive() {
+    if (state.live || !state.sources.A || !state.sources.B) return;
+    stopMorph();
+    stopSource("A"); stopSource("B");
+    const ctx = getAudioCtx();
+    if (ctx.state === "suspended") await ctx.resume();
+    try {
+      await ensureWorkletLoaded(ctx);
+    } catch (err) {
+      console.error(err);
+      setStatus("Live preview 非対応のブラウザです: " + err.message);
+      return;
+    }
+
+    const A = state.sources.A, B = state.sources.B;
+    const params = collectParams();
+    const fftSize = +el("fftSize").value;
+    const hop = params.denseSynthesis ? fftSize / 8 : fftSize / 4;
+    const analysis = E.computeAnalysis(A, B, params, TARGET_SR);
+    const trajTable = sampleTrajectory(512);
+    const outDuration = currentOutDuration();
+
+    const dataAL = A.channels[0].slice(), dataAR = (A.channels[1] || A.channels[0]).slice();
+    const dataBL = B.channels[0].slice(), dataBR = (B.channels[1] || B.channels[0]).slice();
+
+    const node = new AudioWorkletNode(ctx, "morph-processor", {
+      numberOfInputs: 0,
+      numberOfOutputs: 1,
+      outputChannelCount: [2],
+    });
+    node.port.onmessage = (e) => {
+      const msg = e.data;
+      if (msg.type === "ready") {
+        setStatus("LIVE — 再生中。カーブやパラメータを動かすと音が追従します");
+      } else if (msg.type === "pos") {
+        state.livePos = msg.tNorm;
+        drawTrajectory();
+      }
+    };
+    node.port.postMessage({
+      type: "init",
+      frameSize: fftSize,
+      hop,
+      outSR: TARGET_SR,
+      durA: A.duration,
+      durB: B.duration,
+      outDuration,
+      dataAL, dataAR, dataBL, dataBR,
+      params,
+      trajTable,
+      analysis,
+    }, [dataAL.buffer, dataAR.buffer, dataBL.buffer, dataBR.buffer]);
+    node.connect(ctx.destination);
+
+    state.live = { node };
+    el("liveBtn").textContent = "■ STOP";
+    el("liveBtn").classList.add("playing");
+    el("liveHint").hidden = false;
+    setLiveLockedControlsDisabled(true);
+    el("playMorphBtn").disabled = true;
+  }
+
+  function stopLive() {
+    if (!state.live) return;
+    try { state.live.node.port.onmessage = null; state.live.node.disconnect(); } catch (e) {}
+    state.live = null;
+    el("liveBtn").textContent = "● LIVE";
+    el("liveBtn").classList.remove("playing");
+    el("liveHint").hidden = true;
+    setLiveLockedControlsDisabled(false);
+    el("playMorphBtn").disabled = !state.rendered;
+    updateRenderReadiness();
+    setStatus("READY");
+    drawTrajectory();
+  }
+
+  el("liveBtn").addEventListener("click", () => {
+    if (state.live) stopLive(); else startLive();
+  });
+
+  function pushLiveTrajectory() {
+    if (!state.live) return;
+    state.live.node.port.postMessage({ type: "traj", trajTable: sampleTrajectory(512) });
+  }
+  function pushLiveParams() {
+    if (!state.live) return;
+    state.live.node.port.postMessage({ type: "params", params: collectParams() });
+  }
+  function pushLiveAnalysis() {
+    if (!state.live) return;
+    const analysis = E.computeAnalysis(state.sources.A, state.sources.B, collectParams(), TARGET_SR);
+    state.live.node.port.postMessage({ type: "analysis", analysis });
+  }
+  function pushLiveDuration() {
+    if (!state.live) return;
+    state.live.node.port.postMessage({ type: "duration", outDuration: currentOutDuration() });
   }
 
   // ---------------------------------------------------------------
@@ -686,7 +840,7 @@
       state.rendered = result;
       drawFullCanvas(el("specOut"), result.specCols, "#e7e9ec");
       setStatus(`DONE — ${result.duration.toFixed(2)} s / ${result.channels.length} ch · rendered in ${(renderMs / 1000).toFixed(1)} s`);
-      el("playMorphBtn").disabled = false;
+      el("playMorphBtn").disabled = !!state.live;
       el("downloadBtn").disabled = false;
     } catch (err) {
       console.error(err);

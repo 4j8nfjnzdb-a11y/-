@@ -146,6 +146,20 @@ html, body {
 }
 .modeBtn.active { color: var(--bg); background: var(--cyan); border-color: var(--cyan); }
 .modeBtn.resetBtn { color: var(--red); }
+.modeBtn.liveBtn { color: var(--red); margin-left: 0.3rem; }
+.modeBtn.liveBtn.playing {
+  color: var(--bg); background: var(--red); border-color: var(--red);
+  animation: livePulse 1.4s ease-in-out infinite;
+}
+@keyframes livePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.liveHint {
+  font-size: 0.6rem; line-height: 1.6; color: var(--ink-faint);
+  margin: 0.5rem 0 0;
+}
 
 .trajCanvas {
   width: 100%;
