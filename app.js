@@ -837,6 +837,53 @@
     flashPanel(track);
   }
 
+  // ---------------------------------------------------------------
+  // manual loop placement — drag across the waveform to pick an exact
+  // region by hand, instead of leaving it to CYCLE's dice.
+  // ---------------------------------------------------------------
+
+  function getActiveDuration(track) {
+    const entry = track.pool[track.activeIndex];
+    if (!entry) return null;
+    const buffer = track.reversed && entry.reversedBuffer ? entry.reversedBuffer : entry.buffer;
+    return buffer ? buffer.duration : null;
+  }
+
+  function previewManualSelection(track, fracA, fracB) {
+    const left = Math.min(fracA, fracB) * 100;
+    const width = Math.max(0.6, Math.abs(fracB - fracA) * 100);
+    track.loopOverlayEl.style.display = "block";
+    track.loopOverlayEl.style.left = left + "%";
+    track.loopOverlayEl.style.width = width + "%";
+  }
+
+  async function applyManualLoopSelection(track, fracA, fracB) {
+    const duration = getActiveDuration(track);
+    if (!duration) return;
+
+    const lo = Math.min(fracA, fracB) * duration;
+    const hi = Math.max(fracA, fracB) * duration;
+    const dragWidthFrac = Math.abs(fracB - fracA);
+
+    let start, length;
+    if (dragWidthFrac < 0.015) {
+      // A near-zero drag reads as a click: keep the current loop length
+      // and just slide it so it starts at the clicked point.
+      length = track.loopLength && track.loopLength <= duration ? track.loopLength : Math.min(1, duration);
+      start = Math.min(lo, Math.max(0, duration - length));
+    } else {
+      start = lo;
+      length = Math.max(0.05, hi - lo);
+    }
+
+    track.loopStart = start;
+    track.loopLength = length;
+    await startTrackPlayback(track);
+    updateLoopOverlay(track);
+    updateLoopInfo(track);
+    flashPanel(track);
+  }
+
   function flashPanel(track) {
     track.plate.classList.add("flash");
     clearTimeout(track.flashTimer);
@@ -1180,6 +1227,42 @@
       track.dropzoneEl.classList.remove("dragover");
       const files = await collectFilesFromDataTransfer(e.dataTransfer);
       if (files.length) loadFilesIntoTrack(track, files);
+    });
+
+    // Manual loop placement: drag across the waveform to pick an exact
+    // region, or just click to slide the current-length loop to that
+    // point — an alternative to CYCLE's random pick.
+    let manualDragging = false;
+    let manualDragStartFrac = 0;
+
+    function fracFromPointer(e) {
+      const rect = track.dropzoneEl.getBoundingClientRect();
+      if (!rect.width) return 0;
+      const x = Math.min(rect.right, Math.max(rect.left, e.clientX));
+      return (x - rect.left) / rect.width;
+    }
+
+    track.dropzoneEl.addEventListener("pointerdown", (e) => {
+      if (!track.pool.length || e.button !== 0) return;
+      manualDragging = true;
+      manualDragStartFrac = fracFromPointer(e);
+      track.dropzoneEl.setPointerCapture(e.pointerId);
+      previewManualSelection(track, manualDragStartFrac, manualDragStartFrac);
+      e.preventDefault();
+    });
+    track.dropzoneEl.addEventListener("pointermove", (e) => {
+      if (!manualDragging) return;
+      previewManualSelection(track, manualDragStartFrac, fracFromPointer(e));
+    });
+    track.dropzoneEl.addEventListener("pointerup", (e) => {
+      if (!manualDragging) return;
+      manualDragging = false;
+      applyManualLoopSelection(track, manualDragStartFrac, fracFromPointer(e));
+    });
+    track.dropzoneEl.addEventListener("pointercancel", () => {
+      if (!manualDragging) return;
+      manualDragging = false;
+      updateLoopOverlay(track);
     });
 
     track.playBtn.addEventListener("click", () => {

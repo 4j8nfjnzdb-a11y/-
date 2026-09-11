@@ -157,6 +157,10 @@ html, body {
   background: #0e0c09;
   overflow: hidden;
   margin-bottom: 0.55rem;
+  cursor: crosshair;
+  user-select: none;
+  touch-action: none;
+  -webkit-user-drag: none;
 }
 
 .drop-zone.dragover {
