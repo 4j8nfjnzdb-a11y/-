@@ -3,40 +3,95 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>kizashi — generative ambient</title>
+<title>GLITCH EFFECTOR — 動画壊しエフェクター</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <canvas id="bg"></canvas>
 
-  <main class="ui">
-    <header>
-      <h1>kizashi <span class="sub">きざし</span></h1>
-      <p class="tagline">反復に見せかけて、予測の像を結ぶ寸前でかわし続けるアンビエント。</p>
+  <svg class="svgDefs" width="0" height="0">
+    <defs>
+      <filter id="fRed" color-interpolation-filters="sRGB">
+        <feColorMatrix type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" />
+      </filter>
+      <filter id="fGreen" color-interpolation-filters="sRGB">
+        <feColorMatrix type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" />
+      </filter>
+      <filter id="fBlue" color-interpolation-filters="sRGB">
+        <feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" />
+      </filter>
+    </defs>
+  </svg>
+
+  <div class="app">
+    <header class="siteHeader">
+      <h1 class="glitchTitle" data-text="GLITCH EFFECTOR">GLITCH EFFECTOR</h1>
+      <p class="tagline">動画をいれて、壊す。壊し方も度合いも自由自在。</p>
     </header>
 
-    <div class="transport">
-      <button id="playBtn" class="playBtn">再生</button>
-      <button id="paletteBtn" class="ghostBtn">配色を変える</button>
+    <div id="dropZone" class="dropZone">
+      <p class="dropMsg">ここに動画ファイルをドロップ<br><span class="or">または</span></p>
+      <label class="fileBtn">
+        ファイルを選択
+        <input type="file" id="fileInput" accept="video/*" hidden />
+      </label>
+      <p class="dropHint">ブラウザ内で処理されます。動画はどこにも送信されません。</p>
     </div>
 
-    <div class="controls">
-      <label class="slider">
-        <span>密度 <em>density</em></span>
-        <input id="density" type="range" min="0" max="100" value="42" />
-      </label>
-      <label class="slider">
-        <span>明暗 <em>tone</em></span>
-        <input id="tone" type="range" min="0" max="100" value="50" />
-      </label>
-      <label class="slider">
-        <span>揺らぎ <em>swerve</em></span>
-        <input id="swerve" type="range" min="0" max="100" value="55" />
-      </label>
-    </div>
+    <div id="stage" class="stage" hidden>
 
-    <p class="hint">音は毎回、一度きりのものです。同じ配列は二度と戻ってきません。</p>
-  </main>
+      <div class="canvasWrap">
+        <video id="video" playsinline></video>
+        <canvas id="canvas"></canvas>
+      </div>
+
+      <div class="transport">
+        <button id="playBtn" class="iconBtn" title="再生 / 一時停止">▶</button>
+        <input id="seek" class="seek" type="range" min="0" max="1000" value="0" step="1" />
+        <span id="timeLabel" class="time">0:00 / 0:00</span>
+        <button id="loopBtn" class="iconBtn ghost" title="ループ">🔁</button>
+        <button id="newFileBtn" class="iconBtn ghost" title="別の動画を選ぶ">別の動画</button>
+      </div>
+
+      <div class="panel">
+
+        <div class="masterRow">
+          <label class="masterSlider">
+            <span>壊れ度 <em>MASTER</em> <b id="masterVal">100%</b></span>
+            <input id="master" type="range" min="0" max="200" value="100" />
+          </label>
+          <button id="smashBtn" class="smashBtn">今すぐ壊す</button>
+        </div>
+
+        <div class="autoRow">
+          <label class="autoToggle">
+            <input type="checkbox" id="autoEnabled" />
+            <span>自動グリッチ</span>
+          </label>
+          <input id="autoFreq" class="autoFreqSlider" type="range" min="0" max="100" value="30" />
+          <span class="autoFreqLabel">発生頻度</span>
+        </div>
+
+        <div class="presets">
+          <button data-preset="clear">クリア</button>
+          <button data-preset="glitch">グリッチ</button>
+          <button data-preset="error">デジタルエラー</button>
+          <button data-preset="analog">アナログ故障</button>
+          <button data-preset="colorfail">カラー崩壊</button>
+          <button data-preset="chaos">カオス</button>
+        </div>
+
+        <div id="fxGrid" class="fxGrid"></div>
+
+      </div>
+
+      <div class="recordRow">
+        <button id="recordBtn" class="recordBtn">● 録画開始</button>
+        <a id="downloadLink" class="downloadLink" hidden download="glitch_output.webm">壊れた動画をダウンロード</a>
+        <span id="recStatus" class="recStatus"></span>
+      </div>
+
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>
