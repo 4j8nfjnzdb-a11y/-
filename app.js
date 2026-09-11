@@ -352,6 +352,35 @@
     return rev;
   }
 
+  // A loop region picked at a random sample position almost never lands
+  // on a zero-crossing, so the waveform jumps at the wrap point — heard
+  // as a click/pop every time the loop repeats. Rather than hunting for
+  // zero-crossings, cut a standalone buffer for just the loop region and
+  // fade both ends toward silence for a few ms, so the seam always meets
+  // near zero instead of wherever the waveform happened to be.
+  function buildLoopBuffer(sourceBuffer, startSec, lengthSec) {
+    const sampleRate = sourceBuffer.sampleRate;
+    const startSample = Math.floor(startSec * sampleRate);
+    const numSamples = Math.max(1, Math.floor(lengthSec * sampleRate));
+    const numChannels = sourceBuffer.numberOfChannels;
+    const fadeSamples = Math.max(2, Math.min(Math.floor(sampleRate * 0.008), Math.floor(numSamples * 0.1)));
+
+    const loopBuffer = audioCtx.createBuffer(numChannels, numSamples, sampleRate);
+    for (let ch = 0; ch < numChannels; ch++) {
+      const src = sourceBuffer.getChannelData(ch);
+      const dst = loopBuffer.getChannelData(ch);
+      for (let i = 0; i < numSamples; i++) {
+        const srcIdx = startSample + i;
+        dst[i] = srcIdx < src.length ? src[srcIdx] : 0;
+      }
+      for (let i = 0; i < fadeSamples; i++) {
+        dst[i] *= i / fadeSamples;
+        dst[numSamples - 1 - i] *= i / fadeSamples;
+      }
+    }
+    return loopBuffer;
+  }
+
   // Decodes a pool entry's audio on first use and caches the result —
   // loading a folder full of files only has to enumerate filenames
   // up front, not decode every file in it before the track is usable.
@@ -739,11 +768,11 @@
       } catch (e) {}
     }
 
+    const loopBuffer = buildLoopBuffer(buffer, track.loopStart, track.loopLength);
+
     const src = audioCtx.createBufferSource();
-    src.buffer = buffer;
+    src.buffer = loopBuffer;
     src.loop = true;
-    src.loopStart = track.loopStart;
-    src.loopEnd = Math.min(track.loopStart + track.loopLength, buffer.duration);
     src.playbackRate.value = track.pitchRatio;
     src.connect(track.chain.inputNode);
 
@@ -754,8 +783,9 @@
       track.wobbleConnected = false;
     }
 
-    src.start(audioCtx.currentTime, track.loopStart);
+    src.start(audioCtx.currentTime);
     track.source = src;
+    track.activeBufferDuration = buffer.duration;
     track.isPlaying = true;
     track.playStartTime = audioCtx.currentTime;
 
@@ -1367,12 +1397,11 @@
         track.playheadEl.style.display = "none";
         continue;
       }
-      const buffer = track.source && track.source.buffer;
-      if (!buffer) continue;
+      if (!track.source || !track.activeBufferDuration) continue;
       const loopLen = track.loopLength || 0.001;
       const elapsed = audioCtx.currentTime - track.playStartTime;
       const posInLoop = track.loopStart + (elapsed % loopLen);
-      const frac = posInLoop / buffer.duration;
+      const frac = posInLoop / track.activeBufferDuration;
       track.playheadEl.style.display = "block";
       track.playheadEl.style.left = frac * 100 + "%";
     }
