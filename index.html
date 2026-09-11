@@ -1,43 +1,43 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>kizashi — generative ambient</title>
+<title>ROOM 303</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <canvas id="bg"></canvas>
+  <div id="stage"></div>
 
-  <main class="ui">
-    <header>
-      <h1>kizashi <span class="sub">きざし</span></h1>
-      <p class="tagline">反復に見せかけて、予測の像を結ぶ寸前でかわし続けるアンビエント。</p>
-    </header>
+  <div id="scanlines"></div>
+  <div id="vignette"></div>
+  <div id="noise"></div>
 
-    <div class="transport">
-      <button id="playBtn" class="playBtn">再生</button>
-      <button id="paletteBtn" class="ghostBtn">配色を変える</button>
+  <div id="crosshair"></div>
+
+  <div id="prompt" class="hidden"></div>
+
+  <div id="hud" class="hidden">
+    <div id="hudLeft">ROOM&nbsp;303</div>
+    <div id="hudButtons">
+      <button id="effectBtn" class="hudBtn">EFFECT</button>
+      <button id="viewBtn" class="hudBtn">視点切替</button>
     </div>
+  </div>
 
-    <div class="controls">
-      <label class="slider">
-        <span>密度 <em>density</em></span>
-        <input id="density" type="range" min="0" max="100" value="42" />
-      </label>
-      <label class="slider">
-        <span>明暗 <em>tone</em></span>
-        <input id="tone" type="range" min="0" max="100" value="50" />
-      </label>
-      <label class="slider">
-        <span>揺らぎ <em>swerve</em></span>
-        <input id="swerve" type="range" min="0" max="100" value="55" />
-      </label>
+  <div id="overlay">
+    <div id="overlayGlow"></div>
+    <h1 id="title" data-text="ROOM 303">ROOM 303</h1>
+    <p id="subtitle">誰かが、まだここにいる。</p>
+    <div id="startBtn">クリックして入室する</div>
+    <div id="help">
+      <p><b>WASD</b> 移動　<b>マウス</b> 視点　<b>E</b> ソファに座る</p>
+      <p><b>T</b> / 視点切替ボタン　—　上から部屋を見る</p>
+      <p><b>G</b> / EFFECTボタン　—　部屋に干渉する</p>
+      <p class="small">Esc で退室（ポインタ解除）</p>
     </div>
+  </div>
 
-    <p class="hint">音は毎回、一度きりのものです。同じ配列は二度と戻ってきません。</p>
-  </main>
-
-  <script src="app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>
