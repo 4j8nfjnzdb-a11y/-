@@ -112,15 +112,20 @@
       const resAarr = new Float32Array(bins), resBarr = new Float32Array(bins);
       const finalMag = new Float32Array(bins), finalPhase = new Float32Array(bins);
       const crossMag = new Float32Array(bins);
+      const envScratchTmp = new Float32Array(bins);
+      const envScratchPrefix = new Float32Array(bins + 1);
 
       let prevFinalMag = new Float32Array(bins);
       let runningFluxMax = 1e-4;
 
+      const FREQ_WIN = 4;
       const medianRing = p.percussionSeparation > 0
         ? Array.from({ length: MEDIAN_WIN }, () => new Float32Array(bins))
         : null;
       let ringPos = 0, ringFilled = 0;
       const harmComp = new Float32Array(bins), percComp = new Float32Array(bins);
+      const medianTimeBuf = new Float32Array(MEDIAN_WIN);
+      const medianFreqBuf = new Float32Array(FREQ_WIN * 2 + 1);
 
       for (let k = 0; k < numFrames; k++) {
         const outStart = k * hop;
@@ -176,8 +181,8 @@
           logMagA[b] = Math.log(magA[b] + EPS);
           logMagB[b] = Math.log(magB[b] + EPS);
         }
-        D.spectralEnvelope(logMagA, envRadius, envAarr);
-        D.spectralEnvelope(logMagB, envRadius, envBarr);
+        D.spectralEnvelope(logMagA, envRadius, envAarr, envScratchTmp, envScratchPrefix);
+        D.spectralEnvelope(logMagB, envRadius, envBarr, envScratchTmp, envScratchPrefix);
         for (let b = 0; b < bins; b++) {
           resAarr[b] = logMagA[b] - envAarr[b];
           resBarr[b] = logMagB[b] - envBarr[b];
@@ -227,17 +232,15 @@
           medianRing[ringPos].set(finalMag);
           ringPos = (ringPos + 1) % MEDIAN_WIN;
           ringFilled = Math.min(MEDIAN_WIN, ringFilled + 1);
-          const tmpArr = new Array(ringFilled);
           for (let b = 0; b < bins; b++) {
-            for (let r = 0; r < ringFilled; r++) tmpArr[r] = medianRing[r][b];
-            harmComp[b] = D.median(tmpArr);
-          }
-          const freqWin = 4;
-          for (let b = 0; b < bins; b++) {
-            const lo = Math.max(0, b - freqWin), hi = Math.min(bins - 1, b + freqWin);
-            const seg = [];
-            for (let x = lo; x <= hi; x++) seg.push(finalMag[x]);
-            percComp[b] = D.median(seg);
+            for (let r = 0; r < ringFilled; r++) medianTimeBuf[r] = medianRing[r][b];
+            harmComp[b] = D.medianSmall(medianTimeBuf, ringFilled);
+
+            const lo = b - FREQ_WIN < 0 ? 0 : b - FREQ_WIN;
+            const hi = b + FREQ_WIN >= bins ? bins - 1 : b + FREQ_WIN;
+            let flen = 0;
+            for (let x = lo; x <= hi; x++) medianFreqBuf[flen++] = finalMag[x];
+            percComp[b] = D.medianSmall(medianFreqBuf, flen);
           }
           const tilt = p.toneNoiseBalance / 100;
           const harmGain = 1 + Math.max(0, tilt) * 1.5 - Math.max(0, -tilt) * 0.8;

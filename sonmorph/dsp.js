@@ -95,25 +95,28 @@
   // Smooths log-magnitude across frequency with a couple of box-filter
   // passes (approximates a low-order cepstral lifter without the
   // extra FFT round trip).
-  function boxFilter(src, radius, dst) {
+  // Prefix-sum box filter: O(n) regardless of radius, instead of the
+  // naive O(n*radius). `prefixScratch` (length n+1) is optional and
+  // lets callers avoid a per-call allocation in a hot loop.
+  function boxFilter(src, radius, dst, prefixScratch) {
     const n = src.length;
+    const prefix = prefixScratch || new Float32Array(n + 1);
+    prefix[0] = 0;
+    for (let i = 0; i < n; i++) prefix[i + 1] = prefix[i] + src[i];
     for (let i = 0; i < n; i++) {
-      let sum = 0, count = 0;
-      for (let k = -radius; k <= radius; k++) {
-        const idx = i + k;
-        if (idx >= 0 && idx < n) { sum += src[idx]; count++; }
-      }
-      dst[i] = sum / count;
+      const lo = i - radius < 0 ? 0 : i - radius;
+      const hi = i + radius >= n ? n - 1 : i + radius;
+      dst[i] = (prefix[hi + 1] - prefix[lo]) / (hi - lo + 1);
     }
     return dst;
   }
 
-  function spectralEnvelope(logMag, radius, out) {
+  function spectralEnvelope(logMag, radius, out, tmpScratch, prefixScratch) {
     const n = logMag.length;
     out = out || new Float32Array(n);
-    const tmp = new Float32Array(n);
-    boxFilter(logMag, radius, tmp);
-    boxFilter(tmp, radius, out);
+    const tmp = tmpScratch || new Float32Array(n);
+    boxFilter(logMag, radius, tmp, prefixScratch);
+    boxFilter(tmp, radius, out, prefixScratch);
     return out;
   }
 
@@ -122,6 +125,20 @@
     const a = Array.prototype.slice.call(arr).sort((x, y) => x - y);
     const m = a.length >> 1;
     return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+  }
+
+  // Allocation-free median of the first `len` entries of a small
+  // typed-array scratch buffer (insertion sort — fine for len <= ~16).
+  // Mutates `buf`.
+  function medianSmall(buf, len) {
+    for (let i = 1; i < len; i++) {
+      const v = buf[i];
+      let j = i - 1;
+      while (j >= 0 && buf[j] > v) { buf[j + 1] = buf[j]; j--; }
+      buf[j + 1] = v;
+    }
+    const m = len >> 1;
+    return len % 2 ? buf[m] : (buf[m - 1] + buf[m]) / 2;
   }
 
   // ---- pitch estimate (autocorrelation) -----------------------------
@@ -271,7 +288,7 @@
 
   root.SonMorphDSP = {
     fft, hannWindow, wrapPhase, extractFrame, analyzeFrame,
-    spectralEnvelope, median, estimatePitch, rmsEnergyContour,
+    spectralEnvelope, median, medianSmall, estimatePitch, rmsEnergyContour,
     dtwWarp, sCurve, sharpen, encodeWav,
   };
 })(typeof window !== "undefined" ? window : globalThis);
