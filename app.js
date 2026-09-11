@@ -47,10 +47,12 @@
   const newFileBtn = document.getElementById("newFileBtn");
   const refToggle = document.getElementById("refToggle");
   const refPanel = document.getElementById("refPanel");
+  const orientLandscapeBtn = document.getElementById("orientLandscape");
+  const orientPortraitBtn = document.getElementById("orientPortrait");
 
   const stageCtx = stageCanvas.getContext("2d");
   const spectralCtx = spectralCanvas.getContext("2d", { willReadFrequently: true });
-  const W = stageCanvas.width, H = stageCanvas.height;
+  let W = stageCanvas.width, H = stageCanvas.height;
 
   const workCanvas = document.createElement("canvas");
   workCanvas.width = W; workCanvas.height = H;
@@ -64,6 +66,32 @@
 
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
   const clampInt = (v, lo, hi) => Math.round(clamp(v, lo, hi));
+
+  // ---- orientation: swap the stage between landscape and portrait ----
+
+  let orientation = "landscape";
+  const ORIENT_DIMS = { landscape: [480, 270], portrait: [270, 480] };
+
+  function resizeCanvases(w, h) {
+    W = w; H = h;
+    stageCanvas.width = w; stageCanvas.height = h;
+    spectralCanvas.width = w; spectralCanvas.height = h;
+    workCanvas.width = w; workCanvas.height = h;
+    trailCanvas.width = w; trailCanvas.height = h;
+  }
+
+  function setOrientation(name) {
+    if (name === orientation || capturing) return;
+    orientation = name;
+    orientLandscapeBtn.classList.toggle("active", name === "landscape");
+    orientPortraitBtn.classList.toggle("active", name === "portrait");
+    const [w, h] = ORIENT_DIMS[name];
+    resizeCanvases(w, h);
+    clearTrail();
+    if (buffer.length && video.duration) {
+      doCapture(captureStart, +rangeLenSlider.value);
+    }
+  }
 
   // ---- capture buffer ----------------------------------------------
 
@@ -715,6 +743,9 @@
   canvasWrap.addEventListener("touchend", (e) => {
     if (e.touches.length < 2) pinchStartDist = null;
   }, { passive: true });
+
+  orientLandscapeBtn.addEventListener("click", () => setOrientation("landscape"));
+  orientPortraitBtn.addEventListener("click", () => setOrientation("portrait"));
 
   rangeLenSlider.addEventListener("input", updateRangeLenLabel);
   resampleBtn.addEventListener("click", () => {

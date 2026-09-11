@@ -117,7 +117,9 @@ html, body {
 
 .canvasWrap {
   position: relative;
-  width: 100%;
+  max-width: 100%;
+  width: fit-content;
+  align-self: center;
   border-radius: 10px;
   overflow: hidden;
   background: #000;
@@ -126,7 +128,9 @@ html, body {
 
 #stageCanvas, #spectralCanvas {
   display: block;
-  width: 100%;
+  max-width: 100%;
+  max-height: 70vh;
+  width: auto;
   height: auto;
 }
 
@@ -217,6 +221,12 @@ button {
   opacity: 0.35;
   cursor: not-allowed;
   border-color: var(--line);
+}
+
+.orientBtn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(125, 255, 176, 0.08);
 }
 
 .recordBtn:not(:disabled) { border-color: var(--accent2); }
