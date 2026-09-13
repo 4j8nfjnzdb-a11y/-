@@ -189,6 +189,7 @@
 
   function stop() {
     if (miracleTimer) { clearTimeout(miracleTimer); miracleTimer = null; }
+    if (miracle2Timer) { clearTimeout(miracle2Timer); miracle2Timer = null; }
     if (statusPollTimer) { clearInterval(statusPollTimer); statusPollTimer = null; }
     if (stream) stream.getTracks().forEach((t) => t.stop());
     if (node) node.disconnect();
@@ -200,8 +201,11 @@
     liveDot.classList.remove('live');
     meterFill.style.width = '0%';
     meterWarn.classList.add('hidden');
+    miracleOn = false; miracle2On = false;
     $('miracleBtn').classList.remove('active');
-    $('miracleBtn').textContent = 'Miracle OFF';
+    $('miracleBtn').textContent = 'Miracle 1 OFF';
+    $('miracle2Btn').classList.remove('active');
+    $('miracle2Btn').textContent = 'Miracle 2 OFF';
     $('rewindBtn').classList.remove('active');
     $('loopBtn').dataset.state = '0';
     $('loopBtn').textContent = 'Loop Mark: 待機中';
@@ -220,6 +224,9 @@
     send({ type: 'setMix', value: parseFloat($('mix').value) / 100 });
     send({ type: 'setPitch', value: parseFloat($('pitch').value) });
     send({ type: 'setRewindSpeed', value: parseFloat($('rwSpeed').value) });
+    send({ type: 'setDelayMix', value: parseFloat($('delayMix').value) / 100 });
+    send({ type: 'setDelayTime', value: parseFloat($('delayTime').value) });
+    send({ type: 'setDelayFeedback', value: parseFloat($('delayFb').value) / 100 });
   }
 
   $('mix').addEventListener('input', (e) => {
@@ -229,6 +236,18 @@
   $('pitch').addEventListener('input', (e) => {
     $('valPitch').textContent = parseFloat(e.target.value).toFixed(2);
     send({ type: 'setPitch', value: parseFloat(e.target.value) });
+  });
+  $('delayMix').addEventListener('input', (e) => {
+    $('valDelayMix').textContent = e.target.value + '%';
+    send({ type: 'setDelayMix', value: parseFloat(e.target.value) / 100 });
+  });
+  $('delayTime').addEventListener('input', (e) => {
+    $('valDelayTime').textContent = parseFloat(e.target.value).toFixed(2);
+    send({ type: 'setDelayTime', value: parseFloat(e.target.value) });
+  });
+  $('delayFb').addEventListener('input', (e) => {
+    $('valDelayFb').textContent = e.target.value + '%';
+    send({ type: 'setDelayFeedback', value: parseFloat(e.target.value) / 100 });
   });
   $('jump').addEventListener('input', (e) => {
     $('valJump').textContent = parseFloat(e.target.value).toFixed(1);
@@ -275,9 +294,10 @@
 
   let miracleOn = false;
   $('miracleBtn').addEventListener('click', () => {
+    if (!miracleOn && miracle2On) turnOffMiracle2();
     miracleOn = !miracleOn;
     $('miracleBtn').classList.toggle('active', miracleOn);
-    $('miracleBtn').textContent = miracleOn ? 'Miracle ON' : 'Miracle OFF';
+    $('miracleBtn').textContent = miracleOn ? 'Miracle 1 ON' : 'Miracle 1 OFF';
     if (miracleOn) {
       scheduleMiracleTick();
     } else {
@@ -293,11 +313,99 @@
     const density = parseFloat($('mDensity').value);
     const startAgo = Math.random() * Math.max(0.5, Math.min(windowSec, lastStatus.writeSec));
     const lenSec = 0.5 + (1 - density) * 2.5 * Math.random();
-    const speedMul = 0.5 + Math.random() * 1.5;
+    const speedMul = 0.5 + Math.random() * 1.5; // varies playback rate -> pitch also shifts (tape-style)
     send({ type: 'miracleSegment', startAgoSeconds: startAgo, lenSeconds: lenSec, speedMul });
     const interval = 80 + Math.random() * 500;
     miracleTimer = setTimeout(() => { if (miracleOn) scheduleMiracleTick(); }, interval);
   }
+
+  // ---- Miracle 2: pitch-locked cut-up (speedMul always 1.0), with a few
+  // switchable position-picking behaviors instead of pure randomness ----
+  let miracle2On = false;
+  let miracle2Timer = null;
+  let miracle2Mode = 'scatter';
+  let miracle2LastStartAgo = 0;
+  let miracle2WalkPos = 0;
+  let miracle2WalkDir = 1;
+
+  document.querySelectorAll('.m2mode').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.m2mode').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      miracle2Mode = btn.dataset.mode;
+    });
+  });
+
+  function turnOffMiracle2() {
+    miracle2On = false;
+    if (miracle2Timer) { clearTimeout(miracle2Timer); miracle2Timer = null; }
+    $('miracle2Btn').classList.remove('active');
+    $('miracle2Btn').textContent = 'Miracle 2 OFF';
+    send({ type: 'miracleOff' });
+  }
+
+  $('miracle2Btn').addEventListener('click', () => {
+    if (!miracle2On && miracleOn) {
+      miracleOn = false;
+      if (miracleTimer) { clearTimeout(miracleTimer); miracleTimer = null; }
+      $('miracleBtn').classList.remove('active');
+      $('miracleBtn').textContent = 'Miracle 1 OFF';
+      send({ type: 'miracleOff' });
+    }
+    miracle2On = !miracle2On;
+    $('miracle2Btn').classList.toggle('active', miracle2On);
+    $('miracle2Btn').textContent = miracle2On ? 'Miracle 2 ON' : 'Miracle 2 OFF';
+    if (miracle2On) {
+      miracle2WalkPos = 0; miracle2WalkDir = 1;
+      miracle2LastStartAgo = Math.random() * parseFloat($('m2Window').value);
+      scheduleMiracle2Tick();
+    } else {
+      if (miracle2Timer) { clearTimeout(miracle2Timer); miracle2Timer = null; }
+      send({ type: 'miracleOff' });
+      $('loopBtn').dataset.state = '0';
+      $('loopBtn').textContent = 'Loop Mark: 待機中';
+    }
+  });
+
+  function pickMiracle2StartAgo(windowSec, lenSec) {
+    switch (miracle2Mode) {
+      case 'stutter': {
+        const jitter = 0.15 + lenSec * 1.5;
+        let v = miracle2LastStartAgo + (Math.random() * 2 - 1) * jitter;
+        v = Math.max(0, Math.min(windowSec, v));
+        miracle2LastStartAgo = v;
+        return v;
+      }
+      case 'walk': {
+        miracle2WalkPos = (miracle2WalkPos + lenSec) % Math.max(0.5, windowSec);
+        return miracle2WalkPos;
+      }
+      case 'pingpong': {
+        miracle2WalkPos += lenSec * miracle2WalkDir;
+        if (miracle2WalkPos >= windowSec) { miracle2WalkPos = windowSec; miracle2WalkDir = -1; }
+        if (miracle2WalkPos <= 0) { miracle2WalkPos = 0; miracle2WalkDir = 1; }
+        return miracle2WalkPos;
+      }
+      case 'scatter':
+      default:
+        return Math.random() * windowSec;
+    }
+  }
+
+  function scheduleMiracle2Tick() {
+    const windowSec = Math.max(0.5, Math.min(parseFloat($('m2Window').value), lastStatus.writeSec));
+    const density = parseFloat($('m2Density').value);
+    const lenSec = 0.5 + (1 - density) * 2.5 * Math.random();
+    const startAgo = pickMiracle2StartAgo(windowSec, lenSec);
+    // speedMul is always 1.0 here -- the whole point of Miracle 2 is that the
+    // pitch never changes no matter how the cut-up jumps around
+    send({ type: 'miracleSegment', startAgoSeconds: startAgo, lenSeconds: lenSec, speedMul: 1.0 });
+    const interval = 80 + Math.random() * 500;
+    miracle2Timer = setTimeout(() => { if (miracle2On) scheduleMiracle2Tick(); }, interval);
+  }
+
+  $('m2Window').addEventListener('input', (e) => { $('valM2Win').textContent = e.target.value; });
+  $('m2Density').addEventListener('input', (e) => { $('valM2Dens').textContent = parseFloat(e.target.value).toFixed(2); });
 
   // ---- mode tabs (Full Control / Miracle Focus) ----
   document.querySelectorAll('.tab').forEach((tab) => {
@@ -320,6 +428,7 @@
     $('chipRewind').classList.toggle('on', rewindOn);
     $('chipLoop').classList.toggle('on', !!lastStatus.loopActive);
     $('chipMiracle').classList.toggle('on', miracleOn);
+    $('chipMiracle2').classList.toggle('on', miracle2On);
 
     const peak = lastStatus.inputPeak || 0;
     // linear peak -> 0-100% with a dB-ish curve so quiet signals are still

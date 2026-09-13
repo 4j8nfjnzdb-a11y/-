@@ -171,3 +171,90 @@ console.log('\nAll engine scenario tests passed.');
 })();
 
 console.log('input meter test passed.');
+
+// --- Test: delay/echo is transparent when off, and produces a timed repeat when on ---
+(function testDelayOff() {
+  const a = new TapeGhostEngine(SR, 30);
+  const b = new TapeGhostEngine(SR, 30);
+  a.handleMessage({ type: 'setMix', value: 1.0 });
+  b.handleMessage({ type: 'setMix', value: 1.0 });
+  b.handleMessage({ type: 'setDelayMix', value: 0.0 }); // explicit 0, should match default
+  let maxDiff = 0;
+  for (let i = 0; i < SR * 3; i++) {
+    const s = Math.sin(i * 0.05);
+    const [la] = a.processSample(s, s);
+    const [lb] = b.processSample(s, s);
+    maxDiff = Math.max(maxDiff, Math.abs(la - lb));
+  }
+  assert(maxDiff < 1e-9, `delayMix=0 is bit-identical to no delay stage at all (max diff ${maxDiff})`);
+})();
+
+(function testDelayEcho() {
+  const eng = new TapeGhostEngine(SR, 30);
+  eng.handleMessage({ type: 'setMix', value: 1.0 });
+  eng.handleMessage({ type: 'setDelayTime', value: 0.2 });
+  eng.handleMessage({ type: 'setDelayFeedback', value: 0.0 }); // single repeat only, no repeats-of-repeats
+  eng.handleMessage({ type: 'setDelayMix', value: 1.0 });
+  // jump-based trick from earlier tests to get real (non-silent) wet content
+  // flowing quickly instead of waiting out the ~2s idle anchor
+  const burstLen = Math.round(0.02 * SR);
+  for (let i = 0; i < burstLen; i++) eng.processSample(1.0, 1.0);
+  for (let i = 0; i < Math.round(0.05 * SR); i++) eng.processSample(0, 0);
+  eng.handleMessage({ type: 'jump', seconds: 0.05 + burstLen / SR });
+  const energies = [];
+  const winLen = Math.round(0.02 * SR);
+  let win = [];
+  const N = Math.round(0.6 * SR);
+  for (let i = 0; i < N; i++) {
+    const [l] = eng.processSample(0, 0);
+    win.push(l * l);
+    if (win.length > winLen) win.shift();
+    energies.push({ t: i / SR, e: win.reduce((x, y) => x + y, 0) });
+  }
+  // delayMix=1.0 replaces the direct signal with the delayed tap entirely (a
+  // parallel blend, not a delay-send-on-top-of-dry), so the burst should show
+  // up ONLY once, shifted forward by the configured 0.2s delay time -- plus
+  // the same ~80ms pitch-shifter grain-window settling lag seen in the jump/
+  // miracle/freeze tests above (the jump discontinuity needs one grain window
+  // to fully flush old silence out of the shifter's two taps before the real
+  // burst content gets through to the delay line at all).
+  const expectedT = 0.2 + 0.08;
+  const peak = energies.reduce((b, c) => (c.e > b.e ? c : b), energies[0]);
+  assert(Math.abs(peak.t - expectedT) < 0.03, `delayed burst lands ~0.2s (delay time) + ~0.08s (shifter settling) after the jump (found at t=${peak.t.toFixed(3)}, expected ~${expectedT.toFixed(3)}, energy ${peak.e.toFixed(4)})`);
+  assert(peak.e > 0.01, `delayed repeat has real energy (got ${peak.e.toFixed(4)})`);
+  const nearZero = energies.filter((e) => e.t < 0.15).reduce((b, c) => (c.e > b.e ? c : b), energies[0]);
+  assert(nearZero.e < 0.001, `with delayMix=1.0 nothing appears before the delay time (got ${nearZero.e.toFixed(5)} before t=0.15)`);
+})();
+
+(function testDelayFeedbackDecay() {
+  const eng = new TapeGhostEngine(SR, 30);
+  eng.handleMessage({ type: 'setMix', value: 1.0 });
+  eng.handleMessage({ type: 'setDelayTime', value: 0.1 });
+  eng.handleMessage({ type: 'setDelayFeedback', value: 0.5 });
+  eng.handleMessage({ type: 'setDelayMix', value: 1.0 });
+  const burstLen = Math.round(0.02 * SR);
+  for (let i = 0; i < burstLen; i++) eng.processSample(1.0, 1.0);
+  for (let i = 0; i < Math.round(0.05 * SR); i++) eng.processSample(0, 0);
+  eng.handleMessage({ type: 'jump', seconds: 0.05 + burstLen / SR });
+  const N = Math.round(1.0 * SR);
+  const vals = [];
+  for (let i = 0; i < N; i++) vals.push(eng.processSample(0, 0)[0]);
+  // find peak amplitude within each ~0.1s repeat window after the initial settle
+  const delaySamples = Math.round(0.1 * SR);
+  const settleOffset = Math.round(0.08 * SR); // pitch-shifter grain settling, as above
+  const repeatPeaks = [];
+  for (let r = 0; r < 5; r++) {
+    // r=0's window starts right after the settle offset PLUS one full delay
+    // period, since nothing plays before the first echo actually arrives
+    const start = settleOffset + (r + 1) * delaySamples;
+    let m = 0;
+    for (let i = start; i < start + delaySamples && i < N; i++) m = Math.max(m, Math.abs(vals[i]));
+    repeatPeaks.push(m);
+  }
+  assert(repeatPeaks[0] > 0.5, `first repeat is near full amplitude (got ${repeatPeaks[0].toFixed(3)})`);
+  let decaying = true;
+  for (let i = 1; i < repeatPeaks.length; i++) if (repeatPeaks[i] >= repeatPeaks[i - 1] - 1e-6) decaying = false;
+  assert(decaying, `feedback repeats decay each cycle: ${repeatPeaks.map((v) => v.toFixed(3))}`);
+})();
+
+console.log('delay/echo test passed.');

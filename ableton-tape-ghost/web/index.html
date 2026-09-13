@@ -167,7 +167,8 @@ a{ color:var(--accent2); }
         <div style="margin-top:6px;">
           <span class="modechip" id="chipRewind">REWIND</span>
           <span class="modechip" id="chipLoop">LOOP</span>
-          <span class="modechip" id="chipMiracle">MIRACLE</span>
+          <span class="modechip" id="chipMiracle">MIRACLE 1</span>
+          <span class="modechip" id="chipMiracle2">MIRACLE 2</span>
         </div>
         <div style="margin-top:10px;"><button class="btn-ghost" id="stopBtn">入力を停止</button></div>
       </div>
@@ -194,6 +195,24 @@ a{ color:var(--accent2); }
         <div class="ctl">
           <label>Pitch（半音・微分音可） <span class="val" id="valPitch">0.0</span></label>
           <input type="range" id="pitch" min="-24" max="24" step="0.05" value="0">
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Delay（過去の音に反復する遅延を足す）</h2>
+      <div class="grid">
+        <div class="ctl">
+          <label>Delay Mix <span class="val" id="valDelayMix">0%</span></label>
+          <input type="range" id="delayMix" min="0" max="100" value="0">
+        </div>
+        <div class="ctl">
+          <label>Delay Time <span class="val" id="valDelayTime">0.30</span>s</label>
+          <input type="range" id="delayTime" min="0.02" max="2" step="0.01" value="0.3">
+        </div>
+        <div class="ctl">
+          <label>Feedback（繰り返す回数） <span class="val" id="valDelayFb">35%</span></label>
+          <input type="range" id="delayFb" min="0" max="95" value="35">
         </div>
       </div>
     </div>
@@ -234,10 +253,10 @@ a{ color:var(--accent2); }
     </div>
 
     <div class="panel">
-      <h2>Miracle（ランダム・カットアップ）</h2>
+      <h2>Miracle 1（ランダム・カットアップ／スピードも変わる＝ピッチも変わる）</h2>
       <div class="grid">
         <div class="ctl">
-          <button class="btn-toggle" id="miracleBtn" style="width:100%">Miracle OFF</button>
+          <button class="btn-toggle" id="miracleBtn" style="width:100%">Miracle 1 OFF</button>
         </div>
         <div class="ctl">
           <label>History Window <span class="val" id="valMWin">30</span>s</label>
@@ -246,6 +265,32 @@ a{ color:var(--accent2); }
         <div class="ctl">
           <label>Density <span class="val" id="valMDens">0.5</span></label>
           <input type="range" id="mDensity" min="0" max="1" step="0.01" value="0.5">
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Miracle 2（ピッチ固定・波形をランダムに行き来）</h2>
+      <div class="grid">
+        <div class="ctl">
+          <button class="btn-toggle" id="miracle2Btn" style="width:100%">Miracle 2 OFF</button>
+        </div>
+        <div class="ctl">
+          <label>History Window <span class="val" id="valM2Win">30</span>s</label>
+          <input type="range" id="m2Window" min="2" max="120" step="1" value="30">
+        </div>
+        <div class="ctl">
+          <label>Density <span class="val" id="valM2Dens">0.5</span></label>
+          <input type="range" id="m2Density" min="0" max="1" step="0.01" value="0.5">
+        </div>
+        <div class="ctl" style="grid-column:1/-1;">
+          <label>挙動（押して切り替え）</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn-toggle m2mode active" data-mode="scatter" style="flex:1;min-width:100px;">Scatter（全域ランダム）</button>
+            <button class="btn-toggle m2mode" data-mode="stutter" style="flex:1;min-width:100px;">Stutter（近くで連打）</button>
+            <button class="btn-toggle m2mode" data-mode="walk" style="flex:1;min-width:100px;">Walk（順に進む）</button>
+            <button class="btn-toggle m2mode" data-mode="pingpong" style="flex:1;min-width:100px;">Ping-pong（往復）</button>
+          </div>
         </div>
       </div>
     </div>
@@ -258,7 +303,7 @@ a{ color:var(--accent2); }
 </div>
 
 <script>
-const WORKLET_SOURCE = "// Shared DSP core: circular recording buffer with variable-rate scrub readout,\n// plus a simple delay-line granular pitch shifter. Written as plain functions/\n// classes so the exact same code can be (a) unit-tested under Node and\n// (b) embedded verbatim into the AudioWorkletProcessor that runs in the browser.\n\nclass RingChannel {\n  constructor(length) {\n    this.length = length | 0;\n    this.data = new Float32Array(this.length);\n  }\n  write(absIndex, value) {\n    const i = absIndex % this.length;\n    this.data[i < 0 ? i + this.length : i] = value;\n  }\n  readInterp(pos) {\n    const i0f = Math.floor(pos);\n    const frac = pos - i0f;\n    let i0 = i0f % this.length; if (i0 < 0) i0 += this.length;\n    let i1 = i0 + 1; if (i1 >= this.length) i1 = 0;\n    const a = this.data[i0], b = this.data[i1];\n    return a + (b - a) * frac;\n  }\n}\n\n// Simple real-time delay-line \"granular\" pitch shifter (two crossfading taps\n// with a triangular window), the standard DIY DSP recipe for click-free-ish\n// pitch shifting without FFT. `ratio` = 2^(semitones/12).\nclass GranularPitchShifter {\n  constructor(sampleRate, windowSeconds = 0.08) {\n    this.sampleRate = sampleRate;\n    this.windowSamples = Math.max(64, Math.round(sampleRate * windowSeconds));\n    // generous history so posA/posB never chase past what's been written, even\n    // at extreme ratios (each tap can only drift ~ratio*windowSamples per grain)\n    this.bufLen = this.windowSamples * 16;\n    this.buf = new Float32Array(this.bufLen);\n    this.writePos = 0;\n    this.ratio = 1.0;\n\n    this.grainPhaseA = 0;\n    this.grainPhaseB = Math.floor(this.windowSamples / 2);\n    this.posA = -this.windowSamples;\n    this.posB = -this.windowSamples;\n  }\n  setRatio(r) { this.ratio = r; }\n  _tri(x) {\n    const t = x / this.windowSamples; // 0..1\n    return 1 - Math.abs(2 * t - 1);\n  }\n  process(sample) {\n    this.buf[this.writePos % this.bufLen] = sample;\n    this.writePos++;\n\n    // advance grain clocks in real time; on wrap, re-anchor that tap's read\n    // position windowSamples behind \"now\" -- inaudible because the triangular\n    // envelope is exactly 0 at phase 0.\n    // Reset anchors subtract one extra `ratio` because the `+= ratio` just\n    // below always runs afterward too; without this, every reset would add a\n    // spurious +ratio jump (a slow pitch/position drift that's invisible at\n    // ratio=1 only by accident of testing with short signals).\n    this.grainPhaseA++;\n    if (this.grainPhaseA >= this.windowSamples) {\n      this.grainPhaseA = 0;\n      this.posA = this.writePos - this.windowSamples - this.ratio;\n    }\n    this.grainPhaseB++;\n    if (this.grainPhaseB >= this.windowSamples) {\n      this.grainPhaseB = 0;\n      this.posB = this.writePos - this.windowSamples - this.ratio;\n    }\n\n    // each tap's own read pointer moves at `ratio` samples per sample of real\n    // time -- THIS is what shifts the pitch (independent of the fixed-rate\n    // grain/window clock above, which only governs crossfade timing).\n    this.posA += this.ratio;\n    this.posB += this.ratio;\n\n    const outA = this._readBuf(this.posA) * this._tri(this.grainPhaseA);\n    const outB = this._readBuf(this.posB) * this._tri(this.grainPhaseB);\n    return outA + outB;\n  }\n  _readBuf(pos) {\n    const i0f = Math.floor(pos);\n    const frac = pos - i0f;\n    let i0 = i0f % this.bufLen; if (i0 < 0) i0 += this.bufLen;\n    let i1 = i0 + 1; if (i1 >= this.bufLen) i1 = 0;\n    const a = this.buf[i0], b = this.buf[i1];\n    return a + (b - a) * frac;\n  }\n}\n\nfunction semitonesToRatio(semi) {\n  return Math.pow(2, semi / 12);\n}\n\nif (typeof module !== 'undefined' && module.exports) {\n  module.exports = { RingChannel, GranularPitchShifter, semitonesToRatio };\n}\n\n// This text is concatenated after dsp-core.js and loaded into an AudioWorklet\n// via a Blob URL (see app.js). Keep it dependency-free (no imports) since the\n// blob has no meaningful base URL for module resolution.\n//\n// TapeGhostEngine holds all the actual per-sample logic and is plain JS with\n// no AudioWorklet dependency, so the exact same class is also loaded under\n// Node in test-engine.js for offline scenario testing.\n\nclass TapeGhostEngine {\n  constructor(sr, bufferSeconds) {\n    this.sr = sr;\n    this.bufferSamples = Math.max(1, Math.round(bufferSeconds * sr));\n    this.minGuard = Math.round(0.05 * sr);\n\n    this.ringL = new RingChannel(this.bufferSamples);\n    this.ringR = new RingChannel(this.bufferSamples);\n\n    this.writeCounter = 0;\n    this.readPos = 0;\n    this.idleAnchored = false;\n    this.minDelaySamples = Math.round(2.0 * sr);\n\n    this.rewindOn = false;\n    this.rewindSpeed = 1.0;\n\n    this.loopActive = false;\n    this.loopGain = 0.0;\n    this.loopGainStep = 1 / (0.015 * sr);\n    this.loopStartAbs = 0;\n    this.loopLen = Math.round(0.2 * sr);\n    this.loopLocal = 0;\n    this.loopRate = 1.0;\n    this.loopClickState = 0;\n    this.pendingLoopStart = 0;\n\n    this.mix = 0.0;\n    this.mixSmoothed = 0.0;\n    this.mixSmoothStep = 1 / (0.03 * sr);\n\n    // input level meter (peak with decay) -- exists purely so the UI can show\n    // \"is any signal actually arriving from the selected input device at\n    // all\", independent of Mix/effect state, since that's the first thing to\n    // check when an audio interface \"makes no sound\" through a web page.\n    this.inputPeak = 0.0;\n    this.inputPeakDecay = Math.pow(0.001, 1 / (0.3 * sr)); // ~300ms fall to -60dB\n\n    this.pitchSemitones = 0.0;\n    this.pitchShifterL = new GranularPitchShifter(sr, 0.08);\n    this.pitchShifterR = new GranularPitchShifter(sr, 0.08);\n  }\n\n  handleMessage(msg) {\n    switch (msg.type) {\n      case 'setMix': this.mix = msg.value; break;\n      case 'setPitch':\n        this.pitchSemitones = msg.value;\n        this.pitchShifterL.setRatio(semitonesToRatio(this.pitchSemitones));\n        this.pitchShifterR.setRatio(semitonesToRatio(this.pitchSemitones));\n        break;\n      case 'setRewindSpeed': this.rewindSpeed = msg.value; break;\n      case 'rewind': this.rewindOn = !!msg.on; break;\n      case 'jump': {\n        const back = Math.max(0, msg.seconds) * this.sr;\n        let target = this.writeCounter - back;\n        target = Math.max(this.writeCounter - (this.bufferSamples - this.minGuard), target);\n        this.readPos = target;\n        break;\n      }\n      case 'loopMarkClick': {\n        this.loopClickState = (this.loopClickState + 1) % 3;\n        if (this.loopClickState === 1) {\n          this.pendingLoopStart = this.readPos;\n        } else if (this.loopClickState === 2) {\n          const start = this.pendingLoopStart;\n          const end = this.readPos;\n          this.loopStartAbs = start;\n          this.loopLen = Math.max(Math.round(0.05 * this.sr), Math.round(end - start));\n          this.loopLocal = 0;\n          this.loopRate = 1.0;\n          this.loopActive = true;\n        } else {\n          this.loopActive = false;\n        }\n        break;\n      }\n      case 'loopShift': {\n        const shiftSamples = Math.max(0, msg.seconds) * this.sr;\n        this.loopStartAbs -= shiftSamples;\n        this.loopLocal = 0;\n        this.loopRate = 1.0;\n        this.loopActive = true;\n        break;\n      }\n      case 'freeze': {\n        this.loopStartAbs = this.readPos;\n        this.loopLen = Math.max(Math.round(0.05 * this.sr), Math.round((msg.lenSeconds || 0.2) * this.sr));\n        this.loopLocal = 0;\n        this.loopRate = 1.0;\n        this.loopActive = true;\n        this.loopClickState = 2;\n        break;\n      }\n      case 'miracleSegment': {\n        const startAgo = Math.max(0, msg.startAgoSeconds) * this.sr;\n        let start = this.writeCounter - startAgo;\n        start = Math.max(this.writeCounter - (this.bufferSamples - this.minGuard), start);\n        this.loopStartAbs = start;\n        this.loopLen = Math.max(Math.round(0.05 * this.sr), Math.round(msg.lenSeconds * this.sr));\n        this.loopLocal = 0;\n        this.loopRate = msg.speedMul || 1.0;\n        this.loopActive = true;\n        this.loopClickState = 2;\n        break;\n      }\n      case 'miracleOff':\n      case 'loopOff': {\n        this.loopActive = false;\n        this.loopClickState = 0;\n        break;\n      }\n    }\n  }\n\n  // returns [outL, outR]\n  processSample(sampleL, sampleR) {\n    const inAbs = Math.max(Math.abs(sampleL), Math.abs(sampleR));\n    this.inputPeak = Math.max(inAbs, this.inputPeak * this.inputPeakDecay);\n\n    this.ringL.write(this.writeCounter, sampleL);\n    this.ringR.write(this.writeCounter, sampleR);\n    this.writeCounter++;\n\n    if (!this.idleAnchored && this.writeCounter >= this.minDelaySamples) {\n      this.readPos = this.writeCounter - this.minDelaySamples;\n      this.idleAnchored = true;\n    }\n\n    if (this.rewindOn) {\n      this.readPos -= this.rewindSpeed;\n    } else {\n      this.readPos += 1;\n    }\n    const minReadPos = this.writeCounter - (this.bufferSamples - this.minGuard);\n    if (this.readPos < minReadPos) this.readPos = minReadPos;\n    if (this.readPos > this.writeCounter) this.readPos = this.writeCounter;\n\n    const scrubL = this.ringL.readInterp(this.readPos);\n    const scrubR = this.ringR.readInterp(this.readPos);\n\n    const targetLoopGain = this.loopActive ? 1 : 0;\n    if (this.loopGain < targetLoopGain) this.loopGain = Math.min(targetLoopGain, this.loopGain + this.loopGainStep);\n    else if (this.loopGain > targetLoopGain) this.loopGain = Math.max(targetLoopGain, this.loopGain - this.loopGainStep);\n\n    let wetL = scrubL, wetR = scrubR;\n    if (this.loopGain > 0) {\n      this.loopLocal = (this.loopLocal + this.loopRate) % this.loopLen;\n      const loopPos = this.loopStartAbs + this.loopLocal;\n      const loopL = this.ringL.readInterp(loopPos);\n      const loopR = this.ringR.readInterp(loopPos);\n      wetL = scrubL * (1 - this.loopGain) + loopL * this.loopGain;\n      wetR = scrubR * (1 - this.loopGain) + loopR * this.loopGain;\n    }\n\n    const pitchedL = this.pitchShifterL.process(wetL);\n    const pitchedR = this.pitchShifterR.process(wetR);\n\n    if (this.mixSmoothed < this.mix) this.mixSmoothed = Math.min(this.mix, this.mixSmoothed + this.mixSmoothStep);\n    else if (this.mixSmoothed > this.mix) this.mixSmoothed = Math.max(this.mix, this.mixSmoothed - this.mixSmoothStep);\n\n    const outL = sampleL * (1 - this.mixSmoothed) + pitchedL * this.mixSmoothed;\n    const outR = sampleR * (1 - this.mixSmoothed) + pitchedR * this.mixSmoothed;\n    return [outL, outR];\n  }\n}\n\nif (typeof module !== 'undefined' && module.exports) {\n  module.exports.TapeGhostEngine = TapeGhostEngine;\n}\n\nif (typeof AudioWorkletProcessor !== 'undefined') {\n  class TapeGhostProcessor extends AudioWorkletProcessor {\n    static get parameterDescriptors() { return []; }\n\n    constructor(options) {\n      super();\n      const opts = options.processorOptions || {};\n      this.engine = new TapeGhostEngine(opts.sampleRate || sampleRate, opts.bufferSeconds || 300);\n      this.statusCounter = 0;\n      this.port.onmessage = (e) => this.engine.handleMessage(e.data);\n    }\n\n    process(inputs, outputs) {\n      const input = inputs[0];\n      const output = outputs[0];\n      const inL = (input && input[0]) || null;\n      const inR = (input && input[1]) || (input && input[0]) || null;\n      const outL = output[0];\n      const outR = output[1] || output[0];\n      const n = outL.length;\n\n      for (let i = 0; i < n; i++) {\n        const [l, r] = this.engine.processSample(inL ? inL[i] : 0, inR ? inR[i] : 0);\n        outL[i] = l;\n        outR[i] = r;\n      }\n\n      this.statusCounter += n;\n      if (this.statusCounter >= this.engine.sr * 0.05) {\n        this.statusCounter = 0;\n        this.port.postMessage({\n          type: 'status',\n          writeSec: this.engine.writeCounter / this.engine.sr,\n          readAgoSec: (this.engine.writeCounter - this.engine.readPos) / this.engine.sr,\n          loopActive: this.engine.loopActive,\n          inputPeak: this.engine.inputPeak,\n        });\n      }\n      return true;\n    }\n  }\n\n  registerProcessor('tape-ghost-processor', TapeGhostProcessor);\n}\n";
+const WORKLET_SOURCE = "// Shared DSP core: circular recording buffer with variable-rate scrub readout,\n// plus a simple delay-line granular pitch shifter. Written as plain functions/\n// classes so the exact same code can be (a) unit-tested under Node and\n// (b) embedded verbatim into the AudioWorkletProcessor that runs in the browser.\n\nclass RingChannel {\n  constructor(length) {\n    this.length = length | 0;\n    this.data = new Float32Array(this.length);\n  }\n  write(absIndex, value) {\n    const i = absIndex % this.length;\n    this.data[i < 0 ? i + this.length : i] = value;\n  }\n  readInterp(pos) {\n    const i0f = Math.floor(pos);\n    const frac = pos - i0f;\n    let i0 = i0f % this.length; if (i0 < 0) i0 += this.length;\n    let i1 = i0 + 1; if (i1 >= this.length) i1 = 0;\n    const a = this.data[i0], b = this.data[i1];\n    return a + (b - a) * frac;\n  }\n}\n\n// Simple real-time delay-line \"granular\" pitch shifter (two crossfading taps\n// with a triangular window), the standard DIY DSP recipe for click-free-ish\n// pitch shifting without FFT. `ratio` = 2^(semitones/12).\nclass GranularPitchShifter {\n  constructor(sampleRate, windowSeconds = 0.08) {\n    this.sampleRate = sampleRate;\n    this.windowSamples = Math.max(64, Math.round(sampleRate * windowSeconds));\n    // generous history so posA/posB never chase past what's been written, even\n    // at extreme ratios (each tap can only drift ~ratio*windowSamples per grain)\n    this.bufLen = this.windowSamples * 16;\n    this.buf = new Float32Array(this.bufLen);\n    this.writePos = 0;\n    this.ratio = 1.0;\n\n    this.grainPhaseA = 0;\n    this.grainPhaseB = Math.floor(this.windowSamples / 2);\n    this.posA = -this.windowSamples;\n    this.posB = -this.windowSamples;\n  }\n  setRatio(r) { this.ratio = r; }\n  _tri(x) {\n    const t = x / this.windowSamples; // 0..1\n    return 1 - Math.abs(2 * t - 1);\n  }\n  process(sample) {\n    this.buf[this.writePos % this.bufLen] = sample;\n    this.writePos++;\n\n    // advance grain clocks in real time; on wrap, re-anchor that tap's read\n    // position windowSamples behind \"now\" -- inaudible because the triangular\n    // envelope is exactly 0 at phase 0.\n    // Reset anchors subtract one extra `ratio` because the `+= ratio` just\n    // below always runs afterward too; without this, every reset would add a\n    // spurious +ratio jump (a slow pitch/position drift that's invisible at\n    // ratio=1 only by accident of testing with short signals).\n    this.grainPhaseA++;\n    if (this.grainPhaseA >= this.windowSamples) {\n      this.grainPhaseA = 0;\n      this.posA = this.writePos - this.windowSamples - this.ratio;\n    }\n    this.grainPhaseB++;\n    if (this.grainPhaseB >= this.windowSamples) {\n      this.grainPhaseB = 0;\n      this.posB = this.writePos - this.windowSamples - this.ratio;\n    }\n\n    // each tap's own read pointer moves at `ratio` samples per sample of real\n    // time -- THIS is what shifts the pitch (independent of the fixed-rate\n    // grain/window clock above, which only governs crossfade timing).\n    this.posA += this.ratio;\n    this.posB += this.ratio;\n\n    const outA = this._readBuf(this.posA) * this._tri(this.grainPhaseA);\n    const outB = this._readBuf(this.posB) * this._tri(this.grainPhaseB);\n    return outA + outB;\n  }\n  _readBuf(pos) {\n    const i0f = Math.floor(pos);\n    const frac = pos - i0f;\n    let i0 = i0f % this.bufLen; if (i0 < 0) i0 += this.bufLen;\n    let i1 = i0 + 1; if (i1 >= this.bufLen) i1 = 0;\n    const a = this.buf[i0], b = this.buf[i1];\n    return a + (b - a) * frac;\n  }\n}\n\nfunction semitonesToRatio(semi) {\n  return Math.pow(2, semi / 12);\n}\n\nif (typeof module !== 'undefined' && module.exports) {\n  module.exports = { RingChannel, GranularPitchShifter, semitonesToRatio };\n}\n\n// This text is concatenated after dsp-core.js and loaded into an AudioWorklet\n// via a Blob URL (see app.js). Keep it dependency-free (no imports) since the\n// blob has no meaningful base URL for module resolution.\n//\n// TapeGhostEngine holds all the actual per-sample logic and is plain JS with\n// no AudioWorklet dependency, so the exact same class is also loaded under\n// Node in test-engine.js for offline scenario testing.\n\nclass TapeGhostEngine {\n  constructor(sr, bufferSeconds) {\n    this.sr = sr;\n    this.bufferSamples = Math.max(1, Math.round(bufferSeconds * sr));\n    this.minGuard = Math.round(0.05 * sr);\n\n    this.ringL = new RingChannel(this.bufferSamples);\n    this.ringR = new RingChannel(this.bufferSamples);\n\n    this.writeCounter = 0;\n    this.readPos = 0;\n    this.idleAnchored = false;\n    this.minDelaySamples = Math.round(2.0 * sr);\n\n    this.rewindOn = false;\n    this.rewindSpeed = 1.0;\n\n    this.loopActive = false;\n    this.loopGain = 0.0;\n    this.loopGainStep = 1 / (0.015 * sr);\n    this.loopStartAbs = 0;\n    this.loopLen = Math.round(0.2 * sr);\n    this.loopLocal = 0;\n    this.loopRate = 1.0;\n    this.loopClickState = 0;\n    this.pendingLoopStart = 0;\n\n    this.mix = 0.0;\n    this.mixSmoothed = 0.0;\n    this.mixSmoothStep = 1 / (0.03 * sr);\n\n    // input level meter (peak with decay) -- exists purely so the UI can show\n    // \"is any signal actually arriving from the selected input device at\n    // all\", independent of Mix/effect state, since that's the first thing to\n    // check when an audio interface \"makes no sound\" through a web page.\n    this.inputPeak = 0.0;\n    this.inputPeakDecay = Math.pow(0.001, 1 / (0.3 * sr)); // ~300ms fall to -60dB\n\n    this.pitchSemitones = 0.0;\n    this.pitchShifterL = new GranularPitchShifter(sr, 0.08);\n    this.pitchShifterR = new GranularPitchShifter(sr, 0.08);\n\n    // feedback echo/delay applied to the wet (post pitch-shift) signal, so the\n    // scrubbed/looped/cut-up material can trail off into repeats instead of\n    // cutting dry. Off by default (mix 0) so it doesn't change prior behavior\n    // until the user dials it in.\n    const delayBufSeconds = 3.0;\n    this.delayBufL = new RingChannel(Math.round(delayBufSeconds * sr));\n    this.delayBufR = new RingChannel(Math.round(delayBufSeconds * sr));\n    this.delayCounter = 0;\n    this.delayTimeSec = 0.3;\n    this.delayFeedback = 0.35;\n    this.delayMix = 0.0;\n  }\n\n  handleMessage(msg) {\n    switch (msg.type) {\n      case 'setMix': this.mix = msg.value; break;\n      case 'setPitch':\n        this.pitchSemitones = msg.value;\n        this.pitchShifterL.setRatio(semitonesToRatio(this.pitchSemitones));\n        this.pitchShifterR.setRatio(semitonesToRatio(this.pitchSemitones));\n        break;\n      case 'setDelayTime': this.delayTimeSec = Math.max(0.02, Math.min(3.0, msg.value)); break;\n      case 'setDelayFeedback': this.delayFeedback = Math.max(0, Math.min(0.95, msg.value)); break;\n      case 'setDelayMix': this.delayMix = Math.max(0, Math.min(1, msg.value)); break;\n      case 'setRewindSpeed': this.rewindSpeed = msg.value; break;\n      case 'rewind': this.rewindOn = !!msg.on; break;\n      case 'jump': {\n        const back = Math.max(0, msg.seconds) * this.sr;\n        let target = this.writeCounter - back;\n        target = Math.max(this.writeCounter - (this.bufferSamples - this.minGuard), target);\n        this.readPos = target;\n        break;\n      }\n      case 'loopMarkClick': {\n        this.loopClickState = (this.loopClickState + 1) % 3;\n        if (this.loopClickState === 1) {\n          this.pendingLoopStart = this.readPos;\n        } else if (this.loopClickState === 2) {\n          const start = this.pendingLoopStart;\n          const end = this.readPos;\n          this.loopStartAbs = start;\n          this.loopLen = Math.max(Math.round(0.05 * this.sr), Math.round(end - start));\n          this.loopLocal = 0;\n          this.loopRate = 1.0;\n          this.loopActive = true;\n        } else {\n          this.loopActive = false;\n        }\n        break;\n      }\n      case 'loopShift': {\n        const shiftSamples = Math.max(0, msg.seconds) * this.sr;\n        this.loopStartAbs -= shiftSamples;\n        this.loopLocal = 0;\n        this.loopRate = 1.0;\n        this.loopActive = true;\n        break;\n      }\n      case 'freeze': {\n        this.loopStartAbs = this.readPos;\n        this.loopLen = Math.max(Math.round(0.05 * this.sr), Math.round((msg.lenSeconds || 0.2) * this.sr));\n        this.loopLocal = 0;\n        this.loopRate = 1.0;\n        this.loopActive = true;\n        this.loopClickState = 2;\n        break;\n      }\n      case 'miracleSegment': {\n        const startAgo = Math.max(0, msg.startAgoSeconds) * this.sr;\n        let start = this.writeCounter - startAgo;\n        start = Math.max(this.writeCounter - (this.bufferSamples - this.minGuard), start);\n        this.loopStartAbs = start;\n        this.loopLen = Math.max(Math.round(0.05 * this.sr), Math.round(msg.lenSeconds * this.sr));\n        this.loopLocal = 0;\n        this.loopRate = msg.speedMul || 1.0;\n        this.loopActive = true;\n        this.loopClickState = 2;\n        break;\n      }\n      case 'miracleOff':\n      case 'loopOff': {\n        this.loopActive = false;\n        this.loopClickState = 0;\n        break;\n      }\n    }\n  }\n\n  // returns [outL, outR]\n  processSample(sampleL, sampleR) {\n    const inAbs = Math.max(Math.abs(sampleL), Math.abs(sampleR));\n    this.inputPeak = Math.max(inAbs, this.inputPeak * this.inputPeakDecay);\n\n    this.ringL.write(this.writeCounter, sampleL);\n    this.ringR.write(this.writeCounter, sampleR);\n    this.writeCounter++;\n\n    if (!this.idleAnchored && this.writeCounter >= this.minDelaySamples) {\n      this.readPos = this.writeCounter - this.minDelaySamples;\n      this.idleAnchored = true;\n    }\n\n    if (this.rewindOn) {\n      this.readPos -= this.rewindSpeed;\n    } else {\n      this.readPos += 1;\n    }\n    const minReadPos = this.writeCounter - (this.bufferSamples - this.minGuard);\n    if (this.readPos < minReadPos) this.readPos = minReadPos;\n    if (this.readPos > this.writeCounter) this.readPos = this.writeCounter;\n\n    const scrubL = this.ringL.readInterp(this.readPos);\n    const scrubR = this.ringR.readInterp(this.readPos);\n\n    const targetLoopGain = this.loopActive ? 1 : 0;\n    if (this.loopGain < targetLoopGain) this.loopGain = Math.min(targetLoopGain, this.loopGain + this.loopGainStep);\n    else if (this.loopGain > targetLoopGain) this.loopGain = Math.max(targetLoopGain, this.loopGain - this.loopGainStep);\n\n    let wetL = scrubL, wetR = scrubR;\n    if (this.loopGain > 0) {\n      this.loopLocal = (this.loopLocal + this.loopRate) % this.loopLen;\n      const loopPos = this.loopStartAbs + this.loopLocal;\n      const loopL = this.ringL.readInterp(loopPos);\n      const loopR = this.ringR.readInterp(loopPos);\n      wetL = scrubL * (1 - this.loopGain) + loopL * this.loopGain;\n      wetR = scrubR * (1 - this.loopGain) + loopR * this.loopGain;\n    }\n\n    const pitchedL = this.pitchShifterL.process(wetL);\n    const pitchedR = this.pitchShifterR.process(wetR);\n\n    // feedback delay/echo, tapped in parallel (dry pitched signal blended\n    // with the delayed tap by delayMix) so delayMix=0 is an exact passthrough\n    const delayTimeSamples = this.delayTimeSec * this.sr;\n    const dL = this.delayBufL.readInterp(this.delayCounter - delayTimeSamples);\n    const dR = this.delayBufR.readInterp(this.delayCounter - delayTimeSamples);\n    this.delayBufL.write(this.delayCounter, pitchedL + dL * this.delayFeedback);\n    this.delayBufR.write(this.delayCounter, pitchedR + dR * this.delayFeedback);\n    this.delayCounter++;\n    const echoedL = pitchedL * (1 - this.delayMix) + dL * this.delayMix;\n    const echoedR = pitchedR * (1 - this.delayMix) + dR * this.delayMix;\n\n    if (this.mixSmoothed < this.mix) this.mixSmoothed = Math.min(this.mix, this.mixSmoothed + this.mixSmoothStep);\n    else if (this.mixSmoothed > this.mix) this.mixSmoothed = Math.max(this.mix, this.mixSmoothed - this.mixSmoothStep);\n\n    const outL = sampleL * (1 - this.mixSmoothed) + echoedL * this.mixSmoothed;\n    const outR = sampleR * (1 - this.mixSmoothed) + echoedR * this.mixSmoothed;\n    return [outL, outR];\n  }\n}\n\nif (typeof module !== 'undefined' && module.exports) {\n  module.exports.TapeGhostEngine = TapeGhostEngine;\n}\n\nif (typeof AudioWorkletProcessor !== 'undefined') {\n  class TapeGhostProcessor extends AudioWorkletProcessor {\n    static get parameterDescriptors() { return []; }\n\n    constructor(options) {\n      super();\n      const opts = options.processorOptions || {};\n      this.engine = new TapeGhostEngine(opts.sampleRate || sampleRate, opts.bufferSeconds || 300);\n      this.statusCounter = 0;\n      this.port.onmessage = (e) => this.engine.handleMessage(e.data);\n    }\n\n    process(inputs, outputs) {\n      const input = inputs[0];\n      const output = outputs[0];\n      const inL = (input && input[0]) || null;\n      const inR = (input && input[1]) || (input && input[0]) || null;\n      const outL = output[0];\n      const outR = output[1] || output[0];\n      const n = outL.length;\n\n      for (let i = 0; i < n; i++) {\n        const [l, r] = this.engine.processSample(inL ? inL[i] : 0, inR ? inR[i] : 0);\n        outL[i] = l;\n        outR[i] = r;\n      }\n\n      this.statusCounter += n;\n      if (this.statusCounter >= this.engine.sr * 0.05) {\n        this.statusCounter = 0;\n        this.port.postMessage({\n          type: 'status',\n          writeSec: this.engine.writeCounter / this.engine.sr,\n          readAgoSec: (this.engine.writeCounter - this.engine.readPos) / this.engine.sr,\n          loopActive: this.engine.loopActive,\n          inputPeak: this.engine.inputPeak,\n        });\n      }\n      return true;\n    }\n  }\n\n  registerProcessor('tape-ghost-processor', TapeGhostProcessor);\n}\n";
 </script>
 <script>
 (() => {
@@ -452,6 +497,7 @@ const WORKLET_SOURCE = "// Shared DSP core: circular recording buffer with varia
 
   function stop() {
     if (miracleTimer) { clearTimeout(miracleTimer); miracleTimer = null; }
+    if (miracle2Timer) { clearTimeout(miracle2Timer); miracle2Timer = null; }
     if (statusPollTimer) { clearInterval(statusPollTimer); statusPollTimer = null; }
     if (stream) stream.getTracks().forEach((t) => t.stop());
     if (node) node.disconnect();
@@ -463,8 +509,11 @@ const WORKLET_SOURCE = "// Shared DSP core: circular recording buffer with varia
     liveDot.classList.remove('live');
     meterFill.style.width = '0%';
     meterWarn.classList.add('hidden');
+    miracleOn = false; miracle2On = false;
     $('miracleBtn').classList.remove('active');
-    $('miracleBtn').textContent = 'Miracle OFF';
+    $('miracleBtn').textContent = 'Miracle 1 OFF';
+    $('miracle2Btn').classList.remove('active');
+    $('miracle2Btn').textContent = 'Miracle 2 OFF';
     $('rewindBtn').classList.remove('active');
     $('loopBtn').dataset.state = '0';
     $('loopBtn').textContent = 'Loop Mark: 待機中';
@@ -483,6 +532,9 @@ const WORKLET_SOURCE = "// Shared DSP core: circular recording buffer with varia
     send({ type: 'setMix', value: parseFloat($('mix').value) / 100 });
     send({ type: 'setPitch', value: parseFloat($('pitch').value) });
     send({ type: 'setRewindSpeed', value: parseFloat($('rwSpeed').value) });
+    send({ type: 'setDelayMix', value: parseFloat($('delayMix').value) / 100 });
+    send({ type: 'setDelayTime', value: parseFloat($('delayTime').value) });
+    send({ type: 'setDelayFeedback', value: parseFloat($('delayFb').value) / 100 });
   }
 
   $('mix').addEventListener('input', (e) => {
@@ -492,6 +544,18 @@ const WORKLET_SOURCE = "// Shared DSP core: circular recording buffer with varia
   $('pitch').addEventListener('input', (e) => {
     $('valPitch').textContent = parseFloat(e.target.value).toFixed(2);
     send({ type: 'setPitch', value: parseFloat(e.target.value) });
+  });
+  $('delayMix').addEventListener('input', (e) => {
+    $('valDelayMix').textContent = e.target.value + '%';
+    send({ type: 'setDelayMix', value: parseFloat(e.target.value) / 100 });
+  });
+  $('delayTime').addEventListener('input', (e) => {
+    $('valDelayTime').textContent = parseFloat(e.target.value).toFixed(2);
+    send({ type: 'setDelayTime', value: parseFloat(e.target.value) });
+  });
+  $('delayFb').addEventListener('input', (e) => {
+    $('valDelayFb').textContent = e.target.value + '%';
+    send({ type: 'setDelayFeedback', value: parseFloat(e.target.value) / 100 });
   });
   $('jump').addEventListener('input', (e) => {
     $('valJump').textContent = parseFloat(e.target.value).toFixed(1);
@@ -538,9 +602,10 @@ const WORKLET_SOURCE = "// Shared DSP core: circular recording buffer with varia
 
   let miracleOn = false;
   $('miracleBtn').addEventListener('click', () => {
+    if (!miracleOn && miracle2On) turnOffMiracle2();
     miracleOn = !miracleOn;
     $('miracleBtn').classList.toggle('active', miracleOn);
-    $('miracleBtn').textContent = miracleOn ? 'Miracle ON' : 'Miracle OFF';
+    $('miracleBtn').textContent = miracleOn ? 'Miracle 1 ON' : 'Miracle 1 OFF';
     if (miracleOn) {
       scheduleMiracleTick();
     } else {
@@ -556,11 +621,99 @@ const WORKLET_SOURCE = "// Shared DSP core: circular recording buffer with varia
     const density = parseFloat($('mDensity').value);
     const startAgo = Math.random() * Math.max(0.5, Math.min(windowSec, lastStatus.writeSec));
     const lenSec = 0.5 + (1 - density) * 2.5 * Math.random();
-    const speedMul = 0.5 + Math.random() * 1.5;
+    const speedMul = 0.5 + Math.random() * 1.5; // varies playback rate -> pitch also shifts (tape-style)
     send({ type: 'miracleSegment', startAgoSeconds: startAgo, lenSeconds: lenSec, speedMul });
     const interval = 80 + Math.random() * 500;
     miracleTimer = setTimeout(() => { if (miracleOn) scheduleMiracleTick(); }, interval);
   }
+
+  // ---- Miracle 2: pitch-locked cut-up (speedMul always 1.0), with a few
+  // switchable position-picking behaviors instead of pure randomness ----
+  let miracle2On = false;
+  let miracle2Timer = null;
+  let miracle2Mode = 'scatter';
+  let miracle2LastStartAgo = 0;
+  let miracle2WalkPos = 0;
+  let miracle2WalkDir = 1;
+
+  document.querySelectorAll('.m2mode').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.m2mode').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      miracle2Mode = btn.dataset.mode;
+    });
+  });
+
+  function turnOffMiracle2() {
+    miracle2On = false;
+    if (miracle2Timer) { clearTimeout(miracle2Timer); miracle2Timer = null; }
+    $('miracle2Btn').classList.remove('active');
+    $('miracle2Btn').textContent = 'Miracle 2 OFF';
+    send({ type: 'miracleOff' });
+  }
+
+  $('miracle2Btn').addEventListener('click', () => {
+    if (!miracle2On && miracleOn) {
+      miracleOn = false;
+      if (miracleTimer) { clearTimeout(miracleTimer); miracleTimer = null; }
+      $('miracleBtn').classList.remove('active');
+      $('miracleBtn').textContent = 'Miracle 1 OFF';
+      send({ type: 'miracleOff' });
+    }
+    miracle2On = !miracle2On;
+    $('miracle2Btn').classList.toggle('active', miracle2On);
+    $('miracle2Btn').textContent = miracle2On ? 'Miracle 2 ON' : 'Miracle 2 OFF';
+    if (miracle2On) {
+      miracle2WalkPos = 0; miracle2WalkDir = 1;
+      miracle2LastStartAgo = Math.random() * parseFloat($('m2Window').value);
+      scheduleMiracle2Tick();
+    } else {
+      if (miracle2Timer) { clearTimeout(miracle2Timer); miracle2Timer = null; }
+      send({ type: 'miracleOff' });
+      $('loopBtn').dataset.state = '0';
+      $('loopBtn').textContent = 'Loop Mark: 待機中';
+    }
+  });
+
+  function pickMiracle2StartAgo(windowSec, lenSec) {
+    switch (miracle2Mode) {
+      case 'stutter': {
+        const jitter = 0.15 + lenSec * 1.5;
+        let v = miracle2LastStartAgo + (Math.random() * 2 - 1) * jitter;
+        v = Math.max(0, Math.min(windowSec, v));
+        miracle2LastStartAgo = v;
+        return v;
+      }
+      case 'walk': {
+        miracle2WalkPos = (miracle2WalkPos + lenSec) % Math.max(0.5, windowSec);
+        return miracle2WalkPos;
+      }
+      case 'pingpong': {
+        miracle2WalkPos += lenSec * miracle2WalkDir;
+        if (miracle2WalkPos >= windowSec) { miracle2WalkPos = windowSec; miracle2WalkDir = -1; }
+        if (miracle2WalkPos <= 0) { miracle2WalkPos = 0; miracle2WalkDir = 1; }
+        return miracle2WalkPos;
+      }
+      case 'scatter':
+      default:
+        return Math.random() * windowSec;
+    }
+  }
+
+  function scheduleMiracle2Tick() {
+    const windowSec = Math.max(0.5, Math.min(parseFloat($('m2Window').value), lastStatus.writeSec));
+    const density = parseFloat($('m2Density').value);
+    const lenSec = 0.5 + (1 - density) * 2.5 * Math.random();
+    const startAgo = pickMiracle2StartAgo(windowSec, lenSec);
+    // speedMul is always 1.0 here -- the whole point of Miracle 2 is that the
+    // pitch never changes no matter how the cut-up jumps around
+    send({ type: 'miracleSegment', startAgoSeconds: startAgo, lenSeconds: lenSec, speedMul: 1.0 });
+    const interval = 80 + Math.random() * 500;
+    miracle2Timer = setTimeout(() => { if (miracle2On) scheduleMiracle2Tick(); }, interval);
+  }
+
+  $('m2Window').addEventListener('input', (e) => { $('valM2Win').textContent = e.target.value; });
+  $('m2Density').addEventListener('input', (e) => { $('valM2Dens').textContent = parseFloat(e.target.value).toFixed(2); });
 
   // ---- mode tabs (Full Control / Miracle Focus) ----
   document.querySelectorAll('.tab').forEach((tab) => {
@@ -583,6 +736,7 @@ const WORKLET_SOURCE = "// Shared DSP core: circular recording buffer with varia
     $('chipRewind').classList.toggle('on', rewindOn);
     $('chipLoop').classList.toggle('on', !!lastStatus.loopActive);
     $('chipMiracle').classList.toggle('on', miracleOn);
+    $('chipMiracle2').classList.toggle('on', miracle2On);
 
     const peak = lastStatus.inputPeak || 0;
     // linear peak -> 0-100% with a dB-ish curve so quiet signals are still

@@ -47,6 +47,18 @@ class TapeGhostEngine {
     this.pitchSemitones = 0.0;
     this.pitchShifterL = new GranularPitchShifter(sr, 0.08);
     this.pitchShifterR = new GranularPitchShifter(sr, 0.08);
+
+    // feedback echo/delay applied to the wet (post pitch-shift) signal, so the
+    // scrubbed/looped/cut-up material can trail off into repeats instead of
+    // cutting dry. Off by default (mix 0) so it doesn't change prior behavior
+    // until the user dials it in.
+    const delayBufSeconds = 3.0;
+    this.delayBufL = new RingChannel(Math.round(delayBufSeconds * sr));
+    this.delayBufR = new RingChannel(Math.round(delayBufSeconds * sr));
+    this.delayCounter = 0;
+    this.delayTimeSec = 0.3;
+    this.delayFeedback = 0.35;
+    this.delayMix = 0.0;
   }
 
   handleMessage(msg) {
@@ -57,6 +69,9 @@ class TapeGhostEngine {
         this.pitchShifterL.setRatio(semitonesToRatio(this.pitchSemitones));
         this.pitchShifterR.setRatio(semitonesToRatio(this.pitchSemitones));
         break;
+      case 'setDelayTime': this.delayTimeSec = Math.max(0.02, Math.min(3.0, msg.value)); break;
+      case 'setDelayFeedback': this.delayFeedback = Math.max(0, Math.min(0.95, msg.value)); break;
+      case 'setDelayMix': this.delayMix = Math.max(0, Math.min(1, msg.value)); break;
       case 'setRewindSpeed': this.rewindSpeed = msg.value; break;
       case 'rewind': this.rewindOn = !!msg.on; break;
       case 'jump': {
@@ -164,11 +179,22 @@ class TapeGhostEngine {
     const pitchedL = this.pitchShifterL.process(wetL);
     const pitchedR = this.pitchShifterR.process(wetR);
 
+    // feedback delay/echo, tapped in parallel (dry pitched signal blended
+    // with the delayed tap by delayMix) so delayMix=0 is an exact passthrough
+    const delayTimeSamples = this.delayTimeSec * this.sr;
+    const dL = this.delayBufL.readInterp(this.delayCounter - delayTimeSamples);
+    const dR = this.delayBufR.readInterp(this.delayCounter - delayTimeSamples);
+    this.delayBufL.write(this.delayCounter, pitchedL + dL * this.delayFeedback);
+    this.delayBufR.write(this.delayCounter, pitchedR + dR * this.delayFeedback);
+    this.delayCounter++;
+    const echoedL = pitchedL * (1 - this.delayMix) + dL * this.delayMix;
+    const echoedR = pitchedR * (1 - this.delayMix) + dR * this.delayMix;
+
     if (this.mixSmoothed < this.mix) this.mixSmoothed = Math.min(this.mix, this.mixSmoothed + this.mixSmoothStep);
     else if (this.mixSmoothed > this.mix) this.mixSmoothed = Math.max(this.mix, this.mixSmoothed - this.mixSmoothStep);
 
-    const outL = sampleL * (1 - this.mixSmoothed) + pitchedL * this.mixSmoothed;
-    const outR = sampleR * (1 - this.mixSmoothed) + pitchedR * this.mixSmoothed;
+    const outL = sampleL * (1 - this.mixSmoothed) + echoedL * this.mixSmoothed;
+    const outR = sampleR * (1 - this.mixSmoothed) + echoedR * this.mixSmoothed;
     return [outL, outR];
   }
 }

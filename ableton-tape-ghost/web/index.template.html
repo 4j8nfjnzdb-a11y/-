@@ -159,7 +159,8 @@ a{ color:var(--accent2); }
         <div style="margin-top:6px;">
           <span class="modechip" id="chipRewind">REWIND</span>
           <span class="modechip" id="chipLoop">LOOP</span>
-          <span class="modechip" id="chipMiracle">MIRACLE</span>
+          <span class="modechip" id="chipMiracle">MIRACLE 1</span>
+          <span class="modechip" id="chipMiracle2">MIRACLE 2</span>
         </div>
         <div style="margin-top:10px;"><button class="btn-ghost" id="stopBtn">入力を停止</button></div>
       </div>
@@ -186,6 +187,24 @@ a{ color:var(--accent2); }
         <div class="ctl">
           <label>Pitch（半音・微分音可） <span class="val" id="valPitch">0.0</span></label>
           <input type="range" id="pitch" min="-24" max="24" step="0.05" value="0">
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Delay（過去の音に反復する遅延を足す）</h2>
+      <div class="grid">
+        <div class="ctl">
+          <label>Delay Mix <span class="val" id="valDelayMix">0%</span></label>
+          <input type="range" id="delayMix" min="0" max="100" value="0">
+        </div>
+        <div class="ctl">
+          <label>Delay Time <span class="val" id="valDelayTime">0.30</span>s</label>
+          <input type="range" id="delayTime" min="0.02" max="2" step="0.01" value="0.3">
+        </div>
+        <div class="ctl">
+          <label>Feedback（繰り返す回数） <span class="val" id="valDelayFb">35%</span></label>
+          <input type="range" id="delayFb" min="0" max="95" value="35">
         </div>
       </div>
     </div>
@@ -226,10 +245,10 @@ a{ color:var(--accent2); }
     </div>
 
     <div class="panel">
-      <h2>Miracle（ランダム・カットアップ）</h2>
+      <h2>Miracle 1（ランダム・カットアップ／スピードも変わる＝ピッチも変わる）</h2>
       <div class="grid">
         <div class="ctl">
-          <button class="btn-toggle" id="miracleBtn" style="width:100%">Miracle OFF</button>
+          <button class="btn-toggle" id="miracleBtn" style="width:100%">Miracle 1 OFF</button>
         </div>
         <div class="ctl">
           <label>History Window <span class="val" id="valMWin">30</span>s</label>
@@ -238,6 +257,32 @@ a{ color:var(--accent2); }
         <div class="ctl">
           <label>Density <span class="val" id="valMDens">0.5</span></label>
           <input type="range" id="mDensity" min="0" max="1" step="0.01" value="0.5">
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Miracle 2（ピッチ固定・波形をランダムに行き来）</h2>
+      <div class="grid">
+        <div class="ctl">
+          <button class="btn-toggle" id="miracle2Btn" style="width:100%">Miracle 2 OFF</button>
+        </div>
+        <div class="ctl">
+          <label>History Window <span class="val" id="valM2Win">30</span>s</label>
+          <input type="range" id="m2Window" min="2" max="120" step="1" value="30">
+        </div>
+        <div class="ctl">
+          <label>Density <span class="val" id="valM2Dens">0.5</span></label>
+          <input type="range" id="m2Density" min="0" max="1" step="0.01" value="0.5">
+        </div>
+        <div class="ctl" style="grid-column:1/-1;">
+          <label>挙動（押して切り替え）</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn-toggle m2mode active" data-mode="scatter" style="flex:1;min-width:100px;">Scatter（全域ランダム）</button>
+            <button class="btn-toggle m2mode" data-mode="stutter" style="flex:1;min-width:100px;">Stutter（近くで連打）</button>
+            <button class="btn-toggle m2mode" data-mode="walk" style="flex:1;min-width:100px;">Walk（順に進む）</button>
+            <button class="btn-toggle m2mode" data-mode="pingpong" style="flex:1;min-width:100px;">Ping-pong（往復）</button>
+          </div>
         </div>
       </div>
     </div>
