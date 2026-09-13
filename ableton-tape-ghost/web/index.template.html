@@ -1,0 +1,232 @@
+<title>Tape Ghost</title>
+<style>
+:root{
+  --bg:#0d0f12; --panel:#15181d; --panel2:#1b1f26; --line:#2a2f38;
+  --fg:#e8ebf0; --fg-dim:#9aa3b2; --accent:#ff5d5d; --accent2:#5ddcff;
+  --accent3:#c9ff5d; --danger:#ff5d5d; --ok:#5dff9e;
+  --font: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg:#f2f1ec; --panel:#ffffff; --panel2:#eceae2; --line:#d9d6c9;
+    --fg:#1c1c1a; --fg-dim:#6b6a63; --accent:#c23a3a; --accent2:#1583a3;
+    --accent3:#5c7a1e; --danger:#c23a3a; --ok:#1e8a52;
+  }
+}
+:root[data-theme="light"]{
+  --bg:#f2f1ec; --panel:#ffffff; --panel2:#eceae2; --line:#d9d6c9;
+  --fg:#1c1c1a; --fg-dim:#6b6a63; --accent:#c23a3a; --accent2:#1583a3;
+  --accent3:#5c7a1e; --danger:#c23a3a; --ok:#1e8a52;
+}
+*{box-sizing:border-box;}
+body{
+  background:var(--bg); color:var(--fg); font-family:var(--font);
+  min-height:100vh; padding:20px 16px 60px; margin:0;
+}
+.wrap{ max-width:960px; margin:0 auto; }
+h1{ font-size:22px; letter-spacing:0.02em; margin:0 0 4px; display:flex; align-items:center; gap:10px;}
+h1 .dot{ width:10px; height:10px; border-radius:50%; background:var(--fg-dim); display:inline-block; }
+h1 .dot.live{ background:var(--danger); box-shadow:0 0 8px var(--danger); animation:pulse 1.4s infinite; }
+@keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+.sub{ color:var(--fg-dim); font-size:13px; margin:0 0 20px; line-height:1.6; }
+
+.setup{
+  background:var(--panel); border:1px solid var(--line); border-radius:14px;
+  padding:24px; margin-bottom:20px;
+}
+.setup label{ display:block; font-size:13px; color:var(--fg-dim); margin-bottom:8px; }
+.row{ display:flex; gap:16px; flex-wrap:wrap; align-items:flex-end; margin-bottom:16px; }
+.field{ flex:1; min-width:160px; }
+select, input[type=range]{ width:100%; }
+select{
+  background:var(--panel2); color:var(--fg); border:1px solid var(--line);
+  border-radius:8px; padding:10px; font-size:14px;
+}
+button{
+  font-family:inherit; cursor:pointer; border:none; border-radius:10px;
+  padding:12px 18px; font-size:14px; font-weight:600; letter-spacing:0.01em;
+  transition:transform .08s ease, filter .15s ease;
+}
+button:active{ transform:scale(0.97); }
+.btn-primary{ background:var(--accent); color:#fff; }
+.btn-primary:hover{ filter:brightness(1.1); }
+.btn-ghost{
+  background:transparent; color:var(--fg); border:1px solid var(--line);
+}
+.btn-ghost:hover{ background:var(--panel2); }
+.btn-toggle{ background:var(--panel2); color:var(--fg); border:1px solid var(--line); }
+.btn-toggle.active{ background:var(--accent2); color:#04202a; border-color:var(--accent2); }
+.btn-tri{ background:var(--panel2); color:var(--fg); border:1px solid var(--line); }
+.btn-tri[data-state="1"]{ background:#4a4020; border-color:#8a742a; }
+.btn-tri[data-state="2"]{ background:var(--accent3); color:#12200a; border-color:var(--accent3); }
+.error{ color:var(--danger); font-size:13px; margin-top:10px; display:none; }
+
+.stage{ display:none; }
+.stage.show{ display:block; }
+
+.visual{
+  background:var(--panel); border:1px solid var(--line); border-radius:14px;
+  padding:16px; margin-bottom:16px; display:flex; gap:20px; align-items:center;
+  flex-wrap:wrap;
+}
+canvas#scope{ width:180px; height:180px; border-radius:50%; background:var(--panel2); flex:none; }
+.status{ flex:1; min-width:200px; font-size:13px; color:var(--fg-dim); line-height:1.8; }
+.status b{ color:var(--fg); }
+.status .modechip{
+  display:inline-block; padding:3px 10px; border-radius:20px; font-size:11px;
+  font-weight:700; letter-spacing:0.04em; background:var(--panel2); color:var(--fg-dim);
+  border:1px solid var(--line);
+}
+.status .modechip.on{ background:var(--accent3); color:#12200a; border-color:var(--accent3); }
+
+.tabs{ display:flex; gap:8px; margin-bottom:16px; }
+.tab{
+  flex:1; text-align:center; padding:10px; border-radius:10px; cursor:pointer;
+  background:var(--panel2); border:1px solid var(--line); color:var(--fg-dim); font-size:13px; font-weight:600;
+}
+.tab.active{ background:var(--fg); color:var(--bg); border-color:var(--fg); }
+
+.panel{
+  background:var(--panel); border:1px solid var(--line); border-radius:14px;
+  padding:20px; margin-bottom:16px;
+}
+.panel h2{ font-size:13px; text-transform:uppercase; letter-spacing:0.08em; color:var(--fg-dim); margin:0 0 14px; }
+.grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:16px; }
+.ctl{ background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:14px; }
+.ctl label{ display:block; font-size:12px; color:var(--fg-dim); margin-bottom:8px; }
+.ctl .val{ float:right; color:var(--fg); font-variant-numeric:tabular-nums; }
+.ctl input[type=range]{ accent-color:var(--accent2); }
+.ctl button{ width:100%; }
+.mixctl{ grid-column:1/-1; }
+.mixctl input[type=range]{ height:28px; accent-color:var(--accent); }
+
+.hidden{ display:none !important; }
+footer{ color:var(--fg-dim); font-size:12px; text-align:center; margin-top:24px; line-height:1.7; }
+a{ color:var(--accent2); }
+</style>
+
+<div class="wrap">
+  <h1><span class="dot" id="liveDot"></span> Tape Ghost</h1>
+  <p class="sub">裏で常時録音し続けるテープ・ゴースト・エフェクター。Mixを上げると原音の代わりに過去の音が現れます。ブラウザのマイク/ライン入力だけで動作し、サーバーには一切送信されません。</p>
+
+  <div class="setup" id="setupPanel">
+    <div class="row">
+      <div class="field">
+        <label>バッファ長（何分遡れるか）</label>
+        <select id="bufMinutes">
+          <option value="1">1分</option>
+          <option value="2">2分</option>
+          <option value="3" selected>3分</option>
+          <option value="5">5分</option>
+          <option value="10">10分</option>
+        </select>
+      </div>
+      <div class="field">
+        <button class="btn-primary" id="startBtn" style="width:100%">マイク/ライン入力を開始</button>
+      </div>
+    </div>
+    <div class="error" id="errBox"></div>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="visual">
+      <canvas id="scope" width="180" height="180"></canvas>
+      <div class="status">
+        <div><b id="writeSec">0.0</b>s 録音済み / 現在 <b id="agoSec">0.0</b>秒前を再生中</div>
+        <div style="margin-top:6px;">
+          <span class="modechip" id="chipRewind">REWIND</span>
+          <span class="modechip" id="chipLoop">LOOP</span>
+          <span class="modechip" id="chipMiracle">MIRACLE</span>
+        </div>
+        <div style="margin-top:10px;"><button class="btn-ghost" id="stopBtn">入力を停止</button></div>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" data-mode="full">Full Control</div>
+      <div class="tab" data-mode="miracle">Miracle Focus</div>
+    </div>
+
+    <div class="panel">
+      <h2>Mix</h2>
+      <div class="grid">
+        <div class="ctl mixctl">
+          <label>原音 ⇔ 過去の音 <span class="val" id="valMix">0%</span></label>
+          <input type="range" id="mix" min="0" max="100" value="0">
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>ピッチ</h2>
+      <div class="grid">
+        <div class="ctl">
+          <label>Pitch（半音・微分音可） <span class="val" id="valPitch">0.0</span></label>
+          <input type="range" id="pitch" min="-24" max="24" step="0.05" value="0">
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="fullOnly1">
+      <h2>Jump / Rewind</h2>
+      <div class="grid">
+        <div class="ctl">
+          <label>Jump（何秒前へ） <span class="val" id="valJump">2.0</span>s</label>
+          <input type="range" id="jump" min="0" max="60" step="0.1" value="2">
+          <button class="btn-ghost" id="jumpBtn" style="margin-top:8px;width:100%">ジャンプ実行</button>
+        </div>
+        <div class="ctl">
+          <label>Rewind Speed <span class="val" id="valRwSpeed">1.0</span>x</label>
+          <input type="range" id="rwSpeed" min="0.1" max="6" step="0.1" value="1">
+          <button class="btn-toggle" id="rewindBtn" style="margin-top:8px;width:100%">Rewind (押し続け)</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Loop</h2>
+      <div class="grid">
+        <div class="ctl">
+          <label>Loop Mark（2クリックでループ）</label>
+          <button class="btn-tri" id="loopBtn" data-state="0">Loop Mark: 待機中</button>
+        </div>
+        <div class="ctl" id="fullOnly2">
+          <label>Loop Shift（さらに過去へ） <span class="val" id="valLoopShift">5.0</span>s</label>
+          <input type="range" id="loopShiftSec" min="0.5" max="30" step="0.5" value="5">
+          <button class="btn-ghost" id="loopShiftBtn" style="margin-top:8px;width:100%">シフト実行</button>
+        </div>
+        <div class="ctl" id="miracleOnly1" style="display:none;">
+          <label>Freeze（今の位置でスタッター）</label>
+          <button class="btn-ghost" id="freezeBtn" style="width:100%">Freeze</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Miracle（ランダム・カットアップ）</h2>
+      <div class="grid">
+        <div class="ctl">
+          <button class="btn-toggle" id="miracleBtn" style="width:100%">Miracle OFF</button>
+        </div>
+        <div class="ctl">
+          <label>History Window <span class="val" id="valMWin">30</span>s</label>
+          <input type="range" id="mWindow" min="2" max="120" step="1" value="30">
+        </div>
+        <div class="ctl">
+          <label>Density <span class="val" id="valMDens">0.5</span></label>
+          <input type="range" id="mDensity" min="0" max="1" step="0.01" value="0.5">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    音声はこの端末内だけで処理され、外部には送信されません。マイクの使用許可はブラウザ側の確認のみです。<br>
+    Full Control = フル操作版（Jump / Loop Shift あり）　/　Miracle Focus = 軽量版（Freeze ボタン付き、即興向け）
+  </footer>
+</div>
+
+<script>
+const WORKLET_SOURCE = __WORKLET_SOURCE__;
+</script>
+<script src="app.js"></script>

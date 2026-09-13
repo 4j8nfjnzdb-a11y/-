@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tape Ghost</title>
+</head>
+<body>
+
+<style>
+:root{
+  --bg:#0d0f12; --panel:#15181d; --panel2:#1b1f26; --line:#2a2f38;
+  --fg:#e8ebf0; --fg-dim:#9aa3b2; --accent:#ff5d5d; --accent2:#5ddcff;
+  --accent3:#c9ff5d; --danger:#ff5d5d; --ok:#5dff9e;
+  --font: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg:#f2f1ec; --panel:#ffffff; --panel2:#eceae2; --line:#d9d6c9;
+    --fg:#1c1c1a; --fg-dim:#6b6a63; --accent:#c23a3a; --accent2:#1583a3;
+    --accent3:#5c7a1e; --danger:#c23a3a; --ok:#1e8a52;
+  }
+}
+:root[data-theme="light"]{
+  --bg:#f2f1ec; --panel:#ffffff; --panel2:#eceae2; --line:#d9d6c9;
+  --fg:#1c1c1a; --fg-dim:#6b6a63; --accent:#c23a3a; --accent2:#1583a3;
+  --accent3:#5c7a1e; --danger:#c23a3a; --ok:#1e8a52;
+}
+*{box-sizing:border-box;}
+body{
+  background:var(--bg); color:var(--fg); font-family:var(--font);
+  min-height:100vh; padding:20px 16px 60px; margin:0;
+}
+.wrap{ max-width:960px; margin:0 auto; }
+h1{ font-size:22px; letter-spacing:0.02em; margin:0 0 4px; display:flex; align-items:center; gap:10px;}
+h1 .dot{ width:10px; height:10px; border-radius:50%; background:var(--fg-dim); display:inline-block; }
+h1 .dot.live{ background:var(--danger); box-shadow:0 0 8px var(--danger); animation:pulse 1.4s infinite; }
+@keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+.sub{ color:var(--fg-dim); font-size:13px; margin:0 0 20px; line-height:1.6; }
+
+.setup{
+  background:var(--panel); border:1px solid var(--line); border-radius:14px;
+  padding:24px; margin-bottom:20px;
+}
+.setup label{ display:block; font-size:13px; color:var(--fg-dim); margin-bottom:8px; }
+.row{ display:flex; gap:16px; flex-wrap:wrap; align-items:flex-end; margin-bottom:16px; }
+.field{ flex:1; min-width:160px; }
+select, input[type=range]{ width:100%; }
+select{
+  background:var(--panel2); color:var(--fg); border:1px solid var(--line);
+  border-radius:8px; padding:10px; font-size:14px;
+}
+button{
+  font-family:inherit; cursor:pointer; border:none; border-radius:10px;
+  padding:12px 18px; font-size:14px; font-weight:600; letter-spacing:0.01em;
+  transition:transform .08s ease, filter .15s ease;
+}
+button:active{ transform:scale(0.97); }
+.btn-primary{ background:var(--accent); color:#fff; }
+.btn-primary:hover{ filter:brightness(1.1); }
+.btn-ghost{
+  background:transparent; color:var(--fg); border:1px solid var(--line);
+}
+.btn-ghost:hover{ background:var(--panel2); }
+.btn-toggle{ background:var(--panel2); color:var(--fg); border:1px solid var(--line); }
+.btn-toggle.active{ background:var(--accent2); color:#04202a; border-color:var(--accent2); }
+.btn-tri{ background:var(--panel2); color:var(--fg); border:1px solid var(--line); }
+.btn-tri[data-state="1"]{ background:#4a4020; border-color:#8a742a; }
+.btn-tri[data-state="2"]{ background:var(--accent3); color:#12200a; border-color:var(--accent3); }
+.error{ color:var(--danger); font-size:13px; margin-top:10px; display:none; }
+
+.stage{ display:none; }
+.stage.show{ display:block; }
+
+.visual{
+  background:var(--panel); border:1px solid var(--line); border-radius:14px;
+  padding:16px; margin-bottom:16px; display:flex; gap:20px; align-items:center;
+  flex-wrap:wrap;
+}
+canvas#scope{ width:180px; height:180px; border-radius:50%; background:var(--panel2); flex:none; }
+.status{ flex:1; min-width:200px; font-size:13px; color:var(--fg-dim); line-height:1.8; }
+.status b{ color:var(--fg); }
+.status .modechip{
+  display:inline-block; padding:3px 10px; border-radius:20px; font-size:11px;
+  font-weight:700; letter-spacing:0.04em; background:var(--panel2); color:var(--fg-dim);
+  border:1px solid var(--line);
+}
+.status .modechip.on{ background:var(--accent3); color:#12200a; border-color:var(--accent3); }
+
+.tabs{ display:flex; gap:8px; margin-bottom:16px; }
+.tab{
+  flex:1; text-align:center; padding:10px; border-radius:10px; cursor:pointer;
+  background:var(--panel2); border:1px solid var(--line); color:var(--fg-dim); font-size:13px; font-weight:600;
+}
+.tab.active{ background:var(--fg); color:var(--bg); border-color:var(--fg); }
+
+.panel{
+  background:var(--panel); border:1px solid var(--line); border-radius:14px;
+  padding:20px; margin-bottom:16px;
+}
+.panel h2{ font-size:13px; text-transform:uppercase; letter-spacing:0.08em; color:var(--fg-dim); margin:0 0 14px; }
+.grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:16px; }
+.ctl{ background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:14px; }
+.ctl label{ display:block; font-size:12px; color:var(--fg-dim); margin-bottom:8px; }
+.ctl .val{ float:right; color:var(--fg); font-variant-numeric:tabular-nums; }
+.ctl input[type=range]{ accent-color:var(--accent2); }
+.ctl button{ width:100%; }
+.mixctl{ grid-column:1/-1; }
+.mixctl input[type=range]{ height:28px; accent-color:var(--accent); }
+
+.hidden{ display:none !important; }
+footer{ color:var(--fg-dim); font-size:12px; text-align:center; margin-top:24px; line-height:1.7; }
+a{ color:var(--accent2); }
+</style>
+
+<div class="wrap">
+  <h1><span class="dot" id="liveDot"></span> Tape Ghost</h1>
+  <p class="sub">裏で常時録音し続けるテープ・ゴースト・エフェクター。Mixを上げると原音の代わりに過去の音が現れます。ブラウザのマイク/ライン入力だけで動作し、サーバーには一切送信されません。</p>
+
+  <div class="setup" id="setupPanel">
+    <div class="row">
+      <div class="field">
+        <label>バッファ長（何分遡れるか）</label>
+        <select id="bufMinutes">
+          <option value="1">1分</option>
+          <option value="2">2分</option>
+          <option value="3" selected>3分</option>
+          <option value="5">5分</option>
+          <option value="10">10分</option>
+        </select>
+      </div>
+      <div class="field">
+        <button class="btn-primary" id="startBtn" style="width:100%">マイク/ライン入力を開始</button>
+      </div>
+    </div>
+    <div class="error" id="errBox"></div>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="visual">
+      <canvas id="scope" width="180" height="180"></canvas>
+      <div class="status">
+        <div><b id="writeSec">0.0</b>s 録音済み / 現在 <b id="agoSec">0.0</b>秒前を再生中</div>
+        <div style="margin-top:6px;">
+          <span class="modechip" id="chipRewind">REWIND</span>
+          <span class="modechip" id="chipLoop">LOOP</span>
+          <span class="modechip" id="chipMiracle">MIRACLE</span>
+        </div>
+        <div style="margin-top:10px;"><button class="btn-ghost" id="stopBtn">入力を停止</button></div>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" data-mode="full">Full Control</div>
+      <div class="tab" data-mode="miracle">Miracle Focus</div>
+    </div>
+
+    <div class="panel">
+      <h2>Mix</h2>
+      <div class="grid">
+        <div class="ctl mixctl">
+          <label>原音 ⇔ 過去の音 <span class="val" id="valMix">0%</span></label>
+          <input type="range" id="mix" min="0" max="100" value="0">
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>ピッチ</h2>
+      <div class="grid">
+        <div class="ctl">
+          <label>Pitch（半音・微分音可） <span class="val" id="valPitch">0.0</span></label>
+          <input type="range" id="pitch" min="-24" max="24" step="0.05" value="0">
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="fullOnly1">
+      <h2>Jump / Rewind</h2>
+      <div class="grid">
+        <div class="ctl">
+          <label>Jump（何秒前へ） <span class="val" id="valJump">2.0</span>s</label>
+          <input type="range" id="jump" min="0" max="60" step="0.1" value="2">
+          <button class="btn-ghost" id="jumpBtn" style="margin-top:8px;width:100%">ジャンプ実行</button>
+        </div>
+        <div class="ctl">
+          <label>Rewind Speed <span class="val" id="valRwSpeed">1.0</span>x</label>
+          <input type="range" id="rwSpeed" min="0.1" max="6" step="0.1" value="1">
+          <button class="btn-toggle" id="rewindBtn" style="margin-top:8px;width:100%">Rewind (押し続け)</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Loop</h2>
+      <div class="grid">
+        <div class="ctl">
+          <label>Loop Mark（2クリックでループ）</label>
+          <button class="btn-tri" id="loopBtn" data-state="0">Loop Mark: 待機中</button>
+        </div>
+        <div class="ctl" id="fullOnly2">
+          <label>Loop Shift（さらに過去へ） <span class="val" id="valLoopShift">5.0</span>s</label>
+          <input type="range" id="loopShiftSec" min="0.5" max="30" step="0.5" value="5">
+          <button class="btn-ghost" id="loopShiftBtn" style="margin-top:8px;width:100%">シフト実行</button>
+        </div>
+        <div class="ctl" id="miracleOnly1" style="display:none;">
+          <label>Freeze（今の位置でスタッター）</label>
+          <button class="btn-ghost" id="freezeBtn" style="width:100%">Freeze</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Miracle（ランダム・カットアップ）</h2>
+      <div class="grid">
+        <div class="ctl">
+          <button class="btn-toggle" id="miracleBtn" style="width:100%">Miracle OFF</button>
+        </div>
+        <div class="ctl">
+          <label>History Window <span class="val" id="valMWin">30</span>s</label>
+          <input type="range" id="mWindow" min="2" max="120" step="1" value="30">
+        </div>
+        <div class="ctl">
+          <label>Density <span class="val" id="valMDens">0.5</span></label>
+          <input type="range" id="mDensity" min="0" max="1" step="0.01" value="0.5">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    音声はこの端末内だけで処理され、外部には送信されません。マイクの使用許可はブラウザ側の確認のみです。<br>
+    Full Control = フル操作版（Jump / Loop Shift あり）　/　Miracle Focus = 軽量版（Freeze ボタン付き、即興向け）
+  </footer>
+</div>
+
+<script>
+const WORKLET_SOURCE = "// Shared DSP core: circular recording buffer with variable-rate scrub readout,\n// plus a simple delay-line granular pitch shifter. Written as plain functions/\n// classes so the exact same code can be (a) unit-tested under Node and\n// (b) embedded verbatim into the AudioWorkletProcessor that runs in the browser.\n\nclass RingChannel {\n  constructor(length) {\n    this.length = length | 0;\n    this.data = new Float32Array(this.length);\n  }\n  write(absIndex, value) {\n    const i = absIndex % this.length;\n    this.data[i < 0 ? i + this.length : i] = value;\n  }\n  readInterp(pos) {\n    const i0f = Math.floor(pos);\n    const frac = pos - i0f;\n    let i0 = i0f % this.length; if (i0 < 0) i0 += this.length;\n    let i1 = i0 + 1; if (i1 >= this.length) i1 = 0;\n    const a = this.data[i0], b = this.data[i1];\n    return a + (b - a) * frac;\n  }\n}\n\n// Simple real-time delay-line \"granular\" pitch shifter (two crossfading taps\n// with a triangular window), the standard DIY DSP recipe for click-free-ish\n// pitch shifting without FFT. `ratio` = 2^(semitones/12).\nclass GranularPitchShifter {\n  constructor(sampleRate, windowSeconds = 0.08) {\n    this.sampleRate = sampleRate;\n    this.windowSamples = Math.max(64, Math.round(sampleRate * windowSeconds));\n    // generous history so posA/posB never chase past what's been written, even\n    // at extreme ratios (each tap can only drift ~ratio*windowSamples per grain)\n    this.bufLen = this.windowSamples * 16;\n    this.buf = new Float32Array(this.bufLen);\n    this.writePos = 0;\n    this.ratio = 1.0;\n\n    this.grainPhaseA = 0;\n    this.grainPhaseB = Math.floor(this.windowSamples / 2);\n    this.posA = -this.windowSamples;\n    this.posB = -this.windowSamples;\n  }\n  setRatio(r) { this.ratio = r; }\n  _tri(x) {\n    const t = x / this.windowSamples; // 0..1\n    return 1 - Math.abs(2 * t - 1);\n  }\n  process(sample) {\n    this.buf[this.writePos % this.bufLen] = sample;\n    this.writePos++;\n\n    // advance grain clocks in real time; on wrap, re-anchor that tap's read\n    // position windowSamples behind \"now\" -- inaudible because the triangular\n    // envelope is exactly 0 at phase 0.\n    // Reset anchors subtract one extra `ratio` because the `+= ratio` just\n    // below always runs afterward too; without this, every reset would add a\n    // spurious +ratio jump (a slow pitch/position drift that's invisible at\n    // ratio=1 only by accident of testing with short signals).\n    this.grainPhaseA++;\n    if (this.grainPhaseA >= this.windowSamples) {\n      this.grainPhaseA = 0;\n      this.posA = this.writePos - this.windowSamples - this.ratio;\n    }\n    this.grainPhaseB++;\n    if (this.grainPhaseB >= this.windowSamples) {\n      this.grainPhaseB = 0;\n      this.posB = this.writePos - this.windowSamples - this.ratio;\n    }\n\n    // each tap's own read pointer moves at `ratio` samples per sample of real\n    // time -- THIS is what shifts the pitch (independent of the fixed-rate\n    // grain/window clock above, which only governs crossfade timing).\n    this.posA += this.ratio;\n    this.posB += this.ratio;\n\n    const outA = this._readBuf(this.posA) * this._tri(this.grainPhaseA);\n    const outB = this._readBuf(this.posB) * this._tri(this.grainPhaseB);\n    return outA + outB;\n  }\n  _readBuf(pos) {\n    const i0f = Math.floor(pos);\n    const frac = pos - i0f;\n    let i0 = i0f % this.bufLen; if (i0 < 0) i0 += this.bufLen;\n    let i1 = i0 + 1; if (i1 >= this.bufLen) i1 = 0;\n    const a = this.buf[i0], b = this.buf[i1];\n    return a + (b - a) * frac;\n  }\n}\n\nfunction semitonesToRatio(semi) {\n  return Math.pow(2, semi / 12);\n}\n\nif (typeof module !== 'undefined' && module.exports) {\n  module.exports = { RingChannel, GranularPitchShifter, semitonesToRatio };\n}\n\n// This text is concatenated after dsp-core.js and loaded into an AudioWorklet\n// via a Blob URL (see app.js). Keep it dependency-free (no imports) since the\n// blob has no meaningful base URL for module resolution.\n//\n// TapeGhostEngine holds all the actual per-sample logic and is plain JS with\n// no AudioWorklet dependency, so the exact same class is also loaded under\n// Node in test-engine.js for offline scenario testing.\n\nclass TapeGhostEngine {\n  constructor(sr, bufferSeconds) {\n    this.sr = sr;\n    this.bufferSamples = Math.max(1, Math.round(bufferSeconds * sr));\n    this.minGuard = Math.round(0.05 * sr);\n\n    this.ringL = new RingChannel(this.bufferSamples);\n    this.ringR = new RingChannel(this.bufferSamples);\n\n    this.writeCounter = 0;\n    this.readPos = 0;\n    this.idleAnchored = false;\n    this.minDelaySamples = Math.round(2.0 * sr);\n\n    this.rewindOn = false;\n    this.rewindSpeed = 1.0;\n\n    this.loopActive = false;\n    this.loopGain = 0.0;\n    this.loopGainStep = 1 / (0.015 * sr);\n    this.loopStartAbs = 0;\n    this.loopLen = Math.round(0.2 * sr);\n    this.loopLocal = 0;\n    this.loopRate = 1.0;\n    this.loopClickState = 0;\n    this.pendingLoopStart = 0;\n\n    this.mix = 0.0;\n    this.mixSmoothed = 0.0;\n    this.mixSmoothStep = 1 / (0.03 * sr);\n\n    this.pitchSemitones = 0.0;\n    this.pitchShifterL = new GranularPitchShifter(sr, 0.08);\n    this.pitchShifterR = new GranularPitchShifter(sr, 0.08);\n  }\n\n  handleMessage(msg) {\n    switch (msg.type) {\n      case 'setMix': this.mix = msg.value; break;\n      case 'setPitch':\n        this.pitchSemitones = msg.value;\n        this.pitchShifterL.setRatio(semitonesToRatio(this.pitchSemitones));\n        this.pitchShifterR.setRatio(semitonesToRatio(this.pitchSemitones));\n        break;\n      case 'setRewindSpeed': this.rewindSpeed = msg.value; break;\n      case 'rewind': this.rewindOn = !!msg.on; break;\n      case 'jump': {\n        const back = Math.max(0, msg.seconds) * this.sr;\n        let target = this.writeCounter - back;\n        target = Math.max(this.writeCounter - (this.bufferSamples - this.minGuard), target);\n        this.readPos = target;\n        break;\n      }\n      case 'loopMarkClick': {\n        this.loopClickState = (this.loopClickState + 1) % 3;\n        if (this.loopClickState === 1) {\n          this.pendingLoopStart = this.readPos;\n        } else if (this.loopClickState === 2) {\n          const start = this.pendingLoopStart;\n          const end = this.readPos;\n          this.loopStartAbs = start;\n          this.loopLen = Math.max(Math.round(0.05 * this.sr), Math.round(end - start));\n          this.loopLocal = 0;\n          this.loopRate = 1.0;\n          this.loopActive = true;\n        } else {\n          this.loopActive = false;\n        }\n        break;\n      }\n      case 'loopShift': {\n        const shiftSamples = Math.max(0, msg.seconds) * this.sr;\n        this.loopStartAbs -= shiftSamples;\n        this.loopLocal = 0;\n        this.loopRate = 1.0;\n        this.loopActive = true;\n        break;\n      }\n      case 'freeze': {\n        this.loopStartAbs = this.readPos;\n        this.loopLen = Math.max(Math.round(0.05 * this.sr), Math.round((msg.lenSeconds || 0.2) * this.sr));\n        this.loopLocal = 0;\n        this.loopRate = 1.0;\n        this.loopActive = true;\n        this.loopClickState = 2;\n        break;\n      }\n      case 'miracleSegment': {\n        const startAgo = Math.max(0, msg.startAgoSeconds) * this.sr;\n        let start = this.writeCounter - startAgo;\n        start = Math.max(this.writeCounter - (this.bufferSamples - this.minGuard), start);\n        this.loopStartAbs = start;\n        this.loopLen = Math.max(Math.round(0.05 * this.sr), Math.round(msg.lenSeconds * this.sr));\n        this.loopLocal = 0;\n        this.loopRate = msg.speedMul || 1.0;\n        this.loopActive = true;\n        this.loopClickState = 2;\n        break;\n      }\n      case 'miracleOff':\n      case 'loopOff': {\n        this.loopActive = false;\n        this.loopClickState = 0;\n        break;\n      }\n    }\n  }\n\n  // returns [outL, outR]\n  processSample(sampleL, sampleR) {\n    this.ringL.write(this.writeCounter, sampleL);\n    this.ringR.write(this.writeCounter, sampleR);\n    this.writeCounter++;\n\n    if (!this.idleAnchored && this.writeCounter >= this.minDelaySamples) {\n      this.readPos = this.writeCounter - this.minDelaySamples;\n      this.idleAnchored = true;\n    }\n\n    if (this.rewindOn) {\n      this.readPos -= this.rewindSpeed;\n    } else {\n      this.readPos += 1;\n    }\n    const minReadPos = this.writeCounter - (this.bufferSamples - this.minGuard);\n    if (this.readPos < minReadPos) this.readPos = minReadPos;\n    if (this.readPos > this.writeCounter) this.readPos = this.writeCounter;\n\n    const scrubL = this.ringL.readInterp(this.readPos);\n    const scrubR = this.ringR.readInterp(this.readPos);\n\n    const targetLoopGain = this.loopActive ? 1 : 0;\n    if (this.loopGain < targetLoopGain) this.loopGain = Math.min(targetLoopGain, this.loopGain + this.loopGainStep);\n    else if (this.loopGain > targetLoopGain) this.loopGain = Math.max(targetLoopGain, this.loopGain - this.loopGainStep);\n\n    let wetL = scrubL, wetR = scrubR;\n    if (this.loopGain > 0) {\n      this.loopLocal = (this.loopLocal + this.loopRate) % this.loopLen;\n      const loopPos = this.loopStartAbs + this.loopLocal;\n      const loopL = this.ringL.readInterp(loopPos);\n      const loopR = this.ringR.readInterp(loopPos);\n      wetL = scrubL * (1 - this.loopGain) + loopL * this.loopGain;\n      wetR = scrubR * (1 - this.loopGain) + loopR * this.loopGain;\n    }\n\n    const pitchedL = this.pitchShifterL.process(wetL);\n    const pitchedR = this.pitchShifterR.process(wetR);\n\n    if (this.mixSmoothed < this.mix) this.mixSmoothed = Math.min(this.mix, this.mixSmoothed + this.mixSmoothStep);\n    else if (this.mixSmoothed > this.mix) this.mixSmoothed = Math.max(this.mix, this.mixSmoothed - this.mixSmoothStep);\n\n    const outL = sampleL * (1 - this.mixSmoothed) + pitchedL * this.mixSmoothed;\n    const outR = sampleR * (1 - this.mixSmoothed) + pitchedR * this.mixSmoothed;\n    return [outL, outR];\n  }\n}\n\nif (typeof module !== 'undefined' && module.exports) {\n  module.exports.TapeGhostEngine = TapeGhostEngine;\n}\n\nif (typeof AudioWorkletProcessor !== 'undefined') {\n  class TapeGhostProcessor extends AudioWorkletProcessor {\n    static get parameterDescriptors() { return []; }\n\n    constructor(options) {\n      super();\n      const opts = options.processorOptions || {};\n      this.engine = new TapeGhostEngine(opts.sampleRate || sampleRate, opts.bufferSeconds || 300);\n      this.statusCounter = 0;\n      this.port.onmessage = (e) => this.engine.handleMessage(e.data);\n    }\n\n    process(inputs, outputs) {\n      const input = inputs[0];\n      const output = outputs[0];\n      const inL = (input && input[0]) || null;\n      const inR = (input && input[1]) || (input && input[0]) || null;\n      const outL = output[0];\n      const outR = output[1] || output[0];\n      const n = outL.length;\n\n      for (let i = 0; i < n; i++) {\n        const [l, r] = this.engine.processSample(inL ? inL[i] : 0, inR ? inR[i] : 0);\n        outL[i] = l;\n        outR[i] = r;\n      }\n\n      this.statusCounter += n;\n      if (this.statusCounter >= this.engine.sr * 0.05) {\n        this.statusCounter = 0;\n        this.port.postMessage({\n          type: 'status',\n          writeSec: this.engine.writeCounter / this.engine.sr,\n          readAgoSec: (this.engine.writeCounter - this.engine.readPos) / this.engine.sr,\n          loopActive: this.engine.loopActive,\n        });\n      }\n      return true;\n    }\n  }\n\n  registerProcessor('tape-ghost-processor', TapeGhostProcessor);\n}\n";
+</script>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+
+  const setupPanel = $('setupPanel');
+  const stage = $('stage');
+  const startBtn = $('startBtn');
+  const stopBtn = $('stopBtn');
+  const errBox = $('errBox');
+  const liveDot = $('liveDot');
+  const bufMinutesSel = $('bufMinutes');
+
+  let audioCtx = null;
+  let node = null;       // AudioWorkletNode, when the worklet path works
+  let sp = null;         // ScriptProcessorNode, fallback path (e.g. file:// pages)
+  let engine = null;     // TapeGhostEngine instance, only used in the fallback path
+  let stream = null;
+  let mode = 'full'; // 'full' | 'miracle'
+  let miracleTimer = null;
+  let statusPollTimer = null;
+  let lastStatus = { writeSec: 0, agoSec: 0, loopActive: false };
+
+  function showError(msg) {
+    errBox.textContent = msg;
+    errBox.style.display = 'block';
+  }
+
+  // Loads the same DSP source used by the worklet into the main thread, for
+  // the ScriptProcessorNode fallback. It's the exact tested code -- the
+  // AudioWorkletProcessor registration inside it is a no-op here since
+  // `AudioWorkletProcessor` doesn't exist in this scope.
+  function loadEngineClasses(source) {
+    return new Function(source + '\n;return { TapeGhostEngine, RingChannel, GranularPitchShifter, semitonesToRatio };')();
+  }
+
+  async function start() {
+    errBox.style.display = 'none';
+    const bufferSeconds = parseFloat(bufMinutesSel.value) * 60;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        }
+      });
+    } catch (e) {
+      showError('マイク/ライン入力へのアクセスが許可されませんでした（' + e.message + '）。ブラウザの権限設定を確認してください。');
+      return;
+    }
+
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const src = audioCtx.createMediaStreamSource(stream);
+
+    let workletOK = false;
+    try {
+      const blob = new Blob([WORKLET_SOURCE], { type: 'application/javascript' });
+      const url = URL.createObjectURL(blob);
+      await audioCtx.audioWorklet.addModule(url);
+      node = new AudioWorkletNode(audioCtx, 'tape-ghost-processor', {
+        numberOfInputs: 1,
+        numberOfOutputs: 1,
+        outputChannelCount: [2],
+        processorOptions: { sampleRate: audioCtx.sampleRate, bufferSeconds }
+      });
+      node.port.onmessage = (e) => {
+        if (e.data.type === 'status') {
+          lastStatus = { writeSec: e.data.writeSec, agoSec: e.data.readAgoSec, loopActive: e.data.loopActive };
+          updateStatusUI();
+        }
+      };
+      src.connect(node);
+      node.connect(audioCtx.destination);
+      workletOK = true;
+    } catch (e) {
+      // AudioWorklet module loading can fail on some setups (notably a
+      // double-clicked local file opened as file://). Fall back to a plain
+      // ScriptProcessorNode running the identical engine on the main thread.
+      console.warn('AudioWorklet unavailable, falling back to ScriptProcessorNode:', e.message);
+    }
+
+    if (!workletOK) {
+      try {
+        const { TapeGhostEngine } = loadEngineClasses(WORKLET_SOURCE);
+        engine = new TapeGhostEngine(audioCtx.sampleRate, bufferSeconds);
+        sp = audioCtx.createScriptProcessor(2048, 2, 2);
+        sp.onaudioprocess = (e) => {
+          const inL = e.inputBuffer.getChannelData(0);
+          const inR = e.inputBuffer.numberOfChannels > 1 ? e.inputBuffer.getChannelData(1) : inL;
+          const outL = e.outputBuffer.getChannelData(0);
+          const outR = e.outputBuffer.getChannelData(1);
+          for (let i = 0; i < inL.length; i++) {
+            const [l, r] = engine.processSample(inL[i], inR[i]);
+            outL[i] = l; outR[i] = r;
+          }
+        };
+        src.connect(sp);
+        sp.connect(audioCtx.destination);
+        statusPollTimer = setInterval(() => {
+          if (!engine) return;
+          lastStatus = {
+            writeSec: engine.writeCounter / engine.sr,
+            agoSec: (engine.writeCounter - engine.readPos) / engine.sr,
+            loopActive: engine.loopActive,
+          };
+          updateStatusUI();
+        }, 50);
+      } catch (e) {
+        showError('オーディオ処理の初期化に失敗しました: ' + e.message);
+        return;
+      }
+    }
+
+    setupPanel.style.display = 'none';
+    stage.classList.add('show');
+    liveDot.classList.add('live');
+
+    sendAllParams();
+    drawLoop();
+  }
+
+  function stop() {
+    if (miracleTimer) { clearTimeout(miracleTimer); miracleTimer = null; }
+    if (statusPollTimer) { clearInterval(statusPollTimer); statusPollTimer = null; }
+    if (stream) stream.getTracks().forEach((t) => t.stop());
+    if (node) node.disconnect();
+    if (sp) sp.disconnect();
+    if (audioCtx) audioCtx.close();
+    audioCtx = null; node = null; sp = null; engine = null; stream = null;
+    setupPanel.style.display = 'block';
+    stage.classList.remove('show');
+    liveDot.classList.remove('live');
+    $('miracleBtn').classList.remove('active');
+    $('miracleBtn').textContent = 'Miracle OFF';
+    $('rewindBtn').classList.remove('active');
+    $('loopBtn').dataset.state = '0';
+    $('loopBtn').textContent = 'Loop Mark: 待機中';
+  }
+
+  startBtn.addEventListener('click', start);
+  stopBtn.addEventListener('click', stop);
+
+  // ---- parameter wiring ----
+  function send(msg) {
+    if (node) node.port.postMessage(msg);
+    else if (engine) engine.handleMessage(msg);
+  }
+
+  function sendAllParams() {
+    send({ type: 'setMix', value: parseFloat($('mix').value) / 100 });
+    send({ type: 'setPitch', value: parseFloat($('pitch').value) });
+    send({ type: 'setRewindSpeed', value: parseFloat($('rwSpeed').value) });
+  }
+
+  $('mix').addEventListener('input', (e) => {
+    $('valMix').textContent = e.target.value + '%';
+    send({ type: 'setMix', value: parseFloat(e.target.value) / 100 });
+  });
+  $('pitch').addEventListener('input', (e) => {
+    $('valPitch').textContent = parseFloat(e.target.value).toFixed(2);
+    send({ type: 'setPitch', value: parseFloat(e.target.value) });
+  });
+  $('jump').addEventListener('input', (e) => {
+    $('valJump').textContent = parseFloat(e.target.value).toFixed(1);
+  });
+  $('jumpBtn').addEventListener('click', () => {
+    send({ type: 'jump', seconds: parseFloat($('jump').value) });
+  });
+  $('rwSpeed').addEventListener('input', (e) => {
+    $('valRwSpeed').textContent = parseFloat(e.target.value).toFixed(1);
+    send({ type: 'setRewindSpeed', value: parseFloat(e.target.value) });
+  });
+
+  let rewindOn = false;
+  $('rewindBtn').addEventListener('click', () => {
+    rewindOn = !rewindOn;
+    $('rewindBtn').classList.toggle('active', rewindOn);
+    $('rewindBtn').textContent = rewindOn ? 'Rewind: ON（もう一度押して停止）' : 'Rewind (押し続け)';
+    send({ type: 'rewind', on: rewindOn });
+  });
+
+  $('loopBtn').addEventListener('click', () => {
+    const cur = parseInt($('loopBtn').dataset.state, 10);
+    const next = (cur + 1) % 3;
+    $('loopBtn').dataset.state = String(next);
+    $('loopBtn').textContent = next === 0 ? 'Loop Mark: 待機中' : next === 1 ? 'Loop Mark: 開始点セット済み（もう一度押して終了点）' : 'Loop Mark: ループ中（もう一度押して解除）';
+    send({ type: 'loopMarkClick' });
+  });
+
+  $('loopShiftSec').addEventListener('input', (e) => {
+    $('valLoopShift').textContent = parseFloat(e.target.value).toFixed(1);
+  });
+  $('loopShiftBtn').addEventListener('click', () => {
+    send({ type: 'loopShift', seconds: parseFloat($('loopShiftSec').value) });
+  });
+
+  $('freezeBtn').addEventListener('click', () => {
+    send({ type: 'freeze', lenSeconds: 0.18 });
+    $('loopBtn').dataset.state = '2';
+    $('loopBtn').textContent = 'Loop Mark: ループ中（もう一度押して解除）';
+  });
+
+  $('mWindow').addEventListener('input', (e) => { $('valMWin').textContent = e.target.value; });
+  $('mDensity').addEventListener('input', (e) => { $('valMDens').textContent = parseFloat(e.target.value).toFixed(2); });
+
+  let miracleOn = false;
+  $('miracleBtn').addEventListener('click', () => {
+    miracleOn = !miracleOn;
+    $('miracleBtn').classList.toggle('active', miracleOn);
+    $('miracleBtn').textContent = miracleOn ? 'Miracle ON' : 'Miracle OFF';
+    if (miracleOn) {
+      scheduleMiracleTick();
+    } else {
+      if (miracleTimer) { clearTimeout(miracleTimer); miracleTimer = null; }
+      send({ type: 'miracleOff' });
+      $('loopBtn').dataset.state = '0';
+      $('loopBtn').textContent = 'Loop Mark: 待機中';
+    }
+  });
+
+  function scheduleMiracleTick() {
+    const windowSec = parseFloat($('mWindow').value);
+    const density = parseFloat($('mDensity').value);
+    const startAgo = Math.random() * Math.max(0.5, Math.min(windowSec, lastStatus.writeSec));
+    const lenSec = 0.5 + (1 - density) * 2.5 * Math.random();
+    const speedMul = 0.5 + Math.random() * 1.5;
+    send({ type: 'miracleSegment', startAgoSeconds: startAgo, lenSeconds: lenSec, speedMul });
+    const interval = 80 + Math.random() * 500;
+    miracleTimer = setTimeout(() => { if (miracleOn) scheduleMiracleTick(); }, interval);
+  }
+
+  // ---- mode tabs (Full Control / Miracle Focus) ----
+  document.querySelectorAll('.tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
+      tab.classList.add('active');
+      mode = tab.dataset.mode;
+      const isFull = mode === 'full';
+      $('fullOnly1').style.display = isFull ? '' : 'none';
+      $('fullOnly2').style.display = isFull ? '' : 'none';
+      $('miracleOnly1').style.display = isFull ? 'none' : '';
+    });
+  });
+
+  // ---- status readout + circular scope visualization ----
+  function updateStatusUI() {
+    $('writeSec').textContent = lastStatus.writeSec.toFixed(1);
+    $('agoSec').textContent = lastStatus.agoSec.toFixed(2);
+    $('chipRewind').classList.toggle('on', rewindOn);
+    $('chipLoop').classList.toggle('on', !!lastStatus.loopActive);
+    $('chipMiracle').classList.toggle('on', miracleOn);
+  }
+
+  const scope = $('scope');
+  const ctx2d = scope.getContext('2d');
+  function drawLoop() {
+    if (!audioCtx) return;
+    const w = scope.width, h = scope.height;
+    const cx = w / 2, cy = h / 2, r = w / 2 - 10;
+    ctx2d.clearRect(0, 0, w, h);
+    ctx2d.strokeStyle = 'rgba(154,163,178,0.35)';
+    ctx2d.lineWidth = 2;
+    ctx2d.beginPath();
+    ctx2d.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx2d.stroke();
+
+    const bufferSeconds = parseFloat(bufMinutesSel.value) * 60;
+    const writeFrac = (lastStatus.writeSec % bufferSeconds) / bufferSeconds;
+    const readFrac = ((lastStatus.writeSec - lastStatus.agoSec) % bufferSeconds + bufferSeconds) % bufferSeconds / bufferSeconds;
+
+    drawDot(cx, cy, r, writeFrac, '#ff5d5d', 4);
+    drawDot(cx, cy, r, readFrac, '#5ddcff', 6);
+
+    requestAnimationFrame(drawLoop);
+  }
+  function drawDot(cx, cy, r, frac, color, size) {
+    const angle = frac * Math.PI * 2 - Math.PI / 2;
+    const x = cx + Math.cos(angle) * r;
+    const y = cy + Math.sin(angle) * r;
+    ctx2d.fillStyle = color;
+    ctx2d.beginPath();
+    ctx2d.arc(x, y, size, 0, Math.PI * 2);
+    ctx2d.fill();
+  }
+})();
+
+</script>
+
+</body>
+</html>
