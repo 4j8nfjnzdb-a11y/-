@@ -32,6 +32,7 @@ class TapeGhostEngine {
     this.loopRate = 1.0;
     this.loopClickState = 0;
     this.pendingLoopStart = 0;
+    this.loopEdgeFadeSamples = Math.round(0.006 * sr); // ~6ms declick at each segment's own start/end
 
     this.mix = 0.0;
     this.mixSmoothed = 0.0;
@@ -170,8 +171,26 @@ class TapeGhostEngine {
     if (this.loopGain > 0) {
       this.loopLocal = (this.loopLocal + this.loopRate) % this.loopLen;
       const loopPos = this.loopStartAbs + this.loopLocal;
-      const loopL = this.ringL.readInterp(loopPos);
-      const loopR = this.ringR.readInterp(loopPos);
+      let loopL = this.ringL.readInterp(loopPos);
+      let loopR = this.ringR.readInterp(loopPos);
+
+      // Every new Loop/Miracle segment jumps loopStartAbs and resets
+      // loopLocal to 0 with no crossfade of its own -- fine for an occasional
+      // manual Loop Mark, but Miracle re-triggers this every 80-580ms, so an
+      // uncovered hard waveform discontinuity there reads as constant
+      // crackling ("bu-tsu-bu-tsu") rather than a single click. A short
+      // fade in/out at each segment's own start/end (not the loopGain
+      // crossfade above, which only covers scrub<->loop, not loop<->loop)
+      // covers exactly that transition.
+      const edgeFade = Math.min(this.loopEdgeFadeSamples, this.loopLen / 4);
+      if (edgeFade > 0) {
+        let env = 1.0;
+        if (this.loopLocal < edgeFade) env = this.loopLocal / edgeFade;
+        else if (this.loopLocal > this.loopLen - edgeFade) env = (this.loopLen - this.loopLocal) / edgeFade;
+        loopL *= env;
+        loopR *= env;
+      }
+
       wetL = scrubL * (1 - this.loopGain) + loopL * this.loopGain;
       wetR = scrubR * (1 - this.loopGain) + loopR * this.loopGain;
     }

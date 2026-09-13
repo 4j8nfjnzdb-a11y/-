@@ -257,4 +257,43 @@ console.log('input meter test passed.');
   assert(decaying, `feedback repeats decay each cycle: ${repeatPeaks.map((v) => v.toFixed(3))}`);
 })();
 
+// --- Test: a hard Loop/Miracle segment switch declicks instead of jumping ---
+(function testMiracleDeclick() {
+  const eng = new TapeGhostEngine(SR, 30);
+  eng.handleMessage({ type: 'setMix', value: 1.0 });
+  // region A (+1) then region B (-1), so a raw jump between them would be
+  // impossible to miss
+  for (let i = 0; i < SR; i++) eng.processSample(1, 1);
+  for (let i = 0; i < SR; i++) eng.processSample(-1, -1);
+
+  // force a fully-engaged loop reading mid-way into region A (poking engine
+  // state directly for precision, rather than going through jump/loopMark)
+  eng.loopActive = true;
+  eng.loopStartAbs = 0;
+  eng.loopLen = Math.round(0.5 * SR);
+  eng.loopLocal = Math.round(0.3 * SR);
+  eng.loopGain = 1.0;
+  for (let i = 0; i < 500; i++) eng.processSample(0, 0); // let it settle on +1
+
+  // now switch to region B abruptly, exactly as a Miracle tick does every
+  // 80-580ms in normal use
+  eng.loopStartAbs = SR;
+  eng.loopLen = Math.round(0.5 * SR);
+  eng.loopLocal = 0;
+
+  // the pitch-shifter is an exact fixed delay at ratio=1 (proven by the loop
+  // periodicity test above), so whatever wetL was AT the switch instant
+  // reappears unmodified exactly (windowSamples-1) samples later
+  const windowSamples = eng.pitchShifterL.windowSamples;
+  const around = [];
+  for (let i = 0; i < windowSamples + 5; i++) {
+    const [l] = eng.processSample(0, 0);
+    if (i >= windowSamples - 4) around.push(l);
+  }
+  const dipMin = Math.min(...around.map(Math.abs));
+  assert(dipMin < 0.05, `hard segment switch dips toward 0 (declick) instead of jumping straight from +1 to -1 (min |value| near the switch: ${dipMin.toFixed(4)})`);
+})();
+
+console.log('declick test passed.');
+
 console.log('delay/echo test passed.');
