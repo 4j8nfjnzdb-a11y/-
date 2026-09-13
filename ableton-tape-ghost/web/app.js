@@ -8,6 +8,11 @@
   const errBox = $('errBox');
   const liveDot = $('liveDot');
   const bufMinutesSel = $('bufMinutes');
+  const inputDeviceSel = $('inputDevice');
+  const outputDeviceSel = $('outputDevice');
+  const refreshDevicesBtn = $('refreshDevicesBtn');
+  const meterFill = $('meterFill');
+  const meterWarn = $('meterWarn');
 
   let audioCtx = null;
   let node = null;       // AudioWorkletNode, when the worklet path works
@@ -24,6 +29,52 @@
     errBox.style.display = 'block';
   }
 
+  // Device labels are blank until a getUserMedia permission has been granted
+  // at least once (browser privacy rule) -- this is the single most common
+  // reason "I don't see my interface in the list" happens, so the refresh
+  // button explicitly requests a throwaway permission first when needed.
+  async function populateDevices(requestPermissionFirst) {
+    if (requestPermissionFirst) {
+      try {
+        const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+        s.getTracks().forEach((t) => t.stop());
+      } catch (e) {
+        showError('デバイス一覧を見るためのマイク許可が得られませんでした: ' + e.message);
+        return;
+      }
+    }
+    let devices;
+    try {
+      devices = await navigator.mediaDevices.enumerateDevices();
+    } catch (e) {
+      return;
+    }
+    const ins = devices.filter((d) => d.kind === 'audioinput');
+    const outs = devices.filter((d) => d.kind === 'audiooutput');
+    const fill = (sel, list, defaultLabel) => {
+      const prev = sel.value;
+      sel.innerHTML = '';
+      const def = document.createElement('option');
+      def.value = ''; def.textContent = defaultLabel;
+      sel.appendChild(def);
+      list.forEach((d, i) => {
+        const opt = document.createElement('option');
+        opt.value = d.deviceId;
+        opt.textContent = d.label || `デバイス ${i + 1}（名前を見るには一度マイクを許可してください）`;
+        sel.appendChild(opt);
+      });
+      if (list.some((d) => d.deviceId === prev)) sel.value = prev;
+    };
+    fill(inputDeviceSel, ins, 'デフォルト入力');
+    fill(outputDeviceSel, outs, 'デフォルト出力');
+  }
+
+  refreshDevicesBtn.addEventListener('click', () => populateDevices(true));
+  populateDevices(false);
+  if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+    navigator.mediaDevices.addEventListener('devicechange', () => populateDevices(false));
+  }
+
   // Loads the same DSP source used by the worklet into the main thread, for
   // the ScriptProcessorNode fallback. It's the exact tested code -- the
   // AudioWorkletProcessor registration inside it is a no-op here since
@@ -35,20 +86,36 @@
   async function start() {
     errBox.style.display = 'none';
     const bufferSeconds = parseFloat(bufMinutesSel.value) * 60;
+    const chosenInputId = inputDeviceSel.value;
+    const audioConstraints = {
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+    };
+    // omit deviceId entirely for "デフォルト入力" so we don't fight the
+    // browser's own default-device selection with an unnecessary constraint
+    if (chosenInputId) audioConstraints.deviceId = { exact: chosenInputId };
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-        }
-      });
+      stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
     } catch (e) {
-      showError('マイク/ライン入力へのアクセスが許可されませんでした（' + e.message + '）。ブラウザの権限設定を確認してください。');
+      showError('マイク/ライン入力へのアクセスが許可されませんでした（' + e.message + '）。選んだ入力デバイスが正しいか、他のアプリがそのデバイスを排他利用していないか確認してください。');
       return;
     }
+    // now that permission is granted, device labels are unlocked -- refresh
+    // so the dropdowns show real names instead of "デバイス N" placeholders
+    populateDevices(false);
 
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const chosenOutputId = outputDeviceSel.value;
+    if (chosenOutputId && typeof audioCtx.setSinkId === 'function') {
+      try {
+        await audioCtx.setSinkId(chosenOutputId);
+      } catch (e) {
+        showError('出力デバイスの切り替えに失敗しました（' + e.message + '）。デフォルト出力のまま続行します。');
+      }
+    } else if (chosenOutputId) {
+      showError('お使いのブラウザは出力デバイスの切り替え（setSinkId）に対応していません。システム側の既定の出力デバイスをFirefaceに設定してください。');
+    }
     const src = audioCtx.createMediaStreamSource(stream);
 
     let workletOK = false;
@@ -64,7 +131,7 @@
       });
       node.port.onmessage = (e) => {
         if (e.data.type === 'status') {
-          lastStatus = { writeSec: e.data.writeSec, agoSec: e.data.readAgoSec, loopActive: e.data.loopActive };
+          lastStatus = { writeSec: e.data.writeSec, agoSec: e.data.readAgoSec, loopActive: e.data.loopActive, inputPeak: e.data.inputPeak };
           updateStatusUI();
         }
       };
@@ -101,6 +168,7 @@
             writeSec: engine.writeCounter / engine.sr,
             agoSec: (engine.writeCounter - engine.readPos) / engine.sr,
             loopActive: engine.loopActive,
+            inputPeak: engine.inputPeak,
           };
           updateStatusUI();
         }, 50);
@@ -114,6 +182,7 @@
     stage.classList.add('show');
     liveDot.classList.add('live');
 
+    startedAt = performance.now();
     sendAllParams();
     drawLoop();
   }
@@ -129,6 +198,8 @@
     setupPanel.style.display = 'block';
     stage.classList.remove('show');
     liveDot.classList.remove('live');
+    meterFill.style.width = '0%';
+    meterWarn.classList.add('hidden');
     $('miracleBtn').classList.remove('active');
     $('miracleBtn').textContent = 'Miracle OFF';
     $('rewindBtn').classList.remove('active');
@@ -242,12 +313,24 @@
   });
 
   // ---- status readout + circular scope visualization ----
+  let startedAt = 0;
   function updateStatusUI() {
     $('writeSec').textContent = lastStatus.writeSec.toFixed(1);
     $('agoSec').textContent = lastStatus.agoSec.toFixed(2);
     $('chipRewind').classList.toggle('on', rewindOn);
     $('chipLoop').classList.toggle('on', !!lastStatus.loopActive);
     $('chipMiracle').classList.toggle('on', miracleOn);
+
+    const peak = lastStatus.inputPeak || 0;
+    // linear peak -> 0-100% with a dB-ish curve so quiet signals are still
+    // visible (a flat linear mapping makes anything under ~-20dB look like 0)
+    const db = peak > 0 ? 20 * Math.log10(peak) : -100;
+    const pct = Math.max(0, Math.min(100, (db + 60) / 60 * 100));
+    meterFill.style.width = pct.toFixed(1) + '%';
+
+    const elapsedSinceStart = (performance.now() - startedAt) / 1000;
+    const silentTooLong = elapsedSinceStart > 2.0 && peak < 0.001;
+    meterWarn.classList.toggle('hidden', !silentTooLong);
   }
 
   const scope = $('scope');

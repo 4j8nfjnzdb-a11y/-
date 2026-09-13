@@ -37,6 +37,13 @@ class TapeGhostEngine {
     this.mixSmoothed = 0.0;
     this.mixSmoothStep = 1 / (0.03 * sr);
 
+    // input level meter (peak with decay) -- exists purely so the UI can show
+    // "is any signal actually arriving from the selected input device at
+    // all", independent of Mix/effect state, since that's the first thing to
+    // check when an audio interface "makes no sound" through a web page.
+    this.inputPeak = 0.0;
+    this.inputPeakDecay = Math.pow(0.001, 1 / (0.3 * sr)); // ~300ms fall to -60dB
+
     this.pitchSemitones = 0.0;
     this.pitchShifterL = new GranularPitchShifter(sr, 0.08);
     this.pitchShifterR = new GranularPitchShifter(sr, 0.08);
@@ -116,6 +123,9 @@ class TapeGhostEngine {
 
   // returns [outL, outR]
   processSample(sampleL, sampleR) {
+    const inAbs = Math.max(Math.abs(sampleL), Math.abs(sampleR));
+    this.inputPeak = Math.max(inAbs, this.inputPeak * this.inputPeakDecay);
+
     this.ringL.write(this.writeCounter, sampleL);
     this.ringR.write(this.writeCounter, sampleR);
     this.writeCounter++;
@@ -202,6 +212,7 @@ if (typeof AudioWorkletProcessor !== 'undefined') {
           writeSec: this.engine.writeCounter / this.engine.sr,
           readAgoSec: (this.engine.writeCounter - this.engine.readPos) / this.engine.sr,
           loopActive: this.engine.loopActive,
+          inputPeak: this.engine.inputPeak,
         });
       }
       return true;

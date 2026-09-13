@@ -159,3 +159,15 @@ function runTone(engine, seconds, freq, ampL = 1, ampR = 1, phaseOffset = 0) {
 })();
 
 console.log('\nAll engine scenario tests passed.');
+
+// --- Test: input level meter reflects actual signal presence ---
+(function testInputMeter() {
+  const eng = new TapeGhostEngine(SR, 60);
+  assert(eng.inputPeak < 1e-6, 'input meter starts at ~0 with no signal');
+  for (let i = 0; i < 1000; i++) eng.processSample(0.8, 0.8);
+  assert(eng.inputPeak > 0.7, `input meter rises to reflect a loud signal (got ${eng.inputPeak.toFixed(3)})`);
+  for (let i = 0; i < SR; i++) eng.processSample(0, 0);
+  assert(eng.inputPeak < 0.01, `input meter decays back down once signal stops (got ${eng.inputPeak.toFixed(4)})`);
+})();
+
+console.log('input meter test passed.');

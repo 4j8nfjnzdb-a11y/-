@@ -78,6 +78,9 @@ canvas#scope{ width:180px; height:180px; border-radius:50%; background:var(--pan
   border:1px solid var(--line);
 }
 .status .modechip.on{ background:var(--accent3); color:#12200a; border-color:var(--accent3); }
+.meterTrack{ width:100%; height:14px; border-radius:7px; background:var(--panel2); border:1px solid var(--line); overflow:hidden; }
+.meterFill{ height:100%; width:0%; background:linear-gradient(90deg, var(--ok), var(--accent3), var(--accent)); transition:width 0.05s linear; }
+.meterWarn{ color:var(--danger); font-size:12px; margin-top:4px; }
 
 .tabs{ display:flex; gap:8px; margin-bottom:16px; }
 .tab{
@@ -112,6 +115,21 @@ a{ color:var(--accent2); }
   <div class="setup" id="setupPanel">
     <div class="row">
       <div class="field">
+        <label>入力デバイス（RMEなどのインターフェースはここで明示的に選んでください。ブラウザは何もしないとOS標準のマイクを使います）</label>
+        <select id="inputDevice"><option value="">デフォルト入力</option></select>
+      </div>
+      <div class="field">
+        <label>出力デバイス（対応ブラウザのみ。処理後の音を送り返す先）</label>
+        <select id="outputDevice"><option value="">デフォルト出力</option></select>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <button class="btn-ghost" id="refreshDevicesBtn" style="width:100%">デバイス一覧を更新（一覧が出ない/名前が見えない時）</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
         <label>バッファ長（何分遡れるか）</label>
         <select id="bufMinutes">
           <option value="1">1分</option>
@@ -132,6 +150,11 @@ a{ color:var(--accent2); }
     <div class="visual">
       <canvas id="scope" width="180" height="180"></canvas>
       <div class="status">
+        <div style="margin-bottom:8px;">
+          <label style="display:block;font-size:11px;color:var(--fg-dim);margin-bottom:4px;">入力レベル（無音なら選んだ入力デバイスに信号が来ていません）</label>
+          <div class="meterTrack"><div class="meterFill" id="meterFill"></div></div>
+          <div id="meterWarn" class="meterWarn hidden">⚠ 信号が来ていません。上の「入力デバイス」で正しいインターフェースを選び直してください。</div>
+        </div>
         <div><b id="writeSec">0.0</b>s 録音済み / 現在 <b id="agoSec">0.0</b>秒前を再生中</div>
         <div style="margin-top:6px;">
           <span class="modechip" id="chipRewind">REWIND</span>
