@@ -114,6 +114,7 @@ html, body {
 
 .sourceButtons { display: flex; gap: 0.4rem; }
 .btn {
+  display: inline-block;
   font-family: inherit;
   font-size: 0.68rem;
   letter-spacing: 0.03em;

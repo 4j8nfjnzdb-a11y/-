@@ -634,8 +634,7 @@
   document.querySelectorAll("[data-action]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const { action, slot } = btn.dataset;
-      if (action === "load") el("file" + slot).click();
-      else if (action === "play") playSource(slot);
+      if (action === "play") playSource(slot);
       else if (action === "stop") stopSource(slot);
       else if (action === "clear") clearSource(slot);
     });
