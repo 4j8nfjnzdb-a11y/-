@@ -286,10 +286,87 @@
     return new Blob([buffer], { type: "audio/wav" });
   }
 
+  // ---- minimal ZIP writer (store method, no compression) -------------
+  // Used to wrap a WAV export for hosts whose save/download surface
+  // only accepts a small extension allowlist that doesn't include wav.
+  function crc32(bytes) {
+    let crc = 0xffffffff;
+    for (let i = 0; i < bytes.length; i++) {
+      let c = (crc ^ bytes[i]) & 0xff;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      crc = (crc >>> 8) ^ c;
+    }
+    return (crc ^ 0xffffffff) >>> 0;
+  }
+
+  function makeZipStore(files) {
+    const encoder = new TextEncoder();
+    const localParts = [], centralParts = [];
+    let offset = 0;
+    for (const f of files) {
+      const nameBytes = encoder.encode(f.name);
+      const data = f.bytes;
+      const crc = crc32(data);
+      const size = data.length;
+
+      const local = new DataView(new ArrayBuffer(30));
+      local.setUint32(0, 0x04034b50, true);
+      local.setUint16(4, 20, true);
+      local.setUint16(6, 0, true);
+      local.setUint16(8, 0, true);
+      local.setUint16(10, 0, true);
+      local.setUint16(12, 0x21, true);
+      local.setUint32(14, crc, true);
+      local.setUint32(18, size, true);
+      local.setUint32(22, size, true);
+      local.setUint16(26, nameBytes.length, true);
+      local.setUint16(28, 0, true);
+      localParts.push(new Uint8Array(local.buffer), nameBytes, data);
+
+      const central = new DataView(new ArrayBuffer(46));
+      central.setUint32(0, 0x02014b50, true);
+      central.setUint16(4, 20, true);
+      central.setUint16(6, 20, true);
+      central.setUint16(8, 0, true);
+      central.setUint16(10, 0, true);
+      central.setUint16(12, 0, true);
+      central.setUint16(14, 0x21, true);
+      central.setUint32(16, crc, true);
+      central.setUint32(20, size, true);
+      central.setUint32(24, size, true);
+      central.setUint16(28, nameBytes.length, true);
+      central.setUint16(30, 0, true);
+      central.setUint16(32, 0, true);
+      central.setUint16(34, 0, true);
+      central.setUint16(36, 0, true);
+      central.setUint32(38, 0, true);
+      central.setUint32(42, offset, true);
+      centralParts.push(new Uint8Array(central.buffer), nameBytes);
+
+      offset += 30 + nameBytes.length + size;
+    }
+
+    const centralStart = offset;
+    let centralSize = 0;
+    for (const p of centralParts) centralSize += p.length;
+
+    const end = new DataView(new ArrayBuffer(22));
+    end.setUint32(0, 0x06054b50, true);
+    end.setUint16(4, 0, true);
+    end.setUint16(6, 0, true);
+    end.setUint16(8, files.length, true);
+    end.setUint16(10, files.length, true);
+    end.setUint32(12, centralSize, true);
+    end.setUint32(16, centralStart, true);
+    end.setUint16(20, 0, true);
+
+    return new Blob([...localParts, ...centralParts, new Uint8Array(end.buffer)], { type: "application/zip" });
+  }
+
   root.SonMorphDSP = {
     fft, hannWindow, wrapPhase, extractFrame, analyzeFrame,
     spectralEnvelope, median, medianSmall, estimatePitch, rmsEnergyContour,
-    dtwWarp, sCurve, sharpen, encodeWav,
+    dtwWarp, sCurve, sharpen, encodeWav, makeZipStore,
   };
 })(typeof window !== "undefined" ? window : globalThis);
 

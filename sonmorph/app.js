@@ -873,20 +873,48 @@
   }
   el("stopMorphBtn").addEventListener("click", stopMorph);
 
-  el("downloadBtn").addEventListener("click", () => {
-    if (!state.rendered) return;
-    const dither = el("tpdfDither").checked;
-    const blob = D.encodeWav(state.rendered.channels, state.rendered.sampleRate, 24, dither);
+  // Saves a generated file to the viewer's disk. Plain `<a download>`
+  // works for a page opened as a normal file/webpage, but is inert
+  // inside the Artifact sandbox — there, the `downloads` capability is
+  // the only way to hand the viewer a file, and it only accepts a
+  // small extension allowlist that doesn't include wav, so the file is
+  // wrapped in a zip for that path.
+  async function saveGeneratedFile(blob, filename) {
+    if (window.claude && typeof window.claude.use === "function") {
+      try {
+        const downloads = await window.claude.use("downloads");
+        if (downloads) {
+          const bytes = new Uint8Array(await blob.arrayBuffer());
+          const zipBlob = D.makeZipStore([{ name: filename, bytes }]);
+          const zipName = filename.replace(/\.[^.]+$/, "") + ".zip";
+          await downloads.save({ filename: zipName, data: zipBlob });
+          setStatus(`保存しました（${zipName} の中に ${filename}）`);
+          return;
+        }
+      } catch (err) {
+        if (err && err.code === "declined") return;
+        console.error(err);
+        setStatus("保存に失敗しました: " + ((err && err.message) || err));
+        return;
+      }
+    }
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    const baseA = (state.sources.A ? state.sources.A.fileName : "A").replace(/\.[^.]+$/, "");
-    const baseB = (state.sources.B ? state.sources.B.fileName : "B").replace(/\.[^.]+$/, "");
     a.href = url;
-    a.download = `sonmorph_${baseA}_x_${baseB}.wav`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+
+  el("downloadBtn").addEventListener("click", async () => {
+    if (!state.rendered) return;
+    const dither = el("tpdfDither").checked;
+    const blob = D.encodeWav(state.rendered.channels, state.rendered.sampleRate, 24, dither);
+    const baseA = (state.sources.A ? state.sources.A.fileName : "A").replace(/\.[^.]+$/, "");
+    const baseB = (state.sources.B ? state.sources.B.fileName : "B").replace(/\.[^.]+$/, "");
+    await saveGeneratedFile(blob, `sonmorph_${baseA}_x_${baseB}.wav`);
   });
 
   // ---------------------------------------------------------------
