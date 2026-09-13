@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>rewind sampler — 巻き戻りサンプラー</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="ui">
+    <header>
+      <h1>rewind sampler <span class="sub">巻き戻りサンプラー</span></h1>
+      <p class="tagline">
+        入力音を常時ローリング録音しつつ隠しておき、ミックスフェーダーを上げると
+        原音の代わりに「過去」が鳴り出すエフェクター。巻き戻し・ジャンプ・微分音ピッチ・
+        ループ・ランダムカットアップ(Miracle)を備えています。
+      </p>
+    </header>
+
+    <section class="panel setup" id="setupPanel">
+      <label class="field">
+        <span>録音バッファ長</span>
+        <select id="bufferMinutes">
+          <option value="2">2分</option>
+          <option value="5" selected>5分</option>
+          <option value="10">10分</option>
+          <option value="20">20分(メモリ消費大)</option>
+        </select>
+      </label>
+      <button id="startBtn" class="primaryBtn">入力を許可して開始</button>
+      <p class="hint" id="setupHint">
+        マイク/オーディオインターフェース入力へのアクセスを許可してください。
+        ブラウザの制約上、選べるのは入力デバイスの先頭2ch(通常In1/2)までです。
+      </p>
+    </section>
+
+    <section class="panel run" id="runPanel" hidden>
+      <div class="row">
+        <label class="slider wide">
+          <span>原音 ⇄ 過去 <em id="mixVal">0%</em></span>
+          <input id="mix" type="range" min="0" max="100" value="0" />
+        </label>
+      </div>
+
+      <div class="row buttons">
+        <button id="rewindBtn" class="toggleBtn">巻き戻し</button>
+        <button id="loopBtn" class="toggleBtn">ループ(2回押し)</button>
+        <button id="miracleBtn" class="toggleBtn">Miracle</button>
+        <button id="liveBtn" class="toggleBtn">現在(通常再生)に戻る</button>
+      </div>
+
+      <div class="row">
+        <label class="slider wide">
+          <span>ピッチ(微分音) <em id="pitchVal">0.00 semi</em></span>
+          <input id="pitch" type="range" min="-1200" max="1200" value="0" step="1" />
+        </label>
+      </div>
+
+      <div class="row buttons">
+        <label class="field small">
+          <span>ジャンプ先(秒前)</span>
+          <input id="jumpSeconds" type="number" min="0" step="0.5" value="10" />
+        </label>
+        <button id="jumpBtn">ジャンプ</button>
+      </div>
+
+      <div class="row buttons">
+        <label class="field small">
+          <span>ループ移動幅(秒)</span>
+          <input id="loopShiftSeconds" type="number" min="0.1" step="0.5" value="10" />
+        </label>
+        <button id="loopShiftBack">◀ 過去へ移動</button>
+        <button id="loopShiftFwd">未来へ移動 ▶</button>
+      </div>
+
+      <div class="status" id="status">
+        <span id="modeLabel">モード: 通常再生(3秒トレイル)</span>
+        <span id="posLabel">位置: -0.0秒</span>
+      </div>
+    </section>
+
+    <p class="hint footer">
+      Web Audio API(AudioWorklet)で実装。Ableton等のDAWに音を渡したい場合は、
+      BlackHole等のループバックデバイスでこのタブの出力をDAWの入力へ渡してください。
+    </p>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

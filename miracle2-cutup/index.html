@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Miracle 2 — pitch-locked cut-up</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="ui">
+    <header>
+      <h1>Miracle 2 <span class="sub">ピッチ固定・ランダムカットアップ</span></h1>
+      <p class="tagline">
+        入力をローリング録音し、そこから短い断片をランダムな順序で拾って鳴らし続ける
+        カットアップ専用機。1号機のMiracleと違い、こちらは常に等速再生でピッチ/速度が
+        変化しません。断片の長さ・探索範囲・逆再生混入・間隔(スタッター)・フリーズを
+        ボタンで切り替えて「あり方」を変えられます。
+      </p>
+    </header>
+
+    <section class="panel setup" id="setupPanel">
+      <label class="field">
+        <span>録音バッファ長</span>
+        <select id="bufferMinutes">
+          <option value="2">2分</option>
+          <option value="5" selected>5分</option>
+          <option value="10">10分</option>
+          <option value="20">20分(メモリ消費大)</option>
+        </select>
+      </label>
+      <button id="startBtn" class="primaryBtn">入力を許可して開始</button>
+      <p class="hint" id="setupHint">
+        マイク/オーディオインターフェース入力へのアクセスを許可してください。
+        ブラウザの制約上、選べるのは入力デバイスの先頭2ch(通常In1/2)までです。
+      </p>
+    </section>
+
+    <section class="panel run" id="runPanel" hidden>
+      <div class="row">
+        <label class="slider wide">
+          <span>原音 ⇄ カットアップ <em id="mixVal">0%</em></span>
+          <input id="mix" type="range" min="0" max="100" value="0" />
+        </label>
+      </div>
+
+      <div class="row buttons">
+        <button id="cutupBtn" class="toggleBtn primaryToggle">Miracle 2 開始/停止</button>
+        <button id="freezeBtn" class="toggleBtn">フリーズ(今の断片をループ)</button>
+      </div>
+
+      <div class="group">
+        <span class="groupLabel">断片の長さ</span>
+        <div class="row buttons" id="lengthGroup">
+          <button class="segBtn" data-min="0.1" data-max="0.3">極短 0.1-0.3s</button>
+          <button class="segBtn active" data-min="0.3" data-max="1">短 0.3-1s</button>
+          <button class="segBtn" data-min="1" data-max="2">中 1-2s</button>
+          <button class="segBtn" data-min="2" data-max="4">長 2-4s</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <span class="groupLabel">探索範囲</span>
+        <div class="row buttons" id="rangeGroup">
+          <button class="rangeBtn active" data-mode="near">近距離シャッフル(直近15秒)</button>
+          <button class="rangeBtn" data-mode="wide">全域シャッフル(バッファ全体)</button>
+        </div>
+      </div>
+
+      <div class="row buttons">
+        <button id="reverseToggle" class="toggleBtn">逆再生を混ぜる</button>
+        <button id="stutterToggle" class="toggleBtn">間隔を入れる(スタッター)</button>
+      </div>
+
+      <div class="status" id="status">
+        <span id="modeLabel">状態: 停止中</span>
+        <span id="posLabel">位置: -0.0秒</span>
+      </div>
+    </section>
+
+    <p class="hint footer">
+      Web Audio API(AudioWorklet)で実装。Ableton等のDAWに音を渡したい場合は、
+      BlackHole等のループバックデバイスでこのタブの出力をDAWの入力へ渡してください。
+    </p>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
