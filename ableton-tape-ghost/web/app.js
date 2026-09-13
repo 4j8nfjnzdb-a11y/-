@@ -19,6 +19,10 @@
   let sp = null;         // ScriptProcessorNode, fallback path (e.g. file:// pages)
   let engine = null;     // TapeGhostEngine instance, only used in the fallback path
   let stream = null;
+  let splitterNode = null;     // ChannelSplitterNode, only set when the input has >2 channels
+  let mergerNode = null;       // ChannelMergerNode feeding the chosen pair into the effect
+  let actualInputChannels = 2;
+  const channelPairSel = $('channelPair');
   let mode = 'full'; // 'full' | 'miracle'
   let miracleTimer = null;
   let statusPollTimer = null;
@@ -69,6 +73,44 @@
     fill(outputDeviceSel, outs, 'デフォルト出力');
   }
 
+  // Route splitterNode's channels [pairIndex*2, pairIndex*2+1] into
+  // mergerNode's stereo inputs 0/1. Safe to call repeatedly (e.g. when the
+  // user switches pairs live): a splitter's full disconnect() is safe here
+  // since it is only ever wired to this one mergerNode.
+  function wireChannelPair(pairIndex) {
+    if (!splitterNode || !mergerNode) return;
+    splitterNode.disconnect();
+    const l = pairIndex * 2;
+    const r = Math.min(l + 1, actualInputChannels - 1);
+    splitterNode.connect(mergerNode, l, 0);
+    splitterNode.connect(mergerNode, r, 1);
+  }
+
+  function populateChannelPairUI() {
+    const row = $('channelPairRow');
+    if (actualInputChannels <= 2) {
+      row.classList.add('hidden');
+      channelPairSel.innerHTML = '';
+      return;
+    }
+    row.classList.remove('hidden');
+    channelPairSel.innerHTML = '';
+    const pairCount = Math.ceil(actualInputChannels / 2);
+    for (let i = 0; i < pairCount; i++) {
+      const l = i * 2 + 1;
+      const r = Math.min(l + 1, actualInputChannels);
+      const opt = document.createElement('option');
+      opt.value = String(i);
+      opt.textContent = `入力 ${l}-${r}`;
+      channelPairSel.appendChild(opt);
+    }
+    channelPairSel.value = '0';
+  }
+
+  channelPairSel.addEventListener('change', () => {
+    wireChannelPair(parseInt(channelPairSel.value, 10) || 0);
+  });
+
   refreshDevicesBtn.addEventListener('click', () => populateDevices(true));
   populateDevices(false);
   if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
@@ -91,6 +133,11 @@
       echoCancellation: false,
       noiseSuppression: false,
       autoGainControl: false,
+      // "ideal" only hints at a preference -- the browser still gives us
+      // whatever the device/driver actually has (2 for a plain mic, more for
+      // a multi-channel interface like a Fireface), it never fails the
+      // request the way "exact"/"min" would on a 2-channel device.
+      channelCount: { ideal: 32 },
     };
     // omit deviceId entirely for "デフォルト入力" so we don't fight the
     // browser's own default-device selection with an unnecessary constraint
@@ -118,6 +165,26 @@
     }
     const src = audioCtx.createMediaStreamSource(stream);
 
+    // src.channelCount reflects how many channels the browser actually
+    // delivered for this track -- on a plain mic that's 2 (or 1), but on a
+    // multi-channel interface exposed as one device (RME Fireface etc.) it
+    // can be far more. When it's >2, split it out and let the user pick
+    // which pair (3-4, 5-6, 7-8, ...) feeds the effect, since a plain stereo
+    // connection would otherwise always grab channels 1-2 only.
+    actualInputChannels = src.channelCount || 2;
+    let inputNode = src;
+    if (actualInputChannels > 2) {
+      splitterNode = audioCtx.createChannelSplitter(actualInputChannels);
+      mergerNode = audioCtx.createChannelMerger(2);
+      src.connect(splitterNode);
+      wireChannelPair(0); // default to channels 1-2
+      inputNode = mergerNode;
+    } else {
+      splitterNode = null;
+      mergerNode = null;
+    }
+    populateChannelPairUI();
+
     let workletOK = false;
     try {
       const blob = new Blob([WORKLET_SOURCE], { type: 'application/javascript' });
@@ -135,7 +202,7 @@
           updateStatusUI();
         }
       };
-      src.connect(node);
+      inputNode.connect(node);
       node.connect(audioCtx.destination);
       workletOK = true;
     } catch (e) {
@@ -160,7 +227,7 @@
             outL[i] = l; outR[i] = r;
           }
         };
-        src.connect(sp);
+        inputNode.connect(sp);
         sp.connect(audioCtx.destination);
         statusPollTimer = setInterval(() => {
           if (!engine) return;
@@ -194,8 +261,12 @@
     if (stream) stream.getTracks().forEach((t) => t.stop());
     if (node) node.disconnect();
     if (sp) sp.disconnect();
+    if (splitterNode) splitterNode.disconnect();
+    if (mergerNode) mergerNode.disconnect();
     if (audioCtx) audioCtx.close();
     audioCtx = null; node = null; sp = null; engine = null; stream = null;
+    splitterNode = null; mergerNode = null; actualInputChannels = 2;
+    $('channelPairRow').classList.add('hidden');
     setupPanel.style.display = 'block';
     stage.classList.remove('show');
     liveDot.classList.remove('live');

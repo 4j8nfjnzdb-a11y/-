@@ -155,6 +155,10 @@ a{ color:var(--accent2); }
           <div class="meterTrack"><div class="meterFill" id="meterFill"></div></div>
           <div id="meterWarn" class="meterWarn hidden">⚠ 信号が来ていません。上の「入力デバイス」で正しいインターフェースを選び直してください。</div>
         </div>
+        <div id="channelPairRow" class="hidden" style="margin-bottom:8px;">
+          <label style="display:block;font-size:11px;color:var(--fg-dim);margin-bottom:4px;">入力チャンネル（このインターフェースは複数chあります。使うペアを選んでください）</label>
+          <select id="channelPair" style="width:100%;"></select>
+        </div>
         <div><b id="writeSec">0.0</b>s 録音済み / 現在 <b id="agoSec">0.0</b>秒前を再生中</div>
         <div style="margin-top:6px;">
           <span class="modechip" id="chipRewind">REWIND</span>
