@@ -49,8 +49,21 @@ conn("adc", 0, "recL", 0)
 conn("adc", 1, "recR", 0)
 
 add("loadbang", "loadbang", 0, 1, ["bang"], 40, "A")
-add("t_init", "t b b b b", 1, 4, ["bang", "bang", "bang", "bang"], 40, "A")
+add("t_init", "t b b b b b", 1, 5, ["bang", "bang", "bang", "bang", "bang"], 40, "A")
 conn("loadbang", 0, "t_init", 0)
+
+# outlet4 (new rightmost, fires 1st): establish initial mix gains (dry=1/wet=0)
+# immediately, and schedule a one-time "enter trail" after the engine has
+# had a moment to start, so groove~ isn't left with an unset rate/position.
+# (Sliders don't emit their value on load, so without this the patch is
+# silent until the mix fader is manually touched at least once.)
+msg("m_mixinit", "0", 700, "A")
+conn("t_init", 4, "m_mixinit", 0)
+conn("m_mixinit", 0, "mix_div", 0)
+
+add("delay_trail", "delay 800", 1, 1, ["bang"], 820, "A")
+conn("t_init", 4, "delay_trail", 0)
+conn("delay_trail", 0, "enterTrail", 0)
 
 msg("m_loop1", "loop 1", 200, "A")
 msg("m_recstart", "1", 340, "A")

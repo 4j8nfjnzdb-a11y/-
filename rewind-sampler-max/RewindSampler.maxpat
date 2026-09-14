@@ -176,8 +176,9 @@
      "id": "t_init",
      "maxclass": "newobj",
      "numinlets": 1,
-     "numoutlets": 4,
+     "numoutlets": 5,
      "outlettype": [
+      "bang",
       "bang",
       "bang",
       "bang",
@@ -189,7 +190,42 @@
       140,
       22
      ],
-     "text": "t b b b b"
+     "text": "t b b b b b"
+    }
+   },
+   {
+    "box": {
+     "id": "m_mixinit",
+     "maxclass": "message",
+     "numinlets": 2,
+     "numoutlets": 1,
+     "outlettype": [
+      ""
+     ],
+     "patching_rect": [
+      700,
+      454,
+      100,
+      22
+     ]
+    }
+   },
+   {
+    "box": {
+     "id": "delay_trail",
+     "maxclass": "newobj",
+     "numinlets": 1,
+     "numoutlets": 1,
+     "outlettype": [
+      "bang"
+     ],
+     "patching_rect": [
+      820,
+      500,
+      140,
+      22
+     ],
+     "text": "delay 800"
     }
    },
    {
@@ -203,7 +239,7 @@
      ],
      "patching_rect": [
       200,
-      454,
+      546,
       100,
       22
      ]
@@ -220,7 +256,7 @@
      ],
      "patching_rect": [
       340,
-      500,
+      592,
       100,
       22
      ]
@@ -237,7 +273,7 @@
      ],
      "patching_rect": [
       460,
-      546,
+      638,
       100,
       22
      ]
@@ -254,7 +290,7 @@
      ],
      "patching_rect": [
       580,
-      592,
+      684,
       100,
       22
      ]
@@ -2131,6 +2167,54 @@
      ],
      "destination": [
       "t_init",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "t_init",
+      4
+     ],
+     "destination": [
+      "m_mixinit",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "m_mixinit",
+      0
+     ],
+     "destination": [
+      "mix_div",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "t_init",
+      4
+     ],
+     "destination": [
+      "delay_trail",
+      0
+     ]
+    }
+   },
+   {
+    "patchline": {
+     "source": [
+      "delay_trail",
+      0
+     ],
+     "destination": [
+      "enterTrail",
       0
      ]
     }
