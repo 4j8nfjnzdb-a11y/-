@@ -3,39 +3,58 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>kizashi — generative ambient</title>
+<title>つぶやき57577 — ひらがな・カットアップ生成器</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <canvas id="bg"></canvas>
-
-  <main class="ui">
+  <main class="app">
     <header>
-      <h1>kizashi <span class="sub">きざし</span></h1>
-      <p class="tagline">反復に見せかけて、予測の像を結ぶ寸前でかわし続けるアンビエント。</p>
+      <h1>つぶやき<span class="num">57577</span></h1>
+      <p class="tagline">ひらがなを一字ずつ気まぐれに拾いつづけ、女性の声でつぶやかせる。意味は通じなくていい。</p>
     </header>
 
-    <div class="transport">
-      <button id="playBtn" class="playBtn">再生</button>
-      <button id="paletteBtn" class="ghostBtn">配色を変える</button>
-    </div>
+    <section class="controls" aria-label="操作">
+      <button id="playBtn" class="playBtn" type="button">はじめる</button>
 
-    <div class="controls">
-      <label class="slider">
-        <span>密度 <em>density</em></span>
-        <input id="density" type="range" min="0" max="100" value="42" />
-      </label>
-      <label class="slider">
-        <span>明暗 <em>tone</em></span>
-        <input id="tone" type="range" min="0" max="100" value="50" />
-      </label>
-      <label class="slider">
-        <span>揺らぎ <em>swerve</em></span>
-        <input id="swerve" type="range" min="0" max="100" value="55" />
-      </label>
-    </div>
+      <div class="field">
+        <span class="fieldLabel">空白</span>
+        <select id="spacingSelect">
+          <option value="tight">ぎっしり</option>
+          <option value="normal" selected>ふつう</option>
+          <option value="airy">すきま</option>
+          <option value="chaotic">でたらめ</option>
+        </select>
+      </div>
 
-    <p class="hint">音は毎回、一度きりのものです。同じ配列は二度と戻ってきません。</p>
+      <div class="field">
+        <span class="fieldLabel">速さ</span>
+        <select id="speedSelect">
+          <option value="slow">ゆったり</option>
+          <option value="normal" selected>ふつう</option>
+          <option value="fast">きびきび</option>
+          <option value="veryfast">はやい</option>
+          <option value="ultra">暴走</option>
+        </select>
+      </div>
+
+      <button id="diceBtn" class="diceBtn" type="button" aria-pressed="false">
+        <span class="diceIcon">🎲</span> サイコロ速度
+      </button>
+
+      <div class="field">
+        <span class="fieldLabel">サイコロの型</span>
+        <select id="patternSelect">
+          <option value="drift" selected>ドリフト</option>
+          <option value="jump">ジャンプ</option>
+          <option value="wave">うねり</option>
+          <option value="chaos">カオス</option>
+        </select>
+      </div>
+    </section>
+
+    <p class="status" id="statusLine">声を準備中…</p>
+
+    <section class="feed" id="feed" aria-label="つぶやき"></section>
   </main>
 
   <script src="app.js"></script>
