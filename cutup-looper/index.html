@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CUTUP//LOOP — 4ch live cut-up sampler</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="masthead">
+    <h1>CUTUP<span class="slash">//</span>LOOP</h1>
+    <p class="tagline">マイク入力を常時録音しながらランダムにカットアップ再生する、4chライブ・サンプラー。</p>
+  </header>
+
+  <section class="transport">
+    <button id="startBtn" class="bigBtn">MIC START</button>
+
+    <div class="rec-status">
+      <span id="recDot" class="rec-dot"></span>
+      <span class="rec-label">REC</span>
+      <span id="bufferTime" class="buffer-time">00:00 / 03:00</span>
+    </div>
+
+    <div class="input-meter">
+      <span class="meter-label">IN</span>
+      <div class="meter-track"><div id="inputMeter" class="meter-fill"></div></div>
+    </div>
+
+    <canvas id="masterScope" class="master-scope" width="240" height="44"></canvas>
+
+    <label class="master-fader-wrap">
+      <span>MASTER</span>
+      <input id="masterFader" type="range" min="0" max="130" value="90" />
+    </label>
+  </section>
+
+  <main id="tracks" class="tracks"></main>
+
+  <template id="trackTemplate">
+    <section class="track">
+      <header class="track-head">
+        <span class="track-name">TRK</span>
+        <span class="track-mode-badge free">FREE</span>
+      </header>
+
+      <canvas class="track-scope" width="140" height="36"></canvas>
+
+      <div class="loop-buttons">
+        <button type="button" class="btn range-btn" disabled>RANGE</button>
+        <button type="button" class="btn lock-btn" disabled>LOOP</button>
+      </div>
+
+      <label class="knob">
+        <span>尺<em class="win-val">2.0s</em></span>
+        <input type="range" class="win-slider" min="0.5" max="8" step="0.1" value="2" />
+      </label>
+
+      <label class="knob">
+        <span>刻み<em class="chop-val">40</em></span>
+        <input type="range" class="chop-slider" min="0" max="100" value="40" />
+      </label>
+
+      <label class="knob">
+        <span>PAN<em class="pan-val">0</em></span>
+        <input type="range" class="pan-slider" min="-100" max="100" value="0" />
+      </label>
+
+      <label class="knob">
+        <span>DELAY<em class="delay-val">0</em></span>
+        <input type="range" class="delay-slider" min="0" max="100" value="0" />
+      </label>
+
+      <label class="knob">
+        <span>REVERB<em class="reverb-val">15</em></span>
+        <input type="range" class="reverb-slider" min="0" max="100" value="15" />
+      </label>
+
+      <label class="knob">
+        <span>奥行き<em class="depth-val">20</em></span>
+        <input type="range" class="depth-slider" min="0" max="100" value="20" />
+      </label>
+
+      <div class="fader-row">
+        <button type="button" class="btn mute-btn">MUTE</button>
+        <div class="fader-track">
+          <input type="range" class="fader-slider" min="0" max="130" value="0" />
+        </div>
+      </div>
+    </section>
+  </template>
+
+  <p class="hint">
+    START でマイクを許可すると4chとも直前3分間の録音からランダムにカットアップして鳴り続けます。
+    LOOP＝直前の「尺」秒をなめらかに固定ループ／もう一度押すと解除してランダム再開。
+    RANGE＝押した瞬間の「尺」秒ぶんの範囲だけをランダムに回し続ける／もう一度押すと解除。
+  </p>
+
+  <script src="app.js"></script>
+</body>
+</html>
