@@ -3,16 +3,16 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>またたき — random blink</title>
+<title>またたき — cue light</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <canvas id="bg"></canvas>
 
-  <main class="ui">
+  <main class="ui" id="ui">
     <header>
       <h1>またたき <span class="sub">matataki</span></h1>
-      <p class="tagline">赤と青の光がランダムに点滅し、尾をひきながら漂う。動きと点滅のリズムはカオス理論・フィボナッチ・波の数式から選べる。ごくまれに黄色が差す。</p>
+      <p class="tagline">全体の色がひとつの合図。青＝ドラム、赤＝自分、黄＝ふたり同時。全画面にすると操作パネルは消えます（<b>Space</b>で一時停止、<b>F</b>で全画面切替、<b>Esc</b>で戻る）。</p>
     </header>
 
     <div class="transport">
@@ -25,29 +25,25 @@
         <span>パターン <em>pattern</em></span>
         <select id="pattern">
           <option value="chaos">カオス（ロジスティック写像）</option>
-          <option value="fibonacci">フィボナッチ（黄金角螺旋）</option>
-          <option value="wave">波動（リサージュ曲線）</option>
-          <option value="random">ランダムウォーク</option>
-        </select>
-      </label>
-
-      <label class="slider select-slider">
-        <span>タイミング <em>timing</em></span>
-        <select id="timing">
-          <option value="random">さまざま（独立）</option>
-          <option value="sync">同時</option>
-          <option value="alternate">交互</option>
+          <option value="fibonacci">フィボナッチ（黄金比リズム）</option>
+          <option value="wave">波動（数式カーブ）</option>
+          <option value="random">ランダム</option>
         </select>
       </label>
 
       <label class="slider">
-        <span>速さ <em>speed</em></span>
+        <span>速さ <em>tempo</em></span>
         <input id="speed" type="range" min="0" max="100" value="50" />
       </label>
 
       <label class="slider">
-        <span>ゆらぎ <em>chaos</em></span>
-        <input id="chaosAmt" type="range" min="0" max="100" value="55" />
+        <span>ずれ <em>jitter</em></span>
+        <input id="jitter" type="range" min="0" max="100" value="45" />
+      </label>
+
+      <label class="slider">
+        <span>交互の強さ <em>alternation</em></span>
+        <input id="alt" type="range" min="0" max="100" value="70" />
       </label>
 
       <label class="slider">
@@ -56,7 +52,22 @@
       </label>
     </div>
 
-    <p class="hint">同じ軌跡は二度と重なりません。パターンとタイミングはいつでも切り替えられます。</p>
+    <div class="controls colorRow">
+      <label class="slider">
+        <span class="c-red">赤（自分）</span>
+        <input id="wRed" type="range" min="1" max="100" value="40" />
+      </label>
+      <label class="slider">
+        <span class="c-blue">青（ドラム）</span>
+        <input id="wBlue" type="range" min="1" max="100" value="40" />
+      </label>
+      <label class="slider">
+        <span class="c-yellow">黄（同時）</span>
+        <input id="wYellow" type="range" min="1" max="100" value="20" />
+      </label>
+    </div>
+
+    <p class="hint">3色の頻度・交互の強さ・タイミングのずれを個別に調整できます。</p>
   </main>
 
   <script src="app.js"></script>

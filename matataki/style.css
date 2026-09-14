@@ -175,6 +175,28 @@ select option {
   max-width: 26em;
 }
 
+.colorRow {
+  gap: 1.6rem;
+}
+
+.c-red, .c-blue, .c-yellow {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.c-red { color: #ff5468; }
+.c-blue { color: #4fa8ff; }
+.c-yellow { color: #ffd24a; }
+
+.ui {
+  transition: opacity 0.35s ease;
+}
+
+body.immersive .ui {
+  opacity: 0;
+  pointer-events: none;
+}
+
 @media (max-width: 480px) {
   header h1 { font-size: 1.5rem; }
   .controls { gap: 1.2rem; }

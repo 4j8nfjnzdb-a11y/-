@@ -1,36 +1,42 @@
-// またたき (matataki) — random blinking light trails
+// またたき (matataki) — a color cue light for two performers
 //
-// Each orb moves and blinks according to one of four generator engines:
-//   - chaos:     a logistic-map iteration drives both the flicker and the
-//                turning angle (small seed differences fan out over time,
-//                the classic sensitive-dependence signature of chaos)
-//   - fibonacci: position follows a golden-angle (phyllotaxis) spiral;
-//                brightness beats between two frequencies related by phi,
-//                so the pulse pattern never quite repeats
-//   - wave:      a Lissajous curve with an irrational frequency ratio for
-//                smooth, never-closing motion; brightness is a plain sine
-//   - random:    a Brownian walk with Poisson-ish on/off flicker
+// The whole scene shares ONE color at a time — red, blue, or yellow —
+// chosen by a scheduler and shown as a large steady beacon (so it reads
+// at a glance) plus a swarm of smaller drifting/trailing lights for
+// atmosphere. A moving swarm of independently-colored dots would be
+// ambiguous as a cue; a single shared color is not.
 //
-// "timing" controls how the red group's phase relates to the blue group's:
-// synced (flash together), alternating (half-period apart), or fully
-// independent per-orb randomness.
+// The scheduler is built from two independent pieces, both adjustable:
+//   - WHICH color comes next: weighted by the red/blue/yellow sliders,
+//     with "alternation strength" suppressing (or, at 100%, forbidding)
+//     immediate repeats of the same color.
+//   - WHEN the next change happens: a base tempo, perturbed by a
+//     "jitter" amount and flavored by the selected pattern —
+//     chaos (logistic map bursts), fibonacci (long/short beats related
+//     by the golden ratio), wave (smooth sinusoidal breathing), or
+//     plain random.
 
 (() => {
   const canvas = document.getElementById("bg");
   const ctx = canvas.getContext("2d");
+  const uiEl = document.getElementById("ui");
   const playBtn = document.getElementById("playBtn");
   const fsBtn = document.getElementById("fsBtn");
   const patternSel = document.getElementById("pattern");
-  const timingSel = document.getElementById("timing");
   const speedSlider = document.getElementById("speed");
-  const chaosSlider = document.getElementById("chaosAmt");
+  const jitterSlider = document.getElementById("jitter");
+  const altSlider = document.getElementById("alt");
   const densitySlider = document.getElementById("density");
+  const wRed = document.getElementById("wRed");
+  const wBlue = document.getElementById("wBlue");
+  const wYellow = document.getElementById("wYellow");
 
   const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
   const PHI = 1.6180339887498949;
+  const HUES = { red: 355, blue: 215, yellow: 48 };
 
   let w = 0, h = 0, cx = 0, cy = 0, maxR = 0, dpr = Math.max(1, window.devicePixelRatio || 1);
-  let orbs = [];
+  let swarm = [];
   let running = true;
   let lastT = performance.now() / 1000;
   let clock = 0;
@@ -48,14 +54,135 @@
 
   function rand(min, max) { return min + Math.random() * (max - min); }
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function lerpHue(a, b, t) {
+    const diff = (((b - a) % 360) + 540) % 360 - 180;
+    return (a + diff * t + 360) % 360;
+  }
 
-  function makeOrb() {
-    const isRed = Math.random() < 0.5;
+  // ---- cue scheduler: which color, and when the next one comes -------
+
+  const cue = {
+    color: "blue",
+    hueCurrent: HUES.blue,
+    hueTarget: HUES.blue,
+    changeAt: 0.6,
+  };
+  let cueChaosVal = Math.random();
+  let fibToggle = false;
+  let waveT = 0;
+
+  function pickNextColor(prev) {
+    const alt = +altSlider.value / 100;
+    const pool = [
+      { c: "red", w: +wRed.value },
+      { c: "blue", w: +wBlue.value },
+      { c: "yellow", w: +wYellow.value },
+    ].map((p) => (p.c === prev ? { c: p.c, w: p.w * (1 - alt) } : p));
+    const total = pool.reduce((s, p) => s + p.w, 0);
+    if (total <= 0) return prev;
+    let r = Math.random() * total;
+    for (const p of pool) {
+      if (r < p.w) return p.c;
+      r -= p.w;
+    }
+    return pool[pool.length - 1].c;
+  }
+
+  function nextInterval() {
+    const speed = +speedSlider.value / 100;
+    const jitterAmt = +jitterSlider.value / 100;
+    const base = Math.max(0.15, 1.9 - speed * 1.65);
+    switch (patternSel.value) {
+      case "fibonacci": {
+        fibToggle = !fibToggle;
+        const ratio = fibToggle ? PHI : 1 / PHI;
+        return Math.max(0.12, base * ratio * (1 + rand(-1, 1) * jitterAmt * 0.4));
+      }
+      case "wave": {
+        waveT += base;
+        return Math.max(0.12, base * (1 + 0.6 * Math.sin(waveT * 0.9)));
+      }
+      case "random":
+        return Math.max(0.12, base * (1 + rand(-1, 1) * jitterAmt));
+      default: {
+        const r = 3.5 + jitterAmt * 0.5;
+        cueChaosVal = r * cueChaosVal * (1 - cueChaosVal);
+        return Math.max(0.12, base * (0.4 + cueChaosVal * 1.6));
+      }
+    }
+  }
+
+  function updateCue(dt) {
+    if (clock >= cue.changeAt) {
+      cue.color = pickNextColor(cue.color);
+      cue.hueTarget = HUES[cue.color];
+      cue.changeAt = clock + nextInterval();
+    }
+    const rate = 1 - Math.exp(-dt / 0.06);
+    cue.hueCurrent = lerpHue(cue.hueCurrent, cue.hueTarget, rate);
+  }
+
+  // ---- beacon: one large, always-visible pulse in the current color --
+
+  const beacon = { chaosVal: Math.random(), on: true, lastTick: -1 };
+
+  function beaconPulse(te) {
+    const speed = +speedSlider.value / 100;
+    const jitterAmt = +jitterSlider.value / 100;
+    switch (patternSel.value) {
+      case "fibonacci":
+        return clamp(0.5 + 0.5 * Math.sin(te * 1.3) * Math.cos(te * 1.3 / PHI), 0, 1);
+      case "wave":
+        return 0.5 + 0.5 * Math.sin(te * 1.7);
+      case "random": {
+        const tick = Math.floor(te * (1.2 + speed * 3));
+        if (tick !== beacon.lastTick) {
+          beacon.lastTick = tick;
+          beacon.on = Math.random() < 0.7;
+        }
+        return beacon.on ? 1 : 0.15;
+      }
+      default: {
+        const tick = Math.floor(te * (2 + jitterAmt * 6));
+        if (tick !== beacon.lastTick) {
+          beacon.lastTick = tick;
+          const r = 3.5 + jitterAmt * 0.5;
+          beacon.chaosVal = r * beacon.chaosVal * (1 - beacon.chaosVal);
+        }
+        return beacon.chaosVal;
+      }
+    }
+  }
+
+  function drawBeacon(te) {
+    const value = beaconPulse(te);
+    const alpha = 0.5 + 0.5 * value;
+    const baseR = Math.min(w, h) * 0.16;
+    const r = baseR * (0.85 + value * 0.3);
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    grad.addColorStop(0, `hsla(${cue.hueCurrent}, 95%, 80%, ${alpha})`);
+    grad.addColorStop(0.5, `hsla(${cue.hueCurrent}, 95%, 62%, ${alpha * 0.55})`);
+    grad.addColorStop(1, `hsla(${cue.hueCurrent}, 95%, 55%, 0)`);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    // faint full-screen wash so the color reads in peripheral vision too
+    const wash = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(w, h) * 0.75);
+    wash.addColorStop(0, `hsla(${cue.hueCurrent}, 90%, 55%, ${0.05 + value * 0.05})`);
+    wash.addColorStop(1, `hsla(${cue.hueCurrent}, 90%, 55%, 0)`);
+    ctx.fillStyle = wash;
+    ctx.fillRect(0, 0, w, h);
+  }
+
+  // ---- decorative swarm: independent motion, shared cue color ---------
+
+  function makeSwarmDot() {
     const startAngle = rand(0, Math.PI * 2);
-    const startR = rand(0, maxR * 0.6);
-    const orb = {
-      color: isRed ? "red" : "blue",
-      hue: isRed ? (Math.random() < 0.5 ? rand(348, 360) : rand(0, 8)) : rand(200, 226),
+    const startR = rand(maxR * 0.2, maxR * 0.9);
+    const dot = {
+      hueOffset: rand(-5, 5),
       x: cx + Math.cos(startAngle) * startR,
       y: cy + Math.sin(startAngle) * startR,
       px: 0, py: 0,
@@ -71,174 +198,181 @@
       vy: rand(-40, 40),
       on: false,
       lastTick: -1,
-      phase: 0,
-      flashUntil: 0,
+      phase: rand(0, Math.PI * 2),
       brightness: 0,
     };
-    orb.px = orb.x; orb.py = orb.y;
-    assignPhase(orb);
-    return orb;
+    dot.px = dot.x; dot.py = dot.y;
+    return dot;
   }
 
-  function assignPhase(orb) {
-    const mode = timingSel.value;
-    if (mode === "random") {
-      orb.phase = rand(0, Math.PI * 2);
-    } else {
-      const base = mode === "sync" ? 0 : (orb.color === "red" ? 0 : Math.PI);
-      orb.phase = base + rand(-0.3, 0.3);
-    }
-  }
-
-  function rebuildOrbs() {
+  function rebuildSwarm() {
     const n = +densitySlider.value;
-    orbs = [];
-    for (let i = 0; i < n; i++) orbs.push(makeOrb());
+    swarm = [];
+    for (let i = 0; i < n; i++) swarm.push(makeSwarmDot());
   }
 
-  function bounce(orb, margin) {
-    if (orb.x < margin) { orb.x = margin; orb.angle = Math.PI - orb.angle; orb.vx = Math.abs(orb.vx); }
-    if (orb.x > w - margin) { orb.x = w - margin; orb.angle = Math.PI - orb.angle; orb.vx = -Math.abs(orb.vx); }
-    if (orb.y < margin) { orb.y = margin; orb.angle = -orb.angle; orb.vy = Math.abs(orb.vy); }
-    if (orb.y > h - margin) { orb.y = h - margin; orb.angle = -orb.angle; orb.vy = -Math.abs(orb.vy); }
+  function bounce(dot, margin) {
+    if (dot.x < margin) { dot.x = margin; dot.angle = Math.PI - dot.angle; dot.vx = Math.abs(dot.vx); }
+    if (dot.x > w - margin) { dot.x = w - margin; dot.angle = Math.PI - dot.angle; dot.vx = -Math.abs(dot.vx); }
+    if (dot.y < margin) { dot.y = margin; dot.angle = -dot.angle; dot.vy = Math.abs(dot.vy); }
+    if (dot.y > h - margin) { dot.y = h - margin; dot.angle = -dot.angle; dot.vy = -Math.abs(dot.vy); }
   }
 
-  function updateChaos(orb, te, dt, chaosAmt, speed) {
-    const tickRate = 3 + chaosAmt * 9;
-    const tick = Math.floor(te * tickRate);
-    if (tick !== orb.lastTick) {
-      orb.lastTick = tick;
-      const r = 3.5 + chaosAmt * 0.5;
-      orb.chaosVal = r * orb.chaosVal * (1 - orb.chaosVal);
-      orb.angle += (orb.chaosVal - 0.5) * 2.4;
+  function stepChaos(dot, te, dt, jitterAmt, speed) {
+    const tick = Math.floor(te * (3 + jitterAmt * 9));
+    if (tick !== dot.lastTick) {
+      dot.lastTick = tick;
+      const r = 3.5 + jitterAmt * 0.5;
+      dot.chaosVal = r * dot.chaosVal * (1 - dot.chaosVal);
+      dot.angle += (dot.chaosVal - 0.5) * 2.4;
     }
-    const px = (46 + chaosAmt * 130) * speed * dpr;
-    orb.x += Math.cos(orb.angle) * px * dt;
-    orb.y += Math.sin(orb.angle) * px * dt;
-    bounce(orb, 24 * dpr);
-    return orb.chaosVal;
+    const px = (46 + jitterAmt * 130) * speed * dpr;
+    dot.x += Math.cos(dot.angle) * px * dt;
+    dot.y += Math.sin(dot.angle) * px * dt;
+    bounce(dot, 24 * dpr);
+    return dot.chaosVal;
   }
 
-  function updateFibonacci(orb, te, dt, chaosAmt, speed) {
-    orb.fibIndex += dt * (1.6 + speed * 4.2);
-    const r = (5 + chaosAmt * 4) * Math.sqrt(orb.fibIndex) * dpr;
-    const theta = orb.fibIndex * GOLDEN_ANGLE + orb.fibAngleOffset;
-    orb.x = cx + r * Math.cos(theta);
-    orb.y = cy + r * Math.sin(theta);
+  function stepFibonacci(dot, te, dt, jitterAmt, speed) {
+    dot.fibIndex += dt * (1.6 + speed * 4.2);
+    const r = (5 + jitterAmt * 4) * Math.sqrt(dot.fibIndex) * dpr;
+    const theta = dot.fibIndex * GOLDEN_ANGLE + dot.fibAngleOffset;
+    dot.x = cx + r * Math.cos(theta);
+    dot.y = cy + r * Math.sin(theta);
     if (r > maxR) {
-      orb.fibIndex = rand(0, 6);
-      orb.fibAngleOffset = rand(0, Math.PI * 2);
+      dot.fibIndex = rand(0, 6);
+      dot.fibAngleOffset = rand(0, Math.PI * 2);
     }
     const b = Math.sin(te * 1.3) * Math.cos(te * 1.3 / PHI);
     return clamp(0.5 + 0.6 * b, 0, 1);
   }
 
-  function updateWave(orb, te, dt, chaosAmt, speed) {
-    const A = maxR * (0.55 + chaosAmt * 0.25);
+  function stepWave(dot, te, dt, jitterAmt, speed) {
+    const A = maxR * (0.55 + jitterAmt * 0.25);
     const f = 0.35 + speed * 0.6;
-    orb.x = cx + A * Math.sin(orb.freqX * te * f + orb.phaseX);
-    orb.y = cy + A * Math.sin(orb.freqY * te * f + orb.phaseY);
-    return 0.5 + 0.5 * Math.sin(te * (1.4 + chaosAmt * 1.2));
+    dot.x = cx + A * Math.sin(dot.freqX * te * f + dot.phaseX);
+    dot.y = cy + A * Math.sin(dot.freqY * te * f + dot.phaseY);
+    return 0.5 + 0.5 * Math.sin(te * (1.4 + jitterAmt * 1.2));
   }
 
-  function updateRandom(orb, te, dt, chaosAmt, speed) {
-    const tickRate = 1.5 + speed * 7;
-    const tick = Math.floor(te * tickRate);
-    if (tick !== orb.lastTick) {
-      orb.lastTick = tick;
-      orb.vx = clamp(orb.vx + rand(-1, 1) * 90 * chaosAmt, -160, 160);
-      orb.vy = clamp(orb.vy + rand(-1, 1) * 90 * chaosAmt, -160, 160);
-      orb.on = Math.random() < (0.3 + chaosAmt * 0.45);
+  function stepRandom(dot, te, dt, jitterAmt, speed) {
+    const tick = Math.floor(te * (1.5 + speed * 7));
+    if (tick !== dot.lastTick) {
+      dot.lastTick = tick;
+      dot.vx = clamp(dot.vx + rand(-1, 1) * 90 * jitterAmt, -160, 160);
+      dot.vy = clamp(dot.vy + rand(-1, 1) * 90 * jitterAmt, -160, 160);
+      dot.on = Math.random() < (0.3 + jitterAmt * 0.45);
     }
-    orb.x += orb.vx * dt * dpr;
-    orb.y += orb.vy * dt * dpr;
-    bounce(orb, 24 * dpr);
-    return orb.on ? 1 : 0.04;
+    dot.x += dot.vx * dt * dpr;
+    dot.y += dot.vy * dt * dpr;
+    bounce(dot, 24 * dpr);
+    return dot.on ? 1 : 0.04;
   }
 
-  function stepOrb(orb, dt, speed, chaosAmt) {
-    const te = clock * (0.4 + speed * 1.4) + orb.phase;
+  function stepDot(dot, dt, speed, jitterAmt) {
+    const te = clock * (0.4 + speed * 1.4) + dot.phase;
     let brightness;
     switch (patternSel.value) {
-      case "fibonacci": brightness = updateFibonacci(orb, te, dt, chaosAmt, speed); break;
-      case "wave": brightness = updateWave(orb, te, dt, chaosAmt, speed); break;
-      case "random": brightness = updateRandom(orb, te, dt, chaosAmt, speed); break;
-      default: brightness = updateChaos(orb, te, dt, chaosAmt, speed); break;
+      case "fibonacci": brightness = stepFibonacci(dot, te, dt, jitterAmt, speed); break;
+      case "wave": brightness = stepWave(dot, te, dt, jitterAmt, speed); break;
+      case "random": brightness = stepRandom(dot, te, dt, jitterAmt, speed); break;
+      default: brightness = stepChaos(dot, te, dt, jitterAmt, speed); break;
     }
-
-    let hue = orb.hue, boosted = 1;
-    const flashChance = 0.0009 * (0.4 + speed);
-    if (clock < orb.flashUntil) {
-      hue = rand(46, 56);
-      boosted = 1.4;
-    } else if (Math.random() < flashChance) {
-      orb.flashUntil = clock + rand(0.22, 0.5);
-    }
-
-    orb.brightness += (brightness - orb.brightness) * 0.5;
-    return { hue, alpha: clamp(orb.brightness * boosted, 0, 1) };
+    dot.brightness += (brightness - dot.brightness) * 0.5;
+    return dot.brightness;
   }
+
+  // ---- main loop -------------------------------------------------
 
   function draw(now) {
     const dt = Math.min(0.05, now / 1000 - lastT);
     lastT = now / 1000;
-    if (running) clock += dt;
+
+    if (!running) {
+      // frozen: leave the last drawn frame on screen as a stable cue
+      requestAnimationFrame(draw);
+      return;
+    }
+
+    clock += dt;
 
     ctx.fillStyle = "rgba(6, 7, 10, 0.16)";
     ctx.fillRect(0, 0, w, h);
 
-    if (running) {
-      const speed = +speedSlider.value / 100;
-      const chaosAmt = +chaosSlider.value / 100;
+    updateCue(dt);
 
-      for (const orb of orbs) {
-        orb.px = orb.x;
-        orb.py = orb.y;
-        const { hue, alpha } = stepOrb(orb, dt, speed, chaosAmt);
+    const speed = +speedSlider.value / 100;
+    const jitterAmt = +jitterSlider.value / 100;
 
-        if (alpha > 0.02) {
-          ctx.strokeStyle = `hsla(${hue}, 90%, 62%, ${alpha * 0.85})`;
-          ctx.lineWidth = 2.2 * dpr;
-          ctx.lineCap = "round";
-          ctx.beginPath();
-          ctx.moveTo(orb.px, orb.py);
-          ctx.lineTo(orb.x, orb.y);
-          ctx.stroke();
+    for (const dot of swarm) {
+      dot.px = dot.x;
+      dot.py = dot.y;
+      const alpha = clamp(stepDot(dot, dt, speed, jitterAmt), 0, 1);
+      if (alpha > 0.02) {
+        const hue = cue.hueCurrent + dot.hueOffset;
+        ctx.strokeStyle = `hsla(${hue}, 90%, 62%, ${alpha * 0.8})`;
+        ctx.lineWidth = 2.2 * dpr;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(dot.px, dot.py);
+        ctx.lineTo(dot.x, dot.y);
+        ctx.stroke();
 
-          const glowR = (5 + alpha * 10) * dpr;
-          const grad = ctx.createRadialGradient(orb.x, orb.y, 0, orb.x, orb.y, glowR);
-          grad.addColorStop(0, `hsla(${hue}, 95%, 78%, ${alpha})`);
-          grad.addColorStop(1, `hsla(${hue}, 95%, 60%, 0)`);
-          ctx.fillStyle = grad;
-          ctx.beginPath();
-          ctx.arc(orb.x, orb.y, glowR, 0, Math.PI * 2);
-          ctx.fill();
-        }
+        const glowR = (4 + alpha * 8) * dpr;
+        const grad = ctx.createRadialGradient(dot.x, dot.y, 0, dot.x, dot.y, glowR);
+        grad.addColorStop(0, `hsla(${hue}, 95%, 78%, ${alpha})`);
+        grad.addColorStop(1, `hsla(${hue}, 95%, 60%, 0)`);
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(dot.x, dot.y, glowR, 0, Math.PI * 2);
+        ctx.fill();
       }
     }
+
+    const te = clock * (0.4 + speed * 1.4);
+    drawBeacon(te);
 
     requestAnimationFrame(draw);
   }
 
-  playBtn.addEventListener("click", () => {
+  // ---- transport, fullscreen, keyboard ---------------------------
+
+  function togglePlay() {
     running = !running;
     playBtn.textContent = running ? "一時停止" : "再生";
     playBtn.classList.toggle("playing", running);
-  });
+  }
 
-  fsBtn.addEventListener("click", () => {
+  function toggleFullscreen() {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().catch(() => {});
     } else {
       document.exitFullscreen();
     }
+  }
+
+  document.addEventListener("fullscreenchange", () => {
+    document.body.classList.toggle("immersive", !!document.fullscreenElement);
   });
 
-  patternSel.addEventListener("change", rebuildOrbs);
-  timingSel.addEventListener("change", () => orbs.forEach(assignPhase));
-  densitySlider.addEventListener("input", rebuildOrbs);
+  window.addEventListener("keydown", (e) => {
+    const tag = document.activeElement && document.activeElement.tagName;
+    const isFormEl = tag === "INPUT" || tag === "SELECT" || tag === "BUTTON" || tag === "TEXTAREA";
+    if (isFormEl) return;
+    if (e.code === "Space") {
+      e.preventDefault();
+      togglePlay();
+    } else if (e.key === "f" || e.key === "F") {
+      toggleFullscreen();
+    }
+  });
+
+  playBtn.addEventListener("click", togglePlay);
+  fsBtn.addEventListener("click", toggleFullscreen);
+  patternSel.addEventListener("change", rebuildSwarm);
+  densitySlider.addEventListener("input", rebuildSwarm);
 
   resize();
-  rebuildOrbs();
+  rebuildSwarm();
   requestAnimationFrame(draw);
 })();
