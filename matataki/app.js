@@ -22,6 +22,7 @@
   const uiEl = document.getElementById("ui");
   const playBtn = document.getElementById("playBtn");
   const fsBtn = document.getElementById("fsBtn");
+  const diceBtn = document.getElementById("diceBtn");
   const patternSel = document.getElementById("pattern");
   const speedSlider = document.getElementById("speed");
   const jitterSlider = document.getElementById("jitter");
@@ -335,6 +336,59 @@
     requestAnimationFrame(draw);
   }
 
+  // ---- dice: animate every fader to a fresh random value -------------
+
+  function animateSlider(el, target, { duration = 550, live = true } = {}) {
+    const start = +el.value;
+    const t0 = performance.now();
+    return new Promise((resolve) => {
+      function step(now) {
+        const t = Math.min(1, (now - t0) / duration);
+        const eased = 1 - Math.pow(1 - t, 3);
+        el.value = Math.round(start + (target - start) * eased);
+        if (live) el.dispatchEvent(new Event("input"));
+        if (t < 1) {
+          requestAnimationFrame(step);
+        } else {
+          if (!live) el.dispatchEvent(new Event("input"));
+          resolve();
+        }
+      }
+      requestAnimationFrame(step);
+    });
+  }
+
+  function shufflePattern() {
+    const options = Array.from(patternSel.options).map((o) => o.value);
+    let i = 0;
+    return new Promise((resolve) => {
+      const timer = setInterval(() => {
+        patternSel.value = options[Math.floor(Math.random() * options.length)];
+        i++;
+        if (i >= 8) {
+          clearInterval(timer);
+          patternSel.dispatchEvent(new Event("change"));
+          resolve();
+        }
+      }, 55);
+    });
+  }
+
+  function randomizeAll() {
+    diceBtn.classList.remove("rolling");
+    void diceBtn.offsetWidth; // restart the animation if clicked again mid-roll
+    diceBtn.classList.add("rolling");
+
+    animateSlider(speedSlider, Math.round(rand(0, 100)));
+    animateSlider(jitterSlider, Math.round(rand(0, 100)));
+    animateSlider(altSlider, Math.round(rand(0, 100)));
+    animateSlider(wRed, Math.round(rand(+wRed.min, +wRed.max)));
+    animateSlider(wBlue, Math.round(rand(+wBlue.min, +wBlue.max)));
+    animateSlider(wYellow, Math.round(rand(+wYellow.min, +wYellow.max)));
+    animateSlider(densitySlider, Math.round(rand(+densitySlider.min, +densitySlider.max)), { live: false });
+    shufflePattern();
+  }
+
   // ---- transport, fullscreen, keyboard ---------------------------
 
   function togglePlay() {
@@ -364,11 +418,14 @@
       togglePlay();
     } else if (e.key === "f" || e.key === "F") {
       toggleFullscreen();
+    } else if (e.key === "r" || e.key === "R") {
+      randomizeAll();
     }
   });
 
   playBtn.addEventListener("click", togglePlay);
   fsBtn.addEventListener("click", toggleFullscreen);
+  diceBtn.addEventListener("click", randomizeAll);
   patternSel.addEventListener("change", rebuildSwarm);
   densitySlider.addEventListener("input", rebuildSwarm);
 

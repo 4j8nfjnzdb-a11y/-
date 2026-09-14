@@ -188,6 +188,22 @@ select option {
 .c-blue { color: #4fa8ff; }
 .c-yellow { color: #ffd24a; }
 
+.diceBtn {
+  font-size: 1.1rem;
+  padding: 0.7rem 1rem;
+}
+
+@keyframes diceRoll {
+  0% { transform: rotate(0deg) scale(1); }
+  30% { transform: rotate(120deg) scale(1.15); }
+  60% { transform: rotate(230deg) scale(1.15); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+
+.diceBtn.rolling {
+  animation: diceRoll 0.55s ease;
+}
+
 .ui {
   transition: opacity 0.35s ease;
 }
