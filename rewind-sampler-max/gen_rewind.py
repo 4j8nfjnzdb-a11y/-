@@ -67,7 +67,7 @@ conn("delay_trail", 0, "enterTrail", 0)
 
 msg("m_loop1", "loop 1", 200, "A")
 msg("m_recstart", "1", 340, "A")
-msg("m_clkstart", "start", 460, "A")
+msg("m_clkstart", "1", 460, "A")
 msg("m_metropoll1", "1", 580, "A")
 
 # t_init outlets: 3=loop1(fires1st) 2=recstart 1=clkstart 0=metropoll(fires last)
@@ -82,15 +82,26 @@ conn("m_recstart", 0, "recL", 0)
 conn("m_recstart", 0, "recR", 0)
 
 # ---------------------------------------------------------------
-# 2. Position tracking (elapsed clock -> recordedMsClamped, writePositionMs)
+# 2. Position tracking (elapsed-time accumulator -> recordedMsClamped, writePositionMs)
+#
+# Built from only metro/+/float (all used safely elsewhere in this patch)
+# rather than a dedicated "elapsed time" object, to avoid relying on an
+# object name I'm not fully certain exists (min/max turned out not to).
 # ---------------------------------------------------------------
-add("clk", "clocker 20", 1, 1, [""], 40, "B")
+add("clk", "metro 20", 2, 1, ["bang"], 40, "B")
 conn("m_clkstart", 0, "clk", 0)
 
-add("min_clip", "min 300000", 2, 1, [""], 40, "B")
-add("mod_write", "% 300000", 2, 1, [""], 200, "B")
-conn("clk", 0, "min_clip", 0)
-conn("clk", 0, "mod_write", 0)
+add("elapsed_acc", "float 0", 2, 1, [""], 40, "B")
+conn("clk", 0, "elapsed_acc", 0)  # bang -> emits OLD accumulated value
+
+add("elapsed_add", "+ 20", 2, 1, [""], 40, "C")
+conn("elapsed_acc", 0, "elapsed_add", 0)
+conn("elapsed_add", 0, "elapsed_acc", 1)  # cold: store NEW value for next tick
+
+add("min_clip", "clip 0 300000", 3, 1, [""], 200, "C")
+add("mod_write", "% 300000", 2, 1, [""], 340, "C")
+conn("elapsed_add", 0, "min_clip", 0)
+conn("elapsed_add", 0, "mod_write", 0)
 
 add("store_writepos", "float", 2, 1, [""], 200, "B")
 conn("mod_write", 0, "store_writepos", 1)  # cold: continuous live update
@@ -123,7 +134,7 @@ conn("mixSlider", 0, "mix_div", 0)
 add("mix_t", "t f f", 1, 2, ["float", "float"], 40, "E")
 conn("mix_div", 0, "mix_t", 0)
 
-add("dry_calc", "!- 1.", 1, 1, [""], 200, "E")
+add("dry_calc", "expr 1.-$f1", 1, 1, [""], 200, "E")
 conn("mix_t", 1, "dry_calc", 0)  # rightmost fires first -> dry calc
 
 add("dry_pack", "pack 0. 20", 2, 1, [""], 200, "E")
@@ -200,7 +211,7 @@ add("trail_sub", "- 3000", 2, 1, [""], 340, "J")
 conn("enterTrail", 0, "store_writepos", 0)  # leftmost fires last: bang writepos
 conn("store_writepos", 0, "trail_sub", 0)
 
-add("trail_max", "max 0.", 2, 1, [""], 340, "J")
+add("trail_max", "clip 0. 300000.", 3, 1, [""], 340, "J")
 conn("trail_sub", 0, "trail_max", 0)
 conn("trail_max", 0, "grooveL", 1)
 conn("trail_max", 0, "grooveR", 1)
@@ -448,8 +459,9 @@ conn("min_clip", 0, "random_age", 1)  # continuous: sets range (cold)
 conn("mTick_t", 1, "random_age", 0)   # fires 3rd: bang -> ageMs
 
 conn("random_age", 0, "pos_sub", 1)   # reuse shared subtractor's cold inlet (ageMs)
-conn("mTick_t", 0, "store_writepos", 0)  # fires last: bang -> writePositionMs -> hot inlet of pos_sub
-conn("store_writepos", 0, "pos_sub", 0)
+conn("mTick_t", 0, "store_writepos", 0)  # fires last: bang -> writePositionMs
+# store_writepos -> pos_sub inlet0 is already wired from the Jump section above;
+# that single connection fires for both Jump and Miracle triggers alike.
 # pos_sub -> wrap_add -> wrap_mod already wired to grooveL/R inlet 1 (from Jump section) - shared reuse
 
 comment("c_miracle", "Miracle: 0.5〜3秒目安のランダム断片を順逆・速度ランダムで再生。長さはchunk(ms)で調整", 460, "AA", 340)
@@ -459,6 +471,7 @@ comment("c_miracle", "Miracle: 0.5〜3秒目安のランダム断片を順逆・
 # ---------------------------------------------------------------
 ids = set(boxes.keys())
 errors = []
+seen_lines = set()
 for ln in lines:
     s, so = ln["patchline"]["source"]
     d, di = ln["patchline"]["destination"]
@@ -470,6 +483,10 @@ for ln in lines:
         errors.append(f"{s} outlet {so} out of range (has {boxes[s]['numoutlets']})")
     if d in ids and di >= boxes[d]["numinlets"]:
         errors.append(f"{d} inlet {di} out of range (has {boxes[d]['numinlets']})")
+    key = (s, so, d, di)
+    if key in seen_lines:
+        errors.append(f"duplicate connection {s}[{so}] -> {d}[{di}]")
+    seen_lines.add(key)
 
 if errors:
     print("STRUCTURAL ERRORS:")
