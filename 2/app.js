@@ -685,6 +685,7 @@
   window.addEventListener('keydown', (e) => {
     const k = KEY_MAP[e.code];
     if (k) keys[k] = true;
+    if (e.code === 'ControlLeft' || e.code === 'ControlRight') keys.slow = true;
     if (e.code === 'Escape' && started && !paused) {
       paused = true;
       pauseScreenEl.classList.remove('hidden');
@@ -694,7 +695,11 @@
     if (e.code === 'KeyC' && started && !paused) toggleCamera();
     if (e.code === 'KeyH' && started && !paused) toggleUiHidden();
   });
-  window.addEventListener('keyup', (e) => { const k = KEY_MAP[e.code]; if (k) keys[k] = false; });
+  window.addEventListener('keyup', (e) => {
+    const k = KEY_MAP[e.code];
+    if (k) keys[k] = false;
+    if (e.code === 'ControlLeft' || e.code === 'ControlRight') keys.slow = false;
+  });
 
   document.addEventListener('mousemove', (e) => {
     if (!locked) return;
@@ -1246,6 +1251,7 @@
   let distSinceStep = 0;
   let lastT = performance.now();
   const WALK_SPEED = 2.4;
+  const SLOW_MULT = 0.45;
   let eyeHeightCur = 1.62, eyeHeightTarget = 1.62;
   let speedMul = 1.0, speedMulTarget = 1.0;
 
@@ -1326,7 +1332,7 @@
     if (activeFx.has('hueSpin')) { hueSpinDeg = (hueSpinDeg + dt * 70) % 360; applyScreenFilter(); }
 
     eyeHeightTarget = liveCell.gimmick === 'shrink' ? 0.85 : 1.62;
-    speedMulTarget = liveCell.gimmick === 'shrink' ? 0.58 : 1.0;
+    speedMulTarget = (liveCell.gimmick === 'shrink' ? 0.58 : 1.0) * (keys.slow ? SLOW_MULT : 1);
     eyeHeightCur = lerp(eyeHeightCur, eyeHeightTarget, 1 - Math.exp(-dt * 2.4));
     speedMul = lerp(speedMul, speedMulTarget, 1 - Math.exp(-dt * 2.4));
 

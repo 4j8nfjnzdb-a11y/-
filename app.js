@@ -460,6 +460,7 @@
   window.addEventListener('keydown', (e) => {
     const k = KEY_MAP[e.code];
     if (k) keys[k] = true;
+    if (e.code === 'ControlLeft' || e.code === 'ControlRight') keys.slow = true;
     if (e.code === 'Escape' && started && !paused) {
       paused = true;
       pauseScreenEl.classList.remove('hidden');
@@ -468,7 +469,11 @@
     if (e.code === 'KeyF' && started && !paused) toggleFxPanel();
     if (e.code === 'KeyH' && started && !paused) toggleUiHidden();
   });
-  window.addEventListener('keyup', (e) => { const k = KEY_MAP[e.code]; if (k) keys[k] = false; });
+  window.addEventListener('keyup', (e) => {
+    const k = KEY_MAP[e.code];
+    if (k) keys[k] = false;
+    if (e.code === 'ControlLeft' || e.code === 'ControlRight') keys.slow = false;
+  });
 
   // pointer-lock look (desktop, when the host permits it)
   document.addEventListener('mousemove', (e) => {
@@ -972,6 +977,7 @@
   let distSinceStep = 0;
   let lastT = performance.now();
   const WALK_SPEED = 2.6;
+  const SLOW_MULT = 0.45;
 
   // ---------------------------------------------------------------------
   // screen effects (a photobooth drawer of CSS filters + a couple of
@@ -1048,7 +1054,7 @@
       const len = Math.max(1, Math.hypot(moveX, moveZ));
       moveX /= len; moveZ /= len;
       const sy = Math.sin(player.yaw), cy = Math.cos(player.yaw);
-      const speed = WALK_SPEED * (started ? 1 : 0.6) * dt;
+      const speed = WALK_SPEED * (keys.slow ? SLOW_MULT : 1) * (started ? 1 : 0.6) * dt;
       dx = (sy * moveZ + cy * moveX) * speed;
       dz = (cy * moveZ - sy * moveX) * speed;
     }
