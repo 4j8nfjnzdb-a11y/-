@@ -1003,23 +1003,21 @@
     const duration = getActiveDuration(track);
     if (!duration) return;
 
-    const lo = Math.min(fracA, fracB) * duration;
-    const hi = Math.max(fracA, fracB) * duration;
     const dragWidthFrac = Math.abs(fracB - fracA);
-
-    let start, length;
-    if (dragWidthFrac < 0.015) {
-      // A near-zero drag reads as a click: keep the current loop length
-      // and just slide it so it starts at the clicked point.
-      length = track.loopLength && track.loopLength <= duration ? track.loopLength : Math.min(1, duration);
-      start = Math.min(lo, Math.max(0, duration - length));
-    } else {
-      start = lo;
-      length = Math.max(0.05, hi - lo);
+    if (dragWidthFrac < 0.03) {
+      // Not a deliberate drag (a stray click, or just resting a finger on
+      // the waveform) — leave the loop exactly as it was rather than
+      // surprising the user by snapping it to wherever they happened to
+      // tap. Restore the overlay, which the live preview already moved.
+      updateLoopOverlay(track);
+      return;
     }
 
-    track.loopStart = start;
-    track.loopLength = length;
+    const lo = Math.min(fracA, fracB) * duration;
+    const hi = Math.max(fracA, fracB) * duration;
+
+    track.loopStart = lo;
+    track.loopLength = Math.max(0.05, hi - lo);
     await startTrackPlayback(track);
     updateLoopOverlay(track);
     updateLoopInfo(track);
