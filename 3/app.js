@@ -270,12 +270,12 @@
   const PLAYER_FIGURE_COLOR = [0.85, 0.8, 0.95];
   function buildPlayerFallFigure() {
     const arr = [];
-    pushBox(arr, 0, 0, 0, 0.34, 0.18, 0.75, PLAYER_FIGURE_COLOR);
-    pushBox(arr, 0, 0.04, 0.56, 0.24, 0.22, 0.24, mulColor(PLAYER_FIGURE_COLOR, 0.9));
-    pushBox(arr, -0.5, 0, 0.08, 0.55, 0.14, 0.16, mulColor(PLAYER_FIGURE_COLOR, 0.85));
-    pushBox(arr, 0.5, 0, 0.08, 0.55, 0.14, 0.16, mulColor(PLAYER_FIGURE_COLOR, 0.85));
-    pushBox(arr, -0.22, 0, -0.68, 0.2, 0.16, 0.5, mulColor(PLAYER_FIGURE_COLOR, 0.8));
-    pushBox(arr, 0.22, 0, -0.68, 0.2, 0.16, 0.5, mulColor(PLAYER_FIGURE_COLOR, 0.8));
+    pushBox(arr, 0, 0, 0, 0.36, 0.72, 0.22, PLAYER_FIGURE_COLOR);
+    pushBox(arr, 0, 0.55, 0, 0.26, 0.24, 0.26, mulColor(PLAYER_FIGURE_COLOR, 0.9));
+    pushBox(arr, -0.32, 0.08, 0.02, 0.15, 0.55, 0.15, mulColor(PLAYER_FIGURE_COLOR, 0.85));
+    pushBox(arr, 0.32, 0.08, 0.02, 0.15, 0.55, 0.15, mulColor(PLAYER_FIGURE_COLOR, 0.85));
+    pushBox(arr, -0.13, -0.62, 0, 0.16, 0.55, 0.16, mulColor(PLAYER_FIGURE_COLOR, 0.8));
+    pushBox(arr, 0.13, -0.62, 0, 0.16, 0.55, 0.16, mulColor(PLAYER_FIGURE_COLOR, 0.8));
     return makeStaticVBO(arr);
   }
   const playerFallFigure = buildPlayerFallFigure();
@@ -491,9 +491,9 @@
     }
   }
   function drawFallFigure() {
-    const wobbleX = Math.sin(fallState.elapsed * 1.4 + 1.1) * 0.22;
-    const wobbleZ = Math.cos(fallState.elapsed * 1.1) * 0.18;
-    const spin = fallState.elapsed * 0.6;
+    const wobbleX = Math.sin(fallState.elapsed * 1.4 + 1.1) * 0.1;
+    const wobbleZ = Math.cos(fallState.elapsed * 1.1) * 0.09;
+    const spin = fallState.elapsed * 0.4;
     const m = mat4Multiply(
       mat4Translation(player.x, player.y, player.z),
       mat4Multiply(mat4RotateY(spin), mat4Multiply(mat4RotateX(wobbleX), mat4RotateZ(wobbleZ)))
@@ -536,6 +536,7 @@
     const k = KEY_MAP[e.code];
     if (k) keys[k] = true;
     if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') keys.run = true;
+    if (e.code === 'ControlLeft' || e.code === 'ControlRight') keys.slow = true;
     if (e.code === 'Escape' && started && !paused) {
       paused = true;
       pauseScreenEl.classList.remove('hidden');
@@ -548,6 +549,7 @@
     const k = KEY_MAP[e.code];
     if (k) keys[k] = false;
     if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') keys.run = false;
+    if (e.code === 'ControlLeft' || e.code === 'ControlRight') keys.slow = false;
   });
 
   document.addEventListener('mousemove', (e) => {
@@ -1121,6 +1123,8 @@
   let lastT = performance.now();
   const WALK_SPEED = 2.4;
   const SPRINT_MULT = 1.55;
+  const SLOW_MULT = 0.45;
+  function speedMult() { return keys.run ? SPRINT_MULT : (keys.slow ? SLOW_MULT : 1); }
 
   function computeCameraEye() {
     if (state === 'falling') {
@@ -1153,7 +1157,7 @@
       const len = Math.max(1, Math.hypot(moveX, moveZ));
       moveX /= len; moveZ /= len;
       const sy = Math.sin(player.yaw), cy = Math.cos(player.yaw);
-      const speed = WALK_SPEED * (keys.run ? SPRINT_MULT : 1) * (started ? 1 : 0.6) * dt;
+      const speed = WALK_SPEED * speedMult() * (started ? 1 : 0.6) * dt;
       dx = (sy * moveZ + cy * moveX) * speed;
       dz = (cy * moveZ - sy * moveX) * speed;
     }
@@ -1193,7 +1197,7 @@
       const len = Math.max(1, Math.hypot(moveX, moveZ));
       moveX /= len; moveZ /= len;
       const sy = Math.sin(player.yaw), cy = Math.cos(player.yaw);
-      const speed = WALK_SPEED * (keys.run ? SPRINT_MULT : 1) * dt;
+      const speed = WALK_SPEED * speedMult() * dt;
       dx = (sy * moveZ + cy * moveX) * speed;
       dz = (cy * moveZ - sy * moveX) * speed;
     }
