@@ -23,6 +23,9 @@
       <button id="effectBtn" class="hudBtn">EFFECT</button>
       <button id="viewBtn" class="hudBtn">視点切替</button>
     </div>
+    <div id="joystickBase" class="hidden">
+      <div id="joystickThumb"></div>
+    </div>
   </div>
 
   <div id="overlay">
@@ -31,10 +34,18 @@
     <p id="subtitle">誰かが、まだここにいる。</p>
     <div id="startBtn">クリックして入室する</div>
     <div id="help">
-      <p><b>WASD</b> 移動　<b>マウス</b> 視点　<b>E</b> ソファに座る</p>
+      <p><b>WASD</b> / 左下のパッド　移動　　<b>ドラッグ</b> 視点</p>
+      <p><b>E</b> / タップ　ソファに座る　　<b>クリック</b>で気になる物を観察</p>
       <p><b>T</b> / 視点切替ボタン　—　上から部屋を見る</p>
       <p><b>G</b> / EFFECTボタン　—　部屋に干渉する</p>
-      <p class="small">Esc で退室（ポインタ解除）</p>
+      <p class="small">廊下の先にも、部屋がある。</p>
+    </div>
+  </div>
+
+  <div id="unsupported">
+    <div>
+      <p>お使いの環境では WebGL を利用できないため、この部屋には入れません。</p>
+      <p class="small">最新のブラウザでお試しください。</p>
     </div>
   </div>
 

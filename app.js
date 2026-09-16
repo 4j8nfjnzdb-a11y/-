@@ -1,14 +1,28 @@
 import * as THREE from './three.module.min.js';
 
 /* ============================================================
-   ROOM 303 — a low-poly love-hotel room that starts to lie to you.
-   Walk it, sit on the sofa, look down on it from above, and press
-   EFFECT to make the walls stop agreeing with the floor.
+   ROOM 303 — a low-poly love-hotel suite that starts to lie to you.
+   Walk it, sit on the sofa, look down on it from above, examine
+   things up close, and press EFFECT to make the walls stop
+   agreeing with the floor. A corridor leads to a second room that
+   remembers you wrong.
    ============================================================ */
+
+const canvasProbe = document.createElement('canvas');
+const hasWebGL2 = !!(window.WebGLRenderingContext && canvasProbe.getContext('webgl2'));
+if (!hasWebGL2) {
+  const unsupportedEl = document.getElementById('unsupported');
+  if (unsupportedEl) unsupportedEl.style.display = 'flex';
+  throw new Error('WebGL2 not supported');
+}
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 const ROOM = { halfW: 4.4, halfD: 2.9, height: 3.15 };
+const DOORWAY_HALF = 0.8;
+const CORR_HALF = 0.8;
+const CORR_LEN = 3.4;
+const ROOM2_Z = ROOM.halfD + CORR_LEN + ROOM.halfD; // center-z of the second room
 const SPEED = 2.3;
 const EYE_HEIGHT = 1.62;
 
@@ -17,9 +31,19 @@ const TV_LOOK = new THREE.Vector3(-3.55, 0.85, 0.5);
 const SOFA_SEAT = { x: 3.35, z: 0.5, radius: 1.15 };
 
 const obstacles = [
-  { x: 0, z: -1.95, r: 1.45 }, // bed
-  { x: 3.35, z: 0.5, r: 0.85 }, // sofa
-  { x: -3.5, z: 0.5, r: 0.72 }, // dresser
+  { x: 0, z: -1.95, r: 1.45 },              // room 303 bed
+  { x: 3.35, z: 0.5, r: 0.85 },             // sofa
+  { x: -3.5, z: 0.5, r: 0.72 },             // dresser
+  { x: 0, z: ROOM2_Z + 1.95, r: 1.45 },     // room 304 bed
+];
+
+// Walkable area as a chain of overlapping rectangles (room / corridor /
+// room), so a plain "clamp to nearest rectangle" collision scheme handles
+// multi-room movement without a real navmesh.
+const CELLS = [
+  { xMin: -ROOM.halfW + 0.35, xMax: ROOM.halfW - 0.35, zMin: -ROOM.halfD + 0.35, zMax: ROOM.halfD - 0.35 },
+  { xMin: -(CORR_HALF - 0.35), xMax: CORR_HALF - 0.35, zMin: ROOM.halfD - 0.35, zMax: ROOM.halfD + CORR_LEN + 0.35 },
+  { xMin: -ROOM.halfW + 0.35, xMax: ROOM.halfW - 0.35, zMin: ROOM2_Z - ROOM.halfD + 0.35, zMax: ROOM2_Z + ROOM.halfD - 0.35 },
 ];
 
 // ---------------------------------------------------------------
@@ -36,7 +60,7 @@ stage.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0x0a0104, 0.055);
 
-const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.05, 40);
+const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.05, 60);
 camera.rotation.order = 'YXZ';
 
 const mirrorCamera = new THREE.PerspectiveCamera(62, 320 / 600, 0.05, 30);
@@ -86,6 +110,20 @@ const wallpaperTex = makeCanvasTexture((ctx, w, h) => {
   }
 }, 256, 256);
 wallpaperTex.repeat.set(3, 1.4);
+
+const corridorPaperTex = makeCanvasTexture((ctx, w, h) => {
+  ctx.fillStyle = '#3a0d18';
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = 'rgba(90, 15, 30, 0.6)';
+  ctx.lineWidth = 2;
+  for (let y = 0; y < h; y += 14) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(w, y);
+    ctx.stroke();
+  }
+}, 128, 128);
+corridorPaperTex.repeat.set(1, 3);
 
 const carpetTex = makeCanvasTexture((ctx, w, h) => {
   ctx.fillStyle = '#210408';
@@ -188,52 +226,95 @@ function makeWobbleMaterial(colorHex, mapTex) {
   return mat;
 }
 
-function addShellPlane(w, h, x, y, z, rotY) {
+function addShellPlane(w, h, x, y, z, rotY, mapTex) {
   const segW = Math.max(6, Math.round(w * 4));
   const segH = Math.max(6, Math.round(h * 4));
   const geo = new THREE.PlaneGeometry(w, h, segW, segH);
-  const mesh = new THREE.Mesh(geo, makeWobbleMaterial(0xffffff, wallpaperTex));
+  const mesh = new THREE.Mesh(geo, makeWobbleMaterial(0xffffff, mapTex || wallpaperTex));
   mesh.position.set(x, y, z);
   mesh.rotation.y = rotY;
   scene.add(mesh);
   return mesh;
 }
 
-function buildShell() {
-  // floor & ceiling
+// A wall spanning [x-w/2, x+w/2] on its local axis; when hasGap is true a
+// DOORWAY_HALF-wide opening is left at its center so rooms can connect.
+function addWallMaybeGap(w, h, x, y, z, rotY, hasGap) {
+  if (!hasGap) { addShellPlane(w, h, x, y, z, rotY); return; }
+  const halfW = w / 2;
+  const segWidth = halfW - DOORWAY_HALF;
+  const leftCenter = x - DOORWAY_HALF - segWidth / 2;
+  const rightCenter = x + DOORWAY_HALF + segWidth / 2;
+  addShellPlane(segWidth, h, leftCenter, y, z, rotY);
+  addShellPlane(segWidth, h, rightCenter, y, z, rotY);
+}
+
+const ceilingMeshes = [];
+const ceilingFixtures = [];
+
+// doorSign: -1 => opening in the wall at centerZ-halfD, +1 => at centerZ+halfD, 0 => sealed
+function buildRoomShell(centerZ, doorSign) {
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(ROOM.halfW * 2, ROOM.halfD * 2, 36, 24),
     makeWobbleMaterial(0xb0b0b0, carpetTex)
   );
   floor.rotation.x = -Math.PI / 2;
+  floor.position.z = centerZ;
   scene.add(floor);
 
-  ceilingMesh = new THREE.Mesh(
+  const ceiling = new THREE.Mesh(
     new THREE.PlaneGeometry(ROOM.halfW * 2, ROOM.halfD * 2, 24, 16),
     makeWobbleMaterial(0x180a10, null)
   );
-  ceilingMesh.rotation.x = Math.PI / 2;
-  ceilingMesh.position.y = ROOM.height;
-  scene.add(ceilingMesh);
+  ceiling.rotation.x = Math.PI / 2;
+  ceiling.position.set(0, ROOM.height, centerZ);
+  scene.add(ceiling);
+  ceilingMeshes.push(ceiling);
 
-  // walls (normals face inward)
-  addShellPlane(ROOM.halfW * 2, ROOM.height, 0, ROOM.height / 2, -ROOM.halfD, 0);       // back
-  addShellPlane(ROOM.halfW * 2, ROOM.height, 0, ROOM.height / 2, ROOM.halfD, Math.PI);  // front
-  addShellPlane(ROOM.halfD * 2, ROOM.height, -ROOM.halfW, ROOM.height / 2, 0, Math.PI / 2);  // left
-  addShellPlane(ROOM.halfD * 2, ROOM.height, ROOM.halfW, ROOM.height / 2, 0, -Math.PI / 2);  // right
+  addWallMaybeGap(ROOM.halfW * 2, ROOM.height, 0, ROOM.height / 2, centerZ - ROOM.halfD, 0, doorSign === -1);
+  addWallMaybeGap(ROOM.halfW * 2, ROOM.height, 0, ROOM.height / 2, centerZ + ROOM.halfD, Math.PI, doorSign === 1);
+  addShellPlane(ROOM.halfD * 2, ROOM.height, -ROOM.halfW, ROOM.height / 2, centerZ, Math.PI / 2);
+  addShellPlane(ROOM.halfD * 2, ROOM.height, ROOM.halfW, ROOM.height / 2, centerZ, -Math.PI / 2);
+}
+
+function buildCorridor() {
+  const z0 = ROOM.halfD, z1 = ROOM.halfD + CORR_LEN;
+  const len = z1 - z0;
+  const cz = (z0 + z1) / 2;
+
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(CORR_HALF * 2, len, 6, 20), makeWobbleMaterial(0x9a9a9a, carpetTex));
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.set(0, 0, cz);
+  scene.add(floor);
+
+  const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(CORR_HALF * 2, len, 6, 20), makeWobbleMaterial(0x140810, null));
+  ceiling.rotation.x = Math.PI / 2;
+  ceiling.position.set(0, ROOM.height, cz);
+  scene.add(ceiling);
+  ceilingMeshes.push(ceiling);
+
+  addShellPlane(len, ROOM.height, -CORR_HALF, ROOM.height / 2, cz, Math.PI / 2, corridorPaperTex);
+  addShellPlane(len, ROOM.height, CORR_HALF, ROOM.height / 2, cz, -Math.PI / 2, corridorPaperTex);
+
+  const corridorLight = new THREE.PointLight(0xff4d6a, 8, 6, 1.4);
+  corridorLight.position.set(0, ROOM.height - 0.3, cz);
+  scene.add(corridorLight);
+  return corridorLight;
 }
 
 // ---------------------------------------------------------------
 // Furniture
 // ---------------------------------------------------------------
 
-function buildBed() {
+// wrong === true builds the room-304 variant: same bed, rotated to face the
+// doorway instead of away from it, and shifted to the room's far wall.
+function buildBed(centerZ, wrong) {
   const g = new THREE.Group();
   const frameMat = new THREE.MeshStandardMaterial({ color: 0x2a0f14, flatShading: true, roughness: 0.9 });
   const frame = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.32, 1.9), frameMat);
   frame.position.y = 0.16;
   const mattress = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.26, 1.8),
-    new THREE.MeshStandardMaterial({ color: 0x7a1020, flatShading: true, roughness: 0.75 }));
+    new THREE.MeshStandardMaterial({ color: wrong ? 0x581018 : 0x7a1020, flatShading: true, roughness: 0.75 }));
   mattress.position.y = 0.45;
   const headboard = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.0, 0.14),
     new THREE.MeshStandardMaterial({ color: 0x3a0d18, flatShading: true, roughness: 0.5, metalness: 0.2 }));
@@ -244,15 +325,28 @@ function buildBed() {
   const pillow2 = pillow1.clone();
   pillow2.position.x = 0.55;
   g.add(frame, mattress, headboard, pillow1, pillow2);
-  g.position.set(0, 0, -1.95);
+  g.position.set(0, 0, centerZ + (wrong ? 1.95 : -1.95));
+  if (wrong) g.rotation.y = Math.PI;
   scene.add(g);
 
-  // ceiling accent mirror above the bed — cosmetic, catches the light
-  const accent = new THREE.Mesh(new THREE.CircleGeometry(0.85, 24),
-    new THREE.MeshPhongMaterial({ color: 0x220a12, specular: 0x996677, shininess: 40 }));
-  accent.rotation.x = Math.PI / 2;
-  accent.position.set(0, ROOM.height - 0.01, -1.95);
-  scene.add(accent);
+  if (!wrong) {
+    // ceiling accent mirror above the bed — cosmetic, catches the light
+    const accent = new THREE.Mesh(new THREE.CircleGeometry(0.85, 24),
+      new THREE.MeshPhongMaterial({ color: 0x220a12, specular: 0x996677, shininess: 40 }));
+    accent.rotation.x = Math.PI / 2;
+    accent.position.set(0, ROOM.height - 0.01, centerZ - 1.95);
+    scene.add(accent);
+  }
+
+  // an invisible, vertical trigger plane over the pillows, for the examine
+  // raycast — it must face back toward whichever side the room is entered
+  // from, or a Raycaster (which respects front-face culling) will never hit it.
+  const pillowZ = centerZ + (wrong ? 1.95 - 0.6 : -1.95 - 0.6);
+  const trigger = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.0), new THREE.MeshBasicMaterial({ visible: false }));
+  trigger.position.set(0, 0.75, pillowZ);
+  if (wrong) trigger.rotation.y = Math.PI;
+  scene.add(trigger);
+  return trigger;
 }
 
 function buildSofa() {
@@ -272,6 +366,7 @@ function buildSofa() {
   scene.add(g);
 }
 
+let tvScreenMesh;
 function buildDresserAndTV() {
   const g = new THREE.Group();
   const dresser = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.62, 0.5),
@@ -280,39 +375,28 @@ function buildDresserAndTV() {
   const tvBody = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.42, 0.1),
     new THREE.MeshStandardMaterial({ color: 0x0c0c0f, flatShading: true, roughness: 0.4 }));
   tvBody.position.set(0, 0.62 + 0.21, 0.2);
-  const tvScreen = new THREE.Mesh(new THREE.PlaneGeometry(0.56, 0.32), new THREE.MeshBasicMaterial({ map: tvTex }));
-  tvScreen.position.set(0, 0.62 + 0.21, 0.251);
-  g.add(dresser, tvBody, tvScreen);
+  tvScreenMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.56, 0.32), new THREE.MeshBasicMaterial({ map: tvTex }));
+  tvScreenMesh.position.set(0, 0.62 + 0.21, 0.251);
+  g.add(dresser, tvBody, tvScreenMesh);
   g.rotation.y = Math.PI / 2;
   g.position.set(-3.5, 0, 0.5);
   scene.add(g);
+  tvScreenMesh.updateMatrixWorld(true);
 }
 
-let mirrorMesh, ceilingMesh, ceilingFixtureMesh;
+let mirrorMesh, mirrorFrameMesh;
 function buildMirror() {
-  const frame = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.9, 0.08),
+  mirrorFrameMesh = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.9, 0.08),
     new THREE.MeshStandardMaterial({ color: 0x8a6a2a, flatShading: true, metalness: 0.5, roughness: 0.4 }));
-  frame.position.set(-1.6, 1.7, ROOM.halfD - 0.05);
-  frame.rotation.y = Math.PI;
-  scene.add(frame);
+  mirrorFrameMesh.position.set(-1.6, 1.7, ROOM.halfD - 0.05);
+  mirrorFrameMesh.rotation.y = Math.PI;
+  scene.add(mirrorFrameMesh);
 
   mirrorMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 1.7),
     new THREE.MeshBasicMaterial({ map: mirrorRT.texture }));
   mirrorMesh.position.set(-1.6, 1.7, ROOM.halfD - 0.09);
   mirrorMesh.rotation.y = Math.PI;
   scene.add(mirrorMesh);
-}
-
-function buildDoor() {
-  const door = new THREE.Mesh(new THREE.BoxGeometry(0.9, 2.0, 0.06),
-    new THREE.MeshStandardMaterial({ color: 0x140608, flatShading: true, roughness: 0.7 }));
-  door.position.set(2.6, 1.0, ROOM.halfD - 0.05);
-  door.rotation.y = Math.PI;
-  scene.add(door);
-  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8),
-    new THREE.MeshStandardMaterial({ color: 0xb08a3a, metalness: 0.7, roughness: 0.3 }));
-  knob.position.set(2.95, 1.0, ROOM.halfD - 0.1);
-  scene.add(knob);
 }
 
 let ceilingLight, lampLight, playerLight;
@@ -325,9 +409,10 @@ function buildLights() {
   ceilingLight = new THREE.PointLight(0xffb3c6, 26, 10, 1.3);
   ceilingLight.position.set(0, ROOM.height - 0.2, 0);
   scene.add(ceilingLight);
-  ceilingFixtureMesh = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.08, 0.3), new THREE.MeshBasicMaterial({ color: 0xfff2f5 }));
-  ceilingFixtureMesh.position.set(0, ROOM.height - 0.05, 0);
-  scene.add(ceilingFixtureMesh);
+  const fixture = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.08, 0.3), new THREE.MeshBasicMaterial({ color: 0xfff2f5 }));
+  fixture.position.set(0, ROOM.height - 0.05, 0);
+  scene.add(fixture);
+  ceilingFixtures.push(fixture);
 
   lampLight = new THREE.PointLight(0xff6688, 14, 6, 1.3);
   lampLight.position.set(-3.5, 0.85, 0.5);
@@ -338,6 +423,17 @@ function buildLights() {
   scene.add(lampMesh);
 }
 
+let room2Light;
+function buildRoom2Light() {
+  room2Light = new THREE.PointLight(0x9fffb3, 16, 10, 1.3);
+  room2Light.position.set(0, ROOM.height - 0.2, ROOM2_Z);
+  scene.add(room2Light);
+  const fixture = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.08, 0.3), new THREE.MeshBasicMaterial({ color: 0xdfffe6 }));
+  fixture.position.set(0, ROOM.height - 0.05, ROOM2_Z);
+  scene.add(fixture);
+  ceilingFixtures.push(fixture);
+}
+
 function updateLampFlicker() {
   const jitter = Math.sin(state.time * 23.0) * 0.05 + (Math.random() - 0.5) * 0.15;
   ceilingLight.intensity = Math.max(0, 26 + jitter * (10 + state.glitch * 50));
@@ -345,11 +441,14 @@ function updateLampFlicker() {
   lampLight.intensity = 14 + Math.sin(state.time * 4.0) * 1.2;
   const sick = state.glitch > 0.45 ? Math.random() * 0.4 : 0;
   ceilingLight.color.setHSL(clamp(0.98 + sick, 0, 1), 0.6, 0.75);
+  room2Light.intensity = Math.max(0, 16 + Math.sin(state.time * 6.3) * 6 * (state.glitch > 0.3 ? 2 : 1));
 }
 
 // ---------------------------------------------------------------
-// Doppelganger — real geometry, visible only through the mirror.
-// It stands where you don't expect it: just behind you.
+// Doppelganger — real geometry. In room 303 it is only ever visible
+// through the mirror (layer 1, excluded from the main camera). Past the
+// corridor, in room 304, the same figure becomes directly visible and
+// drifts slowly toward the player instead.
 // ---------------------------------------------------------------
 
 function buildDoppelganger() {
@@ -376,9 +475,38 @@ function buildDoppelganger() {
   return g;
 }
 
-let dopple, dopplePhaseTimer = 2, doppleVisible = false;
+let dopple, dopplePhaseTimer = 2, doppleVisible = false, doppleInRoom2 = false;
+
+function setDoppleMainCameraVisible(visible) {
+  dopple.traverse((o) => {
+    if (!o.isMesh) return;
+    if (visible) o.layers.enable(0); else o.layers.disable(0);
+  });
+}
 
 function updateDoppelganger(dt) {
+  const inSecondArea = player.pos.z > ROOM.halfD - 0.2;
+
+  if (inSecondArea !== doppleInRoom2) {
+    doppleInRoom2 = inSecondArea;
+    setDoppleMainCameraVisible(inSecondArea);
+    if (inSecondArea) dopple.position.set(0, 0, ROOM2_Z + 1.6);
+  }
+
+  if (inSecondArea) {
+    dopple.visible = true;
+    const dx = player.pos.x - dopple.position.x;
+    const dz = player.pos.z - dopple.position.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist > 1.7) {
+      const step = Math.min(dist - 1.7, dt * 0.5);
+      dopple.position.x += (dx / dist) * step;
+      dopple.position.z += (dz / dist) * step;
+    }
+    dopple.lookAt(player.pos.x, dopple.position.y, player.pos.z);
+    return;
+  }
+
   dopplePhaseTimer -= dt;
   if (dopplePhaseTimer <= 0) {
     const chance = state.glitch > 0.3 ? 0.85 : 0.32;
@@ -470,8 +598,8 @@ const POST_FRAG = `
     col += grain * (0.03 + 0.12 * uGlitch);
 
     vec2 vc = uv - 0.5;
-    float vig = smoothstep(0.85, 0.25, length(vc));
-    col *= mix(0.55, 1.0, vig);
+    float edgeAmt = smoothstep(0.25, 0.85, length(vc));
+    col *= mix(1.0, 0.55, edgeAmt);
 
     float flashSeed = hash(vec2(floor(uTime * 9.0), 7.0));
     if (uGlitch > 0.4 && flashSeed > 0.965) col = 1.0 - col;
@@ -504,11 +632,13 @@ postScene.add(postQuad);
 const player = { pos: new THREE.Vector3(0.6, 0, 1.7), yaw: -0.35, pitch: -0.05 };
 const dirs = { forward: new THREE.Vector3(), right: new THREE.Vector3() };
 const keys = new Set();
+const joyVec = { x: 0, y: 0 };
 
 const state = {
   started: false,
   mode: 'fp', // 'fp' | 'top'
   sitting: false,
+  zoomTarget: null,
   glitchOn: false,
   glitch: 0,
   time: 0,
@@ -520,8 +650,16 @@ function updateDirs() {
 }
 
 function resolveCollisions(pos) {
-  pos.x = clamp(pos.x, -ROOM.halfW + 0.35, ROOM.halfW - 0.35);
-  pos.z = clamp(pos.z, -ROOM.halfD + 0.35, ROOM.halfD - 0.35);
+  let bestX = pos.x, bestZ = pos.z, bestDist = Infinity;
+  for (const c of CELLS) {
+    const cx = clamp(pos.x, c.xMin, c.xMax);
+    const cz = clamp(pos.z, c.zMin, c.zMax);
+    const dx = cx - pos.x, dz = cz - pos.z;
+    const d = dx * dx + dz * dz;
+    if (d < bestDist) { bestDist = d; bestX = cx; bestZ = cz; }
+  }
+  pos.x = bestX;
+  pos.z = bestZ;
   for (const obs of obstacles) {
     const dx = pos.x - obs.x, dz = pos.z - obs.z;
     const d = Math.hypot(dx, dz);
@@ -539,15 +677,20 @@ function canSit() {
 }
 
 function updateMovement(dt) {
-  if (state.mode !== 'fp' || state.sitting) return;
+  if (state.mode !== 'fp' || state.sitting || state.zoomTarget) return;
   updateDirs();
   const move = new THREE.Vector3();
   if (keys.has('KeyW')) move.add(dirs.forward);
   if (keys.has('KeyS')) move.sub(dirs.forward);
   if (keys.has('KeyD')) move.add(dirs.right);
   if (keys.has('KeyA')) move.sub(dirs.right);
+  if (Math.abs(joyVec.x) > 0.05 || Math.abs(joyVec.y) > 0.05) {
+    move.addScaledVector(dirs.forward, joyVec.y);
+    move.addScaledVector(dirs.right, joyVec.x);
+  }
   if (move.lengthSq() > 0) {
-    move.normalize().multiplyScalar(SPEED * dt);
+    if (move.length() > 1) move.normalize();
+    move.multiplyScalar(SPEED * dt);
     player.pos.x += move.x;
     player.pos.z += move.z;
     resolveCollisions(player.pos);
@@ -641,17 +784,22 @@ function updateAudioGlitch() {
 }
 
 // ---------------------------------------------------------------
-// Camera pose resolution (fp / sit / top-down)
+// Camera pose resolution (fp / sit / top-down / zoom)
 // ---------------------------------------------------------------
 
 const targetPos = new THREE.Vector3();
 const targetQuat = new THREE.Quaternion();
 
 function computeTargetPose() {
-  if (state.mode === 'top') {
-    const drift = Math.sin(state.time * 0.15) * 0.5;
-    dummy.position.set(drift, 8.0, 0.5 + Math.cos(state.time * 0.1) * 0.4);
-    dummy.lookAt(0, 0, -0.2);
+  if (state.zoomTarget) {
+    dummy.position.copy(state.zoomTarget.camPos);
+    dummy.lookAt(state.zoomTarget.camLookAt);
+    targetPos.copy(state.zoomTarget.camPos);
+    targetQuat.copy(dummy.quaternion);
+  } else if (state.mode === 'top') {
+    const sway = Math.sin(state.time * 0.15) * 0.35;
+    dummy.position.set(player.pos.x + sway, 8.0, player.pos.z + 0.9);
+    dummy.lookAt(player.pos.x, 0, player.pos.z - 0.4);
     targetPos.copy(dummy.position);
     targetQuat.copy(dummy.quaternion);
   } else if (state.sitting) {
@@ -668,9 +816,45 @@ function computeTargetPose() {
 
 function updateCameraPose() {
   computeTargetPose();
-  const smooth = (state.mode === 'fp' && !state.sitting) ? 1 : 0.09;
+  const smooth = (state.mode === 'fp' && !state.sitting && !state.zoomTarget) ? 1 : 0.09;
   camera.position.lerp(targetPos, smooth);
   camera.quaternion.slerp(targetQuat, smooth);
+}
+
+// ---------------------------------------------------------------
+// Examine hotspots (click / tap to zoom in on something)
+// ---------------------------------------------------------------
+
+const raycaster = new THREE.Raycaster();
+const hotspots = [];
+
+function registerHotspot(mesh, camPos, camLookAt, label) {
+  hotspots.push({ mesh, camPos: new THREE.Vector3(...camPos), camLookAt: new THREE.Vector3(...camLookAt), label });
+}
+
+let hoveredHotspot = null;
+
+function updateHoverHint() {
+  if (state.mode !== 'fp' || state.sitting || state.zoomTarget) { hoveredHotspot = null; return; }
+  raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+  const hits = raycaster.intersectObjects(hotspots.map((h) => h.mesh), false);
+  hoveredHotspot = (hits.length && hits[0].distance < 4.5) ? hotspots.find((h) => h.mesh === hits[0].object) : null;
+}
+
+function handlePointerTap(clientX, clientY) {
+  if (state.zoomTarget) { state.zoomTarget = null; return; }
+  if (state.mode !== 'fp' || state.sitting) return;
+  const rect = canvasEl.getBoundingClientRect();
+  const ndc = new THREE.Vector2(
+    ((clientX - rect.left) / rect.width) * 2 - 1,
+    -((clientY - rect.top) / rect.height) * 2 + 1
+  );
+  raycaster.setFromCamera(ndc, camera);
+  const hits = raycaster.intersectObjects(hotspots.map((h) => h.mesh), false);
+  if (hits.length) {
+    const hit = hotspots.find((h) => h.mesh === hits[0].object);
+    if (hit) state.zoomTarget = hit;
+  }
 }
 
 // ---------------------------------------------------------------
@@ -680,9 +864,12 @@ function updateCameraPose() {
 const overlay = document.getElementById('overlay');
 const startBtn = document.getElementById('startBtn');
 const hud = document.getElementById('hud');
+const hudLeft = document.getElementById('hudLeft');
 const promptEl = document.getElementById('prompt');
 const effectBtn = document.getElementById('effectBtn');
 const viewBtn = document.getElementById('viewBtn');
+const joystickBase = document.getElementById('joystickBase');
+const joystickThumb = document.getElementById('joystickThumb');
 const canvasEl = renderer.domElement;
 
 function setPrompt(text) {
@@ -695,11 +882,18 @@ function setPrompt(text) {
 }
 
 function updatePrompt() {
+  if (state.zoomTarget) { setPrompt('タップ / クリックで戻る'); return; }
   if (state.mode !== 'fp') { setPrompt(''); return; }
-  if (document.pointerLockElement !== canvasEl) { setPrompt('クリックして視点操作を再開'); return; }
-  if (state.sitting) setPrompt('[E] 立ち上がる');
-  else if (canSit()) setPrompt('[E] ソファに座る');
-  else setPrompt('');
+  if (state.sitting) { setPrompt('[E] / タップで立ち上がる'); return; }
+  if (canSit()) { setPrompt('[E] / タップでソファに座る'); return; }
+  if (hoveredHotspot) { setPrompt(`クリックして${hoveredHotspot.label}をよく見る`); return; }
+  setPrompt('');
+}
+
+function updateHud() {
+  hudLeft.textContent = player.pos.z > ROOM.halfD ? 'ROOM 304' : 'ROOM 303';
+  const showJoystick = state.started && state.mode === 'fp' && !state.sitting && !state.zoomTarget;
+  joystickBase.classList.toggle('hidden', !showJoystick);
 }
 
 function toggleGlitch() {
@@ -709,24 +903,23 @@ function toggleGlitch() {
 }
 
 function toggleView() {
+  if (state.zoomTarget) return;
   if (state.mode === 'fp') {
     state.mode = 'top';
     document.body.classList.remove('fp-mode');
-    document.exitPointerLock();
-    ceilingMesh.visible = false;
-    ceilingFixtureMesh.visible = false;
+    for (const m of ceilingMeshes) m.visible = false;
+    for (const m of ceilingFixtures) m.visible = false;
   } else {
     state.mode = 'fp';
     document.body.classList.add('fp-mode');
-    canvasEl.requestPointerLock();
-    ceilingMesh.visible = true;
-    ceilingFixtureMesh.visible = true;
+    for (const m of ceilingMeshes) m.visible = true;
+    for (const m of ceilingFixtures) m.visible = true;
   }
   viewBtn.classList.toggle('active', state.mode === 'top');
 }
 
 function trySit() {
-  if (state.mode !== 'fp') return;
+  if (state.mode !== 'fp' || state.zoomTarget) return;
   if (state.sitting) state.sitting = false;
   else if (canSit()) state.sitting = true;
 }
@@ -738,32 +931,99 @@ function enter() {
   overlay.classList.add('hidden');
   hud.classList.remove('hidden');
   document.body.classList.add('entered', 'fp-mode');
-  canvasEl.requestPointerLock();
 }
 
 startBtn.addEventListener('click', enter);
+startBtn.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); enter(); }
+});
 effectBtn.addEventListener('click', toggleGlitch);
 viewBtn.addEventListener('click', toggleView);
 
-canvasEl.addEventListener('click', () => {
-  if (state.started && state.mode === 'fp' && document.pointerLockElement !== canvasEl) {
-    canvasEl.requestPointerLock();
+// ---- drag-to-look + tap-to-examine on the canvas (mouse and touch alike) ----
+
+let looking = false;
+let lookPointerId = null;
+let lastPX = 0, lastPY = 0;
+let dragDist = 0;
+
+canvasEl.addEventListener('pointerdown', (e) => {
+  if (!state.started || state.mode !== 'fp' || state.sitting) return;
+  looking = true;
+  lookPointerId = e.pointerId;
+  lastPX = e.clientX; lastPY = e.clientY;
+  dragDist = 0;
+  canvasEl.setPointerCapture(e.pointerId);
+});
+
+canvasEl.addEventListener('pointermove', (e) => {
+  if (!looking || e.pointerId !== lookPointerId) return;
+  const dx = e.clientX - lastPX, dy = e.clientY - lastPY;
+  lastPX = e.clientX; lastPY = e.clientY;
+  dragDist += Math.hypot(dx, dy);
+  if (!state.zoomTarget) {
+    player.yaw -= dx * 0.0045;
+    player.pitch -= dy * 0.0045;
+    player.pitch = clamp(player.pitch, -1.2, 1.2);
   }
 });
 
-document.addEventListener('mousemove', (e) => {
-  if (document.pointerLockElement !== canvasEl) return;
-  if (state.mode !== 'fp' || state.sitting) return;
-  player.yaw -= e.movementX * 0.0022;
-  player.pitch -= e.movementY * 0.0022;
-  player.pitch = clamp(player.pitch, -1.2, 1.2);
+function endLook(e) {
+  if (!looking || e.pointerId !== lookPointerId) return;
+  looking = false;
+  try { canvasEl.releasePointerCapture(e.pointerId); } catch (err) { /* already released */ }
+  if (dragDist < 6) handlePointerTap(e.clientX, e.clientY);
+}
+canvasEl.addEventListener('pointerup', endLook);
+canvasEl.addEventListener('pointercancel', endLook);
+
+// ---- virtual joystick (movement) ----
+
+let joyActive = false, joyPointerId = null;
+
+function updateJoy(e) {
+  const rect = joystickBase.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+  let dx = e.clientX - cx, dy = e.clientY - cy;
+  const maxR = rect.width / 2;
+  const d = Math.hypot(dx, dy);
+  if (d > maxR) { dx = (dx / d) * maxR; dy = (dy / d) * maxR; }
+  joyVec.x = dx / maxR;
+  joyVec.y = -dy / maxR;
+  joystickThumb.style.transform = `translate(${dx}px, ${dy}px)`;
+}
+
+function resetJoy() {
+  joyVec.x = 0; joyVec.y = 0;
+  joystickThumb.style.transform = 'translate(0px, 0px)';
+}
+
+joystickBase.addEventListener('pointerdown', (e) => {
+  e.stopPropagation();
+  joyActive = true;
+  joyPointerId = e.pointerId;
+  joystickBase.setPointerCapture(e.pointerId);
+  updateJoy(e);
 });
+joystickBase.addEventListener('pointermove', (e) => {
+  if (!joyActive || e.pointerId !== joyPointerId) return;
+  e.stopPropagation();
+  updateJoy(e);
+});
+function endJoy(e) {
+  if (e.pointerId !== joyPointerId) return;
+  joyActive = false;
+  resetJoy();
+}
+joystickBase.addEventListener('pointerup', endJoy);
+joystickBase.addEventListener('pointercancel', endJoy);
 
 window.addEventListener('keydown', (e) => {
   if (!state.started) return;
   if (e.code === 'KeyG') toggleGlitch();
   if (e.code === 'KeyT') toggleView();
   if (e.code === 'KeyE' && !e.repeat) trySit();
+  if (e.code === 'Escape' && state.zoomTarget) state.zoomTarget = null;
   keys.add(e.code);
 });
 window.addEventListener('keyup', (e) => keys.delete(e.code));
@@ -781,14 +1041,21 @@ window.addEventListener('resize', () => {
 // Build scene
 // ---------------------------------------------------------------
 
-buildShell();
+buildRoomShell(0, 1);
+buildCorridor();
+buildRoomShell(ROOM2_Z, -1);
 buildLights();
-buildBed();
+buildRoom2Light();
+buildBed(0, false);
+const room2BedTrigger = buildBed(ROOM2_Z, true);
 buildSofa();
 buildDresserAndTV();
-buildDoor();
 buildMirror();
 dopple = buildDoppelganger();
+
+registerHotspot(tvScreenMesh, [-2.25, 0.9, 0.5], [-3.3, 0.83, 0.5], 'テレビ');
+registerHotspot(mirrorMesh, [-1.6, 1.55, 1.55], [-1.6, 1.6, 2.81], '鏡');
+registerHotspot(room2BedTrigger, [0, 1.3, ROOM2_Z + 0.2], [0, 0.65, ROOM2_Z + 1.35], 'ベッド');
 
 // ---------------------------------------------------------------
 // Main loop
@@ -805,7 +1072,9 @@ function animate() {
 
   if (state.started) {
     updateMovement(dt);
+    updateHoverHint();
     updatePrompt();
+    updateHud();
   }
 
   const idleFlicker = Math.random() < 0.02 ? 0.35 : 0.015;
