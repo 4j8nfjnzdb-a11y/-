@@ -23,7 +23,7 @@ const DOORWAY_HALF = 0.8;
 const CORR_HALF = 0.8;
 const CORR_LEN = 3.4;
 const ROOM2_Z = ROOM.halfD + CORR_LEN + ROOM.halfD; // center-z of the second room
-const SPEED = 2.3;
+const SPEED = 1.3;
 const EYE_HEIGHT = 1.62;
 
 const SIT_POS = new THREE.Vector3(2.7, 0.92, 0.42);
