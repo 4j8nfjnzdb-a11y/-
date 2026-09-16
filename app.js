@@ -63,6 +63,7 @@
 
   let ctx = null;
   let masterGain, compressor, analyser, reverbConvolver, reverbBusGain;
+  let stereoSplitter, analyserL, analyserR;
   const tracks = [];
   let schedulerTimer = null;
 
@@ -113,6 +114,17 @@
     analyser.fftSize = 256;
 
     masterGain.connect(compressor).connect(analyser).connect(ctx.destination);
+
+    // stereo balance meter: splits the post-compressor mix into L/R so
+    // each channel's level can be read independently for the visual meter
+    stereoSplitter = ctx.createChannelSplitter(2);
+    analyserL = ctx.createAnalyser();
+    analyserL.fftSize = 256;
+    analyserR = ctx.createAnalyser();
+    analyserR.fftSize = 256;
+    compressor.connect(stereoSplitter);
+    stereoSplitter.connect(analyserL, 0);
+    stereoSplitter.connect(analyserR, 1);
 
     reverbConvolver = ctx.createConvolver();
     reverbConvolver.buffer = buildImpulseResponse(6.5, 2.8);
@@ -1607,6 +1619,29 @@
   window.addEventListener("resize", resizeBg);
   resizeBg();
 
+  // stereo balance meter: passive visual display, RMS per channel -> bar height
+  const meterFillL = document.getElementById("meterFillL");
+  const meterFillR = document.getElementById("meterFillR");
+  let meterDataL = null, meterDataR = null;
+  function drawStereoMeter() {
+    if (!analyserL || !analyserR || !meterFillL || !meterFillR) return;
+    if (!meterDataL) meterDataL = new Uint8Array(analyserL.fftSize);
+    if (!meterDataR) meterDataR = new Uint8Array(analyserR.fftSize);
+    analyserL.getByteTimeDomainData(meterDataL);
+    analyserR.getByteTimeDomainData(meterDataR);
+    const rms = (data) => {
+      let sum = 0;
+      for (let i = 0; i < data.length; i++) {
+        const s = (data[i] - 128) / 128;
+        sum += s * s;
+      }
+      return Math.sqrt(sum / data.length);
+    };
+    const pct = (v) => Math.min(100, v * 220);
+    meterFillL.style.height = pct(rms(meterDataL)) + "%";
+    meterFillR.style.height = pct(rms(meterDataR)) + "%";
+  }
+
   let bgT = 0;
   let levelData = null;
   function drawBg() {
@@ -1638,6 +1673,7 @@
 
   function animate() {
     drawBg();
+    drawStereoMeter();
     if (ctx) {
       const now = ctx.currentTime;
       tracks.forEach((t) => renderTrackCanvas(t, now));
@@ -1686,6 +1722,13 @@
     });
     document.getElementById("randomAllBtn").addEventListener("click", randomizeAll);
     document.getElementById("randomSamplesBtn").addEventListener("click", randomizeSamplesFromFolders);
+    document.getElementById("resetFxBtn").addEventListener("click", () => {
+      tracks.forEach((t) => {
+        ["depth", "delayTime", "delayFeedback", "delayMix"].forEach((key) => {
+          if (t.knobs[key]) t.knobs[key].setValue(0);
+        });
+      });
+    });
 
     masterRecBtn = document.getElementById("masterRecBtn");
     masterRecStatus = document.getElementById("masterRecStatus");
