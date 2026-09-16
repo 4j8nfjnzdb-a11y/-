@@ -267,6 +267,19 @@
     return makeStaticVBO(arr);
   }
 
+  const PLAYER_FIGURE_COLOR = [0.85, 0.8, 0.95];
+  function buildPlayerFallFigure() {
+    const arr = [];
+    pushBox(arr, 0, 0, 0, 0.34, 0.18, 0.75, PLAYER_FIGURE_COLOR);
+    pushBox(arr, 0, 0.04, 0.56, 0.24, 0.22, 0.24, mulColor(PLAYER_FIGURE_COLOR, 0.9));
+    pushBox(arr, -0.5, 0, 0.08, 0.55, 0.14, 0.16, mulColor(PLAYER_FIGURE_COLOR, 0.85));
+    pushBox(arr, 0.5, 0, 0.08, 0.55, 0.14, 0.16, mulColor(PLAYER_FIGURE_COLOR, 0.85));
+    pushBox(arr, -0.22, 0, -0.68, 0.2, 0.16, 0.5, mulColor(PLAYER_FIGURE_COLOR, 0.8));
+    pushBox(arr, 0.22, 0, -0.68, 0.2, 0.16, 0.5, mulColor(PLAYER_FIGURE_COLOR, 0.8));
+    return makeStaticVBO(arr);
+  }
+  const playerFallFigure = buildPlayerFallFigure();
+
   // ---------------------------------------------------------------------
   // world: an endless dream of plazas you fall out of, until you land at
   // the foot of a tower and climb it, then fall again from the top.
@@ -477,6 +490,16 @@
       drawDynamic(d.mesh, m);
     }
   }
+  function drawFallFigure() {
+    const wobbleX = Math.sin(fallState.elapsed * 1.4 + 1.1) * 0.22;
+    const wobbleZ = Math.cos(fallState.elapsed * 1.1) * 0.18;
+    const spin = fallState.elapsed * 0.6;
+    const m = mat4Multiply(
+      mat4Translation(player.x, player.y, player.z),
+      mat4Multiply(mat4RotateY(spin), mat4Multiply(mat4RotateX(wobbleX), mat4RotateZ(wobbleZ)))
+    );
+    drawDynamic(playerFallFigure, m);
+  }
 
   // ---------------------------------------------------------------------
   // player + input (keyboard/mouse for desktop, drag for touch, with
@@ -512,6 +535,7 @@
   window.addEventListener('keydown', (e) => {
     const k = KEY_MAP[e.code];
     if (k) keys[k] = true;
+    if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') keys.run = true;
     if (e.code === 'Escape' && started && !paused) {
       paused = true;
       pauseScreenEl.classList.remove('hidden');
@@ -520,7 +544,11 @@
     if (e.code === 'KeyF' && started && !paused) toggleFxPanel();
     if (e.code === 'KeyH' && started && !paused) toggleUiHidden();
   });
-  window.addEventListener('keyup', (e) => { const k = KEY_MAP[e.code]; if (k) keys[k] = false; });
+  window.addEventListener('keyup', (e) => {
+    const k = KEY_MAP[e.code];
+    if (k) keys[k] = false;
+    if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') keys.run = false;
+  });
 
   document.addEventListener('mousemove', (e) => {
     if (!locked) return;
@@ -1092,6 +1120,7 @@
   let distSinceStep = 0;
   let lastT = performance.now();
   const WALK_SPEED = 2.4;
+  const SPRINT_MULT = 1.55;
 
   function computeCameraEye() {
     if (state === 'falling') {
@@ -1124,7 +1153,7 @@
       const len = Math.max(1, Math.hypot(moveX, moveZ));
       moveX /= len; moveZ /= len;
       const sy = Math.sin(player.yaw), cy = Math.cos(player.yaw);
-      const speed = WALK_SPEED * (started ? 1 : 0.6) * dt;
+      const speed = WALK_SPEED * (keys.run ? SPRINT_MULT : 1) * (started ? 1 : 0.6) * dt;
       dx = (sy * moveZ + cy * moveX) * speed;
       dz = (cy * moveZ - sy * moveX) * speed;
     }
@@ -1164,7 +1193,7 @@
       const len = Math.max(1, Math.hypot(moveX, moveZ));
       moveX /= len; moveZ /= len;
       const sy = Math.sin(player.yaw), cy = Math.cos(player.yaw);
-      const speed = WALK_SPEED * dt;
+      const speed = WALK_SPEED * (keys.run ? SPRINT_MULT : 1) * dt;
       dx = (sy * moveZ + cy * moveX) * speed;
       dz = (cy * moveZ - sy * moveX) * speed;
     }
@@ -1274,7 +1303,7 @@
     }
 
     if ((state === 'plaza' || state === 'towertop') && currentArea) drawFloaters(currentArea.floaters, t);
-    if (state === 'falling' && fallState) drawDebris(fallState.debris, t);
+    if (state === 'falling' && fallState) { drawDebris(fallState.debris, t); drawFallFigure(); }
   }
 
   function frame(nowMs) {
