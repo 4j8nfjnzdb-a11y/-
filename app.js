@@ -341,6 +341,148 @@
     return new Blob([view], { type: "audio/wav" });
   }
 
+  // Like encodeWav, but reads an AudioBuffer directly (any channel
+  // count) and returns raw bytes rather than a Blob — used for building
+  // per-track files that get bundled into a zip.
+  function encodeWavFromAudioBuffer(buffer) {
+    const numChannels = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
+    const numFrames = buffer.length;
+    const bytesPerSample = 2;
+    const blockAlign = numChannels * bytesPerSample;
+    const dataSize = numFrames * blockAlign;
+
+    const channelData = [];
+    for (let ch = 0; ch < numChannels; ch++) channelData.push(buffer.getChannelData(ch));
+
+    const arrayBuffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(arrayBuffer);
+    const writeString = (offset, str) => {
+      for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+    };
+    writeString(0, "RIFF");
+    view.setUint32(4, 36 + dataSize, true);
+    writeString(8, "WAVE");
+    writeString(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * blockAlign, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, 16, true);
+    writeString(36, "data");
+    view.setUint32(40, dataSize, true);
+
+    let offset = 44;
+    for (let i = 0; i < numFrames; i++) {
+      for (let ch = 0; ch < numChannels; ch++) {
+        const s = Math.max(-1, Math.min(1, channelData[ch][i]));
+        view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+        offset += 2;
+      }
+    }
+    return new Uint8Array(arrayBuffer);
+  }
+
+  // ---------------------------------------------------------------
+  // minimal ZIP writer (store method — no compression, so no deflate
+  // implementation needed) for bundling per-track exports into one
+  // download.
+  // ---------------------------------------------------------------
+
+  function crc32(data) {
+    if (!crc32.table) {
+      const table = new Uint32Array(256);
+      for (let n = 0; n < 256; n++) {
+        let c = n;
+        for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+        table[n] = c >>> 0;
+      }
+      crc32.table = table;
+    }
+    let crc = 0xffffffff;
+    for (let i = 0; i < data.length; i++) crc = crc32.table[(crc ^ data[i]) & 0xff] ^ (crc >>> 8);
+    return (crc ^ 0xffffffff) >>> 0;
+  }
+
+  function dosDateTime(d) {
+    const time = ((d.getHours() & 0x1f) << 11) | ((d.getMinutes() & 0x3f) << 5) | ((d.getSeconds() >> 1) & 0x1f);
+    const date = (((d.getFullYear() - 1980) & 0x7f) << 9) | (((d.getMonth() + 1) & 0xf) << 5) | (d.getDate() & 0x1f);
+    return { time, date };
+  }
+
+  function createZip(entries) {
+    const { time, date } = dosDateTime(new Date());
+    const localParts = [];
+    const centralParts = [];
+    let offset = 0;
+
+    for (const entry of entries) {
+      const nameBytes = new TextEncoder().encode(entry.name);
+      const data = entry.data;
+      const crc = crc32(data);
+      const size = data.length;
+
+      const local = new DataView(new ArrayBuffer(30));
+      local.setUint32(0, 0x04034b50, true);
+      local.setUint16(4, 20, true);
+      local.setUint16(6, 0, true);
+      local.setUint16(8, 0, true);
+      local.setUint16(10, time, true);
+      local.setUint16(12, date, true);
+      local.setUint32(14, crc, true);
+      local.setUint32(18, size, true);
+      local.setUint32(22, size, true);
+      local.setUint16(26, nameBytes.length, true);
+      local.setUint16(28, 0, true);
+      localParts.push(new Uint8Array(local.buffer), nameBytes, data);
+
+      const central = new DataView(new ArrayBuffer(46));
+      central.setUint32(0, 0x02014b50, true);
+      central.setUint16(4, 20, true);
+      central.setUint16(6, 20, true);
+      central.setUint16(8, 0, true);
+      central.setUint16(10, 0, true);
+      central.setUint16(12, time, true);
+      central.setUint16(14, date, true);
+      central.setUint32(16, crc, true);
+      central.setUint32(20, size, true);
+      central.setUint32(24, size, true);
+      central.setUint16(28, nameBytes.length, true);
+      central.setUint16(30, 0, true);
+      central.setUint16(32, 0, true);
+      central.setUint16(34, 0, true);
+      central.setUint16(36, 0, true);
+      central.setUint32(38, 0, true);
+      central.setUint32(42, offset, true);
+      centralParts.push(new Uint8Array(central.buffer), nameBytes);
+
+      offset += 30 + nameBytes.length + size;
+    }
+
+    const centralStart = offset;
+    let centralSize = 0;
+    for (const part of centralParts) centralSize += part.length;
+
+    const eocd = new DataView(new ArrayBuffer(22));
+    eocd.setUint32(0, 0x06054b50, true);
+    eocd.setUint16(4, 0, true);
+    eocd.setUint16(6, 0, true);
+    eocd.setUint16(8, entries.length, true);
+    eocd.setUint16(10, entries.length, true);
+    eocd.setUint32(12, centralSize, true);
+    eocd.setUint32(16, centralStart, true);
+    eocd.setUint16(20, 0, true);
+
+    return new Blob([...localParts, ...centralParts, new Uint8Array(eocd.buffer)], { type: "application/zip" });
+  }
+
+  function sanitizeFilename(name) {
+    const cleaned = name.replace(/[^A-Za-z0-9._ -]/g, "_").trim();
+    return cleaned || "track";
+  }
+
   function reverseBuffer(buffer) {
     const rev = audioCtx.createBuffer(buffer.numberOfChannels, buffer.length, buffer.sampleRate);
     for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
@@ -1388,6 +1530,65 @@
     setMasterRecStatus("");
   }
 
+  // ---------------------------------------------------------------
+  // export all tracks — bundles each loaded track's audio (whatever's
+  // in its pool right now: a mic take, a loaded file, a demo) as a WAV
+  // into one zip download.
+  // ---------------------------------------------------------------
+
+  async function exportTracksZip(exportBtn) {
+    await ensureAudioContext();
+
+    const originalLabel = exportBtn.textContent;
+    exportBtn.disabled = true;
+    exportBtn.textContent = "書き出し中…";
+
+    try {
+      const entries = [];
+      for (let i = 0; i < tracks.length; i++) {
+        const track = tracks[i];
+        const poolEntry = track.pool[track.activeIndex];
+        if (!poolEntry) continue;
+
+        let buffer;
+        try {
+          buffer = await ensureEntryBuffer(poolEntry);
+        } catch (err) {
+          console.warn("export: skipping track", i + 1, err);
+          continue;
+        }
+        if (!buffer) continue;
+        if (track.reversed) {
+          if (!poolEntry.reversedBuffer) poolEntry.reversedBuffer = reverseBuffer(buffer);
+          buffer = poolEntry.reversedBuffer;
+        }
+
+        const wavBytes = encodeWavFromAudioBuffer(buffer);
+        const baseName = sanitizeFilename(poolEntry.name.replace(/\.[^.]+$/, ""));
+        entries.push({ name: `${String(i + 1).padStart(2, "0")}_${baseName}.wav`, data: wavBytes });
+      }
+
+      if (!entries.length) {
+        alert("書き出せるトラックがありません。まず音を読み込んでください。");
+        return;
+      }
+
+      const zipBlob = createZip(entries);
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `junk-loop-tracks-${stamp}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } finally {
+      exportBtn.disabled = false;
+      exportBtn.textContent = originalLabel;
+    }
+  }
+
   function resetTrackEffects(track) {
     if (!track.knobs) return;
     const k = track.knobs;
@@ -1455,6 +1656,9 @@
       if (masterRecActive) stopMasterRecording(recAllBtn);
       else startMasterRecording(recAllBtn);
     });
+
+    const exportTracksBtn = document.getElementById("exportTracksBtn");
+    exportTracksBtn.addEventListener("click", () => exportTracksZip(exportTracksBtn));
 
     const stopAllBtn = document.getElementById("stopAllBtn");
     stopAllBtn.addEventListener("click", () => {
