@@ -23,7 +23,7 @@ const DOORWAY_HALF = 0.8;
 const CORR_HALF = 0.8;
 const CORR_LEN = 3.4;
 const ROOM2_Z = ROOM.halfD + CORR_LEN + ROOM.halfD; // center-z of the second room
-const SPEED = 1.3;
+const SPEED = 1.0;
 const EYE_HEIGHT = 1.62;
 
 const SIT_POS = new THREE.Vector3(2.7, 0.92, 0.42);
@@ -680,10 +680,10 @@ function updateMovement(dt) {
   if (state.mode !== 'fp' || state.sitting || state.zoomTarget) return;
   updateDirs();
   const move = new THREE.Vector3();
-  if (keys.has('KeyW')) move.add(dirs.forward);
-  if (keys.has('KeyS')) move.sub(dirs.forward);
-  if (keys.has('KeyD')) move.add(dirs.right);
-  if (keys.has('KeyA')) move.sub(dirs.right);
+  if (keys.has('KeyW') || keys.has('ArrowUp')) move.add(dirs.forward);
+  if (keys.has('KeyS') || keys.has('ArrowDown')) move.sub(dirs.forward);
+  if (keys.has('KeyD') || keys.has('ArrowRight')) move.add(dirs.right);
+  if (keys.has('KeyA') || keys.has('ArrowLeft')) move.sub(dirs.right);
   if (Math.abs(joyVec.x) > 0.05 || Math.abs(joyVec.y) > 0.05) {
     move.addScaledVector(dirs.forward, joyVec.y);
     move.addScaledVector(dirs.right, joyVec.x);
@@ -841,20 +841,15 @@ function updateHoverHint() {
   hoveredHotspot = (hits.length && hits[0].distance < 4.5) ? hotspots.find((h) => h.mesh === hits[0].object) : null;
 }
 
-function handlePointerTap(clientX, clientY) {
+// The look control is drag-based rather than pointer-locked, so the pointer's
+// on-screen position after a drag has nothing to do with where the camera
+// (and its fixed center crosshair) is aimed. A tap therefore has to act on
+// whatever updateHoverHint() already found down the crosshair, not on
+// whatever happens to be under the pointer's actual pixel.
+function handlePointerTap() {
   if (state.zoomTarget) { state.zoomTarget = null; return; }
   if (state.mode !== 'fp' || state.sitting) return;
-  const rect = canvasEl.getBoundingClientRect();
-  const ndc = new THREE.Vector2(
-    ((clientX - rect.left) / rect.width) * 2 - 1,
-    -((clientY - rect.top) / rect.height) * 2 + 1
-  );
-  raycaster.setFromCamera(ndc, camera);
-  const hits = raycaster.intersectObjects(hotspots.map((h) => h.mesh), false);
-  if (hits.length) {
-    const hit = hotspots.find((h) => h.mesh === hits[0].object);
-    if (hit) state.zoomTarget = hit;
-  }
+  if (hoveredHotspot) state.zoomTarget = hoveredHotspot;
 }
 
 // ---------------------------------------------------------------
@@ -972,7 +967,7 @@ function endLook(e) {
   if (!looking || e.pointerId !== lookPointerId) return;
   looking = false;
   try { canvasEl.releasePointerCapture(e.pointerId); } catch (err) { /* already released */ }
-  if (dragDist < 6) handlePointerTap(e.clientX, e.clientY);
+  if (dragDist < 6) handlePointerTap();
 }
 canvasEl.addEventListener('pointerup', endLook);
 canvasEl.addEventListener('pointercancel', endLook);
@@ -1018,8 +1013,11 @@ function endJoy(e) {
 joystickBase.addEventListener('pointerup', endJoy);
 joystickBase.addEventListener('pointercancel', endJoy);
 
+const MOVE_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
+
 window.addEventListener('keydown', (e) => {
   if (!state.started) return;
+  if (MOVE_KEYS.has(e.code)) e.preventDefault(); // stop arrow keys from scrolling the page
   if (e.code === 'KeyG') toggleGlitch();
   if (e.code === 'KeyT') toggleView();
   if (e.code === 'KeyE' && !e.repeat) trySit();
