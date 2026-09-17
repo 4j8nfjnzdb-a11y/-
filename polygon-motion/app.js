@@ -9,8 +9,68 @@
 // moving. This file owns: scene + room construction, the FK rig
 // builder, the per-joint motion engine, and the control-panel UI.
 
-import * as THREE from "three";
-import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+// Loaded as classic (non-module) scripts — three.min.js first, this file
+// second — so the app runs on browsers/webviews that don't support ES
+// module import maps. `THREE` is the global the vendored build exposes.
+
+// Minimal drag-to-orbit / wheel-to-zoom camera control (a compact stand-in
+// for three/examples/jsm/controls/OrbitControls, which is ES-module only).
+class SimpleOrbitControls {
+  constructor(camera, domElement, target) {
+    this.camera = camera;
+    this.dom = domElement;
+    this.target = target.clone();
+    this.minDistance = 1.2;
+    this.maxDistance = 7;
+    this.maxPolarAngle = Math.PI * 0.53;
+    this.damping = 0.08;
+
+    const offset = camera.position.clone().sub(this.target);
+    this.radius = offset.length();
+    this.theta = Math.atan2(offset.x, offset.z);
+    this.phi = Math.acos(THREE.MathUtils.clamp(offset.y / this.radius, -1, 1));
+    this._targetRadius = this.radius;
+    this._targetTheta = this.theta;
+    this._targetPhi = this.phi;
+
+    this._dragging = false;
+    this._lastX = 0;
+    this._lastY = 0;
+
+    this._onDown = (e) => { this._dragging = true; this._lastX = e.clientX; this._lastY = e.clientY; };
+    this._onUp = () => { this._dragging = false; };
+    this._onMove = (e) => {
+      if (!this._dragging) return;
+      const dx = e.clientX - this._lastX;
+      const dy = e.clientY - this._lastY;
+      this._lastX = e.clientX; this._lastY = e.clientY;
+      this._targetTheta -= dx * 0.006;
+      this._targetPhi = THREE.MathUtils.clamp(this._targetPhi - dy * 0.006, 0.15, this.maxPolarAngle);
+    };
+    this._onWheel = (e) => {
+      e.preventDefault();
+      this._targetRadius = THREE.MathUtils.clamp(this._targetRadius * (1 + e.deltaY * 0.001), this.minDistance, this.maxDistance);
+    };
+
+    domElement.addEventListener("pointerdown", this._onDown);
+    window.addEventListener("pointerup", this._onUp);
+    window.addEventListener("pointermove", this._onMove);
+    domElement.addEventListener("wheel", this._onWheel, { passive: false });
+  }
+
+  update() {
+    this.theta += (this._targetTheta - this.theta) * this.damping;
+    this.phi += (this._targetPhi - this.phi) * this.damping;
+    this.radius += (this._targetRadius - this.radius) * this.damping;
+    const sinPhiRadius = Math.sin(this.phi) * this.radius;
+    this.camera.position.set(
+      this.target.x + sinPhiRadius * Math.sin(this.theta),
+      this.target.y + Math.cos(this.phi) * this.radius,
+      this.target.z + sinPhiRadius * Math.cos(this.theta)
+    );
+    this.camera.lookAt(this.target);
+  }
+}
 
 // ---------------------------------------------------------------------
 // small math helpers
@@ -194,6 +254,34 @@ function makeScanTexture() {
 }
 const SCAN_TEXTURE = makeScanTexture();
 
+// Displaces geometry vertices by a small random amount, matching up any
+// vertices that started at the same position (BoxGeometry duplicates a
+// corner once per adjoining face) so the mesh stays sealed. This turns
+// clean boxes/icosahedra into the irregular, hand-chiseled low-poly look
+// of the reference figures instead of perfectly regular primitives.
+function jitterGeometry(geo, amount) {
+  const pos = geo.attributes.position;
+  const cache = new Map();
+  const key = (x, y, z) => `${x.toFixed(4)},${y.toFixed(4)},${z.toFixed(4)}`;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const k = key(x, y, z);
+    let off = cache.get(k);
+    if (!off) {
+      off = [
+        (Math.random() * 2 - 1) * amount,
+        (Math.random() * 2 - 1) * amount,
+        (Math.random() * 2 - 1) * amount,
+      ];
+      cache.set(k, off);
+    }
+    pos.setXYZ(i, x + off[0], y + off[1], z + off[2]);
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+  return geo;
+}
+
 function buildCharacter(scene, { id, x, z, ry, skin, glow }) {
   const root = new THREE.Group();
   root.position.set(x, 0, z);
@@ -222,26 +310,31 @@ function buildCharacter(scene, { id, x, z, ry, skin, glow }) {
     bindPivot.rotation.set(def.bindDeg[0] * DEG, def.bindDeg[1] * DEG, def.bindDeg[2] * DEG);
     userPivot.add(bindPivot);
 
-    const geo = new THREE.BoxGeometry(...def.mesh.size);
+    const jitterAmt = Math.max(...def.mesh.size) * 0.06;
+    const geo = jitterGeometry(new THREE.BoxGeometry(...def.mesh.size), jitterAmt);
     const mesh = new THREE.Mesh(geo, material);
     mesh.position.set(...def.mesh.center);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     bindPivot.add(mesh);
 
-    // small sphere marking the joint itself, softens the box seams
-    const jointBall = new THREE.Mesh(new THREE.IcosahedronGeometry(Math.max(...def.mesh.size) * 0.34, 0), jointMat);
+    // small angular nub bridging the gap between segments at the joint
+    const nubSize = Math.max(...def.mesh.size) * 0.5;
+    const jointBall = new THREE.Mesh(
+      jitterGeometry(new THREE.BoxGeometry(nubSize, nubSize, nubSize), nubSize * 0.18),
+      jointMat
+    );
     jointBall.castShadow = true;
     userPivot.add(jointBall);
 
     if (def.tip?.type === "head") {
-      const head = new THREE.Mesh(new THREE.IcosahedronGeometry(0.115, 1), material);
+      const head = new THREE.Mesh(jitterGeometry(new THREE.IcosahedronGeometry(0.125, 0), 0.02), material);
       head.position.set(0, def.boneLength + 0.1, 0);
       head.castShadow = true;
       bindPivot.add(head);
     }
     if (def.tip?.type === "hand") {
-      const hand = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.1, 0.05), material);
+      const hand = new THREE.Mesh(jitterGeometry(new THREE.BoxGeometry(0.08, 0.1, 0.05), 0.008), material);
       hand.position.set(0, def.boneLength + 0.05, 0);
       hand.castShadow = true;
       bindPivot.add(hand);
@@ -368,13 +461,7 @@ scene.fog = new THREE.FogExp2(0x0a0710, 0.06);
 const camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.05, 60);
 camera.position.set(1.9, 1.7, 3.1);
 
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0, 1.0, 0);
-controls.enableDamping = true;
-controls.dampingFactor = 0.08;
-controls.maxDistance = 7;
-controls.minDistance = 1.2;
-controls.maxPolarAngle = Math.PI * 0.53;
+const controls = new SimpleOrbitControls(camera, renderer.domElement, new THREE.Vector3(0, 1.0, 0));
 
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
@@ -541,6 +628,155 @@ const characters = {
   A: buildCharacter(scene, { id: "A", x: -0.55, z: 0.35, ry: 0.35, skin: SKIN.a, glow: SKIN_GLOW.a }),
   B: buildCharacter(scene, { id: "B", x: 0.6, z: -0.05, ry: -0.55, skin: SKIN.b, glow: SKIN_GLOW.b }),
 };
+for (const c of Object.values(characters)) {
+  c.movement = {
+    mode: "manual", // manual | idle | wander | approach | retreat | toPoint
+    speed: 0.55,
+    target: new THREE.Vector2(c.root.position.x, c.root.position.z),
+    pauseUntil: 0,
+    retargetAt: 0,
+    fidgetAt: 0,
+    fidgetTarget: null,
+  };
+}
+
+// ---------------------------------------------------------------------
+// locomotion — moving a character through the room. Root translation is
+// layered on top of the FK rig: while a character is in an autonomous
+// mode it also drives its own leg/arm/pelvis/chest joints (a dynamic
+// walk-cycle while moving, idle sway + occasional small fidgets while
+// still) so the same joints stay available for manual posing once the
+// mode is set back to "manual".
+// ---------------------------------------------------------------------
+
+const ROOM_BOUNDS = { minX: -2.25, maxX: 2.25, minZ: -1.85, maxZ: 1.85 };
+const KEEPOUTS = [
+  { cx: -1.55, cz: -1.1, r: 1.3 }, // bed
+  { cx: 1.85, cz: -1.85, r: 0.75 }, // tv stand
+  { cx: -1.95, cz: -0.15, r: 0.45 }, // lamp
+];
+
+function clampToBounds(v) {
+  return new THREE.Vector2(
+    clamp(v.x, ROOM_BOUNDS.minX, ROOM_BOUNDS.maxX),
+    clamp(v.y, ROOM_BOUNDS.minZ, ROOM_BOUNDS.maxZ)
+  );
+}
+
+function randomFloorPoint() {
+  for (let tries = 0; tries < 24; tries++) {
+    const x = ROOM_BOUNDS.minX + Math.random() * (ROOM_BOUNDS.maxX - ROOM_BOUNDS.minX);
+    const z = ROOM_BOUNDS.minZ + Math.random() * (ROOM_BOUNDS.maxZ - ROOM_BOUNDS.minZ);
+    const blocked = KEEPOUTS.some((k) => (x - k.cx) ** 2 + (z - k.cz) ** 2 < (k.r + 0.3) ** 2);
+    if (!blocked) return new THREE.Vector2(x, z);
+  }
+  return new THREE.Vector2(0, 0);
+}
+
+function lerpAngle(a, b, t) {
+  let d = ((b - a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+  return a + d * t;
+}
+
+const FIDGET_POOL = [
+  { j: "neck", axis: "y", roll: () => (Math.random() * 2 - 1) * 30 },
+  { j: "neck", axis: "x", roll: () => (Math.random() * 2 - 1) * 12 },
+  { j: "pelvis", axis: "z", roll: () => (Math.random() * 2 - 1) * 6 },
+  { j: "leftShoulder", axis: "z", roll: () => 6 + Math.random() * 10 },
+  { j: "rightShoulder", axis: "z", roll: () => 6 + Math.random() * 10 },
+  { j: "chest", axis: "z", roll: () => (Math.random() * 2 - 1) * 8 },
+];
+
+function applyLocomotionPose(character, moving, speed, t) {
+  const j = character.joints;
+  const m = character.movement;
+
+  if (moving) {
+    const strideHz = 0.4 + speed * 0.85;
+    const legAmp = 20 + Math.min(20, speed * 16);
+    character.pairLinkMode.hip = "flipped";
+    character.pairLinkMode.knee = "flipped";
+    character.pairLinkMode.shoulder = "flipped";
+    Object.assign(j.leftHip.axisState.x, { base: 12, motionOn: true, amp: legAmp, speed: strideHz, phase: 0 });
+    Object.assign(j.leftKnee.axisState.x, { base: 22, motionOn: true, amp: legAmp + 10, speed: strideHz, phase: 190 });
+    Object.assign(j.leftAnkle.axisState.x, { base: -5, motionOn: true, amp: 12, speed: strideHz, phase: 40 });
+    Object.assign(j.leftShoulder.axisState.x, { base: 0, motionOn: true, amp: legAmp - 4, speed: strideHz, phase: 180 });
+    Object.assign(j.leftElbow.axisState.x, { base: 16, motionOn: true, amp: 10, speed: strideHz, phase: 0 });
+    Object.assign(j.chest.axisState.y, { base: 0, motionOn: true, amp: 6, speed: strideHz, phase: 180 });
+    Object.assign(j.pelvis.posAxisState.y, { base: -0.02, motionOn: true, amp: 0.02, speed: strideHz * 2, phase: 0 });
+    for (const p of ["hip", "knee", "shoulder"]) syncPair(character, p);
+  } else {
+    character.pairLinkMode.hip = "independent";
+    character.pairLinkMode.knee = "independent";
+    for (const id of ["leftHip", "rightHip", "leftKnee", "rightKnee", "leftAnkle", "rightAnkle", "leftElbow", "rightElbow", "leftShoulder", "rightShoulder"]) {
+      Object.assign(j[id].axisState.x, { base: 0, motionOn: false });
+    }
+    Object.assign(j.chest.axisState.y, { base: 0, motionOn: false });
+    Object.assign(j.pelvis.posAxisState.y, { base: 0, motionOn: false });
+    Object.assign(j.chest.axisState.x, { base: 1, motionOn: true, amp: 2.2, speed: 0.22, phase: 0 });
+
+    if (t > m.fidgetAt) {
+      if (m.fidgetTarget) {
+        const prev = m.fidgetTarget;
+        Object.assign(j[prev.j].axisState[prev.axis], { base: 0, motionOn: false });
+      }
+      const pick = FIDGET_POOL[Math.floor(Math.random() * FIDGET_POOL.length)];
+      Object.assign(j[pick.j].axisState[pick.axis], { base: pick.roll(), motionOn: true, amp: 2, speed: 0.4, phase: 0 });
+      m.fidgetTarget = pick;
+      m.fidgetAt = t + 2.2 + Math.random() * 4;
+    }
+  }
+}
+
+function updateLocomotion(character, other, dt, t) {
+  const m = character.movement;
+  if (m.mode === "manual") return;
+
+  const root = character.root;
+  const pos2 = new THREE.Vector2(root.position.x, root.position.z);
+
+  if (m.mode === "idle") {
+    m.target.copy(pos2);
+  } else if (m.mode === "wander") {
+    if (t >= m.pauseUntil && pos2.distanceTo(m.target) < 0.12) {
+      m.pauseUntil = t + 0.6 + Math.random() * 2.2;
+      m.target = randomFloorPoint();
+    }
+  } else if (m.mode === "approach") {
+    const otherPos = new THREE.Vector2(other.root.position.x, other.root.position.z);
+    const dir = pos2.clone().sub(otherPos);
+    const dist = dir.length();
+    const minDist = 0.55;
+    m.target = dist > minDist ? otherPos.clone().add(dir.normalize().multiplyScalar(minDist)) : pos2.clone();
+  } else if (m.mode === "retreat") {
+    if (t > m.retargetAt) {
+      const otherPos = new THREE.Vector2(other.root.position.x, other.root.position.z);
+      let dir = pos2.clone().sub(otherPos);
+      if (dir.lengthSq() < 1e-4) dir.set(Math.random() - 0.5, Math.random() - 0.5);
+      dir.normalize();
+      m.target = clampToBounds(pos2.clone().add(dir.multiplyScalar(3.0)));
+      m.retargetAt = t + 1.4;
+    }
+  } else if (m.mode === "toPoint") {
+    if (pos2.distanceTo(m.target) < 0.12) m.mode = "idle";
+  }
+
+  const paused = m.mode === "wander" && t < m.pauseUntil;
+  const toTarget = m.target.clone().sub(pos2);
+  const dist = toTarget.length();
+  const moving = !paused && dist > 0.06;
+
+  if (moving) {
+    const dir = toTarget.normalize();
+    const step = Math.min(dist, m.speed * dt);
+    root.position.x += dir.x * step;
+    root.position.z += dir.y * step;
+    const desiredYaw = Math.atan2(dir.x, dir.y);
+    root.rotation.y = lerpAngle(root.rotation.y, desiredYaw, Math.min(1, dt * 6));
+  }
+
+  applyLocomotionPose(character, moving, m.speed, t);
+}
 
 // ---------------------------------------------------------------------
 // presets — built from the same base/amp/speed/phase parameters the UI
@@ -817,9 +1053,60 @@ function jointDisabledForUI(character, jointId) {
   return false;
 }
 
+const MOVEMENT_MODES = [
+  ["manual", "手動"],
+  ["idle", "待機"],
+  ["wander", "さまよう"],
+  ["approach", "近づく"],
+  ["retreat", "離れる"],
+];
+
+function renderMovementPanel(character) {
+  const wrap = document.createElement("div");
+  wrap.className = "movement-panel";
+
+  const label = document.createElement("div");
+  label.className = "tree-group-label";
+  label.textContent = "移動 Movement";
+  wrap.appendChild(label);
+
+  const modeRow = document.createElement("div");
+  modeRow.className = "link-mode";
+  for (const [mode, text] of MOVEMENT_MODES) {
+    const btn = document.createElement("button");
+    btn.textContent = text;
+    btn.className = character.movement.mode === mode || (mode === "manual" && character.movement.mode === "toPoint") ? "active" : "";
+    btn.addEventListener("click", () => {
+      character.movement.mode = mode;
+      renderJointTree();
+    });
+    modeRow.appendChild(btn);
+  }
+  wrap.appendChild(modeRow);
+
+  wrap.appendChild(axisRow("速度 Speed (m/s)", character.movement.speed, 0.15, 1.4, 0.05,
+    (v) => { character.movement.speed = v; }, false));
+
+  const status = document.createElement("div");
+  status.className = "movement-status";
+  const dx = character.root.position.x - (character === characters.A ? characters.B : characters.A).root.position.x;
+  const dz = character.root.position.z - (character === characters.A ? characters.B : characters.A).root.position.z;
+  const distToOther = Math.hypot(dx, dz).toFixed(2);
+  status.textContent = `モード: ${character.movement.mode}\n相手までの距離: ${distToOther} m`;
+  wrap.appendChild(status);
+
+  const note = document.createElement("p");
+  note.className = "movement-note";
+  note.textContent = "※移動モード中（手動以外）は骨盤・脚・肩の一部関節が自動制御されます。手動で編集するには「手動」に戻してください。床をクリックするとその場所へ歩きます。";
+  wrap.appendChild(note);
+
+  return wrap;
+}
+
 function renderJointTree() {
   jointTreeEl.innerHTML = "";
   const character = activeCharacter();
+  jointTreeEl.appendChild(renderMovementPanel(character));
   for (const group of JOINT_GROUPS) {
     const wrap = document.createElement("div");
     wrap.className = "tree-group";
@@ -1065,6 +1352,32 @@ uiCollapseBtn.addEventListener("click", () => {
   panelBodyEl.classList.toggle("collapsed");
 });
 
+// --- click the floor to walk the selected character there -----------------
+
+const raycaster = new THREE.Raycaster();
+const pointerNDC = new THREE.Vector2();
+let pointerDownAt = null;
+
+canvas.addEventListener("pointerdown", (e) => { pointerDownAt = { x: e.clientX, y: e.clientY }; });
+canvas.addEventListener("pointerup", (e) => {
+  if (!pointerDownAt) return;
+  const moved = Math.hypot(e.clientX - pointerDownAt.x, e.clientY - pointerDownAt.y);
+  pointerDownAt = null;
+  if (moved > 6) return; // was a drag (camera orbit), not a click
+
+  const rect = canvas.getBoundingClientRect();
+  pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointerNDC, camera);
+  const hit = raycaster.intersectObject(floor, false)[0];
+  if (!hit) return;
+
+  const character = activeCharacter();
+  character.movement.mode = "toPoint";
+  character.movement.target = new THREE.Vector2(hit.point.x, hit.point.z);
+  renderJointTree();
+});
+
 // --- room panel wiring ---------------------------------------------------
 
 document.getElementById("lightHue").addEventListener("input", (e) => { roomState.hue = +e.target.value; applyRoomLighting(); });
@@ -1094,7 +1407,11 @@ const keyDrift = makeDrift(-1, 1);
 function tick() {
   requestAnimationFrame(tick);
   const dt = Math.min(0.05, clock.getDelta());
-  if (motionPlaying) simTime += dt;
+  if (motionPlaying) {
+    simTime += dt;
+    updateLocomotion(characters.A, characters.B, dt, simTime);
+    updateLocomotion(characters.B, characters.A, dt, simTime);
+  }
 
   applyMotion(characters.A, simTime);
   applyMotion(characters.B, simTime);

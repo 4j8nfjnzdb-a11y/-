@@ -112,6 +112,41 @@ select, button {
 
 .ghostBtn:hover, select:hover { border-color: var(--accent); }
 
+.viewport-hint {
+  margin: 0;
+  padding: 0.4rem 1.25rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.02em;
+  color: var(--ink-dim);
+  background: rgba(5, 4, 10, 0.55);
+  border-bottom: 1px solid var(--line);
+}
+
+.movement-panel {
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  padding: 0.7rem;
+  margin-bottom: 1rem;
+}
+
+.movement-panel .link-mode { margin-bottom: 0.6rem; }
+
+.movement-status {
+  font-size: 0.68rem;
+  color: var(--ink-dim);
+  line-height: 1.6;
+  margin-top: 0.4rem;
+  white-space: pre-line;
+}
+
+.movement-note {
+  font-size: 0.62rem;
+  color: var(--ink-dim);
+  opacity: 0.75;
+  line-height: 1.5;
+  margin: 0.5rem 0 0;
+}
+
 .panel-body {
   flex: 1;
   display: grid;

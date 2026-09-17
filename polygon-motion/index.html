@@ -5,14 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>motion lab — polygon room</title>
 <link rel="stylesheet" href="style.css" />
-<script type="importmap">
-{
-  "imports": {
-    "three": "./vendor/three/three.module.js",
-    "three/addons/": "./vendor/three/examples/jsm/"
-  }
-}
-</script>
 </head>
 <body>
   <div id="viewport"><canvas id="three-canvas"></canvas></div>
@@ -32,6 +24,7 @@
         <button id="uiCollapse" class="ghostBtn" title="パネルを開閉">⟨⟩</button>
       </div>
     </div>
+    <p class="viewport-hint">画面をドラッグで視点回転・ホイールでズーム／床をクリックすると選択中のキャラクターがそこへ歩きます</p>
 
     <div class="panel-body" id="panelBody">
       <nav id="jointTree" class="joint-tree"></nav>
@@ -74,6 +67,7 @@
     </div>
   </div>
 
-  <script type="module" src="app.js"></script>
+  <script src="vendor/three/three.min.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
