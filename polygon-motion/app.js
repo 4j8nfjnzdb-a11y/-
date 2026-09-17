@@ -68,7 +68,8 @@ const SPINE_AXES = {
   y: { label: "左右回旋", min: -25, max: 25 },
 };
 
-const SKIN = { a: 0xc9b9a6, b: 0x9fb0bd };
+const SKIN = { a: 0xf07a2c, b: 0x1c2440 };
+const SKIN_GLOW = { a: 0xff9a4d, b: 0x5f79c9 };
 
 const JOINT_DEFS = [
   {
@@ -81,9 +82,9 @@ const JOINT_DEFS = [
       y: { label: "左右回旋", min: -30, max: 30 },
     },
     posAxes: {
-      x: { label: "左右移動", min: -0.15, max: 0.15 },
-      y: { label: "上下", min: -0.15, max: 0.15 },
-      z: { label: "前後", min: -0.15, max: 0.15 },
+      x: { label: "左右移動", min: -0.2, max: 0.2 },
+      y: { label: "上下（しゃがみ込み含む）", min: -0.55, max: 0.15 },
+      z: { label: "前後", min: -0.3, max: 0.3 },
     },
   },
   {
@@ -165,17 +166,47 @@ function defaultAxisState() {
 // rig builder
 // ---------------------------------------------------------------------
 
-function buildCharacter(scene, { id, x, z, ry, skin }) {
+// procedural diagonal scanline texture — gives the low-poly body a
+// faint holographic/CRT sheen instead of a flat matte fill.
+function makeScanTexture() {
+  const c = document.createElement("canvas");
+  c.width = c.height = 64;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, 64, 64);
+  ctx.strokeStyle = "rgba(255,255,255,0.9)";
+  ctx.lineWidth = 2.4;
+  ctx.save();
+  ctx.translate(32, 32);
+  ctx.rotate(-Math.PI / 5);
+  ctx.translate(-32, -32);
+  for (let x = -64; x < 128; x += 7) {
+    ctx.beginPath();
+    ctx.moveTo(x, -32);
+    ctx.lineTo(x, 96);
+    ctx.stroke();
+  }
+  ctx.restore();
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(1.4, 1.4);
+  return tex;
+}
+const SCAN_TEXTURE = makeScanTexture();
+
+function buildCharacter(scene, { id, x, z, ry, skin, glow }) {
   const root = new THREE.Group();
   root.position.set(x, 0, z);
   root.rotation.y = ry;
   scene.add(root);
 
   const material = new THREE.MeshStandardMaterial({
-    color: skin, roughness: 0.75, metalness: 0.05, flatShading: true,
+    color: skin, roughness: 0.45, metalness: 0.2, flatShading: true,
+    emissive: glow, emissiveMap: SCAN_TEXTURE, emissiveIntensity: 0.45,
   });
   const jointMat = new THREE.MeshStandardMaterial({
-    color: skin, roughness: 0.7, metalness: 0.05, flatShading: true,
+    color: skin, roughness: 0.4, metalness: 0.2, flatShading: true,
+    emissive: glow, emissiveIntensity: 0.6,
   });
 
   const joints = {};
@@ -507,8 +538,8 @@ applyRoomLighting();
 // ---------------------------------------------------------------------
 
 const characters = {
-  A: buildCharacter(scene, { id: "A", x: -0.55, z: 0.35, ry: 0.35, skin: SKIN.a }),
-  B: buildCharacter(scene, { id: "B", x: 0.6, z: -0.05, ry: -0.55, skin: SKIN.b }),
+  A: buildCharacter(scene, { id: "A", x: -0.55, z: 0.35, ry: 0.35, skin: SKIN.a, glow: SKIN_GLOW.a }),
+  B: buildCharacter(scene, { id: "B", x: 0.6, z: -0.05, ry: -0.55, skin: SKIN.b, glow: SKIN_GLOW.b }),
 };
 
 // ---------------------------------------------------------------------
@@ -524,42 +555,240 @@ function resetJoint(j) {
   for (const axis of Object.keys(j.posAxisState)) Object.assign(j.posAxisState[axis], defaultAxisState());
 }
 
+// Preset library. Every preset only sets base angles / motion oscillator
+// parameters on the same joints the UI exposes — there is no separate
+// "animation clip" system. Grouped for the preset dropdown into general
+// controls, yoga/stretch poses, gait-dance-sport forms, and rehab/PT
+// demonstrations.
+const PRESET_GROUPS = [
+  {
+    id: "general", label: "全般 General",
+    presets: [
+      { id: "reset", label: "Reset pose", apply() {} },
+      {
+        id: "stand", label: "Idle stand",
+        apply(j, character) {
+          Object.assign(j.chest.axisState.x, { base: 1, motionOn: true, amp: 2.2, speed: 0.22, phase: 0 });
+          Object.assign(j.pelvis.axisState.y, { base: 0, motionOn: true, amp: 4, speed: 0.09, phase: 0 });
+          Object.assign(j.leftShoulder.axisState.z, { base: 4, motionOn: true, amp: 3, speed: 0.18, phase: 0 });
+          character.pairLinkMode.shoulder = "flipped";
+          syncPair(character, "shoulder");
+        },
+      },
+      {
+        id: "wave", label: "Wave",
+        apply(j) {
+          Object.assign(j.rightShoulder.axisState.x, { base: 95 });
+          Object.assign(j.rightShoulder.axisState.z, { base: 15, motionOn: true, amp: 22, speed: 1.6, phase: 0 });
+          Object.assign(j.rightElbow.axisState.x, { base: 40, motionOn: true, amp: 18, speed: 1.6, phase: 90 });
+          Object.assign(j.spine.axisState.y, { base: -6, motionOn: true, amp: 3, speed: 0.4, phase: 0 });
+        },
+      },
+    ],
+  },
+  {
+    id: "yoga", label: "ヨガ・ストレッチ Yoga / Stretch",
+    presets: [
+      {
+        id: "catcow", label: "キャット&カウ Cat-Cow",
+        apply(j, character) {
+          character.pairLinkMode.hip = "symmetric";
+          character.pairLinkMode.knee = "symmetric";
+          character.pairLinkMode.shoulder = "symmetric";
+          character.pairLinkMode.elbow = "symmetric";
+          Object.assign(j.pelvis.posAxisState.y, { base: -0.42 });
+          Object.assign(j.pelvis.posAxisState.z, { base: 0.05 });
+          Object.assign(j.pelvis.axisState.x, { base: 2, motionOn: true, amp: 12, speed: 0.22, phase: 0 });
+          Object.assign(j.spine.axisState.x, { base: 6, motionOn: true, amp: 18, speed: 0.22, phase: 10 });
+          Object.assign(j.chest.axisState.x, { base: 6, motionOn: true, amp: 14, speed: 0.22, phase: 25 });
+          Object.assign(j.neck.axisState.x, { base: 0, motionOn: true, amp: 10, speed: 0.22, phase: 40 });
+          Object.assign(j.leftHip.axisState.x, { base: 82 });
+          Object.assign(j.leftKnee.axisState.x, { base: 95 });
+          Object.assign(j.leftShoulder.axisState.x, { base: 78 });
+          Object.assign(j.leftElbow.axisState.x, { base: 8 });
+          for (const p of ["hip", "knee", "shoulder", "elbow"]) syncPair(character, p);
+        },
+      },
+      {
+        id: "cobra", label: "コブラ Cobra stretch",
+        apply(j, character) {
+          character.pairLinkMode.hip = "symmetric";
+          character.pairLinkMode.shoulder = "symmetric";
+          character.pairLinkMode.elbow = "symmetric";
+          Object.assign(j.pelvis.posAxisState.y, { base: -0.5 });
+          Object.assign(j.pelvis.axisState.x, { base: -10 });
+          Object.assign(j.spine.axisState.x, { base: -22, motionOn: true, amp: 4, speed: 0.15, phase: 0 });
+          Object.assign(j.chest.axisState.x, { base: -16, motionOn: true, amp: 3, speed: 0.15, phase: 10 });
+          Object.assign(j.neck.axisState.x, { base: -14 });
+          Object.assign(j.leftHip.axisState.x, { base: -12 });
+          Object.assign(j.leftKnee.axisState.x, { base: 4 });
+          Object.assign(j.leftShoulder.axisState.x, { base: -28 });
+          Object.assign(j.leftElbow.axisState.x, { base: 18 });
+          for (const p of ["hip", "shoulder", "elbow"]) syncPair(character, p);
+        },
+      },
+      {
+        id: "fold", label: "前屈 Standing forward fold",
+        apply(j, character) {
+          character.pairLinkMode.hip = "symmetric";
+          character.pairLinkMode.knee = "symmetric";
+          character.pairLinkMode.shoulder = "symmetric";
+          Object.assign(j.pelvis.axisState.x, { base: 10 });
+          Object.assign(j.spine.axisState.x, { base: 34, motionOn: true, amp: 4, speed: 0.18, phase: 0 });
+          Object.assign(j.chest.axisState.x, { base: 20 });
+          Object.assign(j.neck.axisState.x, { base: 14 });
+          Object.assign(j.leftHip.axisState.x, { base: 96 });
+          Object.assign(j.leftKnee.axisState.x, { base: 14 });
+          Object.assign(j.leftShoulder.axisState.x, { base: 150 });
+          for (const p of ["hip", "knee", "shoulder"]) syncPair(character, p);
+        },
+      },
+      {
+        id: "sidestretch", label: "脇腹伸ばし Standing side stretch",
+        apply(j, character) {
+          character.pairLinkMode.hip = "independent";
+          character.pairLinkMode.knee = "symmetric";
+          Object.assign(j.pelvis.axisState.z, { base: 4 });
+          Object.assign(j.spine.axisState.z, { base: 16, motionOn: true, amp: 4, speed: 0.15, phase: 0 });
+          Object.assign(j.chest.axisState.z, { base: 12 });
+          Object.assign(j.leftShoulder.axisState.x, { base: 165 });
+          Object.assign(j.leftShoulder.axisState.z, { base: 10 });
+          Object.assign(j.rightShoulder.axisState.z, { base: 30 });
+          Object.assign(j.leftKnee.axisState.x, { base: 6 });
+          syncPair(character, "knee");
+        },
+      },
+    ],
+  },
+  {
+    id: "gait", label: "歩行・ダンス・スポーツ Gait / Dance / Sport",
+    presets: [
+      {
+        id: "walk", label: "Walk-like",
+        apply(j, character) {
+          character.pairLinkMode.hip = "flipped";
+          character.pairLinkMode.knee = "flipped";
+          character.pairLinkMode.shoulder = "flipped";
+          Object.assign(j.leftHip.axisState.x, { base: 15, motionOn: true, amp: 28, speed: 0.75, phase: 0 });
+          Object.assign(j.leftKnee.axisState.x, { base: 25, motionOn: true, amp: 30, speed: 0.75, phase: 190 });
+          Object.assign(j.leftAnkle.axisState.x, { base: -5, motionOn: true, amp: 12, speed: 0.75, phase: 40 });
+          Object.assign(j.leftShoulder.axisState.x, { base: 0, motionOn: true, amp: 22, speed: 0.75, phase: 180 });
+          Object.assign(j.leftElbow.axisState.x, { base: 18, motionOn: true, amp: 10, speed: 0.75, phase: 0 });
+          Object.assign(j.pelvis.axisState.y, { base: 0, motionOn: true, amp: 3, speed: 1.5, phase: 0 });
+          Object.assign(j.pelvis.axisState.x, { base: 4, motionOn: true, amp: 2, speed: 0.75, phase: 0 });
+          Object.assign(j.chest.axisState.y, { base: 0, motionOn: true, amp: 6, speed: 0.75, phase: 180 });
+          for (const p of ["hip", "knee", "shoulder"]) syncPair(character, p);
+        },
+      },
+      {
+        id: "run", label: "ランニングフォーム Running form",
+        apply(j, character) {
+          character.pairLinkMode.hip = "flipped";
+          character.pairLinkMode.knee = "flipped";
+          character.pairLinkMode.shoulder = "flipped";
+          character.pairLinkMode.elbow = "flipped";
+          Object.assign(j.chest.axisState.x, { base: 8 });
+          Object.assign(j.pelvis.axisState.x, { base: 6 });
+          Object.assign(j.pelvis.axisState.y, { base: 0, motionOn: true, amp: 5, speed: 1.7, phase: 0 });
+          Object.assign(j.leftHip.axisState.x, { base: 20, motionOn: true, amp: 45, speed: 1.5, phase: 0 });
+          Object.assign(j.leftKnee.axisState.x, { base: 45, motionOn: true, amp: 55, speed: 1.5, phase: 170 });
+          Object.assign(j.leftAnkle.axisState.x, { base: -8, motionOn: true, amp: 15, speed: 1.5, phase: 60 });
+          Object.assign(j.leftShoulder.axisState.x, { base: 10, motionOn: true, amp: 38, speed: 1.5, phase: 180 });
+          Object.assign(j.leftElbow.axisState.x, { base: 75, motionOn: true, amp: 15, speed: 1.5, phase: 0 });
+          for (const p of ["hip", "knee", "shoulder", "elbow"]) syncPair(character, p);
+        },
+      },
+      {
+        id: "dancesway", label: "ダンス旋回 Dance turn / sway",
+        apply(j, character) {
+          character.pairLinkMode.shoulder = "symmetric";
+          character.pairLinkMode.knee = "symmetric";
+          Object.assign(j.pelvis.axisState.y, { base: 0, motionOn: true, amp: 40, speed: 0.15, phase: 0 });
+          Object.assign(j.spine.axisState.y, { base: 0, motionOn: true, amp: 25, speed: 0.15, phase: 180 });
+          Object.assign(j.chest.axisState.y, { base: 0, motionOn: true, amp: 15, speed: 0.15, phase: 180 });
+          Object.assign(j.leftShoulder.axisState.z, { base: 65, motionOn: true, amp: 10, speed: 0.15, phase: 0 });
+          Object.assign(j.leftKnee.axisState.x, { base: 15, motionOn: true, amp: 8, speed: 0.3, phase: 0 });
+          for (const p of ["shoulder", "knee"]) syncPair(character, p);
+        },
+      },
+      {
+        id: "golfswing", label: "スイング動作 Golf-swing-like rotation",
+        apply(j, character) {
+          Object.assign(j.chest.axisState.y, { base: 0, motionOn: true, amp: 45, speed: 0.5, phase: 0 });
+          Object.assign(j.spine.axisState.y, { base: 0, motionOn: true, amp: 20, speed: 0.5, phase: 20 });
+          Object.assign(j.pelvis.axisState.y, { base: 0, motionOn: true, amp: 20, speed: 0.5, phase: 40 });
+          Object.assign(j.pelvis.posAxisState.x, { base: 0, motionOn: true, amp: 0.08, speed: 0.5, phase: 40 });
+          Object.assign(j.leftKnee.axisState.x, { base: 20 });
+          Object.assign(j.rightKnee.axisState.x, { base: 20 });
+        },
+      },
+    ],
+  },
+  {
+    id: "rehab", label: "リハビリ・理学療法 Rehab / PT",
+    presets: [
+      {
+        id: "seatedcore", label: "座位体幹保持 Seated postural control",
+        apply(j, character) {
+          character.pairLinkMode.hip = "symmetric";
+          character.pairLinkMode.knee = "symmetric";
+          Object.assign(j.pelvis.posAxisState.y, { base: -0.4 });
+          Object.assign(j.leftHip.axisState.x, { base: 88 });
+          Object.assign(j.leftKnee.axisState.x, { base: 88 });
+          Object.assign(j.spine.axisState.x, { base: 2, motionOn: true, amp: 2, speed: 0.6, random: 0.3 });
+          Object.assign(j.pelvis.axisState.z, { base: 0, motionOn: true, amp: 2, speed: 0.5, random: 0.4 });
+          for (const p of ["hip", "knee"]) syncPair(character, p);
+        },
+      },
+      {
+        id: "singleleg", label: "片脚立位バランス Single-leg balance",
+        apply(j, character) {
+          character.pairLinkMode.hip = "independent";
+          character.pairLinkMode.knee = "independent";
+          character.pairLinkMode.ankle = "independent";
+          character.pairLinkMode.shoulder = "independent";
+          Object.assign(j.leftHip.axisState.x, { base: 68 });
+          Object.assign(j.leftKnee.axisState.x, { base: 78 });
+          Object.assign(j.rightAnkle.axisState.x, { base: 0, motionOn: true, amp: 3, speed: 0.5, random: 0.5 });
+          Object.assign(j.rightAnkle.axisState.z, { base: 0, motionOn: true, amp: 3, speed: 0.45, random: 0.5 });
+          Object.assign(j.pelvis.axisState.z, { base: 6, motionOn: true, amp: 2, speed: 0.4, random: 0.4 });
+          Object.assign(j.leftShoulder.axisState.z, { base: 20 });
+          Object.assign(j.rightShoulder.axisState.z, { base: -15 });
+        },
+      },
+      {
+        id: "hiprehab", label: "股関節屈伸リハビリ Hip flex/extend rep",
+        apply(j, character) {
+          character.pairLinkMode.hip = "independent";
+          Object.assign(j.leftHip.axisState.x, { base: 45, motionOn: true, amp: 35, speed: 0.25, phase: 0 });
+        },
+      },
+      {
+        id: "squatcontrol", label: "スクワット骨盤コントロール Squat pelvic control",
+        apply(j, character) {
+          character.pairLinkMode.hip = "symmetric";
+          character.pairLinkMode.knee = "symmetric";
+          Object.assign(j.pelvis.posAxisState.y, { base: -0.22 });
+          Object.assign(j.leftHip.axisState.x, { base: 35 });
+          Object.assign(j.leftKnee.axisState.x, { base: 40 });
+          Object.assign(j.spine.axisState.x, { base: 8 });
+          Object.assign(j.pelvis.axisState.x, { base: 0, motionOn: true, amp: 8, speed: 0.3, phase: 0 });
+          for (const p of ["hip", "knee"]) syncPair(character, p);
+        },
+      },
+    ],
+  },
+];
+
+const PRESETS_BY_ID = {};
+for (const group of PRESET_GROUPS) for (const p of group.presets) PRESETS_BY_ID[p.id] = p;
+
 function applyPreset(character, name) {
   for (const id of Object.keys(character.joints)) resetJoint(character.joints[id]);
   for (const p of PAIR_IDS) character.pairLinkMode[p] = "independent";
-  if (name === "reset") return;
-
-  const j = character.joints;
-
-  if (name === "stand") {
-    Object.assign(j.chest.axisState.x, { base: 1, motionOn: true, amp: 2.2, speed: 0.22, phase: 0 });
-    Object.assign(j.pelvis.axisState.y, { base: 0, motionOn: true, amp: 4, speed: 0.09, phase: 0 });
-    Object.assign(j.leftShoulder.axisState.z, { base: 4, motionOn: true, amp: 3, speed: 0.18, phase: 0 });
-    character.pairLinkMode.shoulder = "flipped";
-    syncPair(character, "shoulder");
-  }
-
-  if (name === "wave") {
-    Object.assign(j.rightShoulder.axisState.x, { base: 95 });
-    Object.assign(j.rightShoulder.axisState.z, { base: 15, motionOn: true, amp: 22, speed: 1.6, phase: 0 });
-    Object.assign(j.rightElbow.axisState.x, { base: 40, motionOn: true, amp: 18, speed: 1.6, phase: 90 });
-    Object.assign(j.spine.axisState.y, { base: -6, motionOn: true, amp: 3, speed: 0.4, phase: 0 });
-  }
-
-  if (name === "walk") {
-    character.pairLinkMode.hip = "flipped";
-    character.pairLinkMode.knee = "flipped";
-    character.pairLinkMode.shoulder = "flipped";
-    Object.assign(j.leftHip.axisState.x, { base: 15, motionOn: true, amp: 28, speed: 0.75, phase: 0 });
-    Object.assign(j.leftKnee.axisState.x, { base: 25, motionOn: true, amp: 30, speed: 0.75, phase: 190 });
-    Object.assign(j.leftAnkle.axisState.x, { base: -5, motionOn: true, amp: 12, speed: 0.75, phase: 40 });
-    Object.assign(j.leftShoulder.axisState.x, { base: 0, motionOn: true, amp: 22, speed: 0.75, phase: 180 });
-    Object.assign(j.leftElbow.axisState.x, { base: 18, motionOn: true, amp: 10, speed: 0.75, phase: 0 });
-    Object.assign(j.pelvis.axisState.y, { base: 0, motionOn: true, amp: 3, speed: 1.5, phase: 0 });
-    Object.assign(j.pelvis.axisState.x, { base: 4, motionOn: true, amp: 2, speed: 0.75, phase: 0 });
-    Object.assign(j.chest.axisState.y, { base: 0, motionOn: true, amp: 6, speed: 0.75, phase: 180 });
-    for (const p of ["hip", "knee", "shoulder"]) syncPair(character, p);
-  }
+  const preset = PRESETS_BY_ID[name];
+  if (!preset) return;
+  preset.apply(character.joints, character);
 }
 
 // ---------------------------------------------------------------------
@@ -804,6 +1033,18 @@ charTabsEl.querySelectorAll(".tab").forEach((btn) => {
     renderEditor();
   });
 });
+
+for (const group of PRESET_GROUPS) {
+  const og = document.createElement("optgroup");
+  og.label = group.label;
+  for (const preset of group.presets) {
+    const opt = document.createElement("option");
+    opt.value = preset.id;
+    opt.textContent = preset.label;
+    og.appendChild(opt);
+  }
+  presetSelect.appendChild(og);
+}
 
 presetSelect.addEventListener("change", () => {
   const v = presetSelect.value;
