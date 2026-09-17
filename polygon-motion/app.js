@@ -254,47 +254,18 @@ function makeScanTexture() {
 }
 const SCAN_TEXTURE = makeScanTexture();
 
-// Displaces geometry vertices by a small random amount, matching up any
-// vertices that started at the same position (BoxGeometry duplicates a
-// corner once per adjoining face) so the mesh stays sealed. This turns
-// clean boxes/icosahedra into the irregular, hand-chiseled low-poly look
-// of the reference figures instead of perfectly regular primitives.
-function jitterGeometry(geo, amount) {
-  const pos = geo.attributes.position;
-  const cache = new Map();
-  const key = (x, y, z) => `${x.toFixed(4)},${y.toFixed(4)},${z.toFixed(4)}`;
-  for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
-    const k = key(x, y, z);
-    let off = cache.get(k);
-    if (!off) {
-      off = [
-        (Math.random() * 2 - 1) * amount,
-        (Math.random() * 2 - 1) * amount,
-        (Math.random() * 2 - 1) * amount,
-      ];
-      cache.set(k, off);
-    }
-    pos.setXYZ(i, x + off[0], y + off[1], z + off[2]);
-  }
-  pos.needsUpdate = true;
-  geo.computeVertexNormals();
-  return geo;
-}
-
 function buildCharacter(scene, { id, x, z, ry, skin, glow }) {
   const root = new THREE.Group();
   root.position.set(x, 0, z);
   root.rotation.y = ry;
   scene.add(root);
 
+  // Flat-shaded, sharp-edged boxes only — no rounded joint markers, no
+  // beveling or vertex noise. Segments simply overlap slightly at each
+  // pivot so the rig reads as clean rectangular blocks stacked end to end.
   const material = new THREE.MeshStandardMaterial({
     color: skin, roughness: 0.45, metalness: 0.2, flatShading: true,
     emissive: glow, emissiveMap: SCAN_TEXTURE, emissiveIntensity: 0.45,
-  });
-  const jointMat = new THREE.MeshStandardMaterial({
-    color: skin, roughness: 0.4, metalness: 0.2, flatShading: true,
-    emissive: glow, emissiveIntensity: 0.6,
   });
 
   const joints = {};
@@ -310,31 +281,20 @@ function buildCharacter(scene, { id, x, z, ry, skin, glow }) {
     bindPivot.rotation.set(def.bindDeg[0] * DEG, def.bindDeg[1] * DEG, def.bindDeg[2] * DEG);
     userPivot.add(bindPivot);
 
-    const jitterAmt = Math.max(...def.mesh.size) * 0.06;
-    const geo = jitterGeometry(new THREE.BoxGeometry(...def.mesh.size), jitterAmt);
-    const mesh = new THREE.Mesh(geo, material);
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(...def.mesh.size), material);
     mesh.position.set(...def.mesh.center);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     bindPivot.add(mesh);
 
-    // small angular nub bridging the gap between segments at the joint
-    const nubSize = Math.max(...def.mesh.size) * 0.5;
-    const jointBall = new THREE.Mesh(
-      jitterGeometry(new THREE.BoxGeometry(nubSize, nubSize, nubSize), nubSize * 0.18),
-      jointMat
-    );
-    jointBall.castShadow = true;
-    userPivot.add(jointBall);
-
     if (def.tip?.type === "head") {
-      const head = new THREE.Mesh(jitterGeometry(new THREE.IcosahedronGeometry(0.125, 0), 0.02), material);
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.22, 0.18), material);
       head.position.set(0, def.boneLength + 0.1, 0);
       head.castShadow = true;
       bindPivot.add(head);
     }
     if (def.tip?.type === "hand") {
-      const hand = new THREE.Mesh(jitterGeometry(new THREE.BoxGeometry(0.08, 0.1, 0.05), 0.008), material);
+      const hand = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.1, 0.05), material);
       hand.position.set(0, def.boneLength + 0.05, 0);
       hand.castShadow = true;
       bindPivot.add(hand);

@@ -377,3 +377,26 @@ input[type="range"]::-moz-range-thumb {
   .panel-body { grid-template-columns: 12rem 1fr 0; }
   .room-panel { display: none; }
 }
+
+@media (max-width: 640px) {
+  .topbar {
+    padding: 0.6rem 0.75rem;
+    gap: 0.6rem;
+  }
+  .topbar h1 { font-size: 0.95rem; }
+  .topbar h1 .sub { display: none; }
+  .global-controls { width: 100%; justify-content: flex-start; margin-left: 0; }
+  .global-controls select { flex: 1 1 auto; min-width: 0; }
+  .viewport-hint { display: none; }
+
+  .panel-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: 40vh 1fr;
+    max-height: 62vh;
+  }
+  .joint-tree {
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+  }
+  .joint-editor { padding-bottom: 2rem; }
+}
