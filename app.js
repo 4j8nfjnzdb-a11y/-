@@ -143,8 +143,6 @@
         re[k] = m * Math.cos(p);
         im[k] = m * Math.sin(p);
       }
-      re[0] = mag[f * bins + 0]; im[0] = 0;
-      re[bins - 1] = mag[f * bins + (bins - 1)]; im[bins - 1] = 0;
       for (let k = 1; k < bins - 1; k++) { re[N - k] = re[k]; im[N - k] = -im[k]; }
 
       ifft(re, im);
