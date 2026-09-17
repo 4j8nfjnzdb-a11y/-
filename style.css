@@ -84,7 +84,7 @@ header h1 .sub {
   justify-content: center;
 }
 
-button, .fileBtn {
+button {
   font-family: inherit;
   font-size: 0.82rem;
   letter-spacing: 0.05em;
@@ -104,7 +104,7 @@ button, .fileBtn {
   background: rgba(234, 230, 223, 0.12);
 }
 
-.playBtn:hover, .ghostBtn:hover, .fileBtn:hover {
+.playBtn:hover, .ghostBtn:hover {
   border-color: rgba(234, 230, 223, 0.7);
 }
 

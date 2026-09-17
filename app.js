@@ -3,10 +3,10 @@
 // Bruce Conner's method, reduced to a mechanism: don't shoot anything.
 // Take material that already exists (here: procedurally generated
 // "stock" textures — leader countdowns, test cards, scratch and
-// static — plus whatever the viewer throws in), cut it into fragments,
-// splice the fragments back together at a rhythm nobody chose on
-// purpose, zoom into a random detail instead of the whole frame, and
-// lay a soundtrack under it that has nothing to do with the picture.
+// static), cut it into fragments, splice the fragments back together
+// at a rhythm nobody chose on purpose, zoom into a random detail
+// instead of the whole frame, and lay a soundtrack under it that has
+// nothing to do with the picture.
 // The "dice" don't just pick footage — they pick which *kind* of edit
 // is currently happening (a slow drift, a strobe of jump cuts, a
 // stutter of repeated frames), because Conner's films aren't cut at
@@ -28,7 +28,6 @@
   const flashEl = document.getElementById("flash");
   const playBtn = document.getElementById("playBtn");
   const diceBtn = document.getElementById("diceBtn");
-  const fileInput = document.getElementById("fileInput");
   const tempoSlider = document.getElementById("tempo");
   const chaosSlider = document.getElementById("chaos");
   const grainSlider = document.getElementById("grain");
@@ -241,63 +240,12 @@
     { kind: "procedural", name: "static", draw: staticNoise },
   ];
 
-  let userMaterials = [];
-  let materials = PROCEDURAL.slice();
-
-  function addUserMaterial(m) {
-    userMaterials.push(m);
-    if (userMaterials.length > 10) {
-      const old = userMaterials.shift();
-      if (old.kind === "video") { try { old.el.pause(); } catch (e) {} }
-      URL.revokeObjectURL(old.url);
-    }
-    materials = PROCEDURAL.concat(userMaterials);
-  }
-
-  fileInput.addEventListener("change", (e) => {
-    const files = Array.from(e.target.files || []);
-    files.forEach((file) => {
-      if (file.type.startsWith("image/")) {
-        const img = new Image();
-        const url = URL.createObjectURL(file);
-        img.onload = () => addUserMaterial({ kind: "image", el: img, url });
-        img.src = url;
-      } else if (file.type.startsWith("video/")) {
-        const vid = document.createElement("video");
-        vid.muted = true; vid.loop = true; vid.playsInline = true;
-        const url = URL.createObjectURL(file);
-        vid.src = url;
-        vid.addEventListener("loadeddata", () => {
-          if (running) vid.play().catch(() => {});
-          addUserMaterial({ kind: "video", el: vid, url });
-        });
-      }
-    });
-    e.target.value = "";
-  });
-
-  function coverDraw(ctx, el, iw, ih, dw, dh) {
-    if (!iw || !ih) { ctx.fillStyle = "#000"; ctx.fillRect(0, 0, dw, dh); return; }
-    const scale = Math.max(dw / iw, dh / ih);
-    const sw = dw / scale, sh = dh / scale;
-    const sx = (iw - sw) / 2, sy = (ih - sh) / 2;
-    ctx.drawImage(el, sx, sy, sw, sh, 0, 0, dw, dh);
-  }
+  const materials = PROCEDURAL;
 
   function drawMaterialToSource(material, t) {
     sourceCtx.save();
     sourceCtx.filter = "none";
-    if (material.kind === "procedural") {
-      material.draw(sourceCtx, SRC_W, SRC_H, t);
-    } else if (material.kind === "image") {
-      coverDraw(sourceCtx, material.el, material.el.naturalWidth, material.el.naturalHeight, SRC_W, SRC_H);
-    } else if (material.kind === "video") {
-      if (material.el.readyState >= 2) {
-        coverDraw(sourceCtx, material.el, material.el.videoWidth, material.el.videoHeight, SRC_W, SRC_H);
-      } else {
-        sourceCtx.fillStyle = "#000"; sourceCtx.fillRect(0, 0, SRC_W, SRC_H);
-      }
-    }
+    material.draw(sourceCtx, SRC_W, SRC_H, t);
     sourceCtx.restore();
   }
 
@@ -674,7 +622,6 @@
     currentShot = null;
     nextPulseAt = audioCtx.currentTime + 0.1;
     pulseScheduler();
-    materials.forEach((m) => { if (m.kind === "video") m.el.play().catch(() => {}); });
     master.gain.setTargetAtTime(0.8, audioCtx.currentTime, 0.05);
     playBtn.textContent = "停止";
     playBtn.classList.add("playing");
@@ -684,7 +631,6 @@
   function stop() {
     running = false;
     clearTimeout(pulseTimer);
-    materials.forEach((m) => { if (m.kind === "video") { try { m.el.pause(); } catch (e) {} } });
     if (audioCtx) master.gain.setTargetAtTime(0.0001, audioCtx.currentTime, 0.2);
     playBtn.textContent = "上映開始";
     playBtn.classList.remove("playing");
