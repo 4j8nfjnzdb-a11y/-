@@ -3,39 +3,151 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>kizashi — generative ambient</title>
+<title>spectrum lab — スペクトル実験室</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <canvas id="bg"></canvas>
-
-  <main class="ui">
+  <main class="wrap">
     <header>
-      <h1>kizashi <span class="sub">きざし</span></h1>
-      <p class="tagline">反復に見せかけて、予測の像を結ぶ寸前でかわし続けるアンビエント。</p>
+      <h1>スペクトル実験室 <span class="sub">spectrum lab</span></h1>
+      <p class="tagline">
+        Photosounder のようなスペクトログラム描画エディタ。サンプルを読み込み、周波数の絵を直接描き換えて、
+        タイムストレッチ・フリーズ・ぼかし・ロボット化・ビットクラッシュなど様々なスペクトル/実験系エフェクトで音を作り変える。
+      </p>
     </header>
 
-    <div class="transport">
-      <button id="playBtn" class="playBtn">再生</button>
-      <button id="paletteBtn" class="ghostBtn">配色を変える</button>
-    </div>
+    <section class="card" id="loaderCard">
+      <h2>1. サンプルを入れる <em>load sample</em></h2>
+      <div class="loaderRow">
+        <div id="dropZone" class="dropZone" tabindex="0">
+          <p>ここに音声ファイルをドロップ<br /><span>またはクリックして選択</span></p>
+          <input type="file" id="fileInput" accept="audio/*" hidden />
+        </div>
+        <div class="loaderSide">
+          <button id="testToneBtn" class="ghostBtn">テスト音を生成</button>
+          <p id="sampleInfo" class="sampleInfo">未読み込み</p>
+        </div>
+      </div>
+    </section>
 
-    <div class="controls">
-      <label class="slider">
-        <span>密度 <em>density</em></span>
-        <input id="density" type="range" min="0" max="100" value="42" />
-      </label>
-      <label class="slider">
-        <span>明暗 <em>tone</em></span>
-        <input id="tone" type="range" min="0" max="100" value="50" />
-      </label>
-      <label class="slider">
-        <span>揺らぎ <em>swerve</em></span>
-        <input id="swerve" type="range" min="0" max="100" value="55" />
-      </label>
-    </div>
+    <section class="card" id="waveCard">
+      <h2>2. 波形 <em>waveform</em></h2>
+      <div class="canvasBox">
+        <canvas id="waveformCanvas"></canvas>
+        <canvas id="waveformOverlay" class="overlay"></canvas>
+      </div>
+      <div class="row">
+        <label class="inline">波形の色 <em>color</em>
+          <input type="color" id="waveformColor" value="#6be6ff" />
+        </label>
+      </div>
+    </section>
 
-    <p class="hint">音は毎回、一度きりのものです。同じ配列は二度と戻ってきません。</p>
+    <section class="card" id="specCard">
+      <h2>3. スペクトログラムを描く <em>paint the spectrum</em></h2>
+      <div class="canvasBox">
+        <canvas id="spectrogramCanvas"></canvas>
+        <canvas id="spectrogramOverlay" class="overlay"></canvas>
+      </div>
+      <div class="row wrap">
+        <label class="inline">配色 <em>palette</em>
+          <select id="paletteSelect">
+            <option value="photosounder">rainbow</option>
+            <option value="inferno">inferno</option>
+            <option value="viridis">viridis</option>
+            <option value="mono">mono</option>
+          </select>
+        </label>
+        <label class="inline">筆 <em>brush</em>
+          <select id="brushMode">
+            <option value="erase">消す erase</option>
+            <option value="boost">描く boost</option>
+          </select>
+        </label>
+        <label class="slider small">太さ <em>size</em>
+          <input type="range" id="brushSize" min="2" max="80" value="18" />
+        </label>
+        <label class="slider small">強さ <em>strength</em>
+          <input type="range" id="brushStrength" min="1" max="100" value="70" />
+        </label>
+        <button id="resetPaintBtn" class="ghostBtn">元に戻す</button>
+      </div>
+      <p class="hint">スペクトログラム上をドラッグすると、そこの周波数成分を消したり増やしたりできます。マウス/タッチ対応。</p>
+    </section>
+
+    <section class="card" id="fxCard">
+      <h2>4. エフェクト <em>effects</em></h2>
+      <div class="fxGrid">
+        <label class="slider">テープ速度 <em>speed (pitch also shifts)</em>
+          <input type="range" id="speedRange" min="0.25" max="3" step="0.01" value="1" />
+          <span class="val" id="speedVal">1.00x</span>
+        </label>
+        <label class="slider">スペクトル・ストレッチ <em>stretch (pitch kept)</em>
+          <input type="range" id="stretchRange" min="0.25" max="4" step="0.01" value="1" />
+          <span class="val" id="stretchVal">1.00x</span>
+        </label>
+
+        <label class="slider">ぼかし・時間方向 <em>blur (time)</em>
+          <input type="range" id="blurTime" min="0" max="20" step="1" value="0" />
+          <span class="val" id="blurTimeVal">0</span>
+        </label>
+        <label class="slider">ぼかし・周波数方向 <em>blur (freq)</em>
+          <input type="range" id="blurFreq" min="0" max="20" step="1" value="0" />
+          <span class="val" id="blurFreqVal">0</span>
+        </label>
+
+        <label class="slider">スペクトルゲート <em>gate threshold</em>
+          <input type="range" id="gateThreshold" min="-60" max="0" step="1" value="-60" />
+          <span class="val" id="gateVal">-60dB</span>
+        </label>
+        <label class="checkRow"><input type="checkbox" id="robotToggle" /> ロボット化 <em>robotize</em></label>
+
+        <label class="slider">ビット深度 <em>bitcrush</em>
+          <input type="range" id="crushBits" min="2" max="16" step="1" value="16" />
+          <span class="val" id="crushBitsVal">16bit</span>
+        </label>
+        <label class="slider">サンプル間引き <em>sample hold</em>
+          <input type="range" id="crushRate" min="1" max="40" step="1" value="1" />
+          <span class="val" id="crushRateVal">1</span>
+        </label>
+
+        <label class="slider">リング変調 周波数 <em>ring mod freq</em>
+          <input type="range" id="ringFreq" min="20" max="2000" step="1" value="440" />
+          <span class="val" id="ringFreqVal">440Hz</span>
+        </label>
+        <label class="slider">リング変調 深さ <em>ring mod depth</em>
+          <input type="range" id="ringDepth" min="0" max="100" step="1" value="0" />
+          <span class="val" id="ringDepthVal">0%</span>
+        </label>
+
+        <label class="checkRow"><input type="checkbox" id="reverseToggle" /> 逆再生 <em>reverse</em></label>
+        <label class="checkRow"><input type="checkbox" id="freezeToggle" /> フリーズ <em>freeze / drone</em></label>
+        <label class="slider">フリーズ位置 <em>freeze position</em>
+          <input type="range" id="freezePos" min="0" max="100" step="1" value="30" />
+          <span class="val" id="freezePosVal">30%</span>
+        </label>
+        <label class="slider">フリーズ長さ <em>freeze duration</em>
+          <input type="range" id="freezeDur" min="1" max="15" step="1" value="6" />
+          <span class="val" id="freezeDurVal">6s</span>
+        </label>
+      </div>
+    </section>
+
+    <section class="card" id="renderCard">
+      <div class="row wrap">
+        <button id="renderBtn" class="playBtn">生成する render</button>
+        <span id="renderStatus" class="renderStatus"></span>
+      </div>
+      <div class="row wrap transport">
+        <button id="playBtn" class="ghostBtn" disabled>再生</button>
+        <button id="stopBtn" class="ghostBtn" disabled>停止</button>
+        <label class="inline"><input type="checkbox" id="loopToggle" /> ループ loop</label>
+        <label class="inline">音量 <em>vol</em>
+          <input type="range" id="volumeRange" min="0" max="100" value="80" />
+        </label>
+        <button id="downloadBtn" class="ghostBtn" disabled>WAVを書き出す</button>
+      </div>
+    </section>
   </main>
 
   <script src="app.js"></script>
