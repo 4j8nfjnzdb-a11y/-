@@ -251,6 +251,24 @@
     setTimeout(() => URL.revokeObjectURL(url), 4000);
   }
 
+  // when this page is running inside the claude.ai artifact viewer, plain
+  // <a download> links are inert there — offer the file through the
+  // platform's own save prompt instead, when it's available
+  async function saveFile(blob, filename) {
+    if (window.claude && window.claude.use) {
+      try {
+        const downloads = await window.claude.use("downloads");
+        if (downloads) {
+          await downloads.save({ filename, data: blob });
+          return;
+        }
+      } catch (e) {
+        console.warn("platform save failed, falling back", e);
+      }
+    }
+    downloadBlob(blob, filename);
+  }
+
   function timestamp() {
     const d = new Date();
     const p = (n) => String(n).padStart(2, "0");
@@ -263,10 +281,19 @@
     if (!chunks.length) return;
     recordBtn.textContent = "書き出し中…";
     try {
-      const blob = new Blob(chunks, { type: mediaRecorder.mimeType || "audio/webm" });
-      const arrayBuf = await blob.arrayBuffer();
-      const buffer = await audioCtx.decodeAudioData(arrayBuf);
-      downloadBlob(encodeWav(buffer), `kizami_${timestamp()}.wav`);
+      const mimeType = mediaRecorder.mimeType || "audio/webm";
+      const blob = new Blob(chunks, { type: mimeType });
+      if (window.claude && window.claude.use) {
+        // the artifact viewer's save prompt only allows a fixed set of
+        // extensions (no .wav) — hand over the recorder's own container
+        // instead of re-encoding
+        const ext = mimeType.includes("mp4") ? "mp4" : "webm";
+        await saveFile(blob, `kizami_${timestamp()}.${ext}`);
+      } else {
+        const arrayBuf = await blob.arrayBuffer();
+        const buffer = await audioCtx.decodeAudioData(arrayBuf);
+        downloadBlob(encodeWav(buffer), `kizami_${timestamp()}.wav`);
+      }
     } catch (e) {
       console.warn("recording export failed", e);
       statusEl.textContent = "録音の書き出しに失敗しました";
@@ -956,8 +983,12 @@
 
   fallbackVisual = defaultVisual();
   renderVisualList();
-  renderLibrary();
   resizeCanvas();
   ensureVisualLoop();
+
+  // start populated rather than empty — a synthesized kit needs no upload
+  // and nothing plays until the viewer presses play, so this is silent
+  loadDemoKit();
+  addLanesFromSelection(true);
   updateStatus();
 })();
