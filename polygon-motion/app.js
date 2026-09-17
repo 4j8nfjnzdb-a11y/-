@@ -980,6 +980,10 @@ const PRESETS_BY_ID = {};
 for (const group of PRESET_GROUPS) for (const p of group.presets) PRESETS_BY_ID[p.id] = p;
 
 function applyPreset(character, name) {
+  // Autonomous movement (anything but "manual") drives these same joints
+  // every frame — leaving it engaged would silently overwrite the preset
+  // a moment after it's applied, making the preset look like it did nothing.
+  character.movement.mode = "manual";
   for (const id of Object.keys(character.joints)) resetJoint(character.joints[id]);
   for (const p of PAIR_IDS) character.pairLinkMode[p] = "independent";
   const preset = PRESETS_BY_ID[name];
@@ -1047,6 +1051,20 @@ function renderMovementPanel(character) {
   wrap.appendChild(axisRow("速度 Speed (m/s)", character.movement.speed, 0.15, 1.4, 0.05,
     (v) => { character.movement.speed = v; }, false));
 
+  const posLabel = document.createElement("div");
+  posLabel.className = "tree-group-label";
+  posLabel.textContent = "部屋の中の位置 Position (X / Z)";
+  wrap.appendChild(posLabel);
+
+  wrap.appendChild(axisRow("左右 (X)", character.root.position.x, ROOM_BOUNDS.minX, ROOM_BOUNDS.maxX, 0.02, (v) => {
+    character.root.position.x = v;
+    character.movement.target.x = v;
+  }, false));
+  wrap.appendChild(axisRow("奥行き (Z)", character.root.position.z, ROOM_BOUNDS.minZ, ROOM_BOUNDS.maxZ, 0.02, (v) => {
+    character.root.position.z = v;
+    character.movement.target.y = v;
+  }, false));
+
   const status = document.createElement("div");
   status.className = "movement-status";
   const dx = character.root.position.x - (character === characters.A ? characters.B : characters.A).root.position.x;
@@ -1057,7 +1075,7 @@ function renderMovementPanel(character) {
 
   const note = document.createElement("p");
   note.className = "movement-note";
-  note.textContent = "※移動モード中（手動以外）は骨盤・脚・肩の一部関節が自動制御されます。手動で編集するには「手動」に戻してください。床をクリックするとその場所へ歩きます。";
+  note.textContent = "※「さまよう/近づく/離れる」中は骨盤・脚・肩の一部関節が自動制御され、プリセットの見た目を上書きします。プリセットを選ぶと自動的に「手動」に戻ります。左右/奥行きスライダーと床クリックはどのモードでも使えます。";
   wrap.appendChild(note);
 
   return wrap;
