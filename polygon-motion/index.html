@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>motion lab — polygon room</title>
+<link rel="stylesheet" href="style.css" />
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/three.module.js",
+    "three/addons/": "./vendor/three/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+  <div id="viewport"><canvas id="three-canvas"></canvas></div>
+
+  <div id="ui">
+    <div class="topbar">
+      <h1>motion lab <span class="sub">ポリゴン・ボディコントロール</span></h1>
+      <div class="char-tabs" id="charTabs">
+        <button class="tab active" data-char="A">Character A</button>
+        <button class="tab" data-char="B">Character B</button>
+      </div>
+      <div class="global-controls">
+        <select id="presetSelect">
+          <option value="">プリセット…</option>
+          <option value="stand">Idle stand</option>
+          <option value="wave">Wave</option>
+          <option value="walk">Walk-like</option>
+          <option value="reset">Reset pose</option>
+        </select>
+        <button id="motionToggle" class="ghostBtn">Motion: Playing</button>
+        <button id="uiCollapse" class="ghostBtn" title="パネルを開閉">⟨⟩</button>
+      </div>
+    </div>
+
+    <div class="panel-body" id="panelBody">
+      <nav id="jointTree" class="joint-tree"></nav>
+
+      <section id="jointEditor" class="joint-editor">
+        <p class="placeholder">左のリストから関節を選択してください</p>
+      </section>
+
+      <aside id="roomPanel" class="room-panel">
+        <h2>Room</h2>
+
+        <label class="field">
+          <span>照明の色相 <em>hue</em></span>
+          <input type="range" id="lightHue" min="0" max="360" value="265" />
+        </label>
+        <label class="field">
+          <span>照明の強さ <em>intensity</em></span>
+          <input type="range" id="lightIntensity" min="0" max="100" value="35" />
+        </label>
+        <label class="field">
+          <span>照明のちらつき <em>flicker</em></span>
+          <input type="range" id="lightFlicker" min="0" max="100" value="20" />
+        </label>
+        <label class="field">
+          <span>霧の濃さ <em>fog</em></span>
+          <input type="range" id="fogDensity" min="0" max="100" value="30" />
+        </label>
+        <label class="field checkbox">
+          <input type="checkbox" id="tvOn" checked />
+          <span>テレビ（ノイズ）</span>
+        </label>
+        <label class="field">
+          <span>テレビの明滅 <em>flicker</em></span>
+          <input type="range" id="tvFlicker" min="0" max="100" value="55" />
+        </label>
+
+        <h2>Selected joint</h2>
+        <div id="jointSummary" class="joint-summary">未選択</div>
+      </aside>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
