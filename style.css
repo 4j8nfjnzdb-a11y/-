@@ -25,6 +25,26 @@ html, body {
   display: block;
 }
 
+.noiseLink {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 2;
+  color: var(--ink-dim);
+  text-decoration: none;
+  font-size: 0.78rem;
+  letter-spacing: 0.03em;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(234, 230, 223, 0.25);
+  transition: color 0.3s ease, border-color 0.3s ease;
+}
+
+.noiseLink:hover {
+  color: var(--ink);
+  border-color: rgba(234, 230, 223, 0.6);
+}
+
 .ui {
   position: relative;
   z-index: 1;

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>strips — digital noise converter</title>
+<link rel="stylesheet" href="strips.css" />
+</head>
+<body>
+  <a href="index.html" class="backLink">← kizashi</a>
+
+  <main class="wrap">
+    <header>
+      <h1>strips <span class="sub">ストライプ・ノイズ変換</span></h1>
+      <p class="tagline">
+        画像や動画を縦方向にどんどん細かく分割し、それぞれの細片を独立に動かして
+        「デジタルノイズ」化するツールです。
+        リヒターの《Strip》シリーズ — スキャンした絵画を縦に12回二等分し、
+        4,096本の細片として再構成する手法 — にヒントを得ていますが、
+        ここでは特定の作品を再現するのではなく、その発想（分割 → 各片を独立に動かす）
+        だけを借りて、自分の画像・動画に汎用のグリッチ効果としてかけられるようにしています。
+      </p>
+    </header>
+
+    <section class="stage-area">
+      <div id="dropZone" class="dropZone">
+        <input id="fileInput" type="file" accept="image/*,video/*" hidden />
+        <p class="dropHint">
+          ここに画像・動画をドラッグ&ドロップ<br />
+          <span>またはクリックして選択</span>
+        </p>
+        <canvas id="stage"></canvas>
+      </div>
+    </section>
+
+    <section class="controls">
+      <div class="presetRow">
+        <span class="groupLabel">パターン</span>
+        <div class="presetBtns">
+          <button type="button" class="presetBtn" data-preset="slide">ゆらぎスライド</button>
+          <button type="button" class="presetBtn" data-preset="tear">グリッチ断裂</button>
+          <button type="button" class="presetBtn" data-preset="jitter">びりびり振動</button>
+          <button type="button" class="presetBtn" data-preset="color">色収差ノイズ</button>
+          <button type="button" class="presetBtn" data-preset="all">オールイン</button>
+        </div>
+      </div>
+
+      <div class="toggleRow">
+        <label class="toggle"><input id="slideToggle" type="checkbox" checked /> 横スライド</label>
+        <label class="toggle"><input id="tearToggle" type="checkbox" /> 断裂ジャンプ</label>
+        <label class="toggle"><input id="jitterToggle" type="checkbox" /> びりびり</label>
+        <label class="toggle"><input id="colorToggle" type="checkbox" /> 色分解</label>
+      </div>
+
+      <div class="sliderRow">
+        <label class="slider">
+          <span>分割数 <em id="stripsValue">64本</em></span>
+          <input id="strips" type="range" min="1" max="12" value="6" step="1" />
+          <small>1分割ごとに2倍。12段階で4,096本（リヒターと同じ回数）まで。なめらかに動かすなら数十〜数百本推奨。</small>
+        </label>
+        <label class="slider">
+          <span>速さ <em>speed</em></span>
+          <input id="speed" type="range" min="0" max="100" value="45" />
+        </label>
+        <label class="slider">
+          <span>強さ <em>intensity</em></span>
+          <input id="intensity" type="range" min="0" max="100" value="40" />
+        </label>
+      </div>
+
+      <div class="transport">
+        <button id="playBtn" class="playBtn">一時停止</button>
+        <button id="randomizeBtn" class="ghostBtn">パターンを揺らす</button>
+        <button id="saveBtn" class="ghostBtn">静止画を保存</button>
+        <button id="recordBtn" class="ghostBtn">動画で書き出し</button>
+      </div>
+      <p class="recHint" id="recHint"></p>
+    </section>
+  </main>
+
+  <script src="strips.js"></script>
+</body>
+</html>
