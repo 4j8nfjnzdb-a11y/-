@@ -112,6 +112,34 @@ select, button {
 
 .ghostBtn:hover, select:hover { border-color: var(--accent); }
 
+.fusion-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 1.25rem;
+  background: rgba(5, 4, 10, 0.5);
+  border-bottom: 1px solid var(--line);
+}
+
+.fusion-label {
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-right: 0.2rem;
+}
+
+.fusionBtn {
+  font-size: 0.72rem;
+}
+
+.fusionBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  border-color: var(--line);
+}
+
 .viewport-hint {
   margin: 0;
   padding: 0.4rem 1.25rem;

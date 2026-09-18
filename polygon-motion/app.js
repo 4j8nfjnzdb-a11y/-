@@ -135,7 +135,7 @@ const JOINT_DEFS = [
   {
     id: "pelvis", label: "骨盤 Pelvis", parentId: null,
     anchor: [0, 0.98, 0], bindDeg: [0, 0, 0], boneLength: 0.14,
-    mesh: { size: [0.32, 0.22, 0.2], center: [0, 0.07, 0] },
+    mesh: { size: [0.24, 0.16, 0.15], center: [0, 0.06, 0] },
     axes: {
       x: { label: "前傾 / 後傾", min: -20, max: 20 },
       z: { label: "左右傾斜", min: -15, max: 15 },
@@ -150,19 +150,19 @@ const JOINT_DEFS = [
   {
     id: "spine", label: "脊柱 Spine", parentId: "pelvis",
     anchor: [0, 0.14, 0], bindDeg: [0, 0, 0], boneLength: 0.16,
-    mesh: { size: [0.24, 0.16, 0.16], center: [0, 0.08, 0] },
+    mesh: { size: [0.18, 0.16, 0.13], center: [0, 0.08, 0] },
     axes: SPINE_AXES,
   },
   {
     id: "chest", label: "胸郭 Chest", parentId: "spine",
     anchor: [0, 0.16, 0], bindDeg: [0, 0, 0], boneLength: 0.2,
-    mesh: { size: [0.34, 0.22, 0.2], center: [0, 0.1, 0] },
+    mesh: { size: [0.24, 0.2, 0.15], center: [0, 0.1, 0] },
     axes: SPINE_AXES,
   },
   {
     id: "neck", label: "首 Neck", parentId: "chest",
     anchor: [0, 0.2, 0], bindDeg: [0, 0, 0], boneLength: 0.1,
-    mesh: { size: [0.11, 0.1, 0.11], center: [0, 0.05, 0] },
+    mesh: { size: [0.09, 0.09, 0.09], center: [0, 0.05, 0] },
     axes: {
       x: { label: "前後", min: -25, max: 25 },
       z: { label: "左右傾き", min: -20, max: 20 },
@@ -172,39 +172,39 @@ const JOINT_DEFS = [
   },
 
   { id: "leftShoulder", label: "左肩 Left Shoulder", parentId: "chest", side: "L", pairId: "shoulder",
-    anchor: [0.2, 0.16, 0], bindDeg: [0, 0, 180], boneLength: 0.28,
-    mesh: { size: [0.11, 0.28, 0.11], center: [0, 0.14, 0] }, axes: SHOULDER_AXES },
+    anchor: [0.14, 0.17, 0], bindDeg: [0, 0, 180], boneLength: 0.28,
+    mesh: { size: [0.085, 0.28, 0.085], center: [0, 0.14, 0] }, axes: SHOULDER_AXES },
   { id: "rightShoulder", label: "右肩 Right Shoulder", parentId: "chest", side: "R", pairId: "shoulder",
-    anchor: [-0.2, 0.16, 0], bindDeg: [0, 0, 180], boneLength: 0.28,
-    mesh: { size: [0.11, 0.28, 0.11], center: [0, 0.14, 0] }, axes: SHOULDER_AXES },
+    anchor: [-0.14, 0.17, 0], bindDeg: [0, 0, 180], boneLength: 0.28,
+    mesh: { size: [0.085, 0.28, 0.085], center: [0, 0.14, 0] }, axes: SHOULDER_AXES },
 
   { id: "leftElbow", label: "左肘 Left Elbow", parentId: "leftShoulder", side: "L", pairId: "elbow",
     anchor: [0, 0.28, 0], bindDeg: [0, 0, 0], boneLength: 0.25,
-    mesh: { size: [0.09, 0.25, 0.09], center: [0, 0.125, 0] }, axes: ELBOW_AXES, tip: { type: "hand" } },
+    mesh: { size: [0.07, 0.25, 0.07], center: [0, 0.125, 0] }, axes: ELBOW_AXES, tip: { type: "hand" } },
   { id: "rightElbow", label: "右肘 Right Elbow", parentId: "rightShoulder", side: "R", pairId: "elbow",
     anchor: [0, 0.28, 0], bindDeg: [0, 0, 0], boneLength: 0.25,
-    mesh: { size: [0.09, 0.25, 0.09], center: [0, 0.125, 0] }, axes: ELBOW_AXES, tip: { type: "hand" } },
+    mesh: { size: [0.07, 0.25, 0.07], center: [0, 0.125, 0] }, axes: ELBOW_AXES, tip: { type: "hand" } },
 
   { id: "leftHip", label: "左股関節 Left Hip", parentId: "pelvis", side: "L", pairId: "hip",
-    anchor: [0.1, -0.03, 0], bindDeg: [0, 0, 180], boneLength: 0.44,
-    mesh: { size: [0.15, 0.44, 0.15], center: [0, 0.22, 0] }, axes: HIP_AXES },
+    anchor: [0.075, -0.02, 0], bindDeg: [0, 0, 180], boneLength: 0.44,
+    mesh: { size: [0.12, 0.44, 0.12], center: [0, 0.22, 0] }, axes: HIP_AXES },
   { id: "rightHip", label: "右股関節 Right Hip", parentId: "pelvis", side: "R", pairId: "hip",
-    anchor: [-0.1, -0.03, 0], bindDeg: [0, 0, 180], boneLength: 0.44,
-    mesh: { size: [0.15, 0.44, 0.15], center: [0, 0.22, 0] }, axes: HIP_AXES },
+    anchor: [-0.075, -0.02, 0], bindDeg: [0, 0, 180], boneLength: 0.44,
+    mesh: { size: [0.12, 0.44, 0.12], center: [0, 0.22, 0] }, axes: HIP_AXES },
 
   { id: "leftKnee", label: "左膝 Left Knee", parentId: "leftHip", side: "L", pairId: "knee",
     anchor: [0, 0.44, 0], bindDeg: [0, 0, 0], boneLength: 0.42,
-    mesh: { size: [0.12, 0.42, 0.12], center: [0, 0.21, 0] }, axes: KNEE_AXES },
+    mesh: { size: [0.095, 0.42, 0.095], center: [0, 0.21, 0] }, axes: KNEE_AXES },
   { id: "rightKnee", label: "右膝 Right Knee", parentId: "rightHip", side: "R", pairId: "knee",
     anchor: [0, 0.44, 0], bindDeg: [0, 0, 0], boneLength: 0.42,
-    mesh: { size: [0.12, 0.42, 0.12], center: [0, 0.21, 0] }, axes: KNEE_AXES },
+    mesh: { size: [0.095, 0.42, 0.095], center: [0, 0.21, 0] }, axes: KNEE_AXES },
 
   { id: "leftAnkle", label: "左足首 Left Ankle", parentId: "leftKnee", side: "L", pairId: "ankle",
     anchor: [0, 0.42, 0], bindDeg: [90, 0, 0], boneLength: 0.22,
-    mesh: { size: [0.1, 0.07, 0.24], center: [0, 0.11, 0.02] }, axes: ANKLE_AXES },
+    mesh: { size: [0.09, 0.06, 0.22], center: [0, 0.11, 0.02] }, axes: ANKLE_AXES },
   { id: "rightAnkle", label: "右足首 Right Ankle", parentId: "rightKnee", side: "R", pairId: "ankle",
     anchor: [0, 0.42, 0], bindDeg: [90, 0, 0], boneLength: 0.22,
-    mesh: { size: [0.1, 0.07, 0.24], center: [0, 0.11, 0.02] }, axes: ANKLE_AXES },
+    mesh: { size: [0.09, 0.06, 0.22], center: [0, 0.11, 0.02] }, axes: ANKLE_AXES },
 ];
 
 const JOINT_GROUPS = [
@@ -288,7 +288,7 @@ function buildCharacter(scene, { id, x, z, ry, skin, glow }) {
     bindPivot.add(mesh);
 
     if (def.tip?.type === "head") {
-      const head = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.22, 0.18), material);
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.18, 0.14), material);
       head.position.set(0, def.boneLength + 0.1, 0);
       head.castShadow = true;
       bindPivot.add(head);
@@ -739,6 +739,185 @@ function updateLocomotion(character, other, dt, t) {
 }
 
 // ---------------------------------------------------------------------
+// fusion — a purely cosmetic transform: the two characters shrink into
+// each other and a stand-in mesh (an egg, or a small "legendary" beast)
+// takes their place, then "解除" reverses the same animation. Pose and
+// room-position data are untouched underneath the whole time — only the
+// meshes are hidden/scaled, so releasing always comes back to whatever
+// pose/place each character was left in.
+// ---------------------------------------------------------------------
+
+function paintVerticalGradient(geo, colorTop, colorBottom) {
+  geo.computeBoundingBox();
+  const { min, max } = geo.boundingBox;
+  const span = Math.max(1e-4, max.y - min.y);
+  const pos = geo.attributes.position;
+  const colors = new Float32Array(pos.count * 3);
+  const cTop = new THREE.Color(colorTop);
+  const cBottom = new THREE.Color(colorBottom);
+  const c = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    const t = (pos.getY(i) - min.y) / span;
+    c.copy(cBottom).lerp(cTop, t);
+    colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
+  }
+  geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  return geo;
+}
+
+function buildEggMesh() {
+  const group = new THREE.Group();
+  const geo = new THREE.IcosahedronGeometry(0.3, 1);
+  geo.scale(0.82, 1.18, 0.82);
+  paintVerticalGradient(geo, SKIN_GLOW.a, SKIN_GLOW.b);
+  const mat = new THREE.MeshStandardMaterial({
+    vertexColors: true, flatShading: true, roughness: 0.35, metalness: 0.25,
+    emissive: 0x2a2440, emissiveIntensity: 0.35,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.castShadow = true;
+  group.add(mesh);
+  return group;
+}
+
+function buildLegendMesh() {
+  const outer = new THREE.Group();
+  const group = new THREE.Group();
+  group.scale.setScalar(1.7);
+  outer.add(group);
+  const gold = new THREE.MeshStandardMaterial({ color: 0xf6c453, roughness: 0.3, metalness: 0.5, flatShading: true, emissive: 0xd98b1f, emissiveIntensity: 0.4 });
+  const violet = new THREE.MeshStandardMaterial({ color: 0x8a4fe0, roughness: 0.3, metalness: 0.4, flatShading: true, emissive: 0x5a1fb0, emissiveIntensity: 0.5 });
+
+  const body = new THREE.Mesh(new THREE.IcosahedronGeometry(0.22, 0), gold);
+  body.scale.set(1, 0.85, 1.3);
+  body.castShadow = true;
+  group.add(body);
+
+  const head = new THREE.Mesh(new THREE.OctahedronGeometry(0.13, 0), gold);
+  head.position.set(0, 0.06, 0.28);
+  head.castShadow = true;
+  group.add(head);
+
+  for (const side of [1, -1]) {
+    const horn = new THREE.Mesh(new THREE.ConeGeometry(0.02, 0.13, 4), violet);
+    horn.position.set(side * 0.06, 0.16, 0.3);
+    horn.rotation.z = side * 0.35;
+    group.add(horn);
+
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.02, 0.2), violet);
+    wing.position.set(side * 0.28, 0.08, -0.05);
+    wing.rotation.z = side * 0.5;
+    wing.rotation.y = side * 0.25;
+    wing.castShadow = true;
+    group.add(wing);
+
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.16, 0.05), gold);
+    leg.position.set(side * 0.13, -0.18, 0.1);
+    leg.castShadow = true;
+    group.add(leg);
+  }
+
+  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.32, 5), violet);
+  tail.position.set(0, 0.02, -0.42);
+  tail.rotation.x = Math.PI / 2 + 0.3;
+  tail.castShadow = true;
+  group.add(tail);
+
+  return outer;
+}
+
+const eggMesh = buildEggMesh();
+const legendMesh = buildLegendMesh();
+eggMesh.visible = false;
+legendMesh.visible = false;
+eggMesh.scale.setScalar(0.001);
+legendMesh.scale.setScalar(0.001);
+scene.add(eggMesh, legendMesh);
+
+const FUSION_DURATION = 0.9;
+const fusionState = { mode: null, phase: "none", t: 0, startA: null, startB: null, center: null };
+
+function fusionMeshFor(mode) { return mode === "egg" ? eggMesh : legendMesh; }
+
+function startFuse(mode) {
+  if (fusionState.phase !== "none") return;
+  const a = characters.A.root.position, b = characters.B.root.position;
+  fusionState.mode = mode;
+  fusionState.phase = "merging";
+  fusionState.t = 0;
+  fusionState.startA = a.clone();
+  fusionState.startB = b.clone();
+  fusionState.center = a.clone().add(b).multiplyScalar(0.5);
+  fusionState.center.y = 0.95;
+  const mesh = fusionMeshFor(mode);
+  mesh.position.copy(fusionState.center);
+  mesh.visible = true;
+  mesh.scale.setScalar(0.001);
+  updateFusionButtons();
+}
+
+function releaseFuse() {
+  if (fusionState.phase !== "fused") return;
+  fusionState.phase = "releasing";
+  fusionState.t = 0;
+  updateFusionButtons();
+}
+
+function updateFusionButtons() {
+  const fusing = fusionState.phase !== "none";
+  fuseEggBtn.disabled = fusing;
+  fuseLegendBtn.disabled = fusing;
+  fuseReleaseBtn.disabled = fusionState.phase !== "fused";
+}
+
+function updateFusion(dt, t) {
+  if (fusionState.phase === "none") return;
+  const mesh = fusionMeshFor(fusionState.mode);
+
+  if (fusionState.phase === "merging") {
+    fusionState.t = Math.min(1, fusionState.t + dt / FUSION_DURATION);
+    const e = fusionState.t * fusionState.t * (3 - 2 * fusionState.t); // smoothstep
+    characters.A.root.position.lerpVectors(fusionState.startA, fusionState.center, e);
+    characters.B.root.position.lerpVectors(fusionState.startB, fusionState.center, e);
+    characters.A.root.scale.setScalar(1 - e);
+    characters.B.root.scale.setScalar(1 - e);
+    mesh.scale.setScalar(e);
+    mesh.rotation.y = e * Math.PI * 2;
+    if (fusionState.t >= 1) {
+      characters.A.root.visible = false;
+      characters.B.root.visible = false;
+      fusionState.phase = "fused";
+      fusionState.t = 0;
+      updateFusionButtons();
+    }
+  } else if (fusionState.phase === "fused") {
+    mesh.position.y = fusionState.center.y + Math.sin(t * 1.6) * 0.05;
+    mesh.rotation.y = t * 0.6;
+  } else if (fusionState.phase === "releasing") {
+    fusionState.t = Math.min(1, fusionState.t + dt / (FUSION_DURATION * 0.7));
+    const e = fusionState.t;
+    characters.A.root.visible = true;
+    characters.B.root.visible = true;
+    characters.A.root.position.lerpVectors(fusionState.center, fusionState.startA, e);
+    characters.B.root.position.lerpVectors(fusionState.center, fusionState.startB, e);
+    characters.A.root.scale.setScalar(e);
+    characters.B.root.scale.setScalar(e);
+    mesh.scale.setScalar((1 - e) * (1 + Math.sin(e * Math.PI) * 0.4));
+    mesh.rotation.y += dt * (4 + e * 10);
+    if (fusionState.t >= 1) {
+      mesh.visible = false;
+      characters.A.root.scale.setScalar(1);
+      characters.B.root.scale.setScalar(1);
+      characters.A.movement.target.set(characters.A.root.position.x, characters.A.root.position.z);
+      characters.B.movement.target.set(characters.B.root.position.x, characters.B.root.position.z);
+      fusionState.phase = "none";
+      fusionState.mode = null;
+      updateFusionButtons();
+    }
+  }
+}
+
+// ---------------------------------------------------------------------
 // presets — built from the same base/amp/speed/phase parameters the UI
 // exposes, not canned animation clips.
 // ---------------------------------------------------------------------
@@ -1003,6 +1182,9 @@ const presetSelect = document.getElementById("presetSelect");
 const motionToggleBtn = document.getElementById("motionToggle");
 const swapPosesBtn = document.getElementById("swapPoses");
 const uiCollapseBtn = document.getElementById("uiCollapse");
+const fuseEggBtn = document.getElementById("fuseEgg");
+const fuseLegendBtn = document.getElementById("fuseLegend");
+const fuseReleaseBtn = document.getElementById("fuseRelease");
 const panelBodyEl = document.getElementById("panelBody");
 
 let activeCharId = "A";
@@ -1349,6 +1531,11 @@ uiCollapseBtn.addEventListener("click", () => {
   panelBodyEl.classList.toggle("collapsed");
 });
 
+fuseEggBtn.addEventListener("click", () => startFuse("egg"));
+fuseLegendBtn.addEventListener("click", () => startFuse("legend"));
+fuseReleaseBtn.addEventListener("click", () => releaseFuse());
+updateFusionButtons();
+
 // --- click the floor to walk the selected character there -----------------
 
 const raycaster = new THREE.Raycaster();
@@ -1406,8 +1593,11 @@ function tick() {
   const dt = Math.min(0.05, clock.getDelta());
   if (motionPlaying) {
     simTime += dt;
-    updateLocomotion(characters.A, characters.B, dt, simTime);
-    updateLocomotion(characters.B, characters.A, dt, simTime);
+    if (fusionState.phase === "none") {
+      updateLocomotion(characters.A, characters.B, dt, simTime);
+      updateLocomotion(characters.B, characters.A, dt, simTime);
+    }
+    updateFusion(dt, simTime);
   }
 
   applyMotion(characters.A, simTime);
