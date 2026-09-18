@@ -128,14 +128,14 @@ const SPINE_AXES = {
   y: { label: "左右回旋", min: -25, max: 25 },
 };
 
-const SKIN = { a: 0xfa682e, b: 0x6175a2 };
-const SKIN_GLOW = { a: 0xff9a4d, b: 0x6d87c9 };
+const SKIN = { a: 0xc9764f, b: 0x8c93a6 };
+const SKIN_GLOW = { a: 0xffb98a, b: 0xc3cede };
 
 const JOINT_DEFS = [
   {
     id: "pelvis", label: "骨盤 Pelvis", parentId: null,
     anchor: [0, 0.98, 0], bindDeg: [0, 0, 0], boneLength: 0.14,
-    mesh: { size: [0.3, 0.17, 0.18], center: [0, 0.06, 0] },
+    form: { rBottom: 0.148, rTop: 0.128, zScale: 0.64, ball: 0.142 },
     axes: {
       x: { label: "前傾 / 後傾", min: -20, max: 20 },
       z: { label: "左右傾斜", min: -15, max: 15 },
@@ -150,19 +150,19 @@ const JOINT_DEFS = [
   {
     id: "spine", label: "脊柱 Spine", parentId: "pelvis",
     anchor: [0, 0.14, 0], bindDeg: [0, 0, 0], boneLength: 0.13,
-    mesh: { size: [0.3, 0.14, 0.19], center: [0, 0.07, 0] },
+    form: { rBottom: 0.118, rTop: 0.128, zScale: 0.66, ball: 0.112 },
     axes: SPINE_AXES,
   },
   {
     id: "chest", label: "胸郭 Chest", parentId: "spine",
     anchor: [0, 0.13, 0], bindDeg: [0, 0, 0], boneLength: 0.245,
-    mesh: { size: [0.42, 0.25, 0.22], center: [0, 0.123, 0] },
+    form: { rBottom: 0.132, rTop: 0.21, zScale: 0.53, ball: 0.125 },
     axes: SPINE_AXES,
   },
   {
     id: "neck", label: "首 Neck", parentId: "chest",
     anchor: [0, 0.245, 0], bindDeg: [0, 0, 0], boneLength: 0.07,
-    mesh: { size: [0.16, 0.08, 0.15], center: [0, 0.035, 0] },
+    form: { rBottom: 0.062, rTop: 0.058, zScale: 0.95, ball: 0.072 },
     axes: {
       x: { label: "前後", min: -25, max: 25 },
       z: { label: "左右傾き", min: -20, max: 20 },
@@ -173,38 +173,38 @@ const JOINT_DEFS = [
 
   { id: "leftShoulder", label: "左肩 Left Shoulder", parentId: "chest", side: "L", pairId: "shoulder",
     anchor: [0.235, 0.215, 0], bindDeg: [0, 0, 180], boneLength: 0.28,
-    mesh: { size: [0.11, 0.28, 0.11], center: [0, 0.14, 0] }, axes: SHOULDER_AXES },
+    form: { rBottom: 0.056, rTop: 0.044, ball: 0.062 }, axes: SHOULDER_AXES },
   { id: "rightShoulder", label: "右肩 Right Shoulder", parentId: "chest", side: "R", pairId: "shoulder",
     anchor: [-0.235, 0.215, 0], bindDeg: [0, 0, 180], boneLength: 0.28,
-    mesh: { size: [0.11, 0.28, 0.11], center: [0, 0.14, 0] }, axes: SHOULDER_AXES },
+    form: { rBottom: 0.056, rTop: 0.044, ball: 0.062 }, axes: SHOULDER_AXES },
 
   { id: "leftElbow", label: "左肘 Left Elbow", parentId: "leftShoulder", side: "L", pairId: "elbow",
     anchor: [0, 0.28, 0], bindDeg: [0, 0, 0], boneLength: 0.25,
-    mesh: { size: [0.095, 0.25, 0.1], center: [0, 0.125, 0] }, axes: ELBOW_AXES, tip: { type: "hand" } },
+    form: { rBottom: 0.046, rTop: 0.033, ball: 0.05 }, axes: ELBOW_AXES, tip: { type: "hand" } },
   { id: "rightElbow", label: "右肘 Right Elbow", parentId: "rightShoulder", side: "R", pairId: "elbow",
     anchor: [0, 0.28, 0], bindDeg: [0, 0, 0], boneLength: 0.25,
-    mesh: { size: [0.095, 0.25, 0.1], center: [0, 0.125, 0] }, axes: ELBOW_AXES, tip: { type: "hand" } },
+    form: { rBottom: 0.046, rTop: 0.033, ball: 0.05 }, axes: ELBOW_AXES, tip: { type: "hand" } },
 
   { id: "leftHip", label: "左股関節 Left Hip", parentId: "pelvis", side: "L", pairId: "hip",
     anchor: [0.105, -0.03, 0], bindDeg: [0, 0, 180], boneLength: 0.44,
-    mesh: { size: [0.13, 0.44, 0.15], center: [0, 0.22, 0] }, axes: HIP_AXES },
+    form: { rBottom: 0.069, rTop: 0.052, zScale: 1.06, ball: 0.076 }, axes: HIP_AXES },
   { id: "rightHip", label: "右股関節 Right Hip", parentId: "pelvis", side: "R", pairId: "hip",
     anchor: [-0.105, -0.03, 0], bindDeg: [0, 0, 180], boneLength: 0.44,
-    mesh: { size: [0.13, 0.44, 0.15], center: [0, 0.22, 0] }, axes: HIP_AXES },
+    form: { rBottom: 0.069, rTop: 0.052, zScale: 1.06, ball: 0.076 }, axes: HIP_AXES },
 
   { id: "leftKnee", label: "左膝 Left Knee", parentId: "leftHip", side: "L", pairId: "knee",
     anchor: [0, 0.44, 0], bindDeg: [0, 0, 0], boneLength: 0.42,
-    mesh: { size: [0.125, 0.42, 0.135], center: [0, 0.21, 0] }, axes: KNEE_AXES },
+    form: { rBottom: 0.057, rTop: 0.038, zScale: 1.06, ball: 0.062 }, axes: KNEE_AXES },
   { id: "rightKnee", label: "右膝 Right Knee", parentId: "rightHip", side: "R", pairId: "knee",
     anchor: [0, 0.44, 0], bindDeg: [0, 0, 0], boneLength: 0.42,
-    mesh: { size: [0.125, 0.42, 0.135], center: [0, 0.21, 0] }, axes: KNEE_AXES },
+    form: { rBottom: 0.057, rTop: 0.038, zScale: 1.06, ball: 0.062 }, axes: KNEE_AXES },
 
   { id: "leftAnkle", label: "左足首 Left Ankle", parentId: "leftKnee", side: "L", pairId: "ankle",
-    anchor: [0, 0.42, 0], bindDeg: [90, 0, 0], boneLength: 0.22,
-    mesh: { size: [0.12, 0.07, 0.24], center: [0, 0.1, 0.02] }, axes: ANKLE_AXES },
+    anchor: [0, 0.42, 0], bindDeg: [90, 0, 0], boneLength: 0.17,
+    form: { rBottom: 0.055, rTop: 0.05, zScale: 0.46, ball: 0.05 }, axes: ANKLE_AXES },
   { id: "rightAnkle", label: "右足首 Right Ankle", parentId: "rightKnee", side: "R", pairId: "ankle",
-    anchor: [0, 0.42, 0], bindDeg: [90, 0, 0], boneLength: 0.22,
-    mesh: { size: [0.12, 0.07, 0.24], center: [0, 0.1, 0.02] }, axes: ANKLE_AXES },
+    anchor: [0, 0.42, 0], bindDeg: [90, 0, 0], boneLength: 0.17,
+    form: { rBottom: 0.055, rTop: 0.05, zScale: 0.46, ball: 0.05 }, axes: ANKLE_AXES },
 ];
 
 const JOINT_GROUPS = [
@@ -226,28 +226,57 @@ function defaultAxisState() {
 // rig builder
 // ---------------------------------------------------------------------
 
-// procedural vertical scanline texture — fine bright lines running down
-// the body, the way the reference figures read.
-function makeScanTexture() {
+// Skin-like surface: a soft diffuse body under a thin, slightly uneven
+// wet-looking coat, so the figures read as clammy flesh rather than dry
+// plastic. The mottling map breaks up the specular so the sheen pools in
+// patches the way damp skin does.
+function makeSkinMottleTexture() {
   const c = document.createElement("canvas");
-  c.width = c.height = 64;
+  c.width = c.height = 128;
   const ctx = c.getContext("2d");
-  ctx.fillStyle = "#000";
-  ctx.fillRect(0, 0, 64, 64);
-  ctx.strokeStyle = "rgba(255,255,255,0.85)";
-  ctx.lineWidth = 1.4;
-  for (let x = 1; x < 64; x += 4) {
+  ctx.fillStyle = "#8a8a8a";
+  ctx.fillRect(0, 0, 128, 128);
+  for (let i = 0; i < 900; i++) {
+    const r = 2 + Math.random() * 11;
+    const v = Math.random();
+    ctx.fillStyle = `rgba(${v > 0.5 ? 255 : 0},${v > 0.5 ? 255 : 0},${v > 0.5 ? 255 : 0},0.06)`;
     ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, 64);
-    ctx.stroke();
+    ctx.arc(Math.random() * 128, Math.random() * 128, r, 0, Math.PI * 2);
+    ctx.fill();
   }
   const tex = new THREE.CanvasTexture(c);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(2.2, 2.2);
+  tex.repeat.set(2, 3);
   return tex;
 }
-const SCAN_TEXTURE = makeScanTexture();
+const SKIN_MOTTLE = makeSkinMottleTexture();
+
+// One tapered, elliptical segment running from the joint pivot out along
+// the bone, plus a ball at the pivot — the anatomy of a wooden artist's
+// mannequin, which also keeps the joints closed when a limb bends.
+function buildLimbForm(form, boneLength, material) {
+  const group = new THREE.Group();
+  const xS = form.xScale ?? 1;
+  const zS = form.zScale ?? 1;
+
+  const seg = new THREE.Mesh(
+    new THREE.CylinderGeometry(form.rTop, form.rBottom, boneLength, 24, 1),
+    material
+  );
+  seg.position.y = boneLength / 2;
+  seg.scale.set(xS, 1, zS);
+  seg.castShadow = true;
+  seg.receiveShadow = true;
+  group.add(seg);
+
+  if (form.ball) {
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(form.ball, 20, 14), material);
+    ball.scale.set(xS, 1, zS);
+    ball.castShadow = true;
+    group.add(ball);
+  }
+  return group;
+}
 
 function buildCharacter(scene, { id, x, z, ry, skin, glow }) {
   const root = new THREE.Group();
@@ -255,12 +284,19 @@ function buildCharacter(scene, { id, x, z, ry, skin, glow }) {
   root.rotation.y = ry;
   scene.add(root);
 
-  // Flat-shaded, sharp-edged boxes only — no rounded joint markers, no
-  // beveling or vertex noise. Segments simply overlap slightly at each
-  // pivot so the rig reads as clean rectangular blocks stacked end to end.
-  const material = new THREE.MeshStandardMaterial({
-    color: skin, roughness: 0.5, metalness: 0.05, flatShading: true,
-    emissive: skin, emissiveMap: SCAN_TEXTURE, emissiveIntensity: 1.95,
+  const material = new THREE.MeshPhysicalMaterial({
+    color: skin,
+    roughness: 0.68,
+    roughnessMap: SKIN_MOTTLE,
+    metalness: 0,
+    clearcoat: 1,
+    clearcoatRoughness: 0.12,
+    clearcoatRoughnessMap: SKIN_MOTTLE,
+    sheen: 0.9,
+    sheenColor: new THREE.Color(glow),
+    sheenRoughness: 0.4,
+    emissive: skin,
+    emissiveIntensity: 0.62,
   });
 
   const joints = {};
@@ -276,24 +312,24 @@ function buildCharacter(scene, { id, x, z, ry, skin, glow }) {
     bindPivot.rotation.set(def.bindDeg[0] * DEG, def.bindDeg[1] * DEG, def.bindDeg[2] * DEG);
     userPivot.add(bindPivot);
 
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(...def.mesh.size), material);
-    mesh.position.set(...def.mesh.center);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    bindPivot.add(mesh);
+    bindPivot.add(buildLimbForm(def.form, def.boneLength, material));
 
     if (def.tip?.type === "head") {
-      // a big cube sitting straight on the shoulders, like the reference —
-      // the neck segment above is short enough to read as almost no neck
-      const headH = 0.225;
-      const head = new THREE.Mesh(new THREE.BoxGeometry(0.205, headH, 0.2), material);
-      head.position.set(0, def.boneLength + headH / 2, 0);
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.105, 24, 18), material);
+      head.scale.set(0.98, 1.12, 0.96);
+      head.position.set(0, def.boneLength + 0.115, 0);
       head.castShadow = true;
       bindPivot.add(head);
+      // slight jaw/occiput mass so the head is not a bare egg
+      const jaw = new THREE.Mesh(new THREE.SphereGeometry(0.072, 18, 14), material);
+      jaw.scale.set(0.9, 0.7, 1.05);
+      jaw.position.set(0, def.boneLength + 0.075, 0.022);
+      bindPivot.add(jaw);
     }
     if (def.tip?.type === "hand") {
-      const hand = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.12, 0.08), material);
-      hand.position.set(0, def.boneLength + 0.06, 0);
+      const hand = new THREE.Mesh(new THREE.SphereGeometry(0.045, 16, 12), material);
+      hand.scale.set(0.95, 1.5, 0.6);
+      hand.position.set(0, def.boneLength + 0.05, 0);
       hand.castShadow = true;
       bindPivot.add(hand);
     }
