@@ -128,8 +128,8 @@ const SPINE_AXES = {
   y: { label: "左右回旋", min: -25, max: 25 },
 };
 
-const SKIN = { a: 0xf07a2c, b: 0x1c2440 };
-const SKIN_GLOW = { a: 0xff9a4d, b: 0x5f79c9 };
+const SKIN = { a: 0xfa682e, b: 0x6175a2 };
+const SKIN_GLOW = { a: 0xff9a4d, b: 0x6d87c9 };
 
 const JOINT_DEFS = [
   {
@@ -149,20 +149,20 @@ const JOINT_DEFS = [
   },
   {
     id: "spine", label: "脊柱 Spine", parentId: "pelvis",
-    anchor: [0, 0.14, 0], bindDeg: [0, 0, 0], boneLength: 0.16,
-    mesh: { size: [0.32, 0.16, 0.19], center: [0, 0.08, 0] },
+    anchor: [0, 0.14, 0], bindDeg: [0, 0, 0], boneLength: 0.13,
+    mesh: { size: [0.3, 0.14, 0.19], center: [0, 0.07, 0] },
     axes: SPINE_AXES,
   },
   {
     id: "chest", label: "胸郭 Chest", parentId: "spine",
-    anchor: [0, 0.16, 0], bindDeg: [0, 0, 0], boneLength: 0.2,
-    mesh: { size: [0.37, 0.21, 0.2], center: [0, 0.1, 0] },
+    anchor: [0, 0.13, 0], bindDeg: [0, 0, 0], boneLength: 0.245,
+    mesh: { size: [0.42, 0.25, 0.22], center: [0, 0.123, 0] },
     axes: SPINE_AXES,
   },
   {
     id: "neck", label: "首 Neck", parentId: "chest",
-    anchor: [0, 0.2, 0], bindDeg: [0, 0, 0], boneLength: 0.07,
-    mesh: { size: [0.13, 0.08, 0.13], center: [0, 0.035, 0] },
+    anchor: [0, 0.245, 0], bindDeg: [0, 0, 0], boneLength: 0.07,
+    mesh: { size: [0.16, 0.08, 0.15], center: [0, 0.035, 0] },
     axes: {
       x: { label: "前後", min: -25, max: 25 },
       z: { label: "左右傾き", min: -20, max: 20 },
@@ -172,10 +172,10 @@ const JOINT_DEFS = [
   },
 
   { id: "leftShoulder", label: "左肩 Left Shoulder", parentId: "chest", side: "L", pairId: "shoulder",
-    anchor: [0.24, 0.19, 0], bindDeg: [0, 0, 180], boneLength: 0.28,
+    anchor: [0.235, 0.215, 0], bindDeg: [0, 0, 180], boneLength: 0.28,
     mesh: { size: [0.11, 0.28, 0.11], center: [0, 0.14, 0] }, axes: SHOULDER_AXES },
   { id: "rightShoulder", label: "右肩 Right Shoulder", parentId: "chest", side: "R", pairId: "shoulder",
-    anchor: [-0.24, 0.19, 0], bindDeg: [0, 0, 180], boneLength: 0.28,
+    anchor: [-0.235, 0.215, 0], bindDeg: [0, 0, 180], boneLength: 0.28,
     mesh: { size: [0.11, 0.28, 0.11], center: [0, 0.14, 0] }, axes: SHOULDER_AXES },
 
   { id: "leftElbow", label: "左肘 Left Elbow", parentId: "leftShoulder", side: "L", pairId: "elbow",
@@ -194,10 +194,10 @@ const JOINT_DEFS = [
 
   { id: "leftKnee", label: "左膝 Left Knee", parentId: "leftHip", side: "L", pairId: "knee",
     anchor: [0, 0.44, 0], bindDeg: [0, 0, 0], boneLength: 0.42,
-    mesh: { size: [0.115, 0.42, 0.13], center: [0, 0.21, 0] }, axes: KNEE_AXES },
+    mesh: { size: [0.125, 0.42, 0.135], center: [0, 0.21, 0] }, axes: KNEE_AXES },
   { id: "rightKnee", label: "右膝 Right Knee", parentId: "rightHip", side: "R", pairId: "knee",
     anchor: [0, 0.44, 0], bindDeg: [0, 0, 0], boneLength: 0.42,
-    mesh: { size: [0.115, 0.42, 0.13], center: [0, 0.21, 0] }, axes: KNEE_AXES },
+    mesh: { size: [0.125, 0.42, 0.135], center: [0, 0.21, 0] }, axes: KNEE_AXES },
 
   { id: "leftAnkle", label: "左足首 Left Ankle", parentId: "leftKnee", side: "L", pairId: "ankle",
     anchor: [0, 0.42, 0], bindDeg: [90, 0, 0], boneLength: 0.22,
@@ -259,8 +259,8 @@ function buildCharacter(scene, { id, x, z, ry, skin, glow }) {
   // beveling or vertex noise. Segments simply overlap slightly at each
   // pivot so the rig reads as clean rectangular blocks stacked end to end.
   const material = new THREE.MeshStandardMaterial({
-    color: skin, roughness: 0.55, metalness: 0.1, flatShading: true,
-    emissive: glow, emissiveMap: SCAN_TEXTURE, emissiveIntensity: 0.3,
+    color: skin, roughness: 0.5, metalness: 0.05, flatShading: true,
+    emissive: skin, emissiveMap: SCAN_TEXTURE, emissiveIntensity: 1.95,
   });
 
   const joints = {};
@@ -286,7 +286,7 @@ function buildCharacter(scene, { id, x, z, ry, skin, glow }) {
       // a big cube sitting straight on the shoulders, like the reference —
       // the neck segment above is short enough to read as almost no neck
       const headH = 0.225;
-      const head = new THREE.Mesh(new THREE.BoxGeometry(0.18, headH, 0.18), material);
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.205, headH, 0.2), material);
       head.position.set(0, def.boneLength + headH / 2, 0);
       head.castShadow = true;
       bindPivot.add(head);
@@ -1100,9 +1100,17 @@ const PRESET_GROUPS = [
       {
         id: "stand", label: "Idle stand",
         apply(j, character) {
-          Object.assign(j.chest.axisState.x, { base: 1, motionOn: true, amp: 2.2, speed: 0.22, phase: 0 });
-          Object.assign(j.pelvis.axisState.y, { base: 0, motionOn: true, amp: 4, speed: 0.09, phase: 0 });
-          Object.assign(j.leftShoulder.axisState.z, { base: 4, motionOn: true, amp: 3, speed: 0.18, phase: 0 });
+          Object.assign(j.chest.axisState.x, { base: 3, motionOn: true, amp: 3, speed: 0.22, phase: 0 });
+          Object.assign(j.pelvis.axisState.y, { base: 0, motionOn: true, amp: 6, speed: 0.09, phase: 0 });
+          Object.assign(j.pelvis.axisState.z, { base: 5 });
+          Object.assign(j.spine.axisState.z, { base: -4 });
+          Object.assign(j.leftHip.axisState.x, { base: 6 });
+          Object.assign(j.leftKnee.axisState.x, { base: 14 });
+          Object.assign(j.rightKnee.axisState.x, { base: 6 });
+          Object.assign(j.leftShoulder.axisState.z, { base: 12, motionOn: true, amp: 3, speed: 0.18, phase: 0 });
+          Object.assign(j.leftElbow.axisState.x, { base: 14 });
+          Object.assign(j.rightElbow.axisState.x, { base: 10 });
+          Object.assign(j.neck.axisState.y, { base: -12 });
           character.pairLinkMode.shoulder = "flipped";
           syncPair(character, "shoulder");
         },
@@ -1110,10 +1118,12 @@ const PRESET_GROUPS = [
       {
         id: "wave", label: "Wave",
         apply(j) {
-          Object.assign(j.rightShoulder.axisState.x, { base: 95 });
-          Object.assign(j.rightShoulder.axisState.z, { base: 15, motionOn: true, amp: 22, speed: 1.6, phase: 0 });
-          Object.assign(j.rightElbow.axisState.x, { base: 40, motionOn: true, amp: 18, speed: 1.6, phase: 90 });
-          Object.assign(j.spine.axisState.y, { base: -6, motionOn: true, amp: 3, speed: 0.4, phase: 0 });
+          Object.assign(j.rightShoulder.axisState.x, { base: 40 });
+          Object.assign(j.rightShoulder.axisState.z, { base: 115, motionOn: true, amp: 18, speed: 1.6, phase: 0 });
+          Object.assign(j.rightElbow.axisState.x, { base: 55, motionOn: true, amp: 25, speed: 1.6, phase: 90 });
+          Object.assign(j.leftShoulder.axisState.z, { base: 14 });
+          Object.assign(j.spine.axisState.y, { base: -8, motionOn: true, amp: 4, speed: 0.4, phase: 0 });
+          Object.assign(j.neck.axisState.y, { base: 14 });
         },
       },
     ],
@@ -1292,7 +1302,9 @@ const PRESET_GROUPS = [
         id: "hiprehab", label: "股関節屈伸リハビリ Hip flex/extend rep",
         apply(j, character) {
           character.pairLinkMode.hip = "independent";
-          Object.assign(j.leftHip.axisState.x, { base: 45, motionOn: true, amp: 35, speed: 0.25, phase: 0 });
+          Object.assign(j.leftHip.axisState.x, { base: 50, motionOn: true, amp: 45, speed: 0.25, phase: 0 });
+          Object.assign(j.leftKnee.axisState.x, { base: 35, motionOn: true, amp: 30, speed: 0.25, phase: 40 });
+          Object.assign(j.pelvis.axisState.z, { base: -4 });
         },
       },
       {
@@ -1658,7 +1670,6 @@ presetSelect.addEventListener("change", () => {
   applyPreset(activeCharacter(), v);
   renderJointTree();
   renderEditor();
-  presetSelect.value = "";
 });
 
 motionToggleBtn.addEventListener("click", () => {
