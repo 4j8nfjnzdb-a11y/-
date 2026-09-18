@@ -778,64 +778,220 @@ function buildEggMesh() {
   return group;
 }
 
-function buildLegendMesh() {
+// "legend water" — a wet, futuristic organism rather than a creature you
+// could name: a translucent iridescent blob whose skin keeps deforming,
+// with drifting tendrils and a glowing core suspended inside it.
+function buildWaterMesh() {
+  const group = new THREE.Group();
+
+  const skinGeo = new THREE.SphereGeometry(0.36, 40, 30);
+  skinGeo.scale(1.06, 0.92, 1.0);
+  // bake a permanent asymmetric warp so the body never reads as a sphere:
+  // one swollen lobe, one pinched flank, plus low-frequency lumps
+  {
+    const pos = skinGeo.attributes.position;
+    const lobe = new THREE.Vector3(0.62, 0.35, -0.7).normalize();
+    const v = new THREE.Vector3();
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i);
+      const d = v.clone().normalize();
+      const bulge = Math.max(0, d.dot(lobe)) ** 2 * 0.42;
+      const pinch = Math.max(0, -d.x * 0.8 + d.y * 0.3) * 0.16;
+      const lumps =
+        Math.sin(d.x * 3.4 + d.y * 2.1) * 0.07 +
+        Math.sin(d.z * 4.2 - d.y * 3.1) * 0.06 +
+        Math.sin(d.y * 5.5 + d.x * 1.8) * 0.05;
+      const k = 1 + bulge - pinch + lumps;
+      pos.setXYZ(i, v.x * k, v.y * k, v.z * k);
+    }
+    pos.needsUpdate = true;
+    skinGeo.computeVertexNormals();
+  }
+  const restPos = Float32Array.from(skinGeo.attributes.position.array);
+  const skinMat = new THREE.MeshPhysicalMaterial({
+    color: 0x1ec8bd, roughness: 0.06, metalness: 0,
+    clearcoat: 1, clearcoatRoughness: 0.03,
+    iridescence: 1, iridescenceIOR: 1.7,
+    emissive: 0x064a52, emissiveIntensity: 0.7,
+    transparent: true, opacity: 0.8, side: THREE.DoubleSide,
+  });
+  const skin = new THREE.Mesh(skinGeo, skinMat);
+  group.add(skin);
+
+  const core = new THREE.Mesh(
+    new THREE.IcosahedronGeometry(0.15, 2),
+    new THREE.MeshStandardMaterial({ color: 0x9ffff4, emissive: 0x4ff0dd, emissiveIntensity: 2.2, roughness: 0.2 })
+  );
+  group.add(core);
+
+  const tendrilMat = new THREE.MeshPhysicalMaterial({
+    color: 0x14a8b8, roughness: 0.05, metalness: 0,
+    clearcoat: 1, iridescence: 1, iridescenceIOR: 1.6,
+    emissive: 0x0a3f55, emissiveIntensity: 0.8,
+    transparent: true, opacity: 0.88,
+  });
+  const tendrils = [];
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2;
+    const pivot = new THREE.Group();
+    pivot.position.set(Math.cos(a) * 0.2, -0.12, Math.sin(a) * 0.2);
+    const len = 0.44 + (i % 3) * 0.16;
+    const t = new THREE.Mesh(new THREE.ConeGeometry(0.028, len, 7), tendrilMat);
+    t.position.y = -len / 2;
+    pivot.add(t);
+    pivot.userData.seed = i * 1.7;
+    group.add(pivot);
+    tendrils.push(pivot);
+  }
+
+  const dropMat = new THREE.MeshPhysicalMaterial({
+    color: 0x7ff6ec, roughness: 0.02, clearcoat: 1, iridescence: 1,
+    emissive: 0x2ad6c4, emissiveIntensity: 1.4, transparent: true, opacity: 0.85,
+  });
+  const drops = [];
+  for (let i = 0; i < 4; i++) {
+    const d = new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 10), dropMat);
+    d.userData.seed = i * 1.9;
+    group.add(d);
+    drops.push(d);
+  }
+
+  function animate(t) {
+    const pos = skinGeo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = restPos[i * 3], y = restPos[i * 3 + 1], z = restPos[i * 3 + 2];
+      const n =
+        Math.sin(x * 5.1 + t * 1.6) * 0.4 +
+        Math.sin(y * 4.3 - t * 1.1) * 0.4 +
+        Math.sin(z * 5.7 + t * 1.9) * 0.3 +
+        Math.sin((x + y + z) * 3.2 + t * 0.8) * 0.5 +
+        Math.sin(x * 2.1 - z * 1.7 + t * 0.45) * 0.8 +
+        Math.sin(y * 1.9 + x * 2.3 - t * 0.33) * 0.7;
+      const s = 1 + n * 0.115;
+      pos.setXYZ(i, x * s, y * s, z * s);
+    }
+    pos.needsUpdate = true;
+    skinGeo.computeVertexNormals();
+
+    core.position.set(Math.sin(t * 0.9) * 0.05, Math.sin(t * 1.3) * 0.05, Math.cos(t * 1.1) * 0.05);
+    core.rotation.set(t * 0.4, t * 0.6, 0);
+    skinMat.iridescenceIOR = 1.5 + Math.sin(t * 0.7) * 0.4;
+
+    for (const p of tendrils) {
+      const s = p.userData.seed;
+      p.rotation.x = Math.sin(t * 1.2 + s) * 0.5;
+      p.rotation.z = Math.cos(t * 1.0 + s * 1.3) * 0.5;
+    }
+    for (const d of drops) {
+      const s = d.userData.seed;
+      const r = 0.42 + Math.sin(t * 0.6 + s) * 0.07;
+      d.position.set(Math.cos(t * 0.8 + s) * r, Math.sin(t * 1.1 + s) * 0.22, Math.sin(t * 0.8 + s) * r);
+    }
+  }
+
+  return { group, animate };
+}
+
+// an androgynous, humanlike-but-not-human form: a smooth pearlescent
+// figure with no gendered or facial features, tapering into a floating
+// base instead of legs.
+function buildAndrogyneMesh() {
   const outer = new THREE.Group();
   const group = new THREE.Group();
-  group.scale.setScalar(1.7);
+  group.scale.setScalar(0.82);
   outer.add(group);
-  const gold = new THREE.MeshStandardMaterial({ color: 0xf6c453, roughness: 0.3, metalness: 0.5, flatShading: true, emissive: 0xd98b1f, emissiveIntensity: 0.4 });
-  const violet = new THREE.MeshStandardMaterial({ color: 0x8a4fe0, roughness: 0.3, metalness: 0.4, flatShading: true, emissive: 0x5a1fb0, emissiveIntensity: 0.5 });
+  const shell = new THREE.MeshPhysicalMaterial({
+    color: 0xf4eefb, roughness: 0.1, metalness: 0.05,
+    clearcoat: 1, clearcoatRoughness: 0.04,
+    iridescence: 1, iridescenceIOR: 1.45,
+    emissive: 0x6a5aa0, emissiveIntensity: 0.9,
+  });
 
-  const body = new THREE.Mesh(new THREE.IcosahedronGeometry(0.22, 0), gold);
-  body.scale.set(1, 0.85, 1.3);
-  body.castShadow = true;
-  group.add(body);
-
-  const head = new THREE.Mesh(new THREE.OctahedronGeometry(0.13, 0), gold);
-  head.position.set(0, 0.06, 0.28);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.11, 24, 18), shell);
+  head.scale.set(0.86, 1.45, 0.86);
+  head.position.y = 0.62;
   head.castShadow = true;
   group.add(head);
 
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.12, 14), shell);
+  neck.position.y = 0.47;
+  group.add(neck);
+
+  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.095, 0.44, 18), shell);
+  torso.scale.z = 0.72;
+  torso.position.y = 0.21;
+  torso.castShadow = true;
+  group.add(torso);
+
+  const lower = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.015, 0.56, 18), shell);
+  lower.scale.z = 0.72;
+  lower.position.y = -0.29;
+  lower.castShadow = true;
+  group.add(lower);
+
+  const arms = [];
   for (const side of [1, -1]) {
-    const horn = new THREE.Mesh(new THREE.ConeGeometry(0.02, 0.13, 4), violet);
-    horn.position.set(side * 0.06, 0.16, 0.3);
-    horn.rotation.z = side * 0.35;
-    group.add(horn);
-
-    const wing = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.02, 0.2), violet);
-    wing.position.set(side * 0.28, 0.08, -0.05);
-    wing.rotation.z = side * 0.5;
-    wing.rotation.y = side * 0.25;
-    wing.castShadow = true;
-    group.add(wing);
-
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.16, 0.05), gold);
-    leg.position.set(side * 0.13, -0.18, 0.1);
-    leg.castShadow = true;
-    group.add(leg);
+    const pivot = new THREE.Group();
+    pivot.position.set(side * 0.1, 0.4, 0);
+    const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.026, 0.3, 12), shell);
+    upper.position.y = -0.15;
+    pivot.add(upper);
+    const fore = new THREE.Group();
+    fore.position.y = -0.3;
+    const foreMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.016, 0.32, 12), shell);
+    foreMesh.position.y = -0.16;
+    fore.add(foreMesh);
+    pivot.add(fore);
+    pivot.userData.fore = fore;
+    pivot.userData.side = side;
+    group.add(pivot);
+    arms.push(pivot);
   }
 
-  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.32, 5), violet);
-  tail.position.set(0, 0.02, -0.42);
-  tail.rotation.x = Math.PI / 2 + 0.3;
-  tail.castShadow = true;
-  group.add(tail);
+  const halo = new THREE.Mesh(
+    new THREE.TorusGeometry(0.2, 0.008, 8, 40),
+    new THREE.MeshStandardMaterial({ color: 0xcdb6ff, emissive: 0x8f6ce0, emissiveIntensity: 1.6, roughness: 0.3 })
+  );
+  halo.rotation.x = Math.PI / 2;
+  halo.position.y = 0.82;
+  group.add(halo);
 
-  return outer;
+  function animate(t) {
+    for (const p of arms) {
+      const s = p.userData.side;
+      p.rotation.x = Math.sin(t * 0.55 + s) * 0.18;
+      p.rotation.z = s * (0.1 + Math.sin(t * 0.4) * 0.06);
+      p.userData.fore.rotation.x = Math.sin(t * 0.6 + s * 1.4) * 0.22;
+    }
+    head.rotation.y = Math.sin(t * 0.35) * 0.4;
+    halo.rotation.z = t * 0.5;
+    halo.position.y = 0.82 + Math.sin(t * 1.1) * 0.02;
+    shell.iridescenceIOR = 1.35 + Math.sin(t * 0.5) * 0.25;
+  }
+
+  return { group: outer, animate };
 }
 
 const eggMesh = buildEggMesh();
-const legendMesh = buildLegendMesh();
-eggMesh.visible = false;
-legendMesh.visible = false;
-eggMesh.scale.setScalar(0.001);
-legendMesh.scale.setScalar(0.001);
-scene.add(eggMesh, legendMesh);
+const waterForm = buildWaterMesh();
+const androgyneForm = buildAndrogyneMesh();
+
+const FUSION_FORMS = {
+  egg: { mesh: eggMesh, animate: null },
+  water: { mesh: waterForm.group, animate: waterForm.animate },
+  androgyne: { mesh: androgyneForm.group, animate: androgyneForm.animate },
+};
+
+for (const form of Object.values(FUSION_FORMS)) {
+  form.mesh.visible = false;
+  form.mesh.scale.setScalar(0.001);
+  scene.add(form.mesh);
+}
 
 const FUSION_DURATION = 0.9;
 const fusionState = { mode: null, phase: "none", t: 0, startA: null, startB: null, center: null };
 
-function fusionMeshFor(mode) { return mode === "egg" ? eggMesh : legendMesh; }
+function fusionMeshFor(mode) { return (FUSION_FORMS[mode] || FUSION_FORMS.egg).mesh; }
 
 function startFuse(mode) {
   if (fusionState.phase !== "none") return;
@@ -864,13 +1020,16 @@ function releaseFuse() {
 function updateFusionButtons() {
   const fusing = fusionState.phase !== "none";
   fuseEggBtn.disabled = fusing;
-  fuseLegendBtn.disabled = fusing;
+  fuseWaterBtn.disabled = fusing;
+  fuseAndrogyneBtn.disabled = fusing;
   fuseReleaseBtn.disabled = fusionState.phase !== "fused";
 }
 
 function updateFusion(dt, t) {
   if (fusionState.phase === "none") return;
-  const mesh = fusionMeshFor(fusionState.mode);
+  const form = FUSION_FORMS[fusionState.mode] || FUSION_FORMS.egg;
+  const mesh = form.mesh;
+  if (form.animate) form.animate(t);
 
   if (fusionState.phase === "merging") {
     fusionState.t = Math.min(1, fusionState.t + dt / FUSION_DURATION);
@@ -1181,7 +1340,8 @@ const motionToggleBtn = document.getElementById("motionToggle");
 const swapPosesBtn = document.getElementById("swapPoses");
 const uiCollapseBtn = document.getElementById("uiCollapse");
 const fuseEggBtn = document.getElementById("fuseEgg");
-const fuseLegendBtn = document.getElementById("fuseLegend");
+const fuseWaterBtn = document.getElementById("fuseWater");
+const fuseAndrogyneBtn = document.getElementById("fuseAndrogyne");
 const fuseReleaseBtn = document.getElementById("fuseRelease");
 const panelBodyEl = document.getElementById("panelBody");
 
@@ -1530,7 +1690,8 @@ uiCollapseBtn.addEventListener("click", () => {
 });
 
 fuseEggBtn.addEventListener("click", () => startFuse("egg"));
-fuseLegendBtn.addEventListener("click", () => startFuse("legend"));
+fuseWaterBtn.addEventListener("click", () => startFuse("water"));
+fuseAndrogyneBtn.addEventListener("click", () => startFuse("androgyne"));
 fuseReleaseBtn.addEventListener("click", () => releaseFuse());
 updateFusionButtons();
 
