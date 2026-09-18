@@ -135,7 +135,7 @@ const JOINT_DEFS = [
   {
     id: "pelvis", label: "骨盤 Pelvis", parentId: null,
     anchor: [0, 0.98, 0], bindDeg: [0, 0, 0], boneLength: 0.14,
-    mesh: { size: [0.24, 0.16, 0.15], center: [0, 0.06, 0] },
+    mesh: { size: [0.3, 0.17, 0.18], center: [0, 0.06, 0] },
     axes: {
       x: { label: "前傾 / 後傾", min: -20, max: 20 },
       z: { label: "左右傾斜", min: -15, max: 15 },
@@ -150,19 +150,19 @@ const JOINT_DEFS = [
   {
     id: "spine", label: "脊柱 Spine", parentId: "pelvis",
     anchor: [0, 0.14, 0], bindDeg: [0, 0, 0], boneLength: 0.16,
-    mesh: { size: [0.18, 0.16, 0.13], center: [0, 0.08, 0] },
+    mesh: { size: [0.32, 0.16, 0.19], center: [0, 0.08, 0] },
     axes: SPINE_AXES,
   },
   {
     id: "chest", label: "胸郭 Chest", parentId: "spine",
     anchor: [0, 0.16, 0], bindDeg: [0, 0, 0], boneLength: 0.2,
-    mesh: { size: [0.24, 0.2, 0.15], center: [0, 0.1, 0] },
+    mesh: { size: [0.38, 0.21, 0.2], center: [0, 0.1, 0] },
     axes: SPINE_AXES,
   },
   {
     id: "neck", label: "首 Neck", parentId: "chest",
-    anchor: [0, 0.2, 0], bindDeg: [0, 0, 0], boneLength: 0.1,
-    mesh: { size: [0.09, 0.09, 0.09], center: [0, 0.05, 0] },
+    anchor: [0, 0.2, 0], bindDeg: [0, 0, 0], boneLength: 0.05,
+    mesh: { size: [0.14, 0.06, 0.14], center: [0, 0.025, 0] },
     axes: {
       x: { label: "前後", min: -25, max: 25 },
       z: { label: "左右傾き", min: -20, max: 20 },
@@ -172,39 +172,39 @@ const JOINT_DEFS = [
   },
 
   { id: "leftShoulder", label: "左肩 Left Shoulder", parentId: "chest", side: "L", pairId: "shoulder",
-    anchor: [0.14, 0.17, 0], bindDeg: [0, 0, 180], boneLength: 0.28,
-    mesh: { size: [0.085, 0.28, 0.085], center: [0, 0.14, 0] }, axes: SHOULDER_AXES },
+    anchor: [0.225, 0.19, 0], bindDeg: [0, 0, 180], boneLength: 0.28,
+    mesh: { size: [0.1, 0.28, 0.11], center: [0, 0.14, 0] }, axes: SHOULDER_AXES },
   { id: "rightShoulder", label: "右肩 Right Shoulder", parentId: "chest", side: "R", pairId: "shoulder",
-    anchor: [-0.14, 0.17, 0], bindDeg: [0, 0, 180], boneLength: 0.28,
-    mesh: { size: [0.085, 0.28, 0.085], center: [0, 0.14, 0] }, axes: SHOULDER_AXES },
+    anchor: [-0.225, 0.19, 0], bindDeg: [0, 0, 180], boneLength: 0.28,
+    mesh: { size: [0.1, 0.28, 0.11], center: [0, 0.14, 0] }, axes: SHOULDER_AXES },
 
   { id: "leftElbow", label: "左肘 Left Elbow", parentId: "leftShoulder", side: "L", pairId: "elbow",
     anchor: [0, 0.28, 0], bindDeg: [0, 0, 0], boneLength: 0.25,
-    mesh: { size: [0.07, 0.25, 0.07], center: [0, 0.125, 0] }, axes: ELBOW_AXES, tip: { type: "hand" } },
+    mesh: { size: [0.09, 0.25, 0.1], center: [0, 0.125, 0] }, axes: ELBOW_AXES, tip: { type: "hand" } },
   { id: "rightElbow", label: "右肘 Right Elbow", parentId: "rightShoulder", side: "R", pairId: "elbow",
     anchor: [0, 0.28, 0], bindDeg: [0, 0, 0], boneLength: 0.25,
-    mesh: { size: [0.07, 0.25, 0.07], center: [0, 0.125, 0] }, axes: ELBOW_AXES, tip: { type: "hand" } },
+    mesh: { size: [0.09, 0.25, 0.1], center: [0, 0.125, 0] }, axes: ELBOW_AXES, tip: { type: "hand" } },
 
   { id: "leftHip", label: "左股関節 Left Hip", parentId: "pelvis", side: "L", pairId: "hip",
-    anchor: [0.075, -0.02, 0], bindDeg: [0, 0, 180], boneLength: 0.44,
-    mesh: { size: [0.12, 0.44, 0.12], center: [0, 0.22, 0] }, axes: HIP_AXES },
+    anchor: [0.105, -0.03, 0], bindDeg: [0, 0, 180], boneLength: 0.44,
+    mesh: { size: [0.13, 0.44, 0.15], center: [0, 0.22, 0] }, axes: HIP_AXES },
   { id: "rightHip", label: "右股関節 Right Hip", parentId: "pelvis", side: "R", pairId: "hip",
-    anchor: [-0.075, -0.02, 0], bindDeg: [0, 0, 180], boneLength: 0.44,
-    mesh: { size: [0.12, 0.44, 0.12], center: [0, 0.22, 0] }, axes: HIP_AXES },
+    anchor: [-0.105, -0.03, 0], bindDeg: [0, 0, 180], boneLength: 0.44,
+    mesh: { size: [0.13, 0.44, 0.15], center: [0, 0.22, 0] }, axes: HIP_AXES },
 
   { id: "leftKnee", label: "左膝 Left Knee", parentId: "leftHip", side: "L", pairId: "knee",
     anchor: [0, 0.44, 0], bindDeg: [0, 0, 0], boneLength: 0.42,
-    mesh: { size: [0.095, 0.42, 0.095], center: [0, 0.21, 0] }, axes: KNEE_AXES },
+    mesh: { size: [0.115, 0.42, 0.13], center: [0, 0.21, 0] }, axes: KNEE_AXES },
   { id: "rightKnee", label: "右膝 Right Knee", parentId: "rightHip", side: "R", pairId: "knee",
     anchor: [0, 0.44, 0], bindDeg: [0, 0, 0], boneLength: 0.42,
-    mesh: { size: [0.095, 0.42, 0.095], center: [0, 0.21, 0] }, axes: KNEE_AXES },
+    mesh: { size: [0.115, 0.42, 0.13], center: [0, 0.21, 0] }, axes: KNEE_AXES },
 
   { id: "leftAnkle", label: "左足首 Left Ankle", parentId: "leftKnee", side: "L", pairId: "ankle",
     anchor: [0, 0.42, 0], bindDeg: [90, 0, 0], boneLength: 0.22,
-    mesh: { size: [0.09, 0.06, 0.22], center: [0, 0.11, 0.02] }, axes: ANKLE_AXES },
+    mesh: { size: [0.12, 0.07, 0.24], center: [0, 0.1, 0.02] }, axes: ANKLE_AXES },
   { id: "rightAnkle", label: "右足首 Right Ankle", parentId: "rightKnee", side: "R", pairId: "ankle",
     anchor: [0, 0.42, 0], bindDeg: [90, 0, 0], boneLength: 0.22,
-    mesh: { size: [0.09, 0.06, 0.22], center: [0, 0.11, 0.02] }, axes: ANKLE_AXES },
+    mesh: { size: [0.12, 0.07, 0.24], center: [0, 0.1, 0.02] }, axes: ANKLE_AXES },
 ];
 
 const JOINT_GROUPS = [
@@ -226,30 +226,25 @@ function defaultAxisState() {
 // rig builder
 // ---------------------------------------------------------------------
 
-// procedural diagonal scanline texture — gives the low-poly body a
-// faint holographic/CRT sheen instead of a flat matte fill.
+// procedural vertical scanline texture — fine bright lines running down
+// the body, the way the reference figures read.
 function makeScanTexture() {
   const c = document.createElement("canvas");
   c.width = c.height = 64;
   const ctx = c.getContext("2d");
   ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, 64, 64);
-  ctx.strokeStyle = "rgba(255,255,255,0.9)";
-  ctx.lineWidth = 2.4;
-  ctx.save();
-  ctx.translate(32, 32);
-  ctx.rotate(-Math.PI / 5);
-  ctx.translate(-32, -32);
-  for (let x = -64; x < 128; x += 7) {
+  ctx.strokeStyle = "rgba(255,255,255,0.85)";
+  ctx.lineWidth = 1.4;
+  for (let x = 1; x < 64; x += 4) {
     ctx.beginPath();
-    ctx.moveTo(x, -32);
-    ctx.lineTo(x, 96);
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, 64);
     ctx.stroke();
   }
-  ctx.restore();
   const tex = new THREE.CanvasTexture(c);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(1.4, 1.4);
+  tex.repeat.set(2.2, 2.2);
   return tex;
 }
 const SCAN_TEXTURE = makeScanTexture();
@@ -264,8 +259,8 @@ function buildCharacter(scene, { id, x, z, ry, skin, glow }) {
   // beveling or vertex noise. Segments simply overlap slightly at each
   // pivot so the rig reads as clean rectangular blocks stacked end to end.
   const material = new THREE.MeshStandardMaterial({
-    color: skin, roughness: 0.45, metalness: 0.2, flatShading: true,
-    emissive: glow, emissiveMap: SCAN_TEXTURE, emissiveIntensity: 0.45,
+    color: skin, roughness: 0.55, metalness: 0.1, flatShading: true,
+    emissive: glow, emissiveMap: SCAN_TEXTURE, emissiveIntensity: 0.3,
   });
 
   const joints = {};
@@ -288,14 +283,17 @@ function buildCharacter(scene, { id, x, z, ry, skin, glow }) {
     bindPivot.add(mesh);
 
     if (def.tip?.type === "head") {
-      const head = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.18, 0.14), material);
-      head.position.set(0, def.boneLength + 0.1, 0);
+      // a big cube sitting straight on the shoulders, like the reference —
+      // the neck segment above is short enough to read as almost no neck
+      const headH = 0.28;
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.3, headH, 0.27), material);
+      head.position.set(0, def.boneLength + headH / 2, 0);
       head.castShadow = true;
       bindPivot.add(head);
     }
     if (def.tip?.type === "hand") {
-      const hand = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.1, 0.05), material);
-      hand.position.set(0, def.boneLength + 0.05, 0);
+      const hand = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.12, 0.08), material);
+      hand.position.set(0, def.boneLength + 0.06, 0);
       hand.castShadow = true;
       bindPivot.add(hand);
     }
