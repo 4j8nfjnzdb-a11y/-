@@ -156,12 +156,7 @@ select, button {
 }
 
 .panel-body.collapsed {
-  grid-template-columns: 0 1fr 0;
-}
-.panel-body.collapsed .joint-tree,
-.panel-body.collapsed .room-panel {
-  opacity: 0;
-  pointer-events: none;
+  display: none;
 }
 
 .joint-tree, .joint-editor, .room-panel {

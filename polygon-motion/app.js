@@ -1001,6 +1001,7 @@ const jointEditorEl = document.getElementById("jointEditor");
 const jointSummaryEl = document.getElementById("jointSummary");
 const presetSelect = document.getElementById("presetSelect");
 const motionToggleBtn = document.getElementById("motionToggle");
+const swapPosesBtn = document.getElementById("swapPoses");
 const uiCollapseBtn = document.getElementById("uiCollapse");
 const panelBodyEl = document.getElementById("panelBody");
 
@@ -1324,6 +1325,24 @@ motionToggleBtn.addEventListener("click", () => {
   motionPlaying = !motionPlaying;
   motionToggleBtn.textContent = motionPlaying ? "Motion: Playing" : "Motion: Paused";
   motionToggleBtn.classList.toggle("ghostBtn", true);
+});
+
+// swaps every joint's pose data (angles, motion params, locks, left/right
+// link mode) between Character A and Character B — each rig keeps its own
+// mesh/position, only which pose it's holding changes hands.
+swapPosesBtn.addEventListener("click", () => {
+  const a = characters.A, b = characters.B;
+  for (const id of Object.keys(a.joints)) {
+    const ja = a.joints[id], jb = b.joints[id];
+    [ja.axisState, jb.axisState] = [jb.axisState, ja.axisState];
+    [ja.posAxisState, jb.posAxisState] = [jb.posAxisState, ja.posAxisState];
+    [ja.locked, jb.locked] = [jb.locked, ja.locked];
+    [ja.lockedSnapshot, jb.lockedSnapshot] = [jb.lockedSnapshot, ja.lockedSnapshot];
+    [ja.lockedPos, jb.lockedPos] = [jb.lockedPos, ja.lockedPos];
+  }
+  [a.pairLinkMode, b.pairLinkMode] = [b.pairLinkMode, a.pairLinkMode];
+  renderJointTree();
+  renderEditor();
 });
 
 uiCollapseBtn.addEventListener("click", () => {
