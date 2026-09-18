@@ -156,13 +156,13 @@ const JOINT_DEFS = [
   {
     id: "chest", label: "胸郭 Chest", parentId: "spine",
     anchor: [0, 0.16, 0], bindDeg: [0, 0, 0], boneLength: 0.2,
-    mesh: { size: [0.38, 0.21, 0.2], center: [0, 0.1, 0] },
+    mesh: { size: [0.37, 0.21, 0.2], center: [0, 0.1, 0] },
     axes: SPINE_AXES,
   },
   {
     id: "neck", label: "首 Neck", parentId: "chest",
-    anchor: [0, 0.2, 0], bindDeg: [0, 0, 0], boneLength: 0.05,
-    mesh: { size: [0.14, 0.06, 0.14], center: [0, 0.025, 0] },
+    anchor: [0, 0.2, 0], bindDeg: [0, 0, 0], boneLength: 0.07,
+    mesh: { size: [0.13, 0.08, 0.13], center: [0, 0.035, 0] },
     axes: {
       x: { label: "前後", min: -25, max: 25 },
       z: { label: "左右傾き", min: -20, max: 20 },
@@ -172,18 +172,18 @@ const JOINT_DEFS = [
   },
 
   { id: "leftShoulder", label: "左肩 Left Shoulder", parentId: "chest", side: "L", pairId: "shoulder",
-    anchor: [0.225, 0.19, 0], bindDeg: [0, 0, 180], boneLength: 0.28,
-    mesh: { size: [0.1, 0.28, 0.11], center: [0, 0.14, 0] }, axes: SHOULDER_AXES },
+    anchor: [0.24, 0.19, 0], bindDeg: [0, 0, 180], boneLength: 0.28,
+    mesh: { size: [0.11, 0.28, 0.11], center: [0, 0.14, 0] }, axes: SHOULDER_AXES },
   { id: "rightShoulder", label: "右肩 Right Shoulder", parentId: "chest", side: "R", pairId: "shoulder",
-    anchor: [-0.225, 0.19, 0], bindDeg: [0, 0, 180], boneLength: 0.28,
-    mesh: { size: [0.1, 0.28, 0.11], center: [0, 0.14, 0] }, axes: SHOULDER_AXES },
+    anchor: [-0.24, 0.19, 0], bindDeg: [0, 0, 180], boneLength: 0.28,
+    mesh: { size: [0.11, 0.28, 0.11], center: [0, 0.14, 0] }, axes: SHOULDER_AXES },
 
   { id: "leftElbow", label: "左肘 Left Elbow", parentId: "leftShoulder", side: "L", pairId: "elbow",
     anchor: [0, 0.28, 0], bindDeg: [0, 0, 0], boneLength: 0.25,
-    mesh: { size: [0.09, 0.25, 0.1], center: [0, 0.125, 0] }, axes: ELBOW_AXES, tip: { type: "hand" } },
+    mesh: { size: [0.095, 0.25, 0.1], center: [0, 0.125, 0] }, axes: ELBOW_AXES, tip: { type: "hand" } },
   { id: "rightElbow", label: "右肘 Right Elbow", parentId: "rightShoulder", side: "R", pairId: "elbow",
     anchor: [0, 0.28, 0], bindDeg: [0, 0, 0], boneLength: 0.25,
-    mesh: { size: [0.09, 0.25, 0.1], center: [0, 0.125, 0] }, axes: ELBOW_AXES, tip: { type: "hand" } },
+    mesh: { size: [0.095, 0.25, 0.1], center: [0, 0.125, 0] }, axes: ELBOW_AXES, tip: { type: "hand" } },
 
   { id: "leftHip", label: "左股関節 Left Hip", parentId: "pelvis", side: "L", pairId: "hip",
     anchor: [0.105, -0.03, 0], bindDeg: [0, 0, 180], boneLength: 0.44,
@@ -285,8 +285,8 @@ function buildCharacter(scene, { id, x, z, ry, skin, glow }) {
     if (def.tip?.type === "head") {
       // a big cube sitting straight on the shoulders, like the reference —
       // the neck segment above is short enough to read as almost no neck
-      const headH = 0.28;
-      const head = new THREE.Mesh(new THREE.BoxGeometry(0.3, headH, 0.27), material);
+      const headH = 0.225;
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.18, headH, 0.18), material);
       head.position.set(0, def.boneLength + headH / 2, 0);
       head.castShadow = true;
       bindPivot.add(head);
