@@ -535,8 +535,6 @@
   window.addEventListener('keydown', (e) => {
     const k = KEY_MAP[e.code];
     if (k) keys[k] = true;
-    if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') keys.run = true;
-    if (e.code === 'ControlLeft' || e.code === 'ControlRight') keys.slow = true;
     if (e.code === 'Escape' && started && !paused) {
       paused = true;
       pauseScreenEl.classList.remove('hidden');
@@ -545,12 +543,7 @@
     if (e.code === 'KeyF' && started && !paused) toggleFxPanel();
     if (e.code === 'KeyH' && started && !paused) toggleUiHidden();
   });
-  window.addEventListener('keyup', (e) => {
-    const k = KEY_MAP[e.code];
-    if (k) keys[k] = false;
-    if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') keys.run = false;
-    if (e.code === 'ControlLeft' || e.code === 'ControlRight') keys.slow = false;
-  });
+  window.addEventListener('keyup', (e) => { const k = KEY_MAP[e.code]; if (k) keys[k] = false; });
 
   document.addEventListener('mousemove', (e) => {
     if (!locked) return;
@@ -1121,10 +1114,7 @@
   let curGrid = [0.7, 0.55, 1.0];
   let distSinceStep = 0;
   let lastT = performance.now();
-  const WALK_SPEED = 2.4;
-  const SPRINT_MULT = 1.55;
-  const SLOW_MULT = 0.45;
-  function speedMult() { return keys.run ? SPRINT_MULT : (keys.slow ? SLOW_MULT : 1); }
+  const WALK_SPEED = 1.1;
 
   function computeCameraEye() {
     if (state === 'falling') {
@@ -1157,7 +1147,7 @@
       const len = Math.max(1, Math.hypot(moveX, moveZ));
       moveX /= len; moveZ /= len;
       const sy = Math.sin(player.yaw), cy = Math.cos(player.yaw);
-      const speed = WALK_SPEED * speedMult() * (started ? 1 : 0.6) * dt;
+      const speed = WALK_SPEED * (started ? 1 : 0.6) * dt;
       dx = (sy * moveZ + cy * moveX) * speed;
       dz = (cy * moveZ - sy * moveX) * speed;
     }
@@ -1197,7 +1187,7 @@
       const len = Math.max(1, Math.hypot(moveX, moveZ));
       moveX /= len; moveZ /= len;
       const sy = Math.sin(player.yaw), cy = Math.cos(player.yaw);
-      const speed = WALK_SPEED * speedMult() * dt;
+      const speed = WALK_SPEED * dt;
       dx = (sy * moveZ + cy * moveX) * speed;
       dz = (cy * moveZ - sy * moveX) * speed;
     }
