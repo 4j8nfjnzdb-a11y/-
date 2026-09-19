@@ -1166,7 +1166,7 @@
       if (distSinceStep > 0.72) { distSinceStep = 0; playFootstep(); }
     }
 
-    if (Math.abs(player.x) < currentArea.holeHalf && Math.abs(player.z) < currentArea.holeHalf) {
+    if (started && Math.abs(player.x) < currentArea.holeHalf && Math.abs(player.z) < currentArea.holeHalf) {
       startFalling();
     }
   }
@@ -1209,7 +1209,7 @@
       if (distSinceStep > 0.6) { distSinceStep = 0; playFootstep(); }
     }
 
-    if (nz >= currentStairs.totalDepth - 0.1) startTowerTop();
+    if (started && nz >= currentStairs.totalDepth - 0.1) startTowerTop();
   }
 
   function updateFallingMovement(dt) {
