@@ -756,19 +756,34 @@ input[type="range"]::-moz-range-thumb {
   const OPEN_BRACKETS = "「『【〈《（([{";
   const CLOSE_BRACKETS = "」』】〉》）)]}";
   const HARD_PUNCT = /[。、！？.!?]/;
-  const SYMBOL_DETACH_CHANCE = 0.45;
 
-  // Cutting only where a particle happens to sit is a rule, not chance —
-  // anyone who knows a handful of Japanese particles can predict exactly
-  // where every boundary will fall, even though the *reordering* afterward
-  // is chaotic. A real pair of scissors doesn't check grammar first. So on
-  // top of the particle/bracket boundaries, every couple of characters
-  // there's also a small chaos-driven chance of a cut with no grammatical
-  // excuse at all — the "blade slipped" cut a human cutting up a page by
-  // eye would sometimes make, landing mid-word.
-  const WILD_CUT_CHANCE = 0.09;
+  // 第二回 of the source material (かなむし: strip かな, read only 漢字) argued
+  // that a run of 漢字 and a run of かな are different *kinds* of material —
+  // a real seam, not an arbitrary spot. A transition between 漢字/ひらがな/
+  // カタカナ is now itself a candidate cut point alongside particles and
+  // brackets, not just leftover wild-cut luck.
+  function scriptClass(ch) {
+    if (KANJI_RE.test(ch)) return "kanji";
+    if (/[぀-ゟ]/.test(ch)) return "hiragana";
+    if (/[゠-ヿ]/.test(ch)) return "katakana";
+    return null;
+  }
 
-  function splitBunsetsu(text, rand) {
+  // ランダムの強さ set how hard the *reorder* step shuffled, but every
+  // preset that used 文節 splitting cut with the exact same fixed
+  // probabilities regardless of that setting — カオス (character-level,
+  // no 文節 splitting at all) always felt appropriately merciless, while
+  // ヘビー at 85% segmented text no more aggressively than ミディアム at
+  // 55%, only reordering the same-sized pieces harder. intensity (the
+  // randomness slider, 0-1) now scales how often a script-transition,
+  // punctuation mark, or ungrammatical wild cut actually fires, so the
+  // segmentation itself — not just the shuffle afterward — escalates
+  // along the preset ladder.
+  function splitBunsetsu(text, rand, intensity = 0.5) {
+    const symbolDetachChance = 0.15 + intensity * 0.55;
+    const scriptCutChance = 0.12 + intensity * 0.55;
+    const wildCutChance = 0.03 + intensity * 0.25;
+
     const bunsetsu = [];
     let current = "";
     let i = 0;
@@ -777,7 +792,7 @@ input[type="range"]::-moz-range-thumb {
 
       if (OPEN_BRACKETS.includes(ch)) {
         if (current.trim().length > 0) bunsetsu.push(current);
-        if (rand() < SYMBOL_DETACH_CHANCE) {
+        if (rand() < symbolDetachChance) {
           bunsetsu.push(ch);
           current = "";
         } else {
@@ -799,7 +814,7 @@ input[type="range"]::-moz-range-thumb {
       i++;
 
       if (CLOSE_BRACKETS.includes(ch) || HARD_PUNCT.test(ch)) {
-        if (rand() < SYMBOL_DETACH_CHANCE && current.length > 1) {
+        if (rand() < symbolDetachChance && current.length > 1) {
           const symbol = current.slice(-1);
           const body = current.slice(0, -1);
           if (body.trim().length > 0) bunsetsu.push(body);
@@ -824,7 +839,15 @@ input[type="range"]::-moz-range-thumb {
         continue;
       }
 
-      if (current.length >= 2 && rand() < WILD_CUT_CHANCE) {
+      const here = scriptClass(ch);
+      const next = i < text.length ? scriptClass(text[i]) : null;
+      if (here && next && here !== next && current.length >= 1 && rand() < scriptCutChance) {
+        bunsetsu.push(current);
+        current = "";
+        continue;
+      }
+
+      if (current.length >= 2 && rand() < wildCutChance) {
         bunsetsu.push(current);
         current = "";
       }
@@ -1158,10 +1181,10 @@ input[type="range"]::-moz-range-thumb {
     return chunks.filter((c) => c.trim().length > 0);
   }
 
-  function tokenize(text, unit, min, max, rand) {
+  function tokenize(text, unit, min, max, rand, intensity = 0.5) {
     switch (unit) {
       case "char": return tokenizeChars(text, min, max, rand);
-      case "bunsetsu": return groupTokens(splitBunsetsu(text, rand), min, max, "", rand);
+      case "bunsetsu": return groupTokens(splitBunsetsu(text, rand, intensity), min, max, "", rand);
       case "line": return groupTokens(splitLines(text), min, max, "\n", rand);
       case "sentence": return groupTokens(splitSentences(text), min, max, " ", rand);
       case "word":
@@ -1423,8 +1446,10 @@ input[type="range"]::-moz-range-thumb {
       ? "bunsetsu"
       : options.unit;
 
+    const intensity = Math.min(1, Math.max(0, options.randomness / 100));
+
     const chunkArrays = sourceTexts.map((text, idx) =>
-      tokenize(text, effectiveUnit, options.min, options.max, rand).map((t) => ({ text: t, sourceIndex: idx }))
+      tokenize(text, effectiveUnit, options.min, options.max, rand, intensity).map((t) => ({ text: t, sourceIndex: idx }))
     );
 
     const multiSource = sourceTexts.length > 1;
