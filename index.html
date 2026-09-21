@@ -424,13 +424,14 @@ input[type="range"]::-moz-range-thumb {
         <label class="field">
           <span class="field-label">分割の単位</span>
           <select id="unit">
+            <option value="splice" selected>継ぎ目（意味のかたまりで切る・日本語向け）</option>
             <option value="char">文字</option>
-            <option value="word" selected>単語（スペース区切り・英文向け）</option>
-            <option value="bunsetsu">文節（助詞の切れ目・日本語向け）</option>
+            <option value="word">単語（スペース区切り・英文向け）</option>
+            <option value="bunsetsu">文節（助詞の切れ目・細かい）</option>
             <option value="line">行</option>
             <option value="sentence">文（。！？区切り）</option>
           </select>
-          <small>日本語は分かち書きしないため「単語」では切れません。日本語文には「文節」か「文字」を。</small>
+          <small>「継ぎ目」は下の断片の長さを<em>文字数</em>として読み、その長さに達するまで切りません。他の単位では断片の長さは「いくつ分」の意味になります。</small>
         </label>
 
         <label class="field">
@@ -447,7 +448,8 @@ input[type="range"]::-moz-range-thumb {
       <label class="field wide">
         <span class="field-label">切り方の方式</span>
         <select id="cutMethod">
-          <option value="standard" selected>シャッフル — 断片を無作為に並べ替える</option>
+          <option value="splice" selected>継ぎ目でつなぐ — 前の断片の切れ口に続けられる断片を選んで貼る</option>
+          <option value="standard">シャッフル — 断片を無作為に並べ替える</option>
           <option value="grid">グリッド — 行/列/対角/スネークで読み順を変える</option>
           <option value="permutation">総当たり — 強度が高いと重複・欠落も発生する入れ替え</option>
         </select>
@@ -561,9 +563,9 @@ input[type="range"]::-moz-range-thumb {
   // whole text, so entirely new syllables can appear that were never in
   // the source at all.
   const PRESETS = {
-    medium:    { unit: "bunsetsu", min: 1, max: 3, randomness: 55, cutMethod: "grid", soundMode: "none" },
-    decompose: { unit: "bunsetsu", min: 1, max: 2, randomness: 68, cutMethod: "standard", soundMode: "none" },
-    heavy:     { unit: "bunsetsu", min: 1, max: 2, randomness: 85, cutMethod: "permutation", soundMode: "none" },
+    medium:    { unit: "splice", min: 7, max: 17, randomness: 52, cutMethod: "splice", soundMode: "none" },
+    decompose: { unit: "splice", min: 4, max: 11, randomness: 78, cutMethod: "splice", soundMode: "none" },
+    heavy:     { unit: "splice", min: 3, max: 8,  randomness: 96, cutMethod: "splice", soundMode: "none" },
     chaos:     { unit: "char", min: 1, max: 6, randomness: 100, cutMethod: "permutation", soundMode: "none" },
     chaos2:    { unit: "bunsetsu", min: 1, max: 2, randomness: 90, cutMethod: "permutation", soundMode: "mora" },
     chaos3:    { unit: "bunsetsu", min: 1, max: 2, randomness: 100, cutMethod: "permutation", soundMode: "phoneme" },
@@ -854,6 +856,139 @@ input[type="range"]::-moz-range-thumb {
     }
     if (current.trim().length > 0) bunsetsu.push(current);
     return bunsetsu.map((s) => s.trim()).filter((s) => s.length > 0);
+  }
+
+  // ---- 継ぎ目 (splice): clause-sized cutting and junction-matched rejoining --
+  //
+  // Everything else in this file works on one axis: shred finer, shuffle
+  // harder. Pushed up, that axis only ever arrives at noise — and noise is
+  // monotonous, because every output looks like every other output. At
+  // ~2.5 characters a fragment there is no phrase left, no image, nothing
+  // for a seam to be a seam *between*.
+  //
+  // A Burroughs cut-up reads. The interest lives at the junction, where one
+  // intact phrase runs into another intact phrase and a third meaning falls
+  // out by accident. That needs fragments big enough to carry an image, and
+  // it needs them to meet at joints where Japanese could plausibly continue
+  // — which is exactly what the 1991 Dr. Burroughs software did: cut at
+  // marker strings, then rejoin fragments whose cut types matched.
+  //
+  // So: cut only at real grammatical markers, never below a minimum length,
+  // and remember what kind of exposed edge each cut leaves behind.
+
+  const SPLICE_MARKERS = [
+    ["というものの", "clause"], ["けれども", "clause"], ["ながら", "clause"],
+    ["ものの", "clause"], ["のだが", "clause"], ["ですが", "clause"], ["けれど", "clause"],
+    ["という", "genitive"], ["ことで", "clause"], ["ために", "clause"],
+    ["けど", "clause"], ["ので", "clause"], ["のに", "clause"], ["たり", "clause"],
+    ["ては", "clause"], ["では", "clause"], ["ても", "clause"], ["でも", "clause"],
+    ["から", "clause"], ["まで", "particle"], ["より", "particle"],
+    ["には", "particle"], ["にも", "particle"], ["とは", "topic"], ["へは", "particle"],
+    ["。", "sentence"], ["！", "sentence"], ["？", "sentence"], ["．", "sentence"],
+    ["!", "sentence"], ["?", "sentence"], [".", "sentence"],
+    ["、", "clause"], ["，", "clause"], [",", "clause"],
+    ["を", "particle"], ["に", "particle"], ["へ", "particle"],
+    ["で", "particle"], ["と", "particle"], ["や", "particle"],
+    ["は", "topic"], ["が", "topic"], ["も", "topic"],
+    ["の", "genitive"],
+  ].sort((a, b) => b[0].length - a[0].length);
+
+  // The kind of edge a cut leaves, read back off the fragment's last
+  // character. Derived from the text rather than carried as metadata, so
+  // any fragment from any tokenizer can be spliced, not just these.
+  function tailEdge(text) {
+    const last = text[text.length - 1];
+    if (!last) return "raw";
+    if ("。！？．!?".includes(last)) return "sentence";
+    if ("、，,".includes(last)) return "clause";
+    if (last === "の") return "genitive";
+    if ("はがも".includes(last)) return "topic";
+    if ("をにへでとや".includes(last)) return "particle";
+    if (CLOSE_BRACKETS.includes(last)) return "sentence";
+    return "raw";
+  }
+
+  // What a fragment opens with decides whether it can plausibly be glued
+  // onto a given dangling edge. 漢字/カタカナ/開き括弧 start a content word:
+  // they can follow anything. A bare particle opening is itself a dangling
+  // tail — gluing it after another dangling tail gives 「〜を を〜」, which
+  // is just breakage, not collision.
+  function headKind(text) {
+    const ch = text[0];
+    if (!ch) return "kana";
+    if (OPEN_BRACKETS.includes(ch)) return "content";
+    if (KANJI_RE.test(ch)) return "content";
+    if (/[゠-ヿ]/.test(ch)) return "content";
+    if (/[A-Za-z0-9０-９]/.test(ch)) return "content";
+    if ("をにへでとがはもの、。，！？や".includes(ch)) return "fragmentary";
+    return "kana";
+  }
+
+  // Plausibility of each join, not a hard filter — a low weight still fires
+  // occasionally, which is where the genuinely violent collisions come from.
+  const JOIN_OK = {
+    sentence: { content: 1.0, kana: 0.75, fragmentary: 0.12 },
+    clause:   { content: 1.0, kana: 0.9,  fragmentary: 0.08 },
+    particle: { content: 1.0, kana: 0.6,  fragmentary: 0.04 },
+    topic:    { content: 1.0, kana: 0.85, fragmentary: 0.04 },
+    genitive: { content: 1.0, kana: 0.35, fragmentary: 0.04 },
+    raw:      { content: 0.9, kana: 1.0,  fragmentary: 0.85 },
+  };
+
+  // minLen/maxLen are characters here, not token counts: a fragment has to
+  // be long enough to say something before it is allowed to end. A marker
+  // that lands too early is swallowed and the fragment keeps growing;
+  // sentence enders always cut. wild is the blade slipping mid-phrase with
+  // no grammatical excuse — near zero at ミディアム, real at ヘビー.
+  function spliceSplit(text, minLen, maxLen, wild, rand) {
+    const lo = Math.max(2, Math.min(minLen, maxLen));
+    const hi = Math.max(lo + 1, maxLen);
+    const span = hi - lo;
+
+    const frags = [];
+    let cur = "";
+    let i = 0;
+    const flush = () => { const t = cur.trim(); if (t) frags.push(t); cur = ""; };
+
+    // Cutting after a particle can leave the 、 or 」 that followed it
+    // stranded at the head of the next fragment, which just relocates the
+    // ugliness instead of making a seam. Pull those marks back into the
+    // fragment that is closing, and let the last one set its edge.
+    const absorb = () => {
+      let edge = null;
+      while (i < text.length && "、。！？，,.!?".includes(text[i])) {
+        edge = "、，,".includes(text[i]) ? "clause" : "sentence";
+        cur += text[i];
+        i++;
+      }
+      while (i < text.length && CLOSE_BRACKETS.includes(text[i])) { cur += text[i]; i++; }
+      return edge;
+    };
+
+    while (i < text.length) {
+      const ch = text[i];
+      if (ch === "\n") { i++; flush(); continue; }
+
+      let hit = null;
+      for (const m of SPLICE_MARKERS) {
+        if (text.startsWith(m[0], i)) { hit = m; break; }
+      }
+      if (hit) {
+        cur += hit[0];
+        i += hit[0].length;
+        const edge = absorb() || hit[1];
+        if (edge === "sentence") { flush(); continue; }
+        const p = cur.length < lo ? 0 : Math.min(1, 0.4 + ((cur.length - lo) / span) * 0.6);
+        if (rand() < p) flush();
+        continue;
+      }
+
+      cur += ch;
+      i++;
+      if ((cur.length >= lo && rand() < wild) || cur.length >= hi) { absorb(); flush(); }
+    }
+    flush();
+    return frags;
   }
 
   // ---- mora/phoneme engine: カオス2・カオス3 -------------------------------
@@ -1184,6 +1319,7 @@ input[type="range"]::-moz-range-thumb {
   function tokenize(text, unit, min, max, rand, intensity = 0.5) {
     switch (unit) {
       case "char": return tokenizeChars(text, min, max, rand);
+      case "splice": return spliceSplit(text, min, max, Math.max(0, intensity - 0.7) * 0.22, rand);
       case "bunsetsu": return groupTokens(splitBunsetsu(text, rand, intensity), min, max, "", rand);
       case "line": return groupTokens(splitLines(text), min, max, "\n", rand);
       case "sentence": return groupTokens(splitSentences(text), min, max, " ", rand);
@@ -1324,8 +1460,81 @@ input[type="range"]::-moz-range-thumb {
     return out;
   }
 
+  // ---- reordering: 継ぎ目 splice --------------------------------------------
+  //
+  // Every other method here treats fragments as interchangeable beads and
+  // permutes their positions. This one walks: it holds the fragment it just
+  // laid down, looks at the dangling edge that fragment ends on, and picks
+  // what comes next from the fragments that could plausibly continue from
+  // that edge — weighted, never filtered, so an implausible join still
+  // happens now and then and lands hard when it does.
+  //
+  // randomness controls how often the walk honours the fragment that
+  // originally followed (low = long stretches of intact source, derailing
+  // occasionally) versus splicing in something from elsewhere in the text.
+  // Past ~72 it also starts drawing with replacement, so phrases recur as
+  // refrains and others drop out of the piece entirely — the aleatory
+  // behaviour of Burroughs and Gysin's permutation poems.
+  function spliceReorder(chunks, randomness, rand) {
+    const n = chunks.length;
+    if (n < 2) return chunks.slice();
+
+    const pool = chunks.map((c, i) => ({ ...c, _uses: 0, _idx: i }));
+    const heads = pool.map((f) => headKind(f.text));
+    const tails = pool.map((f) => tailEdge(f.text));
+
+    const replace = randomness > 72;
+    const stay = Math.max(0, 1 - randomness / 100) * 0.6;
+    const taken = new Array(n).fill(false);
+    const out = [];
+
+    const openers = pool.filter((f) => heads[f._idx] === "content");
+    let cur = openers.length
+      ? openers[Math.floor(rand() * openers.length)]
+      : pool[Math.floor(rand() * n)];
+    taken[cur._idx] = true;
+    cur._uses++;
+    out.push(cur);
+
+    for (let k = 1; k < n; k++) {
+      const remaining = replace ? pool : pool.filter((f) => !taken[f._idx]);
+      if (!remaining.length) break;
+
+      const nat = pool[cur._idx + 1];
+      if (nat && (replace || !taken[nat._idx]) && rand() < stay) {
+        taken[nat._idx] = true;
+        nat._uses++;
+        out.push(nat);
+        cur = nat;
+        continue;
+      }
+
+      const tbl = JOIN_OK[tails[cur._idx]] || JOIN_OK.raw;
+      let total = 0;
+      const weights = remaining.map((f) => {
+        const compat = tbl[heads[f._idx]] ?? 0.5;
+        const fatigue = 1 / Math.pow(1 + f._uses, 1.7);
+        const w = Math.pow(compat, 2.2) * fatigue + 0.008;
+        total += w;
+        return w;
+      });
+      let r = rand() * total;
+      let pick = remaining[remaining.length - 1];
+      for (let i = 0; i < remaining.length; i++) {
+        r -= weights[i];
+        if (r <= 0) { pick = remaining[i]; break; }
+      }
+      taken[pick._idx] = true;
+      pick._uses++;
+      out.push(pick);
+      cur = pick;
+    }
+    return out;
+  }
+
   function reorder(chunks, method, randomness, rand) {
     switch (method) {
+      case "splice": return spliceReorder(chunks, randomness, rand);
       case "grid": return gridReorder(chunks, randomness, rand);
       case "permutation": return permutationReorder(chunks, randomness, rand);
       case "standard":
@@ -1490,7 +1699,7 @@ input[type="range"]::-moz-range-thumb {
   }
 
   function chunksToHtml(chunks, unit, multiSource) {
-    const sep = { char: "", bunsetsu: "", word: " ", sentence: " ", line: "\n" }[unit] ?? " ";
+    const sep = { char: "", splice: "", bunsetsu: "", word: " ", sentence: " ", line: "\n" }[unit] ?? " ";
     let html = "";
     chunks.forEach((c, i) => {
       const seam = multiSource && i > 0 && c.sourceIndex !== chunks[i - 1].sourceIndex;
@@ -1501,7 +1710,7 @@ input[type="range"]::-moz-range-thumb {
   }
 
   function chunksToPlainText(chunks, unit) {
-    const sep = { char: "", bunsetsu: "", word: " ", sentence: " ", line: "\n" }[unit] ?? " ";
+    const sep = { char: "", splice: "", bunsetsu: "", word: " ", sentence: " ", line: "\n" }[unit] ?? " ";
     return chunks.map((c) => c.text).join(sep);
   }
 
