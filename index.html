@@ -205,6 +205,20 @@ html, body {
 }
 .field select:focus { outline: none; border-color: var(--accent); }
 
+.field textarea {
+  font-family: "Shippori Mincho", "Hiragino Mincho ProN", serif;
+  font-size: 0.92rem;
+  line-height: 1.85;
+  width: 100%;
+  resize: vertical;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  border-radius: 0;
+}
+.field textarea:focus { outline: none; border-color: var(--accent); }
+
 .field.wide { grid-column: 1 / -1; margin-bottom: 1.6rem; }
 .field-label small,
 .field > small {
@@ -448,11 +462,17 @@ input[type="range"]::-moz-range-thumb {
       <label class="field wide">
         <span class="field-label">切り方の方式</span>
         <select id="cutMethod">
-          <option value="splice" selected>継ぎ目でつなぐ — 前の断片の切れ口に続けられる断片を選んで貼る</option>
+          <option value="burroughs" selected>鋏と糊 — 切れ目の種類を合わせて貼る（ドクター・バロウズ方式）</option>
+          <option value="splice">継ぎ目でつなぐ — 前の断片の切れ口に続けられる断片を選ぶ</option>
           <option value="standard">シャッフル — 断片を無作為に並べ替える</option>
           <option value="grid">グリッド — 行/列/対角/スネークで読み順を変える</option>
           <option value="permutation">総当たり — 強度が高いと重複・欠落も発生する入れ替え</option>
         </select>
+      </label>
+
+      <label class="field wide" id="scissorsWrap">
+        <span class="field-label">鋏と糊のカスタマイズ <small>ここに書いた文字列で切る。1行が1グループで、同じ行の鋏どうしは自由に貼り合う。行を移せば糊の効き方が変わる。「を」で切った断片は「を」で始まるので、貼り合わせても継ぎ目が見えない。</small></span>
+        <textarea id="scissors" rows="5" spellcheck="false"></textarea>
       </label>
 
       <label class="field wide">
@@ -533,6 +553,8 @@ input[type="range"]::-moz-range-thumb {
   const randomnessVal = document.getElementById("randomnessVal");
   const cutMethodEl = document.getElementById("cutMethod");
   const soundModeEl = document.getElementById("soundMode");
+  const scissorsEl = document.getElementById("scissors");
+  const scissorsWrap = document.getElementById("scissorsWrap");
   const foldInEl = document.getElementById("foldIn");
   const keepPunctEl = document.getElementById("keepPunct");
   const capRandomEl = document.getElementById("capRandom");
@@ -562,10 +584,39 @@ input[type="range"]::-moz-range-thumb {
   // consonant+vowel and rebuilds new mora from a pool gathered across the
   // whole text, so entirely new syllables can appear that were never in
   // the source at all.
+  // ミディアム/分解/ヘビー are all 鋏と糊 now; what separates them is the
+  // scissors dictionary and how far the walk may drift from the source's
+  // own transitions — not how finely the text gets shredded. ヘビー puts
+  // every marker into a single group, which 第四回 explicitly sanctions
+  // (「文法や意味にとらわれずにもっと大胆な分類をしても構わない」): any
+  // cut can then take any other, so 。 slots accept を fragments and the
+  // text starts folding through itself.
+  // と and って are left out of the fine dictionary on purpose: they collide
+  // with 「こと」「作っていて」 and cut mid-word, which reads as a typo rather
+  // than as a cut. が gets its own group so it cannot trade places with
+  // は/も — 「ですが」 is grammatical, 「ですは」 is not. The coarser tiers
+  // keep both, because there the breakage is the point.
+  const SCISSORS_FINE = [
+    "。 ？ ！ 、",
+    "を に へ で から まで より",
+    "という とか なんて",
+    "は も",
+    "が",
+    "の",
+  ].join("\n");
+  const SCISSORS_WIDE = [
+    "。 ？ ！ 、",
+    "を に へ で と から まで より は が も の",
+    "という って とか なんて ってば ながら ので けれど ても",
+  ].join("\n");
+  const SCISSORS_ONE = [
+    "。 ？ ！ 、 を に へ で と から まで より は が も の という って とか なんて ながら ので けれど ても",
+  ].join("\n");
+
   const PRESETS = {
-    medium:    { unit: "splice", min: 7, max: 17, randomness: 52, cutMethod: "splice", soundMode: "none" },
-    decompose: { unit: "splice", min: 4, max: 11, randomness: 78, cutMethod: "splice", soundMode: "none" },
-    heavy:     { unit: "splice", min: 3, max: 8,  randomness: 96, cutMethod: "splice", soundMode: "none" },
+    medium:    { unit: "splice", min: 7, max: 17, randomness: 55, cutMethod: "burroughs", soundMode: "none", scissors: SCISSORS_FINE },
+    decompose: { unit: "splice", min: 4, max: 11, randomness: 80, cutMethod: "burroughs", soundMode: "none", scissors: SCISSORS_WIDE },
+    heavy:     { unit: "splice", min: 3, max: 8,  randomness: 100, cutMethod: "burroughs", soundMode: "none", scissors: SCISSORS_ONE },
     chaos:     { unit: "char", min: 1, max: 6, randomness: 100, cutMethod: "permutation", soundMode: "none" },
     chaos2:    { unit: "bunsetsu", min: 1, max: 2, randomness: 90, cutMethod: "permutation", soundMode: "mora" },
     chaos3:    { unit: "bunsetsu", min: 1, max: 2, randomness: 100, cutMethod: "permutation", soundMode: "phoneme" },
@@ -634,9 +685,24 @@ input[type="range"]::-moz-range-thumb {
     randomnessEl.value = p.randomness;
     cutMethodEl.value = p.cutMethod;
     soundModeEl.value = p.soundMode || "none";
+    scissorsEl.value = p.scissors || DEFAULT_SCISSORS;
     syncLabels();
+    updateMethodUI();
     [...presetsEl.children].forEach((b) => b.classList.toggle("active", b.dataset.preset === name));
   }
+
+  // 鋏と糊 does its own cutting, so the 分割の単位 and 断片の長さ controls
+  // have nothing to act on while it is selected; the scissors dictionary
+  // takes their place.
+  function updateMethodUI() {
+    const burroughs = cutMethodEl.value === "burroughs";
+    scissorsWrap.style.display = burroughs ? "" : "none";
+    [unitEl, chunkMinEl, chunkMaxEl].forEach((el) => {
+      el.disabled = burroughs;
+      el.closest(".field, .slider").style.opacity = burroughs ? 0.35 : 1;
+    });
+  }
+  cutMethodEl.addEventListener("change", updateMethodUI);
 
   presetsEl.addEventListener("click", (e) => {
     const btn = e.target.closest(".presetBtn");
@@ -644,7 +710,7 @@ input[type="range"]::-moz-range-thumb {
     applyPreset(btn.dataset.preset);
   });
 
-  [unitEl, chunkMinEl, chunkMaxEl, randomnessEl, cutMethodEl, soundModeEl, foldInEl, keepPunctEl, capRandomEl].forEach((el) => {
+  [unitEl, chunkMinEl, chunkMaxEl, randomnessEl, cutMethodEl, soundModeEl, scissorsEl, foldInEl, keepPunctEl, capRandomEl].forEach((el) => {
     el.addEventListener("input", () => {
       [...presetsEl.children].forEach((b) => b.classList.remove("active"));
     });
@@ -892,48 +958,6 @@ input[type="range"]::-moz-range-thumb {
     ["は", "topic"], ["が", "topic"], ["も", "topic"],
     ["の", "genitive"],
   ].sort((a, b) => b[0].length - a[0].length);
-
-  // The kind of edge a cut leaves, read back off the fragment's last
-  // character. Derived from the text rather than carried as metadata, so
-  // any fragment from any tokenizer can be spliced, not just these.
-  function tailEdge(text) {
-    const last = text[text.length - 1];
-    if (!last) return "raw";
-    if ("。！？．!?".includes(last)) return "sentence";
-    if ("、，,".includes(last)) return "clause";
-    if (last === "の") return "genitive";
-    if ("はがも".includes(last)) return "topic";
-    if ("をにへでとや".includes(last)) return "particle";
-    if (CLOSE_BRACKETS.includes(last)) return "sentence";
-    return "raw";
-  }
-
-  // What a fragment opens with decides whether it can plausibly be glued
-  // onto a given dangling edge. 漢字/カタカナ/開き括弧 start a content word:
-  // they can follow anything. A bare particle opening is itself a dangling
-  // tail — gluing it after another dangling tail gives 「〜を を〜」, which
-  // is just breakage, not collision.
-  function headKind(text) {
-    const ch = text[0];
-    if (!ch) return "kana";
-    if (OPEN_BRACKETS.includes(ch)) return "content";
-    if (KANJI_RE.test(ch)) return "content";
-    if (/[゠-ヿ]/.test(ch)) return "content";
-    if (/[A-Za-z0-9０-９]/.test(ch)) return "content";
-    if ("をにへでとがはもの、。，！？や".includes(ch)) return "fragmentary";
-    return "kana";
-  }
-
-  // Plausibility of each join, not a hard filter — a low weight still fires
-  // occasionally, which is where the genuinely violent collisions come from.
-  const JOIN_OK = {
-    sentence: { content: 1.0, kana: 0.75, fragmentary: 0.12 },
-    clause:   { content: 1.0, kana: 0.9,  fragmentary: 0.08 },
-    particle: { content: 1.0, kana: 0.6,  fragmentary: 0.04 },
-    topic:    { content: 1.0, kana: 0.85, fragmentary: 0.04 },
-    genitive: { content: 1.0, kana: 0.35, fragmentary: 0.04 },
-    raw:      { content: 0.9, kana: 1.0,  fragmentary: 0.85 },
-  };
 
   // minLen/maxLen are characters here, not token counts: a fragment has to
   // be long enough to say something before it is allowed to end. A marker
@@ -1460,73 +1484,159 @@ input[type="range"]::-moz-range-thumb {
     return out;
   }
 
-  // ---- reordering: 継ぎ目 splice --------------------------------------------
+  // ---- 鋏と糊: the actual Dr. Burroughs method ------------------------------
   //
-  // Every other method here treats fragments as interchangeable beads and
-  // permutes their positions. This one walks: it holds the fragment it just
-  // laid down, looks at the dangling edge that fragment ends on, and picks
-  // what comes next from the fragments that could plausibly continue from
-  // that edge — weighted, never filtered, so an implausible join still
-  // happens now and then and lands hard when it does.
+  // 細馬宏通「カットアップソフトを作ろう！」第三回・第四回 sets out what the
+  // 1991 software really did, and one detail decides everything — the marker
+  // string stays at the HEAD of the fragment that follows it, never at the
+  // tail of the one before:
   //
-  // randomness controls how often the walk honours the fragment that
-  // originally followed (low = long stretches of intact source, derailing
-  // occasionally) versus splicing in something from elsewhere in the text.
-  // Past ~72 it also starts drawing with replacement, so phrases recur as
-  // refrains and others drop out of the piece entirely — the aleatory
-  // behaviour of Burroughs and Gysin's permutation poems.
-  function spliceReorder(chunks, randomness, rand) {
-    const n = chunks.length;
-    if (n < 2) return chunks.slice();
+  //     直前  内容                        直後
+  //      0    わたしは昨日あなた           3
+  //      3    を見かけたのですが           2
+  //      2    、声                         3
+  //      3    をかけそびれてしまいました   1
+  //
+  // Each fragment carries the group of the marker it opens with (直前) and
+  // the group of the marker that cut it off (直後). The whole paste rule is
+  // 直後 == 直前. It works because whatever sat in front of a を in the
+  // source was necessarily a noun phrase, so any を-fragment can be dropped
+  // onto any of them: 「わたしは昨日あなた」+「をかけそびれてしまいました」
+  // comes out grammatically seamless and semantically deranged. 手堅く狂った
+  // フレーズ.
+  //
+  // That is the part every earlier engine here got backwards. Putting the
+  // marker at the tail makes the join *visible*, and a visible join is not a
+  // cut-up, it is damage — 意味性は壊れても抒情性は残る only holds when the
+  // seam cannot be seen.
+  //
+  // Groups are what keep the glue loose (ゆるやかな糊): 。 and 、 share a
+  // group so they interchange, を/に/へ share one so a case slot can come
+  // back in a different case. 第四回 insists this dictionary belongs to the
+  // user rather than the programmer, so it is editable in the UI.
 
-    const pool = chunks.map((c, i) => ({ ...c, _uses: 0, _idx: i }));
-    const heads = pool.map((f) => headKind(f.text));
-    const tails = pool.map((f) => tailEdge(f.text));
+  const HEAD_START = -1;
+  const TAIL_END = -2;
 
-    const replace = randomness > 72;
-    const stay = Math.max(0, 1 - randomness / 100) * 0.6;
-    const taken = new Array(n).fill(false);
-    const out = [];
+  const DEFAULT_SCISSORS = [
+    "。 ？ ！ 、",
+    "を に へ で と から まで より",
+    "という って とか なんて ってば",
+    "は が も",
+    "の",
+  ].join("\n");
 
-    const openers = pool.filter((f) => heads[f._idx] === "content");
-    let cur = openers.length
-      ? openers[Math.floor(rand() * openers.length)]
-      : pool[Math.floor(rand() * n)];
-    taken[cur._idx] = true;
-    cur._uses++;
-    out.push(cur);
+  // One line per group; markers separated by spaces. Line number is the
+  // group number, so moving a marker to another line rewires the glue.
+  function parseScissors(src) {
+    const dict = [];
+    String(src || "").split(/\r?\n/).forEach((line, g) => {
+      line.trim().split(/\s+/).forEach((m) => {
+        if (m) dict.push([m, g]);
+      });
+    });
+    dict.push(["\n", 0]); // 改行も第四回でいう「空白」の鋏として扱う
+    return dict.sort((a, b) => b[0].length - a[0].length);
+  }
 
-    for (let k = 1; k < n; k++) {
-      const remaining = replace ? pool : pool.filter((f) => !taken[f._idx]);
-      if (!remaining.length) break;
-
-      const nat = pool[cur._idx + 1];
-      if (nat && (replace || !taken[nat._idx]) && rand() < stay) {
-        taken[nat._idx] = true;
-        nat._uses++;
-        out.push(nat);
-        cur = nat;
+  function scissorCut(text, dict, sourceIndex) {
+    const frags = [];
+    let cur = "";
+    let head = HEAD_START;
+    let i = 0;
+    while (i < text.length) {
+      let hit = null;
+      for (const d of dict) {
+        if (text.startsWith(d[0], i)) { hit = d; break; }
+      }
+      if (hit) {
+        if (cur.trim()) frags.push({ text: cur, head, tail: hit[1], sourceIndex });
+        head = hit[1];
+        cur = hit[0];
+        i += hit[0].length;
+        // 「！。。」 or 「。改行」 is one boundary, not three. Without this a
+        // run of marks sheds body-less fragments that then pile back up
+        // somewhere else as 。。。 — absorb a following run of same-group
+        // markers so every fragment carries actual text.
+        for (;;) {
+          let more = null;
+          for (const d of dict) {
+            if (text.startsWith(d[0], i)) { more = d; break; }
+          }
+          if (!more || more[1] !== hit[1]) break;
+          cur += more[0];
+          i += more[0].length;
+        }
         continue;
       }
+      cur += text[i];
+      i++;
+    }
+    if (cur.trim()) frags.push({ text: cur, head, tail: TAIL_END, sourceIndex });
+    return frags;
+  }
 
-      const tbl = JOIN_OK[tails[cur._idx]] || JOIN_OK.raw;
+  // 第一回 adds the two statistics worth keeping: 生起確率 (a fragment that
+  // recurred in the source should recur here) and 推移確率 (what actually
+  // followed what). Its verdict on the alternative is exactly the complaint
+  // this app kept earning — 「ランダムでフラットなカットアップに飽きた人は
+  // 試してみるといいだろう」. So randomness here does not mean "how finely
+  // do I shred"; it means how far the walk is allowed to drift from the
+  // source's own transition statistics.
+  function burroughsPaste(frags, randomness, rand) {
+    const n = frags.length;
+    if (n < 2) return frags.slice();
+
+    const byHead = new Map();
+    frags.forEach((f) => {
+      if (!byHead.has(f.head)) byHead.set(f.head, []);
+      byHead.get(f.head).push(f);
+    });
+
+    const occ = new Map();
+    frags.forEach((f) => occ.set(f.text, (occ.get(f.text) || 0) + 1));
+
+    const trans = new Map();
+    for (let i = 0; i < n - 1; i++) {
+      const a = frags[i], b = frags[i + 1];
+      if (a.sourceIndex !== b.sourceIndex) continue;
+      if (!trans.has(a.text)) trans.set(a.text, new Map());
+      const m = trans.get(a.text);
+      m.set(b.text, (m.get(b.text) || 0) + 1);
+    }
+
+    const pull = Math.max(0, 1 - randomness / 100) * 7;
+    const uses = new Map();
+    const out = [];
+
+    const openers = byHead.get(HEAD_START) || frags;
+    let cur = openers[Math.floor(rand() * openers.length)];
+    out.push(cur);
+    uses.set(cur.text, 1);
+
+    for (let k = 1; k < n; k++) {
+      let cands = byHead.get(cur.tail);
+      if (!cands || !cands.length) cands = frags;
+      const tr = trans.get(cur.text);
+
       let total = 0;
-      const weights = remaining.map((f) => {
-        const compat = tbl[heads[f._idx]] ?? 0.5;
-        const fatigue = 1 / Math.pow(1 + f._uses, 1.7);
-        const w = Math.pow(compat, 2.2) * fatigue + 0.008;
-        total += w;
-        return w;
+      const weights = cands.map((f) => {
+        const o = occ.get(f.text) || 1;
+        const mk = tr ? (tr.get(f.text) || 0) : 0;
+        const fatigue = 1 / Math.pow(1 + (uses.get(f.text) || 0), 1.6);
+        const v = (o + mk * pull) * fatigue + 0.02;
+        total += v;
+        return v;
       });
+
       let r = rand() * total;
-      let pick = remaining[remaining.length - 1];
-      for (let i = 0; i < remaining.length; i++) {
+      let pick = cands[cands.length - 1];
+      for (let i = 0; i < cands.length; i++) {
         r -= weights[i];
-        if (r <= 0) { pick = remaining[i]; break; }
+        if (r <= 0) { pick = cands[i]; break; }
       }
-      taken[pick._idx] = true;
-      pick._uses++;
       out.push(pick);
+      uses.set(pick.text, (uses.get(pick.text) || 0) + 1);
       cur = pick;
     }
     return out;
@@ -1534,7 +1644,6 @@ input[type="range"]::-moz-range-thumb {
 
   function reorder(chunks, method, randomness, rand) {
     switch (method) {
-      case "splice": return spliceReorder(chunks, randomness, rand);
       case "grid": return gridReorder(chunks, randomness, rand);
       case "permutation": return permutationReorder(chunks, randomness, rand);
       case "standard":
@@ -1630,6 +1739,7 @@ input[type="range"]::-moz-range-thumb {
       randomness: +randomnessEl.value,
       cutMethod: cutMethodEl.value,
       soundMode: soundModeEl.value,
+      scissors: scissorsEl.value,
       foldIn: foldInEl.checked,
       keepPunct: keepPunctEl.checked,
       capRandom: capRandomEl.checked,
@@ -1656,12 +1766,37 @@ input[type="range"]::-moz-range-thumb {
       : options.unit;
 
     const intensity = Math.min(1, Math.max(0, options.randomness / 100));
+    const multiSource = sourceTexts.length > 1;
+
+    // 鋏と糊 couples cutting and pasting — a fragment only knows what it can
+    // be glued to because of where it was cut — so it runs as one pass
+    // rather than going through tokenize() and reorder() separately. All
+    // sources are cut into one shared pool: crossing from one text into
+    // another mid-sentence is the whole newspaper-column effect Burroughs
+    // described, and group matching is what makes the crossing invisible.
+    if (options.cutMethod === "burroughs") {
+      const dict = parseScissors(options.scissors);
+      let frags = [];
+      sourceTexts.forEach((t, idx) => { frags = frags.concat(scissorCut(t, dict, idx)); });
+
+      if (frags.length >= 2) {
+        const before = frags.map((f) => f.text).join("");
+        let out;
+        let tries = 0;
+        do {
+          out = burroughsPaste(frags, options.randomness, rand);
+          tries++;
+        } while (tries < 5 && options.randomness > 0 && out.map((f) => f.text).join("") === before);
+
+        if (!options.keepPunct) out = out.map((c) => ({ ...c, text: stripPunct(c.text) }));
+        if (options.capRandom) out = out.map((c) => ({ ...c, text: randomizeCase(c.text, rand) }));
+        return { chunks: out, multiSource, renderUnit: "burroughs" };
+      }
+    }
 
     const chunkArrays = sourceTexts.map((text, idx) =>
       tokenize(text, effectiveUnit, options.min, options.max, rand, intensity).map((t) => ({ text: t, sourceIndex: idx }))
     );
-
-    const multiSource = sourceTexts.length > 1;
 
     // fold-in can, on rare draws, reassemble back into plain reading order;
     // when randomness is on, that outcome is rejected and re-cut rather
@@ -1699,7 +1834,7 @@ input[type="range"]::-moz-range-thumb {
   }
 
   function chunksToHtml(chunks, unit, multiSource) {
-    const sep = { char: "", splice: "", bunsetsu: "", word: " ", sentence: " ", line: "\n" }[unit] ?? " ";
+    const sep = { char: "", burroughs: "", splice: "", bunsetsu: "", word: " ", sentence: " ", line: "\n" }[unit] ?? " ";
     let html = "";
     chunks.forEach((c, i) => {
       const seam = multiSource && i > 0 && c.sourceIndex !== chunks[i - 1].sourceIndex;
@@ -1710,7 +1845,7 @@ input[type="range"]::-moz-range-thumb {
   }
 
   function chunksToPlainText(chunks, unit) {
-    const sep = { char: "", splice: "", bunsetsu: "", word: " ", sentence: " ", line: "\n" }[unit] ?? " ";
+    const sep = { char: "", burroughs: "", splice: "", bunsetsu: "", word: " ", sentence: " ", line: "\n" }[unit] ?? " ";
     return chunks.map((c) => c.text).join(sep);
   }
 
