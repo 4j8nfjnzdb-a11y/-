@@ -128,6 +128,8 @@
       loopMaxSec: 1.0,
       lenAuto: false,
       lenTimer: null,
+      autopilot: false,
+      autopilotTimer: null,
       looperArmed: false,
       looperStartTotal: 0,
       chaosActive: false,
@@ -429,6 +431,68 @@
     track.autoTimer = setTimeout(() => scheduleAutoLoop(track), wait);
   }
 
+  function silenceTrack(track) {
+    track.el.fader.value = 0;
+    track.el.fader.dispatchEvent(new Event("input"));
+    track.el.status.textContent = "停止中";
+    track.el.status.classList.remove("live");
+  }
+
+  // Per-track autopilot. Each track runs its own clock and on every tick
+  // decides for itself whether to fire a fresh loop, drop out to silence,
+  // or do nothing at all — so the four tracks sometimes land together and
+  // sometimes trade off, with no fixed pattern. It only ever touches loop
+  // start/stop and which slice gets looped; pitch, pan and depth are left
+  // to their own controls.
+  function scheduleAutopilot(track) {
+    if (track.autopilotTimer) clearTimeout(track.autopilotTimer);
+    if (!track.autopilot) return;
+
+    if (!track.lock) {
+      const roll = Math.random();
+      const sounding = +track.el.fader.value > 0 && track.voice;
+      if (roll < 0.18) {
+        // the button simply doesn't get pressed this time
+      } else if (sounding && roll < 0.34) {
+        silenceTrack(track);
+      } else {
+        if (+track.el.fader.value === 0) {
+          track.el.fader.value = 45 + Math.floor(Math.random() * 45);
+          track.el.fader.dispatchEvent(new Event("input"));
+        }
+        // Wide spread of lengths per fire, still capped by the ループ長
+        // fader, so that control stays meaningful (and gets even wider
+        // when 🎲ランダム長 is drifting the cap itself).
+        const ceiling = Math.max(0.12, track.loopMaxSec * (0.12 + Math.random() * 0.88));
+        const seg = extractRandomSegment(0.08, ceiling);
+        if (seg) {
+          playSegmentOnTrack(track, seg);
+          track.el.lenLabel.textContent = (seg.length / seg.sampleRate).toFixed(2) + "s";
+        }
+      }
+    }
+
+    const burst = Math.random() < 0.3;
+    const wait = burst ? 200 + Math.random() * 700 : 1200 + Math.random() * 5000;
+    track.autopilotTimer = setTimeout(() => scheduleAutopilot(track), wait);
+  }
+
+  function setAutopilot(track, on) {
+    track.autopilot = on;
+    track.el.autopilotBtn.classList.toggle("active", on);
+    if (on) {
+      if (track.auto) {
+        track.auto = false;
+        track.el.autoBtn.classList.remove("active");
+        if (track.autoTimer) clearTimeout(track.autoTimer);
+      }
+      scheduleAutopilot(track);
+    } else {
+      if (track.autopilotTimer) clearTimeout(track.autopilotTimer);
+      silenceTrack(track);
+    }
+  }
+
   // ---------- chaos mode: one switch, everything shifts on its own ----
   //
   // A single global engine that keeps grabbing a random track and either
@@ -458,6 +522,11 @@
       track.auto = false;
       track.el.autoBtn.classList.remove("active");
       if (track.autoTimer) clearTimeout(track.autoTimer);
+    }
+    if (track.autopilot) {
+      track.autopilot = false;
+      track.el.autopilotBtn.classList.remove("active");
+      if (track.autopilotTimer) clearTimeout(track.autopilotTimer);
     }
     if (+track.el.fader.value === 0) {
       track.el.fader.value = 45 + Math.floor(Math.random() * 45);
@@ -596,6 +665,9 @@
         <button class="toggleBtn" data-role="lockBtn">🔒 固定</button>
         <button class="toggleBtn" data-role="autoBtn">🔁 自動</button>
       </div>
+      <div class="btn-row">
+        <button class="toggleBtn" data-role="autopilotBtn">🎲 ランダム自動</button>
+      </div>
 
       <label class="hslider">
         <span>ループ長(ランダム用上限) <em data-role="lenLabel">1.0s</em></span>
@@ -656,8 +728,18 @@
     el.autoBtn.addEventListener("click", () => {
       track.auto = !track.auto;
       el.autoBtn.classList.toggle("active", track.auto);
-      if (track.auto) scheduleAutoLoop(track);
-      else if (track.autoTimer) clearTimeout(track.autoTimer);
+      if (track.auto) {
+        if (track.autopilot) setAutopilot(track, false);
+        scheduleAutoLoop(track);
+      } else if (track.autoTimer) clearTimeout(track.autoTimer);
+    });
+
+    el.autopilotBtn.addEventListener("click", () => {
+      if (!audioCtx) {
+        alert("先にマイクを開始してください");
+        return;
+      }
+      setAutopilot(track, !track.autopilot);
     });
 
     el.lenSlider.addEventListener("input", () => {
@@ -910,6 +992,25 @@
   });
 
   document.getElementById("chaosBtn").addEventListener("click", () => setChaosMode(!chaosMode));
+
+  // Everything that fires on its own stops here, and every track drops to
+  // silence. Pitch/pan/depth settings are left as they are.
+  document.getElementById("panicBtn").addEventListener("click", () => {
+    if (chaosMode) setChaosMode(false);
+    tracks.forEach((track) => {
+      if (track.autopilot) {
+        track.autopilot = false;
+        track.el.autopilotBtn.classList.remove("active");
+        if (track.autopilotTimer) clearTimeout(track.autopilotTimer);
+      }
+      if (track.auto) {
+        track.auto = false;
+        track.el.autoBtn.classList.remove("active");
+        if (track.autoTimer) clearTimeout(track.autoTimer);
+      }
+      silenceTrack(track);
+    });
+  });
 
   document.getElementById("chaosCount").addEventListener("input", (e) => {
     document.getElementById("chaosCountLabel").textContent = e.target.value;
