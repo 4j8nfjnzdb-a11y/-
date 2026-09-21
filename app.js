@@ -240,11 +240,11 @@
     masterOutGain.gain.value = (volSlider ? +volSlider.value : 80) / 100;
 
     const limiter = audioCtx.createDynamicsCompressor();
-    limiter.threshold.value = -8;
-    limiter.knee.value = 0;
-    limiter.ratio.value = 20;
-    limiter.attack.value = 0.003;
-    limiter.release.value = 0.25;
+    limiter.threshold.value = -10;
+    limiter.knee.value = 6;
+    limiter.ratio.value = 4;
+    limiter.attack.value = 0.01;
+    limiter.release.value = 0.3;
 
     const shaper = audioCtx.createWaveShaper();
     shaper.curve = makeSoftClipCurve(2);
@@ -680,8 +680,12 @@
 
   async function startMic() {
     try {
+      // Voice-call DSP (echo cancellation / noise suppression / AGC) is
+      // tuned for speech and mangles instruments and ambient sound — it
+      // was the main source of the muddy/pumping "bad audio" complaints.
+      // Music apps disable it to get the raw signal.
       micStream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
       });
     } catch (err) {
       alert("マイクにアクセスできませんでした: " + err.message);
