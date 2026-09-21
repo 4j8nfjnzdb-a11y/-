@@ -262,6 +262,14 @@ input[type="range"]::-moz-range-thumb {
   color: #241300;
 }
 
+/* armed is .active; .muted means it is cutting the track right now, and
+   must win over .active since both are set while it is running */
+.toggleBtn.muted {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #240404;
+}
+
 .bigTrackBtn {
   flex: 1;
   font-size: 0.8rem;

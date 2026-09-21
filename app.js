@@ -130,6 +130,10 @@
       lenTimer: null,
       autopilot: false,
       autopilotTimer: null,
+      muteGain: null,
+      randomMute: false,
+      muteTimer: null,
+      muted: false,
       looperArmed: false,
       looperStartTotal: 0,
       chaosActive: false,
@@ -310,16 +314,22 @@
       reverbSend.gain.value = 0;
       const fader = audioCtx.createGain();
       fader.gain.value = 0;
+      // Its own stage, so 🔇ランダムミュート can cut the track without
+      // fighting the volume fader or the autopilot over one gain value.
+      const muteGain = audioCtx.createGain();
+      muteGain.gain.value = 1;
       const trackAnalyser = audioCtx.createAnalyser();
       trackAnalyser.fftSize = 256;
 
       panNode.connect(depthFilter);
       depthFilter.connect(depthGain);
-      depthGain.connect(fader);
-      depthGain.connect(reverbSend).connect(reverbInput);
+      depthGain.connect(muteGain);
+      muteGain.connect(fader);
+      muteGain.connect(reverbSend).connect(reverbInput);
       fader.connect(masterGain);
       fader.connect(trackAnalyser);
 
+      track.muteGain = muteGain;
       track.panNode = panNode;
       track.depthFilter = depthFilter;
       track.depthGain = depthGain;
@@ -472,9 +482,50 @@
       }
     }
 
-    const burst = Math.random() < 0.3;
-    const wait = burst ? 200 + Math.random() * 700 : 1200 + Math.random() * 5000;
+    // Every gap is a fresh draw, from quick stutters through to long holds,
+    // so no two stretches run at the same rate.
+    const wait = Math.random() < 0.3
+      ? 150 + Math.random() * 650
+      : 800 + Math.pow(Math.random(), 2) * 11000;
     track.autopilotTimer = setTimeout(() => scheduleAutopilot(track), wait);
+  }
+
+  // Per-track random mute. Each track flips itself in and out of silence on
+  // its own clock, every stretch a fresh length drawn from within 30
+  // seconds, so the four tracks cut against each other rather than in step.
+  // Runs on its own gain stage, independent of the volume fader and of
+  // whatever is driving the loops.
+  function applyMute(track, muted) {
+    track.muted = muted;
+    if (audioCtx && track.muteGain) {
+      const now = audioCtx.currentTime;
+      track.muteGain.gain.cancelScheduledValues(now);
+      track.muteGain.gain.setTargetAtTime(muted ? 0 : 1, now, 0.02);
+    }
+    track.el.muteBtn.classList.toggle("muted", muted);
+  }
+
+  function scheduleMuteDrift(track) {
+    if (track.muteTimer) clearTimeout(track.muteTimer);
+    if (!track.randomMute) return;
+    applyMute(track, !track.muted);
+    // Silences stay shorter than the open stretches so a track never
+    // vanishes for the whole 30 seconds.
+    const hold = track.muted
+      ? 0.25 + Math.pow(Math.random(), 2) * 7.75
+      : 0.5 + Math.pow(Math.random(), 2) * 29.5;
+    track.muteTimer = setTimeout(() => scheduleMuteDrift(track), hold * 1000);
+  }
+
+  function setRandomMute(track, on) {
+    track.randomMute = on;
+    track.el.muteBtn.classList.toggle("active", on);
+    if (on) {
+      scheduleMuteDrift(track);
+    } else {
+      if (track.muteTimer) clearTimeout(track.muteTimer);
+      applyMute(track, false);
+    }
   }
 
   function setAutopilot(track, on) {
@@ -523,11 +574,6 @@
       track.el.autoBtn.classList.remove("active");
       if (track.autoTimer) clearTimeout(track.autoTimer);
     }
-    if (track.autopilot) {
-      track.autopilot = false;
-      track.el.autopilotBtn.classList.remove("active");
-      if (track.autopilotTimer) clearTimeout(track.autopilotTimer);
-    }
     if (+track.el.fader.value === 0) {
       track.el.fader.value = 45 + Math.floor(Math.random() * 45);
       track.el.fader.dispatchEvent(new Event("input"));
@@ -544,8 +590,16 @@
   function chaosTick() {
     if (!chaosMode) return;
     const maxTracks = Math.max(1, Math.min(4, +document.getElementById("chaosCount").value));
-    const active = tracks.filter((t) => t.chaosActive);
-    const inactive = tracks.filter((t) => !t.chaosActive);
+    // Tracks running their own 🎲ランダム自動 are left alone — chaos used to
+    // switch their autopilot off the moment it grabbed them, which made the
+    // per-track button look like it died after one shot.
+    const pool = tracks.filter((t) => !t.autopilot);
+    const active = pool.filter((t) => t.chaosActive);
+    const inactive = pool.filter((t) => !t.chaosActive);
+    if (pool.length === 0) {
+      chaosTimer = setTimeout(chaosTick, 1200);
+      return;
+    }
 
     const roll = Math.random();
     if (active.length === 0 || (inactive.length > 0 && active.length < maxTracks && roll < 0.55)) {
@@ -667,6 +721,7 @@
       </div>
       <div class="btn-row">
         <button class="toggleBtn" data-role="autopilotBtn">🎲 ランダム自動</button>
+        <button class="toggleBtn" data-role="muteBtn">🔇 ランダムミュート</button>
       </div>
 
       <label class="hslider">
@@ -740,6 +795,14 @@
         return;
       }
       setAutopilot(track, !track.autopilot);
+    });
+
+    el.muteBtn.addEventListener("click", () => {
+      if (!audioCtx) {
+        alert("先にマイクを開始してください");
+        return;
+      }
+      setRandomMute(track, !track.randomMute);
     });
 
     el.lenSlider.addEventListener("input", () => {
@@ -1008,6 +1071,7 @@
         track.el.autoBtn.classList.remove("active");
         if (track.autoTimer) clearTimeout(track.autoTimer);
       }
+      if (track.randomMute) setRandomMute(track, false);
       silenceTrack(track);
     });
   });
