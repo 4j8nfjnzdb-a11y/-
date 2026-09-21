@@ -126,6 +126,8 @@
       auto: false,
       autoTimer: null,
       loopMaxSec: 1.0,
+      lenAuto: false,
+      lenTimer: null,
       looperArmed: false,
       looperStartTotal: 0,
       chaosActive: false,
@@ -529,6 +531,23 @@
     track.pitchTimer = setTimeout(() => schedulePitchDrift(track), wait);
   }
 
+  // Randomizes the ループ長 ceiling itself over time — affects only which
+  // range future loop triggers (manual/自動/カオス) draw from, never
+  // pitch, pan, or anything else. The actual trigger/stop timing is still
+  // controlled separately (🎲/自動/固定/カオス).
+  function scheduleLenDrift(track) {
+    if (track.lenTimer) clearTimeout(track.lenTimer);
+    if (!track.lenAuto) return;
+    const target = 0.2 + Math.random() * 7.8; // wide range, ~0.2s..8s
+    track.loopMaxSec = target;
+    if (track.el.lenSlider) {
+      track.el.lenSlider.value = String(Math.min(250, Math.round(target * 10)));
+      track.el.lenLabel.textContent = target.toFixed(1) + "s";
+    }
+    const wait = 2000 + Math.random() * 4000;
+    track.lenTimer = setTimeout(() => scheduleLenDrift(track), wait);
+  }
+
   function updatePitchLabel(track) {
     const st = Math.round(track.pitchSemitones);
     track.el.pitchLabel.textContent = (st > 0 ? "+" : "") + st + " st";
@@ -582,6 +601,9 @@
         <span>ループ長(ランダム用上限) <em data-role="lenLabel">1.0s</em></span>
         <input type="range" min="1" max="250" value="10" data-role="lenSlider" />
       </label>
+      <div class="btn-row">
+        <button class="toggleBtn" data-role="lenAutoBtn">🎲 ランダム長</button>
+      </div>
       <label class="hslider">
         <span>位置(古い←→新しい)</span>
         <input type="range" min="0" max="100" value="80" data-role="posSlider" />
@@ -639,8 +661,16 @@
     });
 
     el.lenSlider.addEventListener("input", () => {
+      track.lenAuto = false;
+      el.lenAutoBtn.classList.remove("active");
+      if (track.lenTimer) clearTimeout(track.lenTimer);
       track.loopMaxSec = +el.lenSlider.value / 10;
       el.lenLabel.textContent = track.loopMaxSec.toFixed(1) + "s";
+    });
+    el.lenAutoBtn.addEventListener("click", () => {
+      track.lenAuto = !track.lenAuto;
+      el.lenAutoBtn.classList.toggle("active", track.lenAuto);
+      if (track.lenAuto) scheduleLenDrift(track); else if (track.lenTimer) clearTimeout(track.lenTimer);
     });
     // Re-trigger the currently playing loop once the user releases the
     // slider, so the new length is actually audible right away instead
