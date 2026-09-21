@@ -73,7 +73,7 @@
   `;
 
   const NUM_TRACKS = 4;
-  const RING_SECONDS = 25; // long enough to hold a real played-in phrase for looper mode
+  const RING_SECONDS = 33; // headroom above the 30s maximum loop length
   const VOICE_FADE = 0.12; // seconds, crossfade when a loop is replaced
   const PARAM_GLIDE = 0.08; // seconds, smoothing for slider-driven params
 
@@ -607,10 +607,10 @@
   function scheduleLenDrift(track) {
     if (track.lenTimer) clearTimeout(track.lenTimer);
     if (!track.lenAuto) return;
-    const target = 0.2 + Math.random() * 7.8; // wide range, ~0.2s..8s
+    const target = 0.15 + Math.pow(Math.random(), 2) * 29.85; // 0.15s..30s, skewed short
     track.loopMaxSec = target;
     if (track.el.lenSlider) {
-      track.el.lenSlider.value = String(Math.min(250, Math.round(target * 10)));
+      track.el.lenSlider.value = String(Math.min(300, Math.round(target * 10)));
       track.el.lenLabel.textContent = target.toFixed(1) + "s";
     }
     const wait = 2000 + Math.random() * 4000;
@@ -670,8 +670,8 @@
       </div>
 
       <label class="hslider">
-        <span>ループ長(ランダム用上限) <em data-role="lenLabel">1.0s</em></span>
-        <input type="range" min="1" max="250" value="10" data-role="lenSlider" />
+        <span>ループ長 最大30秒(ランダム用上限) <em data-role="lenLabel">1.0s</em></span>
+        <input type="range" min="1" max="300" value="10" data-role="lenSlider" />
       </label>
       <div class="btn-row">
         <button class="toggleBtn" data-role="lenAutoBtn">🎲 ランダム長</button>
