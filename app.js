@@ -453,7 +453,7 @@
       const sounding = +track.el.fader.value > 0 && track.voice;
       if (roll < 0.18) {
         // the button simply doesn't get pressed this time
-      } else if (sounding && roll < 0.34) {
+      } else if (sounding && roll < 0.42) {
         silenceTrack(track);
       } else {
         if (+track.el.fader.value === 0) {
