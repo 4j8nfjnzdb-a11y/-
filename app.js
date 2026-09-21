@@ -438,14 +438,14 @@
   // long held drone).
 
   function fireChaosLoop(track) {
-    const maxLen = 0.3 + Math.random() * 4.7; // ceiling itself varies each call
-    const seg = extractRandomSegment(0.08, maxLen);
+    // Draws from [0.08s, the track's own ループ長 slider] — same ceiling
+    // the manual/auto path uses — so the slider actually controls chaos
+    // mode too, instead of being silently overridden every trigger.
+    const seg = extractRandomSegment(0.08, Math.max(0.1, track.loopMaxSec));
     if (!seg) return;
     playSegmentOnTrack(track, seg);
-    const secs = seg.length / seg.sampleRate;
-    track.loopMaxSec = secs;
-    if (track.el.lenSlider) {
-      track.el.lenSlider.value = String(Math.min(250, Math.round(secs * 10)));
+    if (track.el.lenLabel) {
+      const secs = seg.length / seg.sampleRate;
       track.el.lenLabel.textContent = secs.toFixed(2) + "s";
     }
   }
@@ -641,6 +641,12 @@
     el.lenSlider.addEventListener("input", () => {
       track.loopMaxSec = +el.lenSlider.value / 10;
       el.lenLabel.textContent = track.loopMaxSec.toFixed(1) + "s";
+    });
+    // Re-trigger the currently playing loop once the user releases the
+    // slider, so the new length is actually audible right away instead
+    // of only applying on the next manual/auto/chaos re-roll.
+    el.lenSlider.addEventListener("change", () => {
+      if (audioCtx && track.voice) triggerRandomLoop(track);
     });
 
     el.pitchSlider.addEventListener("input", () => {
