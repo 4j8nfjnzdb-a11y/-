@@ -109,9 +109,17 @@
     var AC = window.AudioContext || window.webkitAudioContext;
     ctx = new AC({ latencyHint: 'interactive' });
     var src = '(' + funsaiWorkletCode.toString() + ')();';
-    var url = URL.createObjectURL(new Blob([src], { type: 'application/javascript' }));
-    return ctx.audioWorklet.addModule(url).then(function () {
-      URL.revokeObjectURL(url);
+    /* A blob URL is the efficient path, but on a file:// page the blob gets
+       an opaque origin (blob:null/...) and addModule() refuses it. A data:
+       URL is accepted from both origins, so fall back to it. */
+    var blobUrl = URL.createObjectURL(new Blob([src], { type: 'application/javascript' }));
+    var load = ctx.audioWorklet.addModule(blobUrl)
+      .then(function () { URL.revokeObjectURL(blobUrl); })
+      .catch(function () {
+        URL.revokeObjectURL(blobUrl);
+        return ctx.audioWorklet.addModule('data:application/javascript,' + encodeURIComponent(src));
+      });
+    return load.then(function () {
       node = new AudioWorkletNode(ctx, 'funsai-engine', {
         numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2]
       });
