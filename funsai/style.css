@@ -568,3 +568,15 @@ select.mini { padding: 2px 3px; font-size: 9px; }
 
 .mute.fit { width: 24px; }
 .mute.fit.on { background: #3a3517; border-color: var(--hot); color: var(--hot); }
+
+/* what the selected lane actually holds, so slicing is never a guess */
+.srcSpec {
+  flex: 1 1 100%;
+  margin: 1px 0 0;
+  font-size: 9.5px;
+  line-height: 1.6;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+.srcSpec b { color: var(--hot); font-weight: 700; }
+.srcSpec i { font-style: normal; color: #5c594f; }

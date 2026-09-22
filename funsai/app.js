@@ -122,7 +122,7 @@
   for (var li = 0; li < NLANE; li++) {
     S.lanes.push({
       src: { kind: 'break', id: 'amen', name: 'AMEN' },
-      sliced: true, slices: 16, len: 16, res: 1, role: 0,
+      sliced: true, slices: 16, len: 16, res: 1, role: 0, dur: 0,
       mute: false, keep: false, gain: 0.9, user: false, fit: true,
       ev: newEvents()
     });
@@ -272,8 +272,11 @@
   function identityEvents(ln) {
     var ev = ln.ev;
     for (var i = 0; i < NSTEP; i++) {
-      ev.slice[i] = ln.sliced ? (i % ln.slices) : 0;
-      ev.vel[i] = 3;
+      /* sliced: play the source back in its recorded order, which is what
+         the run 01,02,03... in the tracker means. one shot: every 16th
+         would be a wall, so start on quarter notes. */
+      ev.slice[i] = ln.sliced ? (i % ln.slices) : (i % 4 === 0 ? 0 : -1);
+      ev.vel[i] = ev.slice[i] < 0 ? 0 : 3;
       ev.pitch[i] = 0; ev.rev[i] = 0; ev.rtg[i] = 1;
       ev.racc[i] = 0; ev.fx[i] = 0; ev.fxa[i] = 0;
     }
@@ -286,6 +289,7 @@
     ln.user = false;
     ln.sliced = r.sliced;
     ln.slices = r.slices;
+    ln.dur = r.buf.length / ctx.sampleRate;
     if (!keepEvents) {
       if (r.sliced) { ln.len = r.slices; identityEvents(ln); }
       else { ln.len = 16; identityEvents(ln); }
@@ -330,7 +334,10 @@
         { kind: 'break', id: 'amen', role: 1, res: 1 },
         { kind: 'break', id: 'funky', role: 3, res: 1 },
         { kind: 'break', id: 'think', role: 2, res: 1 },
-        { kind: 'material', id: 'chord', role: 0, res: 0.5 }
+        /* the chord material is already 2 bars long, so res x1 makes one
+           slice exactly one step: rate 1.00 and the harmony sits at its
+           written pitch. res 1/2 would stretch it an octave down. */
+        { kind: 'material', id: 'chord', role: 0, res: 1 }
       ];
       for (i = 0; i < NLANE; i++) {
         var ln = S.lanes[i];
@@ -397,14 +404,18 @@
     var r = audioBuf.numberOfChannels > 1 ? audioBuf.getChannelData(1) : l;
     var cl = new Float32Array(l), cr = new Float32Array(r);
 
+    /* First guess only -- the 切片 selector re-slices afterwards and the
+       spec line states what was chosen, so this is never a hidden decision. */
     var barSec = 60 / S.bpm * 4;
-    var sliced = audioBuf.duration > 0.6;      // anything longer than a hit gets chopped
+    var sliced = audioBuf.duration > 0.6;
     var slices = sliced ? (audioBuf.duration > barSec * 1.5 ? 32 : 16) : 1;
 
     ln.src = { kind: 'user', id: name, name: name };
     ln.user = true;
+    ln.userBuf = audioBuf;                 // kept so re-slicing needs no reload
     ln.sliced = sliced;
     ln.slices = slices;
+    ln.dur = audioBuf.duration;
     ln.fit = true;
     ln.len = sliced ? slices : ln.len;
     identityEvents(ln);
@@ -416,6 +427,20 @@
     buildTracker();
     buildSourceRow();
     flash($('loadLabel'), (i + 1) + '← ' + name.slice(0, 10));
+  }
+
+  /* Change how many pieces the lane's source is cut into, without reloading. */
+  function reslice(n) {
+    var ln = S.lanes[S.sel];
+    ln.sliced = n > 1;
+    ln.slices = Math.max(1, n);
+    ln.len = ln.sliced ? Math.min(NSTEP, ln.slices) : (ln.len || 16);
+    identityEvents(ln);
+    send({ type: 'lane', i: S.sel, sliced: ln.sliced, slices: ln.slices, len: ln.len });
+    sendEvents(S.sel);
+    buildGrid();
+    buildTracker();
+    buildSourceRow();
   }
 
   function pushAllFx() {
@@ -581,6 +606,7 @@
         else ln.fit = !ln.fit;
         holder.classList.toggle('on', act === 'mute' ? ln.mute : act === 'keep' ? ln.keep : ln.fit);
         sendLane(mi);
+        if (mi === S.sel) buildSourceRow();
         return;
       }
       if (!tgt.classList.contains('cell')) return;
@@ -610,6 +636,7 @@
       else if (k === 'res') ln.res = +sel.value;
       else if (k === 'role') ln.role = +sel.value;
       sendLane(ti);
+      if (ti === S.sel) buildSourceRow();
     });
   })();
 
@@ -817,6 +844,37 @@
     }
     $('selLane').textContent = String(S.sel + 1);
     $('patWrap').hidden = S.preset !== 'kit';
+
+    var ss = $('sliceSel');
+    ss.innerHTML = '';
+    [{ v: 1, n: '単発' }, { v: 4, n: '4' }, { v: 8, n: '8' }, { v: 16, n: '16' },
+     { v: 32, n: '32' }, { v: 64, n: '64' }].forEach(function (o) {
+      var op = document.createElement('option');
+      op.value = o.v; op.textContent = o.n;
+      ss.appendChild(op);
+    });
+    ss.value = String(ln.sliced ? ln.slices : 1);
+
+    $('loadLabel').textContent = '読込→層' + (S.sel + 1);
+
+    var spec = $('srcSpec');
+    var dur = ln.dur ? ln.dur.toFixed(2) + '秒' : '—';
+    var stepSec = 60 / S.bpm / 4 / (ln.res || 1) / (S.pos.mul || 1);
+    if (ln.sliced) {
+      var pieceSec = ln.dur / ln.slices;
+      spec.innerHTML = '<b>層' + (S.sel + 1) + '</b> ' + srcLabel(ln.src) + ' · ' + dur +
+        ' を <b>' + ln.slices + '切片</b>（1切片 ' + (pieceSec * 1000).toFixed(0) + 'ms）' +
+        ' · 1歩 ' + (stepSec * 1000).toFixed(0) + 'ms · ' +
+        (ln.fit ? '<b>尺合わせON</b>：切片を1歩に伸縮（' +
+                  (pieceSec / stepSec).toFixed(2) + '倍速＝' +
+                  (12 * Math.log(pieceSec / stepSec) / Math.LN2).toFixed(1) + '半音）'
+                : '尺合わせOFF：等倍・元の音程、1歩で切れる') +
+        ' <i>／追跡の「切」が切片番号</i>';
+    } else {
+      spec.innerHTML = '<b>層' + (S.sel + 1) + '</b> ' + srcLabel(ln.src) + ' · ' + dur +
+        ' · <b>単発</b>（刻まない。毎回先頭から等倍で鳴る）' +
+        ' <i>／音程は追跡の「音」列で変える</i>';
+    }
   }
 
   /* ================================================================== *
@@ -1205,6 +1263,8 @@
       buildTracker();
     });
 
+    $('sliceSel').addEventListener('change', function () { reslice(+this.value); });
+
     $('laneSrc').addEventListener('change', function () {
       var v = this.value;
       if (v === 'user') return;
@@ -1226,6 +1286,7 @@
       S.bpm = +this.value;
       $('bpmv').textContent = S.bpm;
       send({ type: 'bpm', bpm: S.bpm });
+      buildSourceRow();
       clearTimeout(srcTimer);
       srcTimer = setTimeout(rerenderSources, 350);
     });
@@ -1246,6 +1307,7 @@
           S.pos.mul = S.timeMul;
           send({ type: 'timemul', v: S.timeMul });
           paintTimeMul();
+          buildSourceRow();
         });
       })(muls[mi]);
     }
