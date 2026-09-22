@@ -384,12 +384,169 @@
     return body;
   }
 
+  /* ------------------------------------------------------------------ *
+   * Non drum material.
+   *
+   * Chopped at the same resolution as a break, a string swell or a line of
+   * dialogue works as a percussion source. That only holds if the material
+   * MOVES across the bar -- a static pad gives 32 identical slices -- so
+   * each of these changes chord, vowel or register as it goes.
+   * ------------------------------------------------------------------ */
+
+  var MATERIALS = [
+    { id: 'strings', name: '弦', sub: 'STRINGS' },
+    { id: 'chord', name: '和音', sub: 'CHORD' },
+    { id: 'voice', name: '声', sub: 'VOICE' },
+    { id: 'game', name: '電子', sub: 'GAME' },
+    { id: 'metal', name: '金属', sub: 'METAL' }
+  ];
+
+  function lpc(f, sr) { return 1 - Math.exp(-2 * Math.PI * f / sr); }
+  function mtof(m) { return 440 * Math.pow(2, (m - 69) / 12); }
+
+  /* 2 pole resonator, used for vowel formants */
+  function reson(src, out, at, f, bw, sr, gain) {
+    var r = Math.exp(-Math.PI * bw / sr);
+    var th = 2 * Math.PI * f / sr;
+    var b1 = 2 * r * Math.cos(th);
+    var b2 = -r * r;
+    var a0 = (1 - r) * Math.sqrt(1 - 2 * r * Math.cos(2 * th) + r * r);
+    var y1 = 0, y2 = 0;
+    for (var i = 0; i < src.length && at + i < out.length; i++) {
+      var y = a0 * src[i] + b1 * y1 + b2 * y2;
+      y2 = y1; y1 = y;
+      out[at + i] += y * gain;
+    }
+  }
+
+  function renderMaterial(sr, id, bpm, bars) {
+    var spb = sr * 60 / bpm;
+    var total = Math.max(1024, Math.floor(spb * 4 * bars));
+    var out = new Float32Array(total);
+    var st = { s: 20260922 };
+    var i, k, n, ph, f, e, t, at, len;
+
+    if (id === 'strings' || id === 'chord') {
+      var chords = id === 'chord'
+        ? [[45, 52, 57, 60, 64], [43, 50, 55, 59, 62]]
+        : [[57, 60, 64, 69], [53, 57, 60, 65], [55, 59, 62, 67], [52, 55, 60, 64]];
+      var nseg = id === 'chord' ? bars : bars * 2;
+      var segLen = total / nseg;
+      for (var s = 0; s < nseg; s++) {
+        var ch = chords[s % chords.length];
+        at = Math.floor(s * segLen);
+        len = Math.floor(segLen);
+        for (var ni = 0; ni < ch.length; ni++) {
+          f = mtof(ch[ni]);
+          for (var d = -1; d <= 1; d++) {
+            var ff = f * Math.pow(2, d * 0.05 / 12);
+            ph = (ni * 0.17 + d * 0.31) % 1;
+            for (i = 0; i < len && at + i < total; i++) {
+              ph += ff / sr;
+              if (ph >= 1) ph -= 1;
+              t = i / len;
+              e = Math.min(1, t * (id === 'chord' ? 3 : 8)) * Math.min(1, (1 - t) * 10);
+              out[at + i] += (2 * ph - 1) * e * 0.05;
+            }
+          }
+        }
+      }
+      /* slow filter sweep so early and late slices differ in colour */
+      var z = 0;
+      for (i = 0; i < total; i++) {
+        var cf = 400 + 3200 * (0.5 - 0.5 * Math.cos(i / total * Math.PI * 2 * bars));
+        z += (out[i] - z) * lpc(cf, sr);
+        out[i] = z;
+      }
+
+    } else if (id === 'voice') {
+      var VOW = [[730, 1090, 2440], [530, 1840, 2480], [270, 2290, 3010],
+                 [570, 840, 2410], [300, 870, 2240]];
+      var notes = [57, 60, 59, 62, 57, 55, 64, 60];
+      var nsyl = bars * 6;
+      var sylLen = total / nsyl;
+      for (k = 0; k < nsyl; k++) {
+        at = Math.floor(k * sylLen);
+        len = Math.floor(sylLen * 0.82);
+        var src = new Float32Array(len);
+        f = mtof(notes[k % notes.length] - 12);
+        ph = 0;
+        for (i = 0; i < len; i++) {
+          t = i / len;
+          ph += (f * (1 + 0.012 * Math.sin(t * 40))) / sr;
+          if (ph >= 1) ph -= 1;
+          e = Math.min(1, t * 12) * Math.min(1, (1 - t) * 6);
+          src[i] = (ph < 0.06 ? 1 : -0.04) * e;      // glottal-ish pulse
+        }
+        var vw = VOW[k % VOW.length];
+        reson(src, out, at, vw[0], 70, sr, 1.0);
+        reson(src, out, at, vw[1], 95, sr, 0.55);
+        reson(src, out, at, vw[2], 130, sr, 0.28);
+      }
+
+    } else if (id === 'game') {
+      var scale = [0, 3, 5, 7, 10, 12, 15, 19, 22];
+      var nb = bars * 16;
+      var bl = total / nb;
+      for (k = 0; k < nb; k++) {
+        at = Math.floor(k * bl);
+        len = Math.floor(bl * 0.9);
+        if ((st.s = (Math.imul(st.s, 1664525) + 1013904223) | 0, (st.s >>> 0) / 4294967296) < 0.16) {
+          for (i = 0; i < len && at + i < total; i++) {      // noise blip
+            e = Math.pow(1 - i / len, 4);
+            out[at + i] += noise(st) * e * 0.5;
+          }
+          continue;
+        }
+        var base = 60 + scale[k % scale.length] + (k % 4 === 0 ? 12 : 0);
+        var arp = [0, 4, 7];
+        for (i = 0, ph = 0; i < len && at + i < total; i++) {
+          t = i / len;
+          var step3 = Math.floor(t * 3);
+          f = mtof(base + arp[step3 % 3]);
+          ph += f / sr;
+          if (ph >= 1) ph -= 1;
+          e = Math.pow(1 - t, 1.6);
+          out[at + i] += (ph < 0.5 ? 0.42 : -0.42) * e;
+        }
+      }
+      crush(out, 6, 2);
+
+    } else {   /* metal */
+      var nh = bars * 8;
+      var hl = total / nh;
+      for (k = 0; k < nh; k++) {
+        at = Math.floor(k * hl);
+        var dur = hl * (0.4 + (k % 3) * 0.3);
+        n = Math.floor(dur);
+        var ratios = [1, 1.37 + (k % 5) * 0.11, 1.93, 2.61, 3.43, 4.77];
+        var mm = metal(sr, n, 160 + (k % 4) * 95, ratios, st);
+        for (i = 0; i < n && at + i < total; i++) {
+          e = Math.pow(1 - i / n, 2.4);
+          out[at + i] += (mm[i] * 0.6 + noise(st) * 0.4) * e * 0.8;
+        }
+      }
+      hp(out, 0.35);
+    }
+
+    normalize(out, 0.9);
+    return out;
+  }
+
+  function getMaterial(id) {
+    for (var i = 0; i < MATERIALS.length; i++) if (MATERIALS[i].id === id) return MATERIALS[i];
+    return MATERIALS[0];
+  }
+
   global.FunsaiKits = {
     KITS: KITS,
     PATTERNS: PATTERNS,
+    MATERIALS: MATERIALS,
     buildKit: buildKit,
     patternGrid: patternGrid,
     renderBreak: renderBreak,
-    getPattern: getPattern
+    renderMaterial: renderMaterial,
+    getPattern: getPattern,
+    getMaterial: getMaterial
   };
 })(typeof window !== 'undefined' ? window : globalThis);

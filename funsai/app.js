@@ -2,6 +2,9 @@
 (function () {
   'use strict';
 
+  var NSTEP = 64;
+  var NLANE = 4;
+
   var DIVS = [2, 1.5, 1, 0.75, 0.5, 0.375, 0.25, 0.1875, 0.125, 0.09375, 0.0625, 0.03125];
   var DIVN = ['1/2', '1/4.', '1/4', '1/8.', '1/8', '1/16.', '1/16', '1/32.', '1/32', '1/64.', '1/64', '1/128'];
   var ODDS = [3, 5, 7, 9, 11, 13, 15, 17];
@@ -20,6 +23,7 @@
     return t < 1 ? Math.round(t * 1000) + 'ms' : t.toFixed(2) + 's';
   }
   function semis(rate) { return (12 * Math.log(rate) / Math.LN2).toFixed(1); }
+  function pad2(v) { var s = String(Math.abs(v)); return s.length < 2 ? '0' + s : s; }
 
   /* --- the 16 pads -------------------------------------------------- */
   var PADS = [
@@ -66,33 +70,68 @@
   ];
 
   var KEYS = '1234qwerasdfzxcv';
-  var TRACKS = [
-    { jp: 'バス', en: 'BD' },
-    { jp: 'ハット', en: 'HH' },
-    { jp: 'スネア', en: 'SD' },
-    { jp: 'シンバル', en: 'CY' }
+  var DRUMS = [{ k: 'bd', n: 'BD', jp: 'バス' }, { k: 'hh', n: 'HH', jp: 'ハット' },
+               { k: 'sd', n: 'SD', jp: 'スネア' }, { k: 'cy', n: 'CY', jp: 'シンバル' }];
+  var ROLES = [{ v: 0, n: '全' }, { v: 1, n: '低' }, { v: 2, n: '中' }, { v: 3, n: '高' }];
+  var RES = [{ v: 0.5, n: '½' }, { v: 1, n: '×1' }, { v: 1.5, n: '1.5' },
+             { v: 2, n: '×2' }, { v: 3, n: '×3' }, { v: 4, n: '×4' }];
+  var LENS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 20, 24, 32, 48, 64];
+
+  /* per hit destruction, matching engine voice fx ids */
+  var HITFX = ['··', '砕', '歪', '濾', '環', '停', '飛'];
+  var HITFXN = ['なし', 'ビット粉砕', '歪ませる', 'フィルタ', 'リング', 'テープ停止', '音飛び'];
+
+  /* tracker columns */
+  var TCOLS = [
+    { k: 'slice', n: '切', lo: -1, hi: 31 },
+    { k: 'pitch', n: '音', lo: -24, hi: 24 },
+    { k: 'rev', n: '逆', lo: 0, hi: 1 },
+    { k: 'rtg', n: '連', lo: 1, hi: 16 },
+    { k: 'racc', n: '速', lo: -4, hi: 4 },
+    { k: 'fx', n: '加', lo: 0, hi: 6 },
+    { k: 'fxa', n: '量', lo: 0, hi: 15 }
   ];
-  var RES = [
-    { v: 0.5, n: '½' }, { v: 1, n: '×1' }, { v: 1.5, n: '×1.5' },
-    { v: 2, n: '×2' }, { v: 3, n: '×3' }, { v: 4, n: '×4' }
+
+  var RWFLAGS = [
+    { k: 'slice', n: '切片' }, { k: 'pitch', n: '音程' }, { k: 'rev', n: '逆' },
+    { k: 'rtg', n: '連打' }, { k: 'fx', n: '加工' }, { k: 'rest', n: '抜き' },
+    { k: 'meter', n: '拍子' }, { k: 'half', n: '倍速' }, { k: 'drop', n: '無音' }
   ];
 
   /* --- state --------------------------------------------------------- */
-  var S = {
-    mode: 'mono', bpm: 174, swing: 0, playing: false,
-    kit: 'niku', pat: 'amen', target: 4,
-    latch: false, xyhold: false, auto: false, autoAmt: 0.35,
-    slices: 32, monoLen: 32, fit: true,
-    slot: new Int16Array(32), on: new Uint8Array(32), rev: new Uint8Array(32),
-    tracks: [], fx: [], peaks: [0, 0, 0, 0, 0],
-    pos: { mono: -1, t: [-1, -1, -1, -1] }
-  };
-  for (var t = 0; t < 4; t++) {
-    S.tracks.push({ pat: new Uint8Array(32), len: 16, res: 1, mute: false });
+  function newEvents() {
+    return {
+      slice: new Int8Array(NSTEP), vel: new Uint8Array(NSTEP),
+      pitch: new Int8Array(NSTEP), rev: new Uint8Array(NSTEP),
+      rtg: new Uint8Array(NSTEP), racc: new Int8Array(NSTEP),
+      fx: new Uint8Array(NSTEP), fxa: new Uint8Array(NSTEP)
+    };
   }
-  for (var c = 0; c < 5; c++) {
+
+  var S = {
+    preset: 'layers', bpm: 174, swing: 0, playing: false, timeMul: 1,
+    kit: 'niku', pat: 'amen', target: 4, sel: 0, view: 'grid',
+    latch: false, xyhold: false, auto: false, autoAmt: 0.35,
+    rw: { on: false, amt: 0.4,
+          flags: { slice: true, pitch: true, rev: true, rtg: true, fx: true,
+                   rest: true, meter: false, half: false, drop: true } },
+    lanes: [], fx: [], peaks: [0, 0, 0, 0, 0],
+    pos: { steps: [-1, -1, -1, -1], eff: [16, 16, 16, 16], drop: false, mul: 1 }
+  };
+
+  for (var li = 0; li < NLANE; li++) {
+    S.lanes.push({
+      src: { kind: 'break', id: 'amen', name: 'AMEN' },
+      sliced: true, slices: 16, len: 16, res: 1, role: 0,
+      mute: false, keep: false, gain: 0.9, user: false, fit: true,
+      ev: newEvents()
+    });
+  }
+  for (var ci = 0; ci < 5; ci++) {
     var o = {};
-    for (var p = 0; p < PADS.length; p++) o[PADS[p].id] = { on: false, auto: false, x: 0.5, y: 0.5 };
+    for (var pi = 0; pi < PADS.length; pi++) {
+      o[PADS[pi].id] = { on: false, auto: false, rnd: false, x: 0.5, y: 0.5 };
+    }
     S.fx.push(o);
   }
 
@@ -141,11 +180,10 @@
 
       send({ type: 'bpm', bpm: S.bpm });
       send({ type: 'swing', swing: S.swing });
-      send({ type: 'mode', mode: S.mode });
-      loadKit(S.kit);
-      loadBreak();
-      loadGrid(S.pat);
+      send({ type: 'timemul', v: S.timeMul });
+      applyPreset(S.preset, true);
       pushAllFx();
+      sendRewrite();
     });
   }
 
@@ -158,13 +196,23 @@
   function onEngine(e) {
     var m = e.data;
     if (m.type === 'pos') {
-      S.pos.mono = m.mono;
-      S.pos.t = m.t;
+      S.pos.steps = m.steps;
+      S.pos.eff = m.eff;
+      S.pos.drop = m.drop;
       S.peaks = m.peaks;
+      if (m.mul !== S.pos.mul) { S.pos.mul = m.mul; paintTimeMul(); }
+      if (m.rnd) {
+        for (var i = 0; i < m.rnd.length; i++) {
+          var r = m.rnd[i];
+          var f = S.fx[r.t][r.id];
+          f.x = r.x; f.y = r.y;
+          if (r.t === S.target) paintPad(r.id);
+        }
+      }
     } else if (m.type === 'autopad') {
-      var f = S.fx[m.target][m.id];
-      f.auto = m.on;
-      if (m.on) { f.x = m.x; f.y = m.y; }
+      var af = S.fx[m.target][m.id];
+      af.auto = m.on;
+      if (m.on) { af.x = m.x; af.y = m.y; }
       if (m.target === S.target) paintPad(m.id);
       paintTargetActivity();
     }
@@ -184,6 +232,9 @@
     }
   }
 
+  /* ================================================================== *
+   * sources
+   * ================================================================== */
   var kitCache = {};
   function buildKitCached(id) {
     var key = id + '@' + ctx.sampleRate;
@@ -191,82 +242,180 @@
     return kitCache[key];
   }
 
-  function loadKit(id) {
-    var k = buildKitCached(id);
-    var order = [k.bd, k.hh, k.sd, k.cy];
-    for (var i = 0; i < 4; i++) {
-      var copy = new Float32Array(order[i]);
-      send({ type: 'kitbuf', slot: i, l: copy }, [copy.buffer]);
+  function srcLabel(src) {
+    if (src.kind === 'user') return '⤒ ' + src.name;
+    if (src.kind === 'break') return FunsaiKits.getPattern(src.id).name;
+    if (src.kind === 'material') {
+      var m = FunsaiKits.getMaterial(src.id);
+      return m.name + ' ' + m.sub;
+    }
+    for (var i = 0; i < DRUMS.length; i++) if (DRUMS[i].k === src.id) return DRUMS[i].n;
+    return '—';
+  }
+
+  function renderSource(kind, id) {
+    var sr = ctx.sampleRate;
+    if (kind === 'break') {
+      var p = FunsaiKits.getPattern(id);
+      return { buf: FunsaiKits.renderBreak(sr, S.kit, id, S.bpm),
+               slices: Math.min(32, p.bars * 16), sliced: true };
+    }
+    if (kind === 'material') {
+      var bars = id === 'chord' ? 2 : 1;
+      return { buf: FunsaiKits.renderMaterial(sr, id, S.bpm, bars),
+               slices: Math.min(32, bars * 16), sliced: true };
+    }
+    return { buf: buildKitCached(S.kit)[id], slices: 1, sliced: false };
+  }
+
+  /* identity slice run: reproduces the source as recorded */
+  function identityEvents(ln) {
+    var ev = ln.ev;
+    for (var i = 0; i < NSTEP; i++) {
+      ev.slice[i] = ln.sliced ? (i % ln.slices) : 0;
+      ev.vel[i] = 3;
+      ev.pitch[i] = 0; ev.rev[i] = 0; ev.rtg[i] = 1;
+      ev.racc[i] = 0; ev.fx[i] = 0; ev.fxa[i] = 0;
     }
   }
 
-  var breakTimer = null;
-  function loadBreak(keepSeq) {
-    if (!booted) return;
-    var buf = FunsaiKits.renderBreak(ctx.sampleRate, S.kit, S.pat, S.bpm);
-    var pat = FunsaiKits.getPattern(S.pat);
-    var sl = Math.min(32, pat.bars * 16);
-    var changed = sl !== S.slices;
-    S.slices = sl;
-    if (!keepSeq || changed) {
-      S.monoLen = sl;
-      for (var i = 0; i < 32; i++) {
-        S.slot[i] = i % sl;
-        S.on[i] = 1;
-        S.rev[i] = 0;
+  function setLaneSource(i, kind, id, keepEvents) {
+    var ln = S.lanes[i];
+    var r = renderSource(kind, id);
+    ln.src = { kind: kind, id: id };
+    ln.user = false;
+    ln.sliced = r.sliced;
+    ln.slices = r.slices;
+    if (!keepEvents) {
+      if (r.sliced) { ln.len = r.slices; identityEvents(ln); }
+      else { ln.len = 16; identityEvents(ln); }
+    }
+    var copy = new Float32Array(r.buf);
+    send({ type: 'lanebuf', i: i, l: copy, slices: r.slices, sliced: r.sliced }, [copy.buffer]);
+    sendLane(i);
+    sendEvents(i);
+  }
+
+  function sendLane(i) {
+    var ln = S.lanes[i];
+    send({ type: 'lane', i: i, sliced: ln.sliced, slices: ln.slices, len: ln.len,
+           res: ln.res, role: ln.role, gain: ln.gain, mute: ln.mute,
+           keep: ln.keep, fit: ln.fit });
+  }
+
+  function sendEvents(i) {
+    var ev = S.lanes[i].ev;
+    send({ type: 'events', i: i,
+           slice: Array.prototype.slice.call(ev.slice),
+           vel: Array.prototype.slice.call(ev.vel),
+           pitch: Array.prototype.slice.call(ev.pitch),
+           rev: Array.prototype.slice.call(ev.rev),
+           rtg: Array.prototype.slice.call(ev.rtg),
+           racc: Array.prototype.slice.call(ev.racc),
+           fx: Array.prototype.slice.call(ev.fx),
+           fxa: Array.prototype.slice.call(ev.fxa) });
+  }
+
+  function sendRewrite() {
+    send({ type: 'rewrite', on: S.rw.on, amt: S.rw.amt, flags: S.rw.flags });
+  }
+
+  /* LAYERS: several drummers at once, split by register, plus a harmony
+     layer that survives the drops. KIT: four one shot drums. */
+  function applyPreset(name, initial) {
+    S.preset = name;
+    var i;
+    if (name === 'layers') {
+      var plan = [
+        { kind: 'break', id: 'amen', role: 1, res: 1 },
+        { kind: 'break', id: 'funky', role: 3, res: 1 },
+        { kind: 'break', id: 'think', role: 2, res: 1 },
+        { kind: 'material', id: 'chord', role: 0, res: 0.5 }
+      ];
+      for (i = 0; i < NLANE; i++) {
+        var ln = S.lanes[i];
+        ln.role = plan[i].role;
+        ln.res = plan[i].res;
+        ln.mute = false;
+        ln.keep = i === 3;
+        ln.gain = i === 3 ? 0.5 : 0.78;   // three breaks stack: leave headroom
+        setLaneSource(i, plan[i].kind, plan[i].id);
       }
-      buildSlices();
-      fillMonoLen();
+    } else {
+      for (i = 0; i < NLANE; i++) {
+        var l2 = S.lanes[i];
+        l2.role = 0; l2.res = 1; l2.mute = false; l2.keep = false; l2.gain = 0.9;
+        setLaneSource(i, 'drum', DRUMS[i].k);
+      }
+      applyPattern(S.pat);
     }
-    send({ type: 'monobuf', l: buf, slices: sl }, [buf.buffer]);
-    sendMono();
+    if (!initial) { S.sel = 0; }
+    buildGrid();
+    buildTracker();
+    buildTargets();
+    buildSourceRow();
   }
 
-  function loadUserBuffer(audioBuf) {
+  /* fill the four one shot lanes from a drum pattern */
+  function applyPattern(id) {
+    var g = FunsaiKits.patternGrid(id);
+    for (var i = 0; i < NLANE; i++) {
+      var ln = S.lanes[i];
+      if (ln.sliced) continue;                 // a sliced lane has no drum grid
+      var row = g.grid[i].pat;
+      ln.len = g.grid[i].len;
+      ln.res = g.grid[i].res || 1;
+      for (var s = 0; s < NSTEP; s++) {
+        var v = s < row.length ? row[s] : 0;
+        ln.ev.slice[s] = v > 0 ? 0 : -1;
+        ln.ev.vel[s] = v > 0 ? v : 0;
+        ln.ev.pitch[s] = 0; ln.ev.rev[s] = 0; ln.ev.rtg[s] = 1;
+        ln.ev.racc[s] = 0; ln.ev.fx[s] = 0; ln.ev.fxa[s] = 0;
+      }
+      sendLane(i);
+      sendEvents(i);
+    }
+  }
+
+  /* re-render built in sources at the new tempo; never touch a user file */
+  var srcTimer = null;
+  function rerenderSources() {
+    for (var i = 0; i < NLANE; i++) {
+      var ln = S.lanes[i];
+      if (ln.user) continue;                   // the reported bug: don't clobber loads
+      if (ln.src.kind === 'drum') continue;    // one shots don't follow tempo
+      var r = renderSource(ln.src.kind, ln.src.id);
+      var copy = new Float32Array(r.buf);
+      send({ type: 'lanebuf', i: i, l: copy, slices: r.slices, sliced: r.sliced }, [copy.buffer]);
+    }
+  }
+
+  function loadUserBuffer(audioBuf, name) {
+    var i = S.sel;
+    var ln = S.lanes[i];
     var l = audioBuf.getChannelData(0);
     var r = audioBuf.numberOfChannels > 1 ? audioBuf.getChannelData(1) : l;
     var cl = new Float32Array(l), cr = new Float32Array(r);
-    if (S.mode === 'mono') {
-      var barSec = 60 / S.bpm * 4;
-      var sl = audioBuf.duration > barSec * 1.5 ? 32 : 16;
-      S.slices = sl;
-      S.monoLen = sl;
-      for (var i = 0; i < 32; i++) { S.slot[i] = i % sl; S.on[i] = 1; S.rev[i] = 0; }
-      S.fit = true;
-      $('fit').checked = true;
-      buildSlices();
-      fillMonoLen();
-      send({ type: 'monobuf', l: cl, r: cr, slices: sl }, [cl.buffer, cr.buffer]);
-      sendMono();
-    } else {
-      var slot = S.target < 4 ? S.target : 0;
-      send({ type: 'kitbuf', slot: slot, l: cl, r: cr }, [cl.buffer, cr.buffer]);
-      send({ type: 'trig', track: slot });
-      flash($('loadLabel'), TRACKS[slot].en + ' ←');
-    }
-  }
 
-  function sendMono() {
-    var seq = [];
-    for (var i = 0; i < 32; i++) seq.push(S.on[i] ? S.slot[i] : -1);
-    send({ type: 'monopat', seq: seq, rev: Array.prototype.slice.call(S.rev), len: S.monoLen, fit: S.fit });
-  }
+    var barSec = 60 / S.bpm * 4;
+    var sliced = audioBuf.duration > 0.6;      // anything longer than a hit gets chopped
+    var slices = sliced ? (audioBuf.duration > barSec * 1.5 ? 32 : 16) : 1;
 
-  function sendTrack(i) {
-    var tr = S.tracks[i];
-    send({ type: 'pattern', track: i, pat: Array.prototype.slice.call(tr.pat), len: tr.len, res: tr.res });
-    send({ type: 'trackparam', track: i, mute: tr.mute });
-  }
+    ln.src = { kind: 'user', id: name, name: name };
+    ln.user = true;
+    ln.sliced = sliced;
+    ln.slices = slices;
+    ln.fit = true;
+    ln.len = sliced ? slices : ln.len;
+    identityEvents(ln);
 
-  function loadGrid(id) {
-    var g = FunsaiKits.patternGrid(id);
-    for (var i = 0; i < 4; i++) {
-      S.tracks[i].pat = g.grid[i].pat;
-      S.tracks[i].len = g.grid[i].len;
-      S.tracks[i].res = g.grid[i].res || 1;
-    }
+    send({ type: 'lanebuf', i: i, l: cl, r: cr, slices: slices, sliced: sliced }, [cl.buffer, cr.buffer]);
+    sendLane(i);
+    sendEvents(i);
     buildGrid();
-    for (var j = 0; j < 4; j++) sendTrack(j);
+    buildTracker();
+    buildSourceRow();
+    flash($('loadLabel'), (i + 1) + '← ' + name.slice(0, 10));
   }
 
   function pushAllFx() {
@@ -275,173 +424,120 @@
         var id = PADS[i].id;
         var f = S.fx[tg][id];
         send({ type: 'fxxy', target: tg, id: id, x: f.x, y: f.y });
+        if (f.rnd) send({ type: 'fxrnd', target: tg, id: id, on: true });
       }
     }
   }
 
   /* ================================================================== *
-   * slice sequencer (MONO)
-   * ================================================================== */
-  var sliceEls = [];
-  function buildSlices() {
-    var host = $('slices');
-    host.innerHTML = '';
-    sliceEls = [];
-    for (var i = 0; i < S.monoLen; i++) {
-      var el = document.createElement('div');
-      el.className = 'slice';
-      el.dataset.i = i;
-      var n = document.createElement('b');
-      el.appendChild(n);
-      host.appendChild(el);
-      sliceEls.push(el);
-    }
-    paintSlices();
-  }
-
-  function paintSlices() {
-    for (var i = 0; i < sliceEls.length; i++) {
-      var el = sliceEls[i];
-      el.classList.toggle('off', !S.on[i]);
-      el.classList.toggle('rev', !!S.rev[i]);
-      el.classList.toggle('moved', S.slot[i] !== i % S.slices);
-      el.firstChild.textContent = S.on[i] ? (S.slot[i] + 1) : '·';
-    }
-  }
-
-  function fillMonoLen() {
-    var sel = $('monoLen');
-    sel.innerHTML = '';
-    var opts = [4, 5, 6, 7, 8, 9, 11, 12, 13, 15, 16, 24, 32];
-    for (var i = 0; i < opts.length; i++) {
-      if (opts[i] > 32) continue;
-      var op = document.createElement('option');
-      op.value = opts[i];
-      op.textContent = opts[i];
-      sel.appendChild(op);
-    }
-    sel.value = String(S.monoLen);
-  }
-
-  (function sliceInput() {
-    var host = $('slices');
-    var drag = null;
-    host.addEventListener('pointerdown', function (e) {
-      var el = e.target.closest ? e.target.closest('.slice') : null;
-      if (!el) return;
-      host.setPointerCapture(e.pointerId);
-      drag = { el: el, i: +el.dataset.i, y: e.clientY, base: S.slot[+el.dataset.i], moved: false };
-      e.preventDefault();
-    });
-    host.addEventListener('pointermove', function (e) {
-      if (!drag) return;
-      var dy = drag.y - e.clientY;
-      if (Math.abs(dy) < 9) return;
-      drag.moved = true;
-      var d = Math.round(dy / 13);
-      var v = drag.base + d;
-      v = ((v % S.slices) + S.slices) % S.slices;
-      if (v !== S.slot[drag.i]) {
-        S.slot[drag.i] = v;
-        S.on[drag.i] = 1;
-        paintSlices();
-        sendMono();
-      }
-    });
-    function end() {
-      if (!drag) return;
-      if (!drag.moved) {
-        var i = drag.i;
-        if (S.on[i] && !S.rev[i]) S.rev[i] = 1;
-        else if (S.on[i] && S.rev[i]) { S.on[i] = 0; S.rev[i] = 0; }
-        else { S.on[i] = 1; S.rev[i] = 0; }
-        paintSlices();
-        sendMono();
-      }
-      drag = null;
-    }
-    host.addEventListener('pointerup', end);
-    host.addEventListener('pointercancel', end);
-  })();
-
-  /* ================================================================== *
-   * step grid (KIT)
+   * lane grid (quick editor)
    * ================================================================== */
   var gridRows = [];
   function buildGrid() {
     var host = $('grid');
+    if (!host) return;
     host.innerHTML = '';
     gridRows = [];
-    for (var i = 0; i < 4; i++) {
-      var tr = S.tracks[i];
+    for (var i = 0; i < NLANE; i++) {
+      var ln = S.lanes[i];
       var row = document.createElement('div');
-      row.className = 'row';
+      row.className = 'row' + (i === S.sel ? ' sel' : '');
+      row.dataset.lane = i;
 
       var head = document.createElement('div');
       head.className = 'rowHead';
 
       var nm = document.createElement('button');
       nm.className = 'trName';
-      nm.innerHTML = '<b>' + TRACKS[i].en + '</b><em>' + TRACKS[i].jp + '</em>';
-      nm.dataset.track = i;
+      nm.innerHTML = '<b>' + (i + 1) + '</b><em>' + srcLabel(ln.src) + '</em>';
+      nm.dataset.lane = i;
+      nm.dataset.act = 'sel';
       head.appendChild(nm);
 
-      var lenSel = document.createElement('select');
-      lenSel.className = 'mini';
-      [4, 5, 6, 7, 8, 9, 11, 12, 13, 15, 16, 24, 32].forEach(function (v) {
-        var op = document.createElement('option');
-        op.value = v; op.textContent = v;
-        lenSel.appendChild(op);
-      });
-      lenSel.value = String(tr.len);
-      lenSel.dataset.track = i;
-      lenSel.dataset.kind = 'len';
-      head.appendChild(lenSel);
-
-      var resSel = document.createElement('select');
-      resSel.className = 'mini';
-      RES.forEach(function (r) {
-        var op = document.createElement('option');
-        op.value = r.v; op.textContent = r.n;
-        resSel.appendChild(op);
-      });
-      resSel.value = String(tr.res);
-      resSel.dataset.track = i;
-      resSel.dataset.kind = 'res';
-      head.appendChild(resSel);
+      head.appendChild(mkSel(i, 'role', ROLES, ln.role, '役'));
+      head.appendChild(mkSel(i, 'len', LENS.map(function (v) { return { v: v, n: v }; }), ln.len, '長'));
+      head.appendChild(mkSel(i, 'res', RES, ln.res, '速'));
 
       var mute = document.createElement('button');
-      mute.className = 'mute' + (tr.mute ? ' on' : '');
+      mute.className = 'mute' + (ln.mute ? ' on' : '');
       mute.textContent = 'M';
-      mute.dataset.track = i;
+      mute.dataset.lane = i;
+      mute.dataset.act = 'mute';
       head.appendChild(mute);
+
+      var fit = document.createElement('button');
+      fit.className = 'mute fit' + (ln.fit ? ' on' : '');
+      fit.textContent = '尺';
+      fit.title = '切片を1ステップ長に合わせる（切ると元の速さ・音程のまま鳴る）';
+      fit.dataset.lane = i;
+      fit.dataset.act = 'fit';
+      head.appendChild(fit);
+
+      var keep = document.createElement('button');
+      keep.className = 'mute keep' + (ln.keep ? ' on' : '');
+      keep.textContent = '残';
+      keep.title = '無音ドロップでも鳴らし続ける';
+      keep.dataset.lane = i;
+      keep.dataset.act = 'keep';
+      head.appendChild(keep);
 
       row.appendChild(head);
 
       var cells = document.createElement('div');
       cells.className = 'cells';
-      cells.dataset.track = i;
-      for (var s = 0; s < tr.len; s++) {
+      for (var s = 0; s < ln.len; s++) {
         var cell = document.createElement('div');
         cell.className = 'cell';
-        cell.dataset.track = i;
+        cell.dataset.lane = i;
         cell.dataset.step = s;
         cells.appendChild(cell);
       }
       row.appendChild(cells);
       host.appendChild(row);
-      gridRows.push({ cells: cells, nodes: cells.children });
+      gridRows.push({ nodes: cells.children });
     }
     paintGrid();
+  }
+
+  function mkSel(lane, kind, opts, val, title) {
+    var sel = document.createElement('select');
+    sel.className = 'mini';
+    sel.title = title;
+    opts.forEach(function (o) {
+      var op = document.createElement('option');
+      op.value = o.v; op.textContent = o.n;
+      sel.appendChild(op);
+    });
+    sel.value = String(val);
+    sel.dataset.lane = lane;
+    sel.dataset.kind = kind;
+    return sel;
   }
 
   function paintGrid() {
     for (var i = 0; i < gridRows.length; i++) {
       var nodes = gridRows[i].nodes;
-      var tr = S.tracks[i];
+      var ln = S.lanes[i];
+      var ev = ln.ev;
       for (var s = 0; s < nodes.length; s++) {
-        var v = tr.pat[s];
-        nodes[s].className = 'cell' + (v === 3 ? ' hit' : v === 2 ? ' ghost' : '');
+        var c = 'cell';
+        var on = ev.slice[s] >= 0;
+        if (on) c += ev.vel[s] >= 3 ? ' hit' : ' ghost';
+        if (ev.rtg[s] > 1) c += ' rtg';
+        if (ev.fx[s] > 0) c += ' hfx';
+        if (ev.rev[s]) c += ' rv';
+        var node = nodes[s];
+        node.className = c;
+        /* On a sliced lane every step fires, so on/off says nothing. Shade
+           by slice index instead: the untouched run reads as a smooth ramp
+           and any reordering shows up as noise. */
+        if (on && ln.sliced) {
+          var t = ln.slices > 1 ? ev.slice[s] / (ln.slices - 1) : 0;
+          var lig = (ev.vel[s] >= 3 ? 27 : 18) + t * 42;
+          node.style.background = 'hsl(' + (55 - t * 30) + ',' + (58 + t * 20) + '%,' + lig + '%)';
+        } else if (node.style.background) {
+          node.style.background = '';
+        }
       }
     }
   }
@@ -454,29 +550,43 @@
       return el && el.classList && el.classList.contains('cell') ? el : null;
     }
     function apply(el, v) {
-      var ti = +el.dataset.track, si = +el.dataset.step;
-      if (S.tracks[ti].pat[si] === v) return;
-      S.tracks[ti].pat[si] = v;
+      var ti = +el.dataset.lane, si = +el.dataset.step;
+      var ev = S.lanes[ti].ev;
+      var cur = ev.slice[si] >= 0 ? ev.vel[si] : 0;
+      if (cur === v) return;
+      if (v === 0) { ev.slice[si] = -1; ev.vel[si] = 0; }
+      else {
+        if (ev.slice[si] < 0) ev.slice[si] = S.lanes[ti].sliced ? (si % S.lanes[ti].slices) : 0;
+        ev.vel[si] = v;
+      }
       paintGrid();
-      sendTrack(ti);
+      paintTracker();
+      sendEvents(ti);
     }
     host.addEventListener('pointerdown', function (e) {
       var tgt = e.target;
-      if (tgt.classList.contains('trName') || (tgt.parentElement && tgt.parentElement.classList.contains('trName'))) {
-        var b = tgt.classList.contains('trName') ? tgt : tgt.parentElement;
-        send({ type: 'trig', track: +b.dataset.track });
+      var act = tgt.dataset ? tgt.dataset.act : null;
+      if (!act && tgt.parentElement && tgt.parentElement.dataset) act = tgt.parentElement.dataset.act;
+      var holder = act ? (tgt.dataset && tgt.dataset.act ? tgt : tgt.parentElement) : null;
+      if (act === 'sel') {
+        selectLane(+holder.dataset.lane);
+        send({ type: 'trig', i: +holder.dataset.lane });
         return;
       }
-      if (tgt.classList.contains('mute')) {
-        var mi = +tgt.dataset.track;
-        S.tracks[mi].mute = !S.tracks[mi].mute;
-        tgt.classList.toggle('on', S.tracks[mi].mute);
-        sendTrack(mi);
+      if (act === 'mute' || act === 'keep' || act === 'fit') {
+        var mi = +holder.dataset.lane;
+        var ln = S.lanes[mi];
+        if (act === 'mute') ln.mute = !ln.mute;
+        else if (act === 'keep') ln.keep = !ln.keep;
+        else ln.fit = !ln.fit;
+        holder.classList.toggle('on', act === 'mute' ? ln.mute : act === 'keep' ? ln.keep : ln.fit);
+        sendLane(mi);
         return;
       }
       if (!tgt.classList.contains('cell')) return;
-      var ti = +tgt.dataset.track, si = +tgt.dataset.step;
-      var cur = S.tracks[ti].pat[si];
+      var ti = +tgt.dataset.lane, si = +tgt.dataset.step;
+      var ev = S.lanes[ti].ev;
+      var cur = ev.slice[si] >= 0 ? ev.vel[si] : 0;
       paint = cur === 0 ? 3 : cur === 3 ? 2 : 0;
       host.setPointerCapture(e.pointerId);
       apply(tgt, paint);
@@ -493,16 +603,221 @@
     host.addEventListener('change', function (e) {
       var sel = e.target;
       if (sel.tagName !== 'SELECT') return;
-      var ti = +sel.dataset.track;
-      if (sel.dataset.kind === 'len') {
-        S.tracks[ti].len = +sel.value;
-        buildGrid();
-      } else {
-        S.tracks[ti].res = +sel.value;
-      }
-      sendTrack(ti);
+      var ti = +sel.dataset.lane;
+      var ln = S.lanes[ti];
+      var k = sel.dataset.kind;
+      if (k === 'len') { ln.len = +sel.value; buildGrid(); buildTracker(); }
+      else if (k === 'res') ln.res = +sel.value;
+      else if (k === 'role') ln.role = +sel.value;
+      sendLane(ti);
     });
   })();
+
+  function selectLane(i) {
+    S.sel = i;
+    var rows = document.querySelectorAll('#grid .row');
+    for (var r = 0; r < rows.length; r++) rows[r].classList.toggle('sel', +rows[r].dataset.lane === i);
+    buildTracker();
+    buildSourceRow();
+  }
+
+  /* ================================================================== *
+   * tracker (per hit editor)
+   * ================================================================== */
+  var trkCells = [];
+  function buildTracker() {
+    var host = $('tracker');
+    if (!host) return;
+    host.innerHTML = '';
+    trkCells = [];
+    var ln = S.lanes[S.sel];
+
+    var head = document.createElement('div');
+    head.className = 'trkRow trkHead';
+    head.appendChild(mkTrkCell('行', 'idx'));
+    for (var c = 0; c < TCOLS.length; c++) head.appendChild(mkTrkCell(TCOLS[c].n, 'h'));
+    host.appendChild(head);
+
+    for (var s = 0; s < ln.len; s++) {
+      var row = document.createElement('div');
+      row.className = 'trkRow' + (s % 4 === 0 ? ' beat' : '');
+      row.dataset.step = s;
+      var n = mkTrkCell(pad2(s + 1), 'idx');
+      row.appendChild(n);
+      var cs = [];
+      for (var k = 0; k < TCOLS.length; k++) {
+        var cell = mkTrkCell('', 'v');
+        cell.dataset.step = s;
+        cell.dataset.col = k;
+        row.appendChild(cell);
+        cs.push(cell);
+      }
+      host.appendChild(row);
+      trkCells.push({ row: row, cells: cs });
+    }
+    paintTracker();
+  }
+
+  function mkTrkCell(txt, cls) {
+    var d = document.createElement('div');
+    d.className = 'trkCell ' + cls;
+    d.textContent = txt;
+    return d;
+  }
+
+  function trkText(ln, s, k) {
+    var ev = ln.ev;
+    if (k === 'slice') {
+      if (ev.slice[s] < 0) return '··';
+      return ln.sliced ? pad2(ev.slice[s] + 1) : (ev.vel[s] >= 3 ? '██' : '▒▒');
+    }
+    if (k === 'pitch') return ev.pitch[s] === 0 ? '···' : (ev.pitch[s] > 0 ? '+' : '−') + pad2(ev.pitch[s]);
+    if (k === 'rev') return ev.rev[s] ? '◄' : '·';
+    if (k === 'rtg') return (ev.rtg[s] || 1) <= 1 ? '··' : pad2(ev.rtg[s]);
+    if (k === 'racc') return ev.racc[s] === 0 ? '··' : (ev.racc[s] > 0 ? '▲' : '▼') + Math.abs(ev.racc[s]);
+    if (k === 'fx') return HITFX[ev.fx[s]] || '··';
+    if (k === 'fxa') return ev.fx[s] === 0 ? '··' : pad2(ev.fxa[s]);
+    return '';
+  }
+
+  function paintTracker() {
+    var ln = S.lanes[S.sel];
+    for (var i = 0; i < trkCells.length; i++) {
+      var rest = ln.ev.slice[i] < 0;
+      trkCells[i].row.classList.toggle('rest', rest);
+      for (var k = 0; k < TCOLS.length; k++) {
+        var cell = trkCells[i].cells[k];
+        var kk = TCOLS[k].k;
+        cell.textContent = trkText(ln, i, kk);
+        cell.classList.toggle('zero', cell.textContent.indexOf('·') === 0);
+      }
+    }
+  }
+
+  function trkAdjust(s, col, delta, tap) {
+    var ln = S.lanes[S.sel];
+    var ev = ln.ev;
+    var c = TCOLS[col];
+    var k = c.k;
+    if (k === 'slice') {
+      if (tap) {
+        if (ev.slice[s] >= 0) { ev.slice[s] = -1; ev.vel[s] = 0; }
+        else { ev.slice[s] = ln.sliced ? (s % ln.slices) : 0; ev.vel[s] = 3; }
+      } else {
+        var hi = ln.sliced ? ln.slices - 1 : 0;
+        var v = ev.slice[s] + delta;
+        ev.slice[s] = clamp(v, -1, hi);
+        ev.vel[s] = ev.slice[s] < 0 ? 0 : (ev.vel[s] || 3);
+      }
+    } else if (k === 'rev') {
+      ev.rev[s] = tap ? (ev.rev[s] ? 0 : 1) : clamp(ev.rev[s] + delta, 0, 1);
+    } else if (k === 'fx') {
+      ev.fx[s] = tap ? (ev.fx[s] + 1) % 7 : clamp(ev.fx[s] + delta, 0, 6);
+    } else if (k === 'rtg') {
+      if (tap) {
+        var cyc = [1, 2, 4, 8, 16];
+        var at = cyc.indexOf(ev.rtg[s] || 1);
+        ev.rtg[s] = cyc[(at + 1) % cyc.length];
+      } else ev.rtg[s] = clamp((ev.rtg[s] || 1) + delta, 1, 16);
+    } else if (k === 'pitch') {
+      ev.pitch[s] = tap ? 0 : clamp(ev.pitch[s] + delta, -24, 24);
+    } else if (k === 'racc') {
+      ev.racc[s] = tap ? 0 : clamp(ev.racc[s] + delta, -4, 4);
+    } else if (k === 'fxa') {
+      ev.fxa[s] = tap ? (ev.fxa[s] + 4) % 16 : clamp(ev.fxa[s] + delta, 0, 15);
+    }
+    paintTracker();
+    paintGrid();
+    sendEvents(S.sel);
+  }
+
+  (function trackerInput() {
+    var host = $('tracker');
+    var drag = null;
+    host.addEventListener('pointerdown', function (e) {
+      var el = e.target;
+      if (!el.classList || !el.classList.contains('v')) return;
+      host.setPointerCapture(e.pointerId);
+      drag = { s: +el.dataset.step, col: +el.dataset.col, y: e.clientY, last: 0, moved: false };
+      e.preventDefault();
+    });
+    host.addEventListener('pointermove', function (e) {
+      if (!drag) return;
+      var steps = Math.round((drag.y - e.clientY) / 11);
+      if (steps === drag.last) return;
+      if (Math.abs(steps) >= 1) drag.moved = true;
+      trkAdjust(drag.s, drag.col, steps - drag.last, false);
+      drag.last = steps;
+    });
+    function end() {
+      if (!drag) return;
+      if (!drag.moved) trkAdjust(drag.s, drag.col, 0, true);
+      drag = null;
+    }
+    host.addEventListener('pointerup', end);
+    host.addEventListener('pointercancel', end);
+  })();
+
+  function setView(v) {
+    S.view = v;
+    $('gridWrap').hidden = false;
+    $('trkWrap').hidden = v !== 'tracker';
+    var bs = document.querySelectorAll('#viewSwitch button');
+    for (var i = 0; i < bs.length; i++) bs[i].classList.toggle('on', bs[i].dataset.view === v);
+    if (v === 'tracker') buildTracker();
+  }
+
+  /* ================================================================== *
+   * source row for the selected lane
+   * ================================================================== */
+  function buildSourceRow() {
+    var sel = $('laneSrc');
+    if (!sel) return;
+    var ln = S.lanes[S.sel];
+    sel.innerHTML = '';
+
+    var g1 = document.createElement('optgroup');
+    g1.label = 'ブレイク';
+    FunsaiKits.PATTERNS.forEach(function (p) {
+      var op = document.createElement('option');
+      op.value = 'break:' + p.id;
+      op.textContent = p.name;
+      g1.appendChild(op);
+    });
+    sel.appendChild(g1);
+
+    var g2 = document.createElement('optgroup');
+    g2.label = '素材（ドラム以外）';
+    FunsaiKits.MATERIALS.forEach(function (m) {
+      var op = document.createElement('option');
+      op.value = 'material:' + m.id;
+      op.textContent = m.name + ' ' + m.sub;
+      g2.appendChild(op);
+    });
+    sel.appendChild(g2);
+
+    var g3 = document.createElement('optgroup');
+    g3.label = '単発（ドラム）';
+    DRUMS.forEach(function (d) {
+      var op = document.createElement('option');
+      op.value = 'drum:' + d.k;
+      op.textContent = d.n + ' ' + d.jp;
+      g3.appendChild(op);
+    });
+    sel.appendChild(g3);
+
+    if (ln.src.kind === 'user') {
+      var og = document.createElement('option');
+      og.value = 'user';
+      og.textContent = '⤒ ' + ln.src.name;
+      sel.insertBefore(og, sel.firstChild);
+      sel.value = 'user';
+    } else {
+      sel.value = ln.src.kind + ':' + ln.src.id;
+    }
+    $('selLane').textContent = String(S.sel + 1);
+    $('patWrap').hidden = S.preset !== 'kit';
+  }
 
   /* ================================================================== *
    * targets
@@ -510,24 +825,20 @@
   function buildTargets() {
     var host = $('targets');
     host.innerHTML = '';
-    var list = S.mode === 'mono'
-      ? [{ i: 0, jp: '素', en: 'SRC' }, { i: 4, jp: '総', en: 'MST' }]
-      : [{ i: 4, jp: '総', en: 'MST' },
-         { i: 0, jp: 'バス', en: 'BD' }, { i: 1, jp: 'ハット', en: 'HH' },
-         { i: 2, jp: 'スネア', en: 'SD' }, { i: 3, jp: 'シンバル', en: 'CY' }];
-    if (list.map(function (x) { return x.i; }).indexOf(S.target) < 0) S.target = list[0].i;
+    var list = [{ i: 4, jp: '総', en: 'MST' }];
+    for (var i = 0; i < NLANE; i++) {
+      list.push({ i: i, jp: srcLabel(S.lanes[i].src).slice(0, 6), en: String(i + 1) });
+    }
+    if (list.map(function (x) { return x.i; }).indexOf(S.target) < 0) S.target = 4;
     list.forEach(function (d) {
       var b = document.createElement('button');
       b.className = 'tgt' + (d.i === S.target ? ' on' : '');
-      b.innerHTML = '<b>' + d.en + '</b><em>' + d.jp + '</em><i class="lv"></i>';
+      b.innerHTML = '<b>' + d.en + '</b><em>' + d.jp + '</em>';
       b.dataset.i = d.i;
       b.addEventListener('click', function () {
         S.target = d.i;
         buildTargets();
         paintAllPads();
-        if (S.mode === 'kit') {
-          $('loadLabel').textContent = '読込→' + TRACKS[S.target < 4 ? S.target : 0].en;
-        }
       });
       host.appendChild(b);
     });
@@ -550,6 +861,7 @@
         '<i class="cross"></i>' +
         '<i class="vline"></i><i class="hline"></i>' +
         '<div class="lbl"><b>' + d.jp + '</b><em>' + d.en + '</em></div>' +
+        '<button class="rbtn" data-r="' + d.id + '" title="この効果を乱数で振る／自動破壊の対象にする">R</button>' +
         '<div class="key">' + KEYS[i].toUpperCase() + '</div>' +
         '<div class="vals"><span class="vx"></span><span class="vy"></span></div>';
       host.appendChild(el);
@@ -570,6 +882,8 @@
     var d = padDef(id);
     el.classList.toggle('on', f.on);
     el.classList.toggle('bot', f.auto && !f.on);
+    el.classList.toggle('rnd', f.rnd);
+    el.querySelector('.rbtn').classList.toggle('on', f.rnd);
     el.style.setProperty('--px', (f.x * 100).toFixed(1) + '%');
     el.style.setProperty('--py', ((1 - f.y) * 100).toFixed(1) + '%');
     el.querySelector('.vx').textContent = d.xn + ' ' + d.xf(f.x);
@@ -606,9 +920,16 @@
     paintTargetActivity();
   }
 
+  function toggleRnd(id) {
+    var f = S.fx[S.target][id];
+    f.rnd = !f.rnd;
+    send({ type: 'fxrnd', target: S.target, id: id, on: f.rnd });
+    paintPad(id);
+  }
+
   (function padInput() {
     var host = $('pads');
-    var active = {};   // pointerId -> {id, target, x0, y0, cx, cy}
+    var active = {};
 
     function xyIn(el, e) {
       var r = el.getBoundingClientRect();
@@ -620,6 +941,12 @@
     }
 
     host.addEventListener('pointerdown', function (e) {
+      if (e.target.dataset && e.target.dataset.r) {     // the R switch, not the pad
+        e.preventDefault();
+        e.stopPropagation();
+        toggleRnd(e.target.dataset.r);
+        return;
+      }
       var el = e.target.closest ? e.target.closest('.pad') : null;
       if (!el) return;
       var id = el.dataset.id;
@@ -710,61 +1037,44 @@
   function flash(el, msg) {
     var old = el.textContent;
     el.textContent = msg;
-    setTimeout(function () { el.textContent = old; }, 900);
+    setTimeout(function () { el.textContent = old; }, 1100);
   }
 
-  function setMode(m) {
-    S.mode = m;
-    panic();
-    send({ type: 'mode', mode: m });
-    $('seqMono').hidden = m !== 'mono';
-    $('seqKit').hidden = m !== 'kit';
-    var btns = document.querySelectorAll('#modeSwitch .mode');
-    for (var i = 0; i < btns.length; i++) btns[i].classList.toggle('on', btns[i].dataset.mode === m);
-    $('loadLabel').textContent = m === 'mono' ? '読込' : '読込→' + TRACKS[S.target < 4 ? S.target : 0].en;
-    buildTargets();
-    paintAllPads();
-  }
-
-  function dice() {
-    if (S.mode === 'mono') {
-      for (var i = 0; i < S.monoLen; i++) {
-        var r = Math.random();
-        S.slot[i] = Math.floor(Math.random() * S.slices);
-        if (r < 0.45) S.slot[i] = i % S.slices;             // keep some of the groove
-        S.rev[i] = Math.random() < 0.13 ? 1 : 0;
-        S.on[i] = Math.random() < 0.08 ? 0 : 1;
-      }
-      paintSlices();
-      sendMono();
-    } else {
-      var dens = [0.3, 0.55, 0.22, 0.08];
-      for (var tk = 0; tk < 4; tk++) {
-        var tr = S.tracks[tk];
-        if (Math.random() < 0.3) tr.len = [16, 16, 12, 14, 15, 32][Math.floor(Math.random() * 6)];
-        if (Math.random() < 0.25) tr.res = [1, 1, 2, 0.5, 3][Math.floor(Math.random() * 5)];
-        tr.pat = new Uint8Array(32);
-        for (var s = 0; s < tr.len; s++) {
-          var on = Math.random() < dens[tk];
-          if (tk === 0 && s === 0) on = true;
-          if (tk === 2 && (s % 8) === 4) on = Math.random() < 0.8;
-          tr.pat[s] = on ? (Math.random() < 0.7 ? 3 : 2) : 0;
-        }
-      }
-      buildGrid();
-      for (var j = 0; j < 4; j++) sendTrack(j);
+  function paintTimeMul() {
+    var bs = document.querySelectorAll('#mulSwitch button');
+    for (var i = 0; i < bs.length; i++) {
+      bs[i].classList.toggle('on', +bs[i].dataset.mul === S.pos.mul);
     }
+  }
+
+  /* re-roll the tracker events themselves */
+  function dice() {
+    var ln = S.lanes[S.sel];
+    var ev = ln.ev;
+    for (var s = 0; s < ln.len; s++) {
+      var r = Math.random();
+      if (ln.sliced) {
+        ev.slice[s] = r < 0.42 ? (s % ln.slices) : Math.floor(Math.random() * ln.slices);
+        if (Math.random() < 0.1) ev.slice[s] = -1;
+      } else {
+        ev.slice[s] = Math.random() < 0.38 ? 0 : -1;
+      }
+      ev.vel[s] = ev.slice[s] < 0 ? 0 : (Math.random() < 0.7 ? 3 : 2);
+      ev.pitch[s] = Math.random() < 0.25 ? [-12, -7, -5, 3, 5, 7, 12][Math.floor(Math.random() * 7)] : 0;
+      ev.rev[s] = Math.random() < 0.1 ? 1 : 0;
+      ev.rtg[s] = Math.random() < 0.18 ? [2, 3, 4, 6, 8, 12, 16][Math.floor(Math.random() * 7)] : 1;
+      ev.racc[s] = ev.rtg[s] > 1 ? Math.floor(Math.random() * 9) - 4 : 0;
+      ev.fx[s] = Math.random() < 0.2 ? 1 + Math.floor(Math.random() * 6) : 0;
+      ev.fxa[s] = Math.floor(Math.random() * 16);
+    }
+    paintGrid();
+    paintTracker();
+    sendEvents(S.sel);
   }
 
   function toggleRec() {
-    if (!recDest || typeof MediaRecorder === 'undefined') {
-      flash($('rec'), '非対応');
-      return;
-    }
-    if (recorder && recorder.state === 'recording') {
-      recorder.stop();
-      return;
-    }
+    if (!recDest || typeof MediaRecorder === 'undefined') { flash($('rec'), '非対応'); return; }
+    if (recorder && recorder.state === 'recording') { recorder.stop(); return; }
     var types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'];
     var mt = '';
     for (var i = 0; i < types.length; i++) {
@@ -773,16 +1083,13 @@
     try {
       recorder = mt ? new MediaRecorder(recDest.stream, { mimeType: mt, audioBitsPerSecond: 256000 })
                     : new MediaRecorder(recDest.stream);
-    } catch (e) {
-      flash($('rec'), '非対応');
-      return;
-    }
+    } catch (e) { flash($('rec'), '非対応'); return; }
     recChunks = [];
     recorder.ondataavailable = function (e) { if (e.data.size) recChunks.push(e.data); };
     recorder.onstop = function () {
       var blob = new Blob(recChunks, { type: recorder.mimeType || 'audio/webm' });
-      var ext = (recorder.mimeType || '').indexOf('mp4') >= 0 ? 'm4a'
-              : (recorder.mimeType || '').indexOf('ogg') >= 0 ? 'ogg' : 'webm';
+      var mime = recorder.mimeType || '';
+      var ext = mime.indexOf('mp4') >= 0 ? 'm4a' : mime.indexOf('ogg') >= 0 ? 'ogg' : 'webm';
       var a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = 'funsai-' + Date.now() + '.' + ext;
@@ -812,8 +1119,7 @@
     requestAnimationFrame(draw);
     if (!sctx) return;
     var w = scope.width, h = scope.height;
-    sctx.clearRect(0, 0, w, h);
-    sctx.fillStyle = 'rgba(10,10,9,0.9)';
+    sctx.fillStyle = S.pos.drop ? 'rgba(26,10,10,0.95)' : 'rgba(10,10,9,0.9)';
     sctx.fillRect(0, 0, w, h);
 
     if (analyser) {
@@ -826,13 +1132,11 @@
         var y = h * 0.5 - v * h * 0.46;
         if (i === 0) sctx.moveTo(x, y); else sctx.lineTo(x, y);
       }
-      sctx.strokeStyle = '#e9d64a';
+      sctx.strokeStyle = S.pos.drop ? '#e25032' : '#e9d64a';
       sctx.lineWidth = Math.max(1, h / 44);
       sctx.stroke();
     }
 
-    /* per-bus level ticks */
-    var labels = ['1', '2', '3', '4', 'M'];
     for (var c = 0; c < 5; c++) {
       var lv = Math.min(1, S.peaks[c] || 0);
       var bw = w / 5;
@@ -840,19 +1144,21 @@
       sctx.fillRect(c * bw + 2, h - 3 - lv * (h * 0.3), bw - 4, lv * (h * 0.3) + 2);
     }
 
-    /* playhead ticks */
-    if (S.mode === 'mono') {
-      for (var i2 = 0; i2 < sliceEls.length; i2++) {
-        sliceEls[i2].classList.toggle('now', i2 === S.pos.mono);
+    for (var g = 0; g < gridRows.length; g++) {
+      var nodes = gridRows[g].nodes;
+      var st = S.pos.steps[g];
+      var eff = S.pos.eff[g];
+      for (var s2 = 0; s2 < nodes.length; s2++) {
+        var cl = nodes[s2].classList;
+        if (s2 === st) cl.add('now'); else if (cl.contains('now')) cl.remove('now');
+        var outside = s2 >= eff;
+        if (outside !== cl.contains('past')) cl.toggle('past', outside);
       }
-    } else {
-      for (var g = 0; g < gridRows.length; g++) {
-        var nodes = gridRows[g].nodes;
-        var st = S.pos.t[g];
-        for (var s2 = 0; s2 < nodes.length; s2++) {
-          if (s2 === st) nodes[s2].classList.add('now');
-          else if (nodes[s2].classList.contains('now')) nodes[s2].classList.remove('now');
-        }
+    }
+    if (S.view === 'tracker') {
+      var sel = S.pos.steps[S.sel];
+      for (var t = 0; t < trkCells.length; t++) {
+        trkCells[t].row.classList.toggle('now', t === sel);
       }
     }
   }
@@ -869,6 +1175,15 @@
       kitSel.appendChild(op);
     });
     kitSel.value = S.kit;
+    kitSel.addEventListener('change', function () {
+      S.kit = kitSel.value;
+      for (var i = 0; i < NLANE; i++) {
+        var ln = S.lanes[i];
+        if (ln.user) continue;
+        setLaneSource(i, ln.src.kind, ln.src.id, true);
+      }
+      buildTargets();
+    });
 
     var patSel = $('patSel');
     FunsaiKits.PATTERNS.forEach(function (p) {
@@ -878,12 +1193,6 @@
       patSel.appendChild(op);
     });
     patSel.value = S.pat;
-
-    kitSel.addEventListener('change', function () {
-      S.kit = kitSel.value;
-      loadKit(S.kit);
-      if (S.mode === 'mono') loadBreak(true);
-    });
     patSel.addEventListener('change', function () {
       S.pat = patSel.value;
       var p = FunsaiKits.getPattern(S.pat);
@@ -891,8 +1200,20 @@
       $('bpm').value = p.bpm;
       $('bpmv').textContent = p.bpm;
       send({ type: 'bpm', bpm: S.bpm });
-      loadBreak(false);
-      loadGrid(S.pat);
+      applyPattern(S.pat);
+      buildGrid();
+      buildTracker();
+    });
+
+    $('laneSrc').addEventListener('change', function () {
+      var v = this.value;
+      if (v === 'user') return;
+      var parts = v.split(':');
+      setLaneSource(S.sel, parts[0], parts[1]);
+      buildGrid();
+      buildTracker();
+      buildTargets();
+      buildSourceRow();
     });
 
     $('play').addEventListener('click', togglePlay);
@@ -905,10 +1226,8 @@
       S.bpm = +this.value;
       $('bpmv').textContent = S.bpm;
       send({ type: 'bpm', bpm: S.bpm });
-      if (S.mode === 'mono') {
-        clearTimeout(breakTimer);
-        breakTimer = setTimeout(function () { loadBreak(true); }, 350);
-      }
+      clearTimeout(srcTimer);
+      srcTimer = setTimeout(rerenderSources, 350);
     });
     $('swing').addEventListener('input', function () {
       S.swing = +this.value / 100;
@@ -918,16 +1237,33 @@
     $('vol').addEventListener('input', function () {
       if (masterGain) masterGain.gain.value = +this.value / 100;
     });
-    $('fit').addEventListener('change', function () { S.fit = this.checked; sendMono(); });
-    $('monoLen').addEventListener('change', function () {
-      S.monoLen = +this.value;
-      buildSlices();
-      sendMono();
-    });
 
-    var ms = document.querySelectorAll('#modeSwitch .mode');
-    for (var i = 0; i < ms.length; i++) {
-      (function (b) { b.addEventListener('click', function () { setMode(b.dataset.mode); }); })(ms[i]);
+    var muls = document.querySelectorAll('#mulSwitch button');
+    for (var mi = 0; mi < muls.length; mi++) {
+      (function (b) {
+        b.addEventListener('click', function () {
+          S.timeMul = +b.dataset.mul;
+          S.pos.mul = S.timeMul;
+          send({ type: 'timemul', v: S.timeMul });
+          paintTimeMul();
+        });
+      })(muls[mi]);
+    }
+
+    var ps = document.querySelectorAll('#presetSwitch button');
+    for (var i2 = 0; i2 < ps.length; i2++) {
+      (function (b) {
+        b.addEventListener('click', function () {
+          var bs = document.querySelectorAll('#presetSwitch button');
+          for (var q = 0; q < bs.length; q++) bs[q].classList.toggle('on', bs[q] === b);
+          applyPreset(b.dataset.preset);
+        });
+      })(ps[i2]);
+    }
+
+    var vs = document.querySelectorAll('#viewSwitch button');
+    for (var i3 = 0; i3 < vs.length; i3++) {
+      (function (b) { b.addEventListener('click', function () { setView(b.dataset.view); }); })(vs[i3]);
     }
 
     $('latch').addEventListener('click', function () {
@@ -949,20 +1285,49 @@
       send({ type: 'auto', on: S.auto, amt: S.autoAmt });
     });
 
+    /* rewrite panel */
+    var fh = $('rwFlags');
+    RWFLAGS.forEach(function (f) {
+      var b = document.createElement('button');
+      b.className = 'flag' + (S.rw.flags[f.k] ? ' on' : '');
+      b.textContent = f.n;
+      b.dataset.k = f.k;
+      b.addEventListener('click', function () {
+        S.rw.flags[f.k] = !S.rw.flags[f.k];
+        b.classList.toggle('on', S.rw.flags[f.k]);
+        sendRewrite();
+      });
+      fh.appendChild(b);
+    });
+    $('rw').addEventListener('click', function () {
+      S.rw.on = !S.rw.on;
+      this.classList.toggle('on', S.rw.on);
+      $('rwPanel').classList.toggle('live', S.rw.on);
+      sendRewrite();
+    });
+    $('rwAmt').addEventListener('input', function () {
+      S.rw.amt = +this.value / 100;
+      $('rwAmtV').textContent = this.value;
+      sendRewrite();
+    });
+
     $('file').addEventListener('change', function () {
       var f = this.files && this.files[0];
       if (!f || !ctx) return;
       flash($('loadLabel'), '解析中');
       f.arrayBuffer().then(function (ab) { return ctx.decodeAudioData(ab); })
-        .then(loadUserBuffer)
+        .then(function (b) { loadUserBuffer(b, f.name.replace(/\.[^.]+$/, '')); })
         .catch(function () { flash($('loadLabel'), '失敗'); });
       this.value = '';
     });
 
     buildPads();
     buildTargets();
-    buildSlices();
     buildGrid();
+    buildTracker();
+    buildSourceRow();
+    setView('grid');
+    paintTimeMul();
 
     scope = $('scope');
     sctx = scope.getContext('2d');

@@ -1,17 +1,25 @@
 /* 粉砕 FUNSAI — audio engine (AudioWorklet processor)
  *
  * The whole processor lives inside one self-contained function so app.js can
- * stringify it into a Blob URL. That keeps this file ordinary, highlightable
- * JavaScript with no build step, and lets the app run from file:// as well as
- * over http (addModule() on a relative path fails under file://).
+ * stringify it into a Blob (or data:) URL. That keeps this file ordinary,
+ * highlightable JavaScript with no build step, and lets the app run from
+ * file:// as well as over http.
  *
  * Nothing in here may close over the outer scope.
+ *
+ * Model: 4 lanes, each with its own bus (chain 0..3) feeding a master chain
+ * (4). A lane holds tracker-style per-step events rather than a plain on/off
+ * pattern, so every single hit carries its own slice, pitch, direction,
+ * retrigger count and destructive effect. The rewrite engine re-decides those
+ * values as each step fires, which is why a bar never repeats exactly.
  */
 function funsaiWorkletCode() {
   'use strict';
 
-  var RING_SEC = 4;          // capture ring per chain
+  var RING_SEC = 4;
   var TAU = 6.283185307179586;
+  var NSTEP = 64;              // max steps per lane
+  var NLANE = 4;
 
   /* musical divisions, in beats: half note .. 1/128 */
   var DIVS = [2, 1.5, 1, 0.75, 0.5, 0.375, 0.25, 0.1875, 0.125, 0.09375, 0.0625, 0.03125];
@@ -25,10 +33,13 @@ function funsaiWorkletCode() {
   /* pads that take over playback from the capture ring */
   var CAPTURE = { stut: 1, roll: 1, frz: 1, rev: 1, odd: 1, scrm: 1, rnd: 1, pshf: 1, stop: 1 };
 
+  /* rewrite palettes */
+  var RW_PITCH = [-24, -12, -12, -7, -5, -3, 0, 0, 0, 0, 2, 3, 5, 7, 12, 12, 19, 24];
+  var RW_RTG = [1, 1, 1, 2, 2, 3, 4, 4, 6, 8, 8, 12, 16];
+  var RW_METER = [0, 0, 0, 3, 5, 7, 9, 11, 13, 6, 10];   // 0 = keep full length
+
   function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
-
   function expMap(x, lo, hi) { return lo * Math.pow(hi / lo, clamp(x, 0, 1)); }
-
   function pickDiv(x) { return DIVS[clamp(Math.floor(x * DIVS.length), 0, DIVS.length - 1)]; }
 
   /* triangle wavefolder, safe for any input magnitude */
@@ -44,6 +55,8 @@ function funsaiWorkletCode() {
     return x * (27 + x * x) / (27 + 9 * x * x);
   }
 
+  function onePole(f, sr) { return 1 - Math.exp(-TAU * f / sr); }
+
   /* ------------------------------------------------------------------ *
    * Chain: capture ring + the whole mangling FX rack for one bus.
    * ------------------------------------------------------------------ */
@@ -57,9 +70,10 @@ function funsaiWorkletCode() {
 
     this.fx = {};
     for (var i = 0; i < PADS.length; i++) {
-      this.fx[PADS[i]] = { man: false, auto: false, on: false, x: 0.5, y: 0.5 };
+      this.fx[PADS[i]] = { man: false, auto: false, on: false, rnd: false, x: 0.5, y: 0.5 };
     }
     this.stack = [];                  // capture owners, oldest first
+    this.rndq = [];                   // pads whose x/y the engine randomised
 
     this.cap = {
       on: false, owner: '', start: 0, pos: 0, len: 4800, fade: 96,
@@ -130,6 +144,8 @@ function funsaiWorkletCode() {
     if (now === f.on) return;
     f.on = now;
 
+    if (now && f.rnd) this.rollPad(id);
+
     if (CAPTURE[id]) {
       var at = this.stack.indexOf(id);
       if (now && at < 0) this.stack.push(id);
@@ -147,6 +163,24 @@ function funsaiWorkletCode() {
     f.x = x;
     f.y = y;
     if (this.cap.on && CAPTURE[id]) this.refresh(clk);
+  };
+
+  Chain.prototype.rollPad = function (id) {
+    var f = this.fx[id];
+    f.x = this.rnd();
+    f.y = this.rnd();
+    this.rndq.push(id);
+  };
+
+  /* re-roll every held pad that has its R switch on */
+  Chain.prototype.stepRandom = function (clk) {
+    var any = false;
+    for (var i = 0; i < PADS.length; i++) {
+      var id = PADS[i];
+      var f = this.fx[id];
+      if (f.on && f.rnd && !CAPTURE[id]) { this.rollPad(id); any = true; }
+    }
+    if (any && this.cap.on) this.refresh(clk);
   };
 
   Chain.prototype.syncCapture = function (clk) {
@@ -236,7 +270,17 @@ function funsaiWorkletCode() {
     var cap = this.cap;
     var F = this.fx;
     var spb = clk.spb;
+    var i;
     cap.rep++;
+
+    /* R switch: capture pads re-roll on every repeat */
+    var rolled = false;
+    for (i = 0; i < PADS.length; i++) {
+      var id = PADS[i];
+      var pf = this.fx[id];
+      if (pf.on && pf.rnd && CAPTURE[id]) { this.rollPad(id); rolled = true; }
+    }
+    if (rolled) this.refresh(clk);
 
     var rate = cap.base;
 
@@ -515,7 +559,7 @@ function funsaiWorkletCode() {
   };
 
   /* ------------------------------------------------------------------ *
-   * Voices / tracks
+   * Voice — one hit, with its own destructive effect.
    * ------------------------------------------------------------------ */
   function Voice() {
     this.on = false;
@@ -529,25 +573,76 @@ function funsaiWorkletCode() {
     this.pl = 1;
     this.pr = 1;
     this.age = 0;
+    this.fx = 0;
+    this.fxa = 0;
+    this.cCnt = 0; this.cL = 0; this.cR = 0;
+    this.fL = 0; this.fR = 0;
+    this.rph = 0;
+    this.stopK = 1; this.stopD = 1;
+    this.skipAcc = 0; this.skipLen = 1; this.skipJump = 0;
+    this.life = 0;
+    this.seed = 1;
   }
 
-  function Track() {
+  /* ------------------------------------------------------------------ *
+   * Lane — one drummer. Tracker events, not a loop.
+   * ------------------------------------------------------------------ */
+  function Lane(sr) {
+    this.sr = sr;
     this.buf = null;                 // {l, r, len}
-    this.pat = new Uint8Array(32);
+    this.sliced = false;             // true = index into slices, false = one shot
+    this.slices = 16;
     this.len = 16;
-    this.res = 1;                    // step rate multiplier
+    this.effLen = 16;                // meter changes shorten this
+    this.res = 1;
+    this.role = 0;                   // 0 full, 1 low, 2 mid, 3 high
     this.gain = 0.9;
     this.pan = 0;
-    this.pitch = 1;
     this.mute = false;
+    this.keep = false;               // survives a drop
+    this.fit = true;
+
+    this.ev = {
+      slice: new Int8Array(NSTEP),
+      vel: new Uint8Array(NSTEP),
+      pitch: new Int8Array(NSTEP),
+      rev: new Uint8Array(NSTEP),
+      rtg: new Uint8Array(NSTEP),
+      racc: new Int8Array(NSTEP),
+      fx: new Uint8Array(NSTEP),
+      fxa: new Uint8Array(NSTEP)
+    };
+    for (var s = 0; s < NSTEP; s++) { this.ev.slice[s] = -1; this.ev.rtg[s] = 1; }
+
     this.acc = 0;
     this.step = -1;
+
+    /* pending retrigger burst */
+    this.rtgN = 0; this.rtgIdx = 0; this.rtgAcc = 0; this.rtgDur = 0;
+    this.rtgK = 1; this.rtgSum = 1; this.rtgTotal = 0;
+    this.rtgEv = { slice: 0, vel: 3, pitch: 0, rev: 0, fx: 0, fxa: 0 };
+    this.rtgV = null;
+
     this.voices = [];
-    for (var i = 0; i < 6; i++) this.voices.push(new Voice());
-    this.rr = 0;
+    for (var i = 0; i < 10; i++) this.voices.push(new Voice());
+
+    /* role band filter state (cascaded one poles) */
+    this.lp1L = 0; this.lp2L = 0; this.lp1R = 0; this.lp2R = 0;
+    this.hp1L = 0; this.hp2L = 0; this.hp1R = 0; this.hp2R = 0;
+    this.setRole(this.role);
   }
 
-  Track.prototype.alloc = function () {
+  Lane.prototype.setRole = function (role) {
+    this.role = role;
+    var sr = this.sr;
+    /* lpA: upper bound, hpA: lower bound. 0 disables that half. */
+    if (role === 1) { this.lpA = onePole(260, sr); this.hpA = 0; this.makeup = 1.1; }
+    else if (role === 2) { this.lpA = onePole(3000, sr); this.hpA = onePole(240, sr); this.makeup = 1.6; }
+    else if (role === 3) { this.lpA = 0; this.hpA = onePole(1600, sr); this.makeup = 2.2; }
+    else { this.lpA = 0; this.hpA = 0; this.makeup = 1; }
+  };
+
+  Lane.prototype.alloc = function () {
     var best = null;
     var bestAge = -1;
     for (var i = 0; i < this.voices.length; i++) {
@@ -565,25 +660,18 @@ function funsaiWorkletCode() {
     super();
     var sr = sampleRate;
     this.sr = sr;
-    this.mode = 'kit';
     this.bpm = 174;
     this.swing = 0;
     this.running = false;
     this.master = 0.85;
+    this.timeMul = 1;
+    this.timeMulWant = 1;
 
     this.chains = [];
     for (var i = 0; i < 5; i++) this.chains.push(new Chain(sr));
 
-    this.tracks = [];
-    for (var t = 0; t < 4; t++) this.tracks.push(new Track());
-
-    this.mono = {
-      buf: null, slices: 16, len: 16, fit: true,
-      seq: new Int16Array(32), rev: new Uint8Array(32),
-      acc: 0, step: -1, voices: [], rr: 0
-    };
-    for (var v = 0; v < 8; v++) this.mono.voices.push(new Voice());
-    for (var s = 0; s < 32; s++) this.mono.seq[s] = s % 16;
+    this.lanes = [];
+    for (var t = 0; t < NLANE; t++) this.lanes.push(new Lane(sr));
 
     this.phase = 0;                  // samples since bar start
     this.clk = { barPhase: 0, spb: sr * 60 / this.bpm, barLen: sr * 60 / this.bpm * 4 };
@@ -592,6 +680,16 @@ function funsaiWorkletCode() {
 
     this.auto = { on: false, amt: 0.35 };
     this.autoHeld = [];
+
+    /* rewrite engine */
+    this.rw = {
+      on: false, amt: 0.4,
+      slice: true, pitch: true, rev: true, rtg: true,
+      fx: true, rest: true, meter: false, half: false, drop: true
+    };
+    this.dropLeft = 0;
+
+    this.tmp = { slice: 0, vel: 3, pitch: 0, rev: 0, rtg: 1, racc: 0, fx: 0, fxa: 0 };
 
     this.tick = 0;
     this.seed = 12345;
@@ -607,7 +705,7 @@ function funsaiWorkletCode() {
   };
 
   FunsaiEngine.prototype.onmsg = function (m) {
-    var i;
+    var i, ln;
     switch (m.type) {
       case 'transport':
         this.running = !!m.running;
@@ -620,41 +718,52 @@ function funsaiWorkletCode() {
         break;
       case 'swing': this.swing = m.swing; break;
       case 'master': this.master = m.gain; break;
-      case 'mode':
-        this.mode = m.mode;
-        this.allNotesOff();
-        this.resync();
+      case 'timemul': this.timeMulWant = m.v; break;
+
+      case 'lane':
+        ln = this.lanes[m.i];
+        if (m.sliced !== undefined) ln.sliced = !!m.sliced;
+        if (m.slices !== undefined) ln.slices = m.slices;
+        if (m.len !== undefined) { ln.len = m.len; ln.effLen = m.len; if (ln.step >= m.len) ln.step = m.len - 1; }
+        if (m.res !== undefined) ln.res = m.res;
+        if (m.role !== undefined) ln.setRole(m.role);
+        if (m.gain !== undefined) ln.gain = m.gain;
+        if (m.pan !== undefined) ln.pan = m.pan;
+        if (m.mute !== undefined) ln.mute = !!m.mute;
+        if (m.keep !== undefined) ln.keep = !!m.keep;
+        if (m.fit !== undefined) ln.fit = !!m.fit;
         break;
-      case 'kitbuf':
-        this.tracks[m.slot].buf = { l: m.l, r: m.r || m.l, len: m.l.length };
+
+      case 'lanebuf':
+        ln = this.lanes[m.i];
+        ln.buf = { l: m.l, r: m.r || m.l, len: m.l.length };
+        if (m.slices) ln.slices = m.slices;
+        if (m.sliced !== undefined) ln.sliced = !!m.sliced;
         break;
-      case 'monobuf':
-        this.mono.buf = { l: m.l, r: m.r || m.l, len: m.l.length };
-        this.mono.slices = m.slices;
-        break;
-      case 'pattern':
-        var tr = this.tracks[m.track];
-        for (i = 0; i < 32; i++) tr.pat[i] = m.pat[i] || 0;
-        tr.len = m.len;
-        tr.res = m.res;
-        if (tr.step >= tr.len) tr.step = tr.len - 1;
-        break;
-      case 'monopat':
-        for (i = 0; i < 32; i++) {
-          this.mono.seq[i] = m.seq[i];
-          this.mono.rev[i] = m.rev[i];
+
+      case 'events':
+        ln = this.lanes[m.i];
+        for (i = 0; i < NSTEP; i++) {
+          ln.ev.slice[i] = m.slice[i];
+          ln.ev.vel[i] = m.vel[i];
+          ln.ev.pitch[i] = m.pitch[i];
+          ln.ev.rev[i] = m.rev[i];
+          ln.ev.rtg[i] = m.rtg[i] || 1;
+          ln.ev.racc[i] = m.racc[i];
+          ln.ev.fx[i] = m.fx[i];
+          ln.ev.fxa[i] = m.fxa[i];
         }
-        this.mono.len = m.len;
-        this.mono.fit = !!m.fit;
-        if (this.mono.step >= this.mono.len) this.mono.step = this.mono.len - 1;
         break;
-      case 'trackparam':
-        var tp = this.tracks[m.track];
-        if (m.gain !== undefined) tp.gain = m.gain;
-        if (m.pan !== undefined) tp.pan = m.pan;
-        if (m.pitch !== undefined) tp.pitch = m.pitch;
-        if (m.mute !== undefined) tp.mute = m.mute;
+
+      case 'rewrite':
+        this.rw.on = !!m.on;
+        if (m.amt !== undefined) this.rw.amt = m.amt;
+        if (m.flags) {
+          for (var k in m.flags) if (this.rw.hasOwnProperty(k)) this.rw[k] = !!m.flags[k];
+        }
+        if (!this.rw.on) this.dropLeft = 0;
         break;
+
       case 'fx':
         this.chains[m.target].setPad(m.id, true, m.on, this.clk);
         if (m.x !== undefined) this.chains[m.target].setXY(m.id, m.x, m.y, this.clk);
@@ -662,6 +771,10 @@ function funsaiWorkletCode() {
       case 'fxxy':
         this.chains[m.target].setXY(m.id, m.x, m.y, this.clk);
         break;
+      case 'fxrnd':
+        this.chains[m.target].fx[m.id].rnd = !!m.on;
+        break;
+
       case 'auto':
         this.auto.on = !!m.on;
         this.auto.amt = m.amt;
@@ -671,10 +784,11 @@ function funsaiWorkletCode() {
       case 'panic':
         for (i = 0; i < 5; i++) this.chains[i].panic();
         this.autoHeld.length = 0;
+        this.dropLeft = 0;
         this.allNotesOff();
         break;
       case 'trig':
-        this.fire(m.track, 3);
+        this.preview(m.i, m.step === undefined ? -1 : m.step);
         break;
     }
   };
@@ -689,76 +803,118 @@ function funsaiWorkletCode() {
   };
 
   FunsaiEngine.prototype.allNotesOff = function () {
-    for (var t = 0; t < 4; t++) {
-      for (var i = 0; i < this.tracks[t].voices.length; i++) this.tracks[t].voices[i].on = false;
+    for (var t = 0; t < NLANE; t++) {
+      var ln = this.lanes[t];
+      for (var i = 0; i < ln.voices.length; i++) ln.voices[i].on = false;
+      ln.rtgN = 0;
     }
-    for (var j = 0; j < this.mono.voices.length; j++) this.mono.voices[j].on = false;
   };
 
   FunsaiEngine.prototype.resync = function () {
     this.phase = 0;
     this.gAcc = 0;
     this.gStep = -1;
-    for (var t = 0; t < 4; t++) { this.tracks[t].acc = 0; this.tracks[t].step = -1; }
-    this.mono.acc = 0;
-    this.mono.step = -1;
+    for (var t = 0; t < NLANE; t++) {
+      var ln = this.lanes[t];
+      ln.acc = 0;
+      ln.step = -1;
+      ln.effLen = ln.len;
+      ln.rtgN = 0;
+    }
   };
 
-  /* fire one kit voice */
-  FunsaiEngine.prototype.fire = function (ti, vel) {
-    var tr = this.tracks[ti];
-    if (!tr.buf || tr.mute) return;
-    var v = tr.alloc();
+  FunsaiEngine.prototype.preview = function (i, step) {
+    var ln = this.lanes[i];
+    if (!ln.buf) return;
+    var e = this.tmp;
+    if (step >= 0) {
+      e.slice = ln.ev.slice[step] < 0 ? 0 : ln.ev.slice[step];
+      e.vel = ln.ev.vel[step] || 3;
+      e.pitch = ln.ev.pitch[step];
+      e.rev = ln.ev.rev[step];
+      e.fx = ln.ev.fx[step];
+      e.fxa = ln.ev.fxa[step];
+    } else {
+      e.slice = 0; e.vel = 3; e.pitch = 0; e.rev = 0; e.fx = 0; e.fxa = 0;
+    }
+    this.fire(ln, e, this.clk.spb * 0.25);
+  };
+
+  /* --- firing a hit -------------------------------------------------- */
+
+  /* `reuse` makes the hit take over one specific voice instead of a free
+     one. A retrigger is monophonic -- each repeat cuts the one before it --
+     otherwise 16 overlapping copies comb-filter into a smear rather than
+     the impulse train that turns into a pitch as it speeds up. */
+  FunsaiEngine.prototype.fire = function (ln, e, stepDur, reuse) {
+    if (!ln.buf || ln.mute) return null;
+    if (this.dropLeft > 0 && !ln.keep) return null;
+    var v = reuse || ln.alloc();
+    var s0, end, rate;
+
+    if (ln.sliced) {
+      var sliceLen = ln.buf.len / ln.slices;
+      var idx = e.slice;
+      if (idx < 0) return null;
+      idx = idx % ln.slices;
+      s0 = Math.floor(idx * sliceLen);
+      end = Math.min(ln.buf.len - 2, s0 + Math.ceil(sliceLen));
+      rate = ln.fit ? (sliceLen / stepDur) : 1;
+    } else {
+      s0 = 0;
+      end = ln.buf.len - 2;
+      rate = 1;
+    }
+    if (end <= s0 + 2) return null;
+
+    rate *= Math.pow(2, e.pitch / 12);
+
     v.on = true;
-    v.bl = tr.buf.l;
-    v.br = tr.buf.r;
-    v.s0 = 0;
-    v.pos = 0;
-    v.end = tr.buf.len - 2;
-    v.rate = tr.pitch;
-    v.gain = tr.gain * (0.34 + vel * 0.22);
-    var pan = tr.pan;
+    v.bl = ln.buf.l;
+    v.br = ln.buf.r;
+    v.s0 = s0;
+    v.end = end;
+    v.gain = ln.gain * (0.34 + e.vel * 0.22);
+    var pan = ln.pan;
     v.pl = Math.cos((pan + 1) * Math.PI / 4);
     v.pr = Math.sin((pan + 1) * Math.PI / 4);
     v.age = 0;
-  };
+    v.fx = e.fx;
+    v.fxa = e.fxa;
+    v.cCnt = 0; v.cL = 0; v.cR = 0;
+    v.fL = 0; v.fR = 0;
+    v.rph = 0;
+    v.stopK = 1;
+    /* Hard lifetime. STOP freezes the playhead and SKIP rewinds it, so
+       neither would ever reach `end` -- without this the voice never frees
+       and the slots fill up with silent or repeating hits. */
+    v.life = Math.ceil((end - s0) / Math.max(0.02, Math.abs(rate))) + 256;
+    v.seed = (Math.imul(this.seed ^ (s0 + 1), 1664525) + 1013904223) | 0;
 
-  /* fire one break slice */
-  FunsaiEngine.prototype.fireSlice = function (idx, reverse, stepDur) {
-    var mo = this.mono;
-    if (!mo.buf || idx < 0) return;
-    var sliceLen = mo.buf.len / mo.slices;
-    var s0 = Math.floor(idx * sliceLen);
-    var end = Math.min(mo.buf.len - 2, s0 + Math.ceil(sliceLen));
-    var v = null;
-    var oldest = -1;
-    for (var i = 0; i < mo.voices.length; i++) {
-      var c = mo.voices[i];
-      if (!c.on) { v = c; break; }
-      if (c.age > oldest) { oldest = c.age; v = c; }
+    /* per hit effect setup */
+    if (e.fx === 5) {            // tape stop inside the hit
+      var stopSamples = Math.max(64, (1 - e.fxa / 16) * stepDur * 2 + 256);
+      v.stopD = Math.exp(-1 / stopSamples);
+    } else if (e.fx === 6) {     // skip / CD stutter
+      v.skipLen = Math.max(32, Math.floor(stepDur / (1 + e.fxa)));
+      v.skipJump = v.skipLen * (e.fxa % 2 === 0 ? 1 : -1) * 2;
+      v.skipAcc = 0;
     }
-    v.on = true;
-    v.bl = mo.buf.l;
-    v.br = mo.buf.r;
-    v.s0 = s0;
-    v.end = end;
-    v.gain = 1;
-    v.pl = 1;
-    v.pr = 1;
-    v.age = 0;
-    var rate = mo.fit ? (sliceLen / stepDur) : 1;
-    if (reverse) {
+
+    if (e.rev) {
       v.pos = end - 1;
       v.rate = -rate;
     } else {
       v.pos = s0;
       v.rate = rate;
     }
+    return v;
   };
 
   FunsaiEngine.prototype.renderVoice = function (v) {
     var p = v.pos;
-    if (p < v.s0 || p >= v.end) { v.on = false; this.vl = 0; this.vr = 0; return; }
+    if (p < v.s0 || p >= v.end || v.life <= 0) { v.on = false; this.vl = 0; this.vr = 0; return; }
+    v.life--;
     var i0 = p | 0;
     var f = p - i0;
     var i1 = i0 + 1;
@@ -776,53 +932,204 @@ function funsaiWorkletCode() {
     if (env < 0) env = 0;
     env *= v.gain;
 
-    v.pos += v.rate;
+    /* ---- per hit destruction ---------------------------------------- */
+    var fx = v.fx;
+    if (fx === 1) {                                   // crush
+      var hold = 1 + v.fxa * 5;
+      v.cCnt++;
+      if (v.cCnt >= hold) {
+        v.cCnt = 0;
+        var bits = Math.max(1, 12 - v.fxa * 0.7);
+        var q = Math.pow(2, bits - 1);
+        v.cL = Math.round(sl * q) / q;
+        v.cR = Math.round(sr2 * q) / q;
+      }
+      sl = v.cL; sr2 = v.cR;
+    } else if (fx === 2) {                            // drive / fold
+      var d = 1.4 + v.fxa * 5;
+      sl = fold(sl * d) * 0.6;
+      sr2 = fold(sr2 * d) * 0.6;
+    } else if (fx === 3) {                            // darkening filter
+      var a = onePole(120 * Math.pow(2, v.fxa * 0.55), this.sr);
+      v.fL += (sl - v.fL) * a;
+      v.fR += (sr2 - v.fR) * a;
+      sl = v.fL; sr2 = v.fR;
+    } else if (fx === 4) {                            // ring
+      var rf = 18 * Math.pow(2, v.fxa * 0.62);
+      v.rph += rf / this.sr;
+      if (v.rph >= 1) v.rph -= 1;
+      var mm = Math.sin(v.rph * TAU);
+      sl *= mm; sr2 *= mm;
+    }
+
+    /* advance */
+    var rate = v.rate;
+    if (fx === 5) {
+      v.stopK *= v.stopD;
+      rate *= v.stopK;
+      var mg = v.stopK;
+      if (mg < 0.05) env *= mg * 20;
+    }
+    v.pos += rate;
+    if (fx === 6) {
+      v.skipAcc++;
+      if (v.skipAcc >= v.skipLen) {
+        v.skipAcc = 0;
+        var span = v.end - v.s0;
+        var rel = (v.pos + v.skipJump) - v.s0;
+        rel = ((rel % span) + span) % span;     // wrap, never pile on the attack
+        v.pos = v.s0 + rel;
+      }
+    }
     v.age++;
     this.vl = sl * env * v.pl;
     this.vr = sr2 * env * v.pr;
   };
 
+  /* --- the rewrite engine -------------------------------------------- *
+   * Rather than replaying the stored pattern, decide what this step is
+   * as it fires. The stored events stay untouched, so switching rewrite
+   * off returns to what is written in the tracker.
+   */
+  FunsaiEngine.prototype.evalStep = function (ln, s) {
+    var e = ln.ev;
+    var o = this.tmp;
+    o.slice = e.slice[s];
+    o.vel = e.vel[s];
+    o.pitch = e.pitch[s];
+    o.rev = e.rev[s];
+    o.rtg = e.rtg[s] || 1;
+    o.racc = e.racc[s];
+    o.fx = e.fx[s];
+    o.fxa = e.fxa[s];
+
+    var rw = this.rw;
+    if (!rw.on) return o;
+    var a = rw.amt;
+
+    if (rw.slice) {
+      if (o.slice >= 0 && ln.sliced && this.rnd() < a * 0.55) {
+        o.slice = Math.floor(this.rnd() * ln.slices);
+      } else if (o.slice < 0 && this.rnd() < a * 0.22) {
+        o.slice = ln.sliced ? Math.floor(this.rnd() * ln.slices) : 0;
+        o.vel = this.rnd() < 0.6 ? 2 : 3;
+      }
+    }
+    if (rw.rest && o.slice >= 0 && this.rnd() < a * 0.16) o.slice = -1;
+    if (o.slice < 0) return o;
+
+    if (rw.pitch && this.rnd() < a * 0.45) {
+      o.pitch = RW_PITCH[Math.floor(this.rnd() * RW_PITCH.length)];
+    }
+    if (rw.rev && this.rnd() < a * 0.18) o.rev = 1;
+    if (rw.rtg && this.rnd() < a * 0.3) {
+      o.rtg = RW_RTG[Math.floor(this.rnd() * RW_RTG.length)];
+      o.racc = Math.floor(this.rnd() * 9) - 4;
+    }
+    if (rw.fx && this.rnd() < a * 0.35) {
+      o.fx = 1 + Math.floor(this.rnd() * 6);
+      o.fxa = Math.floor(this.rnd() * 16);
+    }
+    return o;
+  };
+
+  /* start a step: either one hit or a retrigger burst */
+  FunsaiEngine.prototype.startStep = function (ln, e, stepDur) {
+    if (e.slice < 0) { ln.rtgN = 0; return; }
+    var n = clamp(e.rtg | 0, 1, 32);
+    if (n <= 1) {
+      ln.rtgN = 0;
+      this.fire(ln, e, stepDur);
+      return;
+    }
+    /* intervals follow a geometric series that exactly fills the step, so
+       a positive racc tightens the burst into a pitched buzz and a
+       negative one lets it tumble open. */
+    var k = Math.pow(2, -e.racc / 5);
+    var sum;
+    if (Math.abs(k - 1) < 1e-6) { k = 1; sum = n; }
+    else sum = (1 - Math.pow(k, n)) / (1 - k);
+
+    ln.rtgN = n;
+    ln.rtgIdx = 0;
+    ln.rtgK = k;
+    ln.rtgSum = sum;
+    ln.rtgTotal = stepDur;
+    ln.rtgAcc = 0;
+    ln.rtgDur = Math.max(24, stepDur / sum);
+    var re = ln.rtgEv;
+    re.slice = e.slice; re.vel = e.vel; re.pitch = e.pitch;
+    re.rev = e.rev; re.fx = e.fx; re.fxa = e.fxa;
+    /* rate always comes from the STEP length, never the burst interval:
+       a retrigger repeats the same hit, it does not play the slice n times
+       faster (which would just transpose it n octaves up). Each repeat is
+       cut off by the next one through voice stealing. */
+    ln.rtgV = this.fire(ln, re, stepDur);
+  };
+
+  FunsaiEngine.prototype.advanceRtg = function (ln) {
+    if (ln.rtgN <= 0) return;
+    ln.rtgAcc++;
+    if (ln.rtgAcc < ln.rtgDur) return;
+    ln.rtgAcc -= ln.rtgDur;
+    ln.rtgIdx++;
+    if (ln.rtgIdx >= ln.rtgN) { ln.rtgN = 0; return; }
+    ln.rtgDur = Math.max(24, ln.rtgTotal * Math.pow(ln.rtgK, ln.rtgIdx) / ln.rtgSum);
+    ln.rtgV = this.fire(ln, ln.rtgEv, ln.rtgTotal, ln.rtgV);
+  };
+
   /* advance the sequencers by one sample */
   FunsaiEngine.prototype.clockSample = function () {
     var clk = this.clk;
-    var stepDur = clk.spb * 0.25;
+    var stepDur = clk.spb * 0.25 / this.timeMul;
     var sw = this.swing * 0.34;
 
     this.phase++;
-    if (this.phase >= clk.barLen) this.phase -= clk.barLen;
+    if (this.phase >= clk.barLen) {
+      this.phase -= clk.barLen;
+      /* half / double time only switches on a bar line */
+      if (this.timeMul !== this.timeMulWant) this.timeMul = this.timeMulWant;
+      if (this.rw.on && this.rw.half && this.rnd() < this.rw.amt * 0.18) {
+        var opts = [0.5, 1, 1, 2];
+        this.timeMul = this.timeMulWant = opts[Math.floor(this.rnd() * opts.length)];
+      }
+    }
     clk.barPhase = this.phase;
 
-    /* global 16th, only used for auto-chaos + UI */
+    /* global 16th, drives auto chaos, drops and the R switch */
     this.gAcc++;
     if (this.gAcc >= stepDur) {
       this.gAcc -= stepDur;
       this.gStep = (this.gStep + 1) & 15;
+      if (this.dropLeft > 0) this.dropLeft--;
+      if (this.rw.on && this.rw.drop && this.dropLeft <= 0 && this.rnd() < this.rw.amt * 0.03) {
+        this.dropLeft = 2 + Math.floor(this.rnd() * 14);
+      }
+      for (var c = 0; c < 5; c++) this.chains[c].stepRandom(clk);
       this.autoStep();
     }
 
-    if (this.mode === 'mono') {
-      var mo = this.mono;
-      var dur = stepDur * (((mo.step + 1) & 1) ? (1 - sw) : (1 + sw));
-      mo.acc++;
-      if (mo.acc >= dur) {
-        mo.acc -= dur;
-        mo.step = (mo.step + 1) % Math.max(1, mo.len);
-        var si = mo.seq[mo.step];
-        if (si >= 0) this.fireSlice(si, mo.rev[mo.step], stepDur);
-      }
-      return;
-    }
-
-    for (var t = 0; t < 4; t++) {
-      var tr = this.tracks[t];
-      var sd = stepDur / tr.res;
-      var d = tr.res === 1 ? sd * (((tr.step + 1) & 1) ? (1 - sw) : (1 + sw)) : sd;
-      tr.acc++;
-      if (tr.acc >= d) {
-        tr.acc -= d;
-        tr.step = (tr.step + 1) % Math.max(1, tr.len);
-        var vel = tr.pat[tr.step];
-        if (vel > 0) this.fire(t, vel);
+    for (var t = 0; t < NLANE; t++) {
+      var ln = this.lanes[t];
+      this.advanceRtg(ln);
+      var sd = stepDur / ln.res;
+      var d = ln.res === 1 ? sd * (((ln.step + 1) & 1) ? (1 - sw) : (1 + sw)) : sd;
+      ln.acc++;
+      if (ln.acc >= d) {
+        ln.acc -= d;
+        var nx = ln.step + 1;
+        if (nx >= ln.effLen) {
+          nx = 0;
+          /* meter change lands on the cycle boundary */
+          if (this.rw.on && this.rw.meter && this.rnd() < this.rw.amt * 0.3) {
+            var pick = RW_METER[Math.floor(this.rnd() * RW_METER.length)];
+            ln.effLen = pick === 0 ? ln.len : clamp(pick, 1, ln.len);
+          } else {
+            ln.effLen = ln.len;
+          }
+        }
+        ln.step = nx;
+        this.startStep(ln, this.evalStep(ln, nx), sd);
       }
     }
   };
@@ -844,16 +1151,23 @@ function funsaiWorkletCode() {
     if (this.rnd() > amt * 0.45) return;
     if (this.autoHeld.length >= 3) return;
 
-    var id = PADS[Math.floor(this.rnd() * PADS.length)];
     var target = 4;
-    if (this.mode === 'kit' && this.rnd() < amt * 0.5) target = Math.floor(this.rnd() * 4);
+    if (this.rnd() < amt * 0.5) target = Math.floor(this.rnd() * NLANE);
+
+    /* if any pad on this bus has its R switch on, auto only picks from
+       those: the R switches double as "which effects may fire by itself" */
+    var pool = [];
+    var ch = this.chains[target];
+    for (i = 0; i < PADS.length; i++) if (ch.fx[PADS[i]].rnd) pool.push(PADS[i]);
+    if (!pool.length) pool = PADS;
+
+    var id = pool[Math.floor(this.rnd() * pool.length)];
     for (i = 0; i < this.autoHeld.length; i++) {
       if (this.autoHeld[i].id === id && this.autoHeld[i].target === target) return;
     }
     var x = this.rnd();
     var y = this.rnd();
     var left = 1 + Math.floor(this.rnd() * (1 + amt * 7));
-    var ch = this.chains[target];
     ch.setXY(id, x, y, this.clk);
     ch.setPad(id, false, true, this.clk);
     this.autoHeld.push({ target: target, id: id, left: left });
@@ -873,33 +1187,36 @@ function funsaiWorkletCode() {
 
       if (this.running) this.clockSample();
 
-      if (this.mode === 'mono') {
-        var sl = 0, sr2 = 0;
-        var mv = this.mono.voices;
-        for (var v = 0; v < mv.length; v++) {
-          if (!mv[v].on) continue;
-          this.renderVoice(mv[v]);
-          sl += this.vl;
-          sr2 += this.vr;
+      for (var t = 0; t < NLANE; t++) {
+        var ln = this.lanes[t];
+        var tl = 0, tr = 0;
+        for (var j = 0; j < ln.voices.length; j++) {
+          if (!ln.voices[j].on) continue;
+          this.renderVoice(ln.voices[j]);
+          tl += this.vl;
+          tr += this.vr;
         }
-        this.chains[0].process(sl, sr2, clk);
-        mixL = this.chains[0].outL;
-        mixR = this.chains[0].outR;
-      } else {
-        for (var t = 0; t < 4; t++) {
-          var tr = this.tracks[t];
-          var tl = 0, trr = 0;
-          for (var j = 0; j < tr.voices.length; j++) {
-            if (!tr.voices[j].on) continue;
-            this.renderVoice(tr.voices[j]);
-            tl += this.vl;
-            trr += this.vr;
-          }
-          var ch = this.chains[t];
-          ch.process(tl, trr, clk);
-          mixL += ch.outL;
-          mixR += ch.outR;
+        /* role band: two one poles each side, cheap but decisive enough to
+           keep a low drummer and a hat drummer out of each other's way */
+        if (ln.hpA > 0) {
+          ln.hp1L += (tl - ln.hp1L) * ln.hpA; var t1 = tl - ln.hp1L;
+          ln.hp2L += (t1 - ln.hp2L) * ln.hpA; tl = t1 - ln.hp2L;
+          ln.hp1R += (tr - ln.hp1R) * ln.hpA; var t2 = tr - ln.hp1R;
+          ln.hp2R += (t2 - ln.hp2R) * ln.hpA; tr = t2 - ln.hp2R;
         }
+        if (ln.lpA > 0) {
+          ln.lp1L += (tl - ln.lp1L) * ln.lpA;
+          ln.lp2L += (ln.lp1L - ln.lp2L) * ln.lpA;
+          tl = ln.lp2L;
+          ln.lp1R += (tr - ln.lp1R) * ln.lpA;
+          ln.lp2R += (ln.lp1R - ln.lp2R) * ln.lpA;
+          tr = ln.lp2R;
+        }
+        if (ln.makeup !== 1) { tl *= ln.makeup; tr *= ln.makeup; }
+        var ch = this.chains[t];
+        ch.process(tl, tr, clk);
+        mixL += ch.outL;
+        mixR += ch.outR;
       }
 
       var m = this.chains[4];
@@ -912,12 +1229,26 @@ function funsaiWorkletCode() {
     if (this.tick >= 1024) {
       this.tick = 0;
       var peaks = new Array(5);
-      for (var c = 0; c < 5; c++) { peaks[c] = this.chains[c].peak; this.chains[c].peak = 0; }
+      var c;
+      for (c = 0; c < 5; c++) { peaks[c] = this.chains[c].peak; this.chains[c].peak = 0; }
+      var rq = null;
+      for (c = 0; c < 5; c++) {
+        var q = this.chains[c].rndq;
+        if (!q.length) continue;
+        if (!rq) rq = [];
+        for (var z = 0; z < q.length; z++) {
+          rq.push({ t: c, id: q[z], x: this.chains[c].fx[q[z]].x, y: this.chains[c].fx[q[z]].y });
+        }
+        q.length = 0;
+      }
       this.port.postMessage({
         type: 'pos',
-        mono: this.mono.step,
-        t: [this.tracks[0].step, this.tracks[1].step, this.tracks[2].step, this.tracks[3].step],
-        peaks: peaks
+        steps: [this.lanes[0].step, this.lanes[1].step, this.lanes[2].step, this.lanes[3].step],
+        eff: [this.lanes[0].effLen, this.lanes[1].effLen, this.lanes[2].effLen, this.lanes[3].effLen],
+        peaks: peaks,
+        drop: this.dropLeft > 0,
+        mul: this.timeMul,
+        rnd: rq
       });
     }
     return true;

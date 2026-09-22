@@ -14,9 +14,9 @@
 
   <header class="top">
     <h1>粉砕<span class="rom">FUNSAI</span></h1>
-    <div class="modeSwitch" id="modeSwitch">
-      <button class="mode on" data-mode="mono">一本<em>MONO</em></button>
-      <button class="mode" data-mode="kit">四本<em>KIT</em></button>
+    <div class="modeSwitch" id="presetSwitch">
+      <button class="mode on" data-preset="layers">層<em>LAYERS</em></button>
+      <button class="mode" data-preset="kit">打<em>KIT</em></button>
     </div>
   </header>
 
@@ -27,8 +27,14 @@
       <input id="bpm" type="range" min="60" max="260" step="1" value="174" />
       <b id="bpmv">174</b>
     </label>
+    <div class="mulSwitch" id="mulSwitch">
+      <span class="mulLbl">体感</span>
+      <button data-mul="0.5">半</button>
+      <button data-mul="1" class="on">×1</button>
+      <button data-mul="2">倍</button>
+    </div>
     <label class="num">
-      <span>揺れ<em>SWING</em></span>
+      <span>揺れ</span>
       <input id="swing" type="range" min="0" max="100" step="1" value="0" />
       <b id="swingv">0</b>
     </label>
@@ -37,8 +43,9 @@
   </section>
 
   <section class="source">
-    <label class="sel"><span>音源</span><select id="kitSel"></select></label>
-    <label class="sel"><span>型</span><select id="patSel"></select></label>
+    <label class="sel"><span>層<b id="selLane">1</b>の音源</span><select id="laneSrc"></select></label>
+    <label class="sel"><span>ドラム</span><select id="kitSel"></select></label>
+    <label class="sel" id="patWrap" hidden><span>型</span><select id="patSel"></select></label>
     <button id="dice" class="ghost">賽</button>
     <button id="resync" class="ghost">整列</button>
     <label class="fileBtn">
@@ -47,22 +54,36 @@
     </label>
   </section>
 
-  <section class="seq" id="seqMono">
-    <div class="seqHead">
-      <span class="seqTitle">切片列<em>SLICES</em></span>
-      <span class="hint">叩く＝順/逆/無　上下に擦る＝切片番号</span>
-      <label class="chk"><input type="checkbox" id="fit" checked /> 尺合<em>FIT</em></label>
-      <label class="sel tiny"><span>長</span><select id="monoLen"></select></label>
-    </div>
-    <div class="slices" id="slices"></div>
-  </section>
-
-  <section class="seq" id="seqKit" hidden>
+  <section class="seq" id="gridWrap">
     <div class="seqHead">
       <span class="seqTitle">格子<em>GRID</em></span>
-      <span class="hint">叩く＝強/弱/無　長＝歩数　速＝分解能</span>
+      <span class="hint">番号を叩く＝その層を選ぶ　升目＝強/弱/無</span>
+      <div class="viewSwitch" id="viewSwitch">
+        <button data-view="grid" class="on">格子</button>
+        <button data-view="tracker">追跡<em>TRACKER</em></button>
+      </div>
     </div>
     <div class="grid" id="grid"></div>
+  </section>
+
+  <section class="seq" id="trkWrap" hidden>
+    <div class="seqHead">
+      <span class="seqTitle">追跡<em>TRACKER</em></span>
+      <span class="hint">上下に擦る＝値を変える　叩く＝切替　切/音/逆/連/速/加/量</span>
+    </div>
+    <div class="tracker" id="tracker"></div>
+    <p class="trkLegend">切＝切片　音＝半音　逆＝逆再生　連＝連打数　速＝連打の加減速　加＝打点ごとの加工（砕歪濾環停飛）　量＝その強さ</p>
+  </section>
+
+  <section class="rw" id="rwPanel">
+    <button id="rw" class="ghost big">書換<em>REWRITE</em></button>
+    <label class="num">
+      <span>強度</span>
+      <input id="rwAmt" type="range" min="0" max="100" step="1" value="40" />
+      <b id="rwAmtV">40</b>
+    </label>
+    <div class="flags" id="rwFlags"></div>
+    <p class="rwNote">小節をコピペせず、一打ごとに「次に何を鳴らすか」を鳴る直前に決め直す。だから同じ小節が二度と来ない。書いた内容は消えないので、切れば元に戻る。</p>
   </section>
 
   <canvas id="scope" class="scope"></canvas>
@@ -84,7 +105,7 @@
     </label>
   </footer>
 
-  <p class="keys">鍵盤: <code>1234 / qwer / asdf / zxcv</code> ＝ 16パッド（押しっぱなし）　<code>space</code> ＝ 再生　<code>0</code> ＝ 全解除</p>
+  <p class="keys">鍵盤: <code>1234 / qwer / asdf / zxcv</code> ＝ 16パッド（押しっぱなし）　<code>space</code> ＝ 再生　<code>0</code> ＝ 全解除　パッド右上の <code>R</code> ＝ その効果を乱数で振る</p>
 
 </div>
 
