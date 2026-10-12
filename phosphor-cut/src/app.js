@@ -1,7 +1,8 @@
 'use strict';
 /* =========================================================
-   Phosphor Cut — CRT video-feedback collage editor
-   pipeline per frame:  sources A/B(/pad) → MIX(wipe, key, fade) → CORRECTOR → TIME (32-frame history)
+   Phosphor Cut — live CRT video-feedback collage desk
+   pipeline per frame:  decks / timeline / pad → MIX (layers, wipe, key, entrance) → CORRECTOR → TIME (32-frame history)
+                        → GLITCH + ECHO (beat / audio driven)
                         → FEEDBACK (camera-on-CRT loop) → PHOSPHOR persistence → TUBE (display) → canvas
    ========================================================= */
 const $ = s => document.querySelector(s);
@@ -21,50 +22,83 @@ function tcode(t, withF = true) {
 }
 const fmtSec = t => (Math.round(t * 100) / 100).toFixed(2) + 's';
 
+
 /* ---------------- parameters ---------------- */
 const DEF = {
-  amt: 1, fade: 0, mixMode: 0, wipe: 0, soft: .04, border: 0, borderHue: .1, keyThr: .45, bg: 0, fit: 0, fadeAudio: 1,
+  amt: 0, fade: 0, mixMode: 1, wipe: 0, soft: .04, border: 0, borderHue: .1, keyThr: .45, bg: 0, fit: 0, fadeAudio: 1,
+  appear: 2, appearT: 1.2, autoMix: 1,
+  aScale: 1, aX: 0, aY: 0, aRot: 0, aDepth: 0, aFeather: 0, aShape: 0, aTiles: 0, aFloat: 0,
+  bScale: 1, bX: 0, bY: 0, bRot: 0, bDepth: 0, bFeather: 0, bShape: 0, bTiles: 0, bFloat: 0,
+  gSlip: .35, gRgb: .35, gBlock: .25, gPunch: .3, gWarp: .1, gStutter: 0, gDecay: .3, gEvery: 0, audioGain: .6,
+  echoMix: 0, echoDiv: 2, echoFb: .55, verb: 0,
   wbX: 0, wbY: 0, bbX: 0, bbY: 0, wideW: 0, wideB: 0, hue: 0, sat: 1, gamma: 1, bright: 0, contrast: 1, cnr: 0, mosaic: 0, strobe: 0, post: 0, neg: 0, tint: 0, tintHue: .08,
   tmode: 0, tdepth: 16, tmix: 1,
-  fbMode: 0, fbAmt: .55, fbZoom: 1.03, fbRot: .6, fbX: 0, fbY: 0, fbHue: .012, fbGain: .96, fbThr: .3, fbBlur: .3, fbTube: 0,
-  maskType: 0, curv: .55, scan: .5, mask: .4, bloom: .45, conv: .3, chroma: .35, noise: .1, hum: .18, roll: 0, jitter: .12, persist: .45, vig: .5, tgain: 1.05, lines: 0
+  fbMode: 0, fbAmt: .5, fbZoom: 1.03, fbRot: .6, fbX: 0, fbY: 0, fbHue: .012, fbGain: .96, fbThr: .3, fbBlur: .3, fbTube: 0,
+  maskType: 0, curv: .55, scan: .5, mask: .4, bloom: .45, conv: .3, chroma: .35, noise: .1, hum: .18, roll: 0, jitter: .12, persist: .45, vig: .5, tgain: 1.05, lines: 0,
+  modSrc: 0, xAuto: 0, xDiv: 4, diceEvery: 0, glide: 1.5
 };
 const P = Object.assign({}, DEF);
-try { const s = JSON.parse(localStorage.getItem('phosphor-cut-fx') || 'null'); if (s) for (const k in s) if (k in DEF && typeof s[k] === 'number') P[k] = s[k]; } catch (e) { }
-let saveT = 0; function saveFx() { clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem('phosphor-cut-fx', JSON.stringify(P)); } catch (e) { } }, 400); }
+const LS = { get(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } } };
+{ const s = LS.get('phosphor-cut-fx2'); if (s) for (const k in s) if (k in DEF && typeof s[k] === 'number') P[k] = s[k]; }
+let saveT = 0; function saveFx() { clearTimeout(saveT); saveT = setTimeout(() => { LS.set('phosphor-cut-fx2', P); LS.set('phosphor-cut-dice', { DICE, AUTO }); }, 400); }
 
 const pct = v => Math.round(v * 100) + '';
 const deg = v => Math.round(v * 360) + '°';
-const C = (id, label, min, max, step, fmt = pct) => ({ id, label, min, max, step, fmt });
-const SCH = {
-  mix: [C('soft', '境界のぼかし', 0, .3, .005), C('border', '境界線の太さ', 0, .06, .002, v => (v * 1000 | 0) + ''), C('borderHue', '境界線の色', 0, 1, .01, deg), C('keyThr', 'キーのしきい値', 0, 1, .01)],
-  cc: [C('hue', '色合い HUE', -.5, .5, .005, deg), C('sat', '色の濃さ COLOR', 0, 2.5, .01), C('gamma', 'ガンマ', .4, 2.5, .01, v => v.toFixed(2)), C('bright', '明るさ', -.5, .5, .01),
-    C('contrast', 'コントラスト', .3, 2.2, .01), C('cnr', '色ノイズ低減 CNR', 0, 1, .01), C('mosaic', 'モザイク', 0, 1, .01), C('strobe', 'ストロボ（コマ）', 0, 12, 1, v => v ? v + '' : 'オフ'),
-    C('post', 'ペイント（階調）', 0, 1, .01), C('neg', 'ネガ反転', 0, 1, .01), C('tint', 'セピア / 単色化', 0, 1, .01), C('tintHue', '単色化の色', 0, 1, .005, deg)],
-  time: [C('tdepth', '時間の深さ（コマ）', 1, 31, 1, v => v + ''), C('tmix', '効き具合', 0, 1, .01)],
-  fb: [C('fbAmt', '帰還量', 0, 1, .01), C('fbZoom', 'ズーム', .85, 1.2, .002, v => '×' + v.toFixed(3)), C('fbRot', '回転（度/コマ）', -6, 6, .05, v => v.toFixed(2)),
-    C('fbX', '横ずれ', -.04, .04, .0005, v => (v * 1000).toFixed(1)), C('fbY', '縦ずれ', -.04, .04, .0005, v => (v * 1000).toFixed(1)), C('fbHue', '色の回り', -.08, .08, .001, v => (v * 360).toFixed(1) + '°'),
-    C('fbGain', 'ゲイン', .7, 1.12, .002, v => v.toFixed(3)), C('fbThr', 'キーのしきい値', 0, 1, .01), C('fbBlur', 'にじみ', 0, 1, .01)],
-  tube: [C('curv', '管面の丸み', 0, 1, .01), C('scan', '走査線', 0, 1, .01), C('mask', 'マスクの濃さ', 0, 1, .01), C('bloom', 'にじむ光', 0, 1, .01), C('conv', 'コンバーゼンスずれ', 0, 1, .01),
-    C('chroma', '色にじみ', 0, 1, .01), C('noise', 'スノーノイズ', 0, 1, .01), C('hum', 'ハムバー', 0, 1, .01), C('roll', '垂直同期（ロール）', -1, 1, .01, v => (v * 100 | 0) + ''),
-    C('jitter', '横ゆれ', 0, 1, .01), C('persist', '残光', 0, .97, .01), C('vig', '周辺減光', 0, 1, .01), C('tgain', '輝度', .6, 1.6, .01, v => v.toFixed(2))]
-};
-const MIX_MODES = ['ワイプ', 'ミックス', 'キー', '明るい方', '差分', '加算'];
+const dgr = v => v.toFixed(1) + '°';
+// range control. r = the range the dice is allowed to roll (kept gentle on purpose)
+const R = (id, label, min, max, step, fmt = pct, r = null) => ({ t: 'r', id, label, min, max, step, fmt, r });
+// choice control (segmented buttons). r = indexes the dice may pick
+const CH = (id, label, opts, r = null) => ({ t: 'ch', id, label, opts, r });
+const MIX_MODES = ['ワイプ', 'ミックス', 'キー', '明るい方', '差分', '加算', 'スクリーン', '乗算'];
+const APPEARS = ['カット', 'フェード', 'ぼやっと', '奥から', 'スライド', 'グリッチ', '電源オン'];
 const T_MODES = ['オフ', 'ディレイ', '縦スリット', '横スリット', '輝度で時差', 'ブロック', 'エコー', 'RGB 時差'];
 const FB_MODES = ['輝度キー', '明るい方', '加算', '重ね'];
 const MASKS = ['アパーチャグリル', 'シャドウマスク', 'スロット'];
 const BG_COLORS = [[0, 0, 0], [1, 1, 1], [.85, .1, .1], [.1, .75, .2], [.12, .2, .9], [.95, .85, .1], [.1, .85, .9], [.85, .15, .8]];
+const layerDefs = k => [
+  R(k + 'Scale', '大きさ', .2, 2, .01, v => '×' + v.toFixed(2), [.55, 1.15]), R(k + 'X', '横の位置', -.6, .6, .005, v => (v * 100 | 0) + '', [-.3, .3]), R(k + 'Y', '縦の位置', -.6, .6, .005, v => (v * 100 | 0) + '', [-.25, .25]),
+  R(k + 'Rot', '傾き', -.6, .6, .005, v => Math.round(v * 57.3) + '°', [-.12, .12]), R(k + 'Depth', '奥行き', 0, 1, .01, pct, [0, .6]), R(k + 'Feather', '縁のぼかし', 0, 1, .01, pct, [0, .8]),
+  R(k + 'Float', 'ゆらぎ', 0, 1, .01, pct, [0, .6]), CH(k + 'Shape', '形', ['四角', '楕円']), CH(k + 'Tiles', '並べる', ['1', '2', '3', '4'].map(x => x + ' 枚'))
+];
+const SECS = {
+  mix: { h: 'Mix', jp: 'A と B の重ね方', defs: [CH('mixMode', '合成モード', MIX_MODES, [0, 1, 2, 3, 6]), 'wipes', CH('fit', '画角', ['フィル', '全体', '引き伸ばし']),
+    R('soft', '境界のぼかし', 0, .3, .005, pct, [.01, .2]), R('border', '境界線', 0, .06, .002, v => (v * 1000 | 0) + '', [0, .02]), R('borderHue', '境界線の色', 0, 1, .01, deg), R('keyThr', 'キーのしきい値', 0, 1, .01, pct, [.25, .65]), 'bgs'] },
+  appear: { h: 'Appear', jp: '素材の現れ方・消え方', defs: [CH('appear', '現れ方', APPEARS, [1, 2, 3, 4, 5, 6]), R('appearT', '現れる時間', .1, 4, .05, v => v.toFixed(2) + 's', [.5, 2.5]), 'automix'] },
+  layer: { h: 'Layers', jp: 'A / B それぞれの位置・大きさ・奥行き', defs: ['layers'] },
+  glitch: { h: 'Glitch', jp: '拍や音に合わせて画が崩れる', defs: [R('gSlip', '走査ずれ', 0, 1, .01, pct, [.1, .6]), R('gRgb', 'RGB ずれ', 0, 1, .01, pct, [.1, .6]), R('gBlock', 'ブロック時差', 0, 1, .01, pct, [0, .5]),
+    R('gPunch', 'ズームの脈', 0, 1, .01, pct, [0, .6]), R('gWarp', '波うち', 0, 1, .01, pct, [0, .4]), R('gStutter', '拍スタッター', 0, 1, .01, pct, [0, .4]), R('gDecay', '余韻', .05, 1.2, .01, v => v.toFixed(2) + 's', [.15, .6]),
+    R('audioGain', '音への感度', 0, 1.5, .01, pct), CH('gEvery', '崩れるタイミング', ['毎拍', '2 拍', '1 小節', '裏拍も'], [0, 1, 2])] },
+  echo: { h: 'Echo', jp: 'ディレイとリバーブのような残像', defs: [R('echoMix', 'ディレイの量', 0, 1, .01, pct, [0, .6]), CH('echoDiv', 'ディレイの間隔', ['1/16 拍', '1/8 拍', '1/4 拍', '1/2 拍']), R('echoFb', 'くり返し', 0, .9, .01, pct, [.3, .75]), R('verb', 'リバーブ（残光の霧）', 0, 1, .01, pct, [0, .55])] },
+  time: { h: 'Time', jp: '画面の場所ごとに違う時刻を見せる', defs: [CH('tmode', '時間モード', T_MODES, [0, 0, 1, 2, 3, 4, 6, 7]), R('tdepth', '時間の深さ（コマ）', 1, 31, 1, v => v + '', [4, 24]), R('tmix', '効き具合', 0, 1, .01, pct, [.4, 1]), 'timebtns'] },
+  fb: { h: 'Feedback', jp: 'カメラでブラウン管を撮る帰還ループ', defs: [CH('fbMode', '帰還キー', FB_MODES, [0, 1, 3]), R('fbAmt', '帰還量', 0, 1, .01, pct, [.2, .75]), R('fbZoom', 'ズーム', .85, 1.2, .002, v => '×' + v.toFixed(3), [.96, 1.06]),
+    R('fbRot', '回転（度/コマ）', -6, 6, .05, v => v.toFixed(2), [-1.5, 1.5]), R('fbX', '横ずれ', -.04, .04, .0005, v => (v * 1000).toFixed(1), [-.008, .008]), R('fbY', '縦ずれ', -.04, .04, .0005, v => (v * 1000).toFixed(1), [-.008, .008]),
+    R('fbHue', '色の回り', -.08, .08, .001, v => (v * 360).toFixed(1) + '°', [-.025, .025]), R('fbGain', 'ゲイン', .7, 1.12, .002, v => v.toFixed(3), [.92, 1.0]), R('fbThr', 'キーのしきい値', 0, 1, .01, pct, [.15, .55]), R('fbBlur', 'にじみ', 0, 1, .01, pct, [0, .6]), 'fbbtns'] },
+  cc: { h: 'Color', jp: 'XV-C900 ふうの色補正', defs: ['joys', R('hue', '色合い HUE', -.5, .5, .005, deg, [-.12, .12]), R('sat', '色の濃さ COLOR', 0, 2.5, .01, pct, [.6, 1.6]), R('gamma', 'ガンマ', .4, 2.5, .01, v => v.toFixed(2), [.8, 1.3]),
+    R('bright', '明るさ', -.5, .5, .01, pct, [-.06, .08]), R('contrast', 'コントラスト', .3, 2.2, .01, pct, [.85, 1.3]), R('cnr', '色ノイズ低減 CNR', 0, 1, .01, pct, [0, .7]), R('mosaic', 'モザイク', 0, 1, .01, pct, [0, .35]),
+    R('strobe', 'ストロボ（コマ）', 0, 12, 1, v => v ? v + '' : 'オフ', [0, 3]), R('post', 'ペイント（階調）', 0, 1, .01, pct, [0, .45]), R('neg', 'ネガ反転', 0, 1, .01, pct, [0, .15]), R('tint', 'セピア / 単色化', 0, 1, .01, pct, [0, .6]), R('tintHue', '単色化の色', 0, 1, .005, deg), 'ccreset'] },
+  tube: { h: 'Tube', jp: 'ブラウン管そのもの', defs: [CH('maskType', 'マスク', MASKS), CH('lines', '走査線', ['240 本', '480 本']), R('curv', '管面の丸み', 0, 1, .01, pct, [.2, .8]), R('scan', '走査線の濃さ', 0, 1, .01, pct, [.2, .75]), R('mask', 'マスクの濃さ', 0, 1, .01, pct, [.15, .6]),
+    R('bloom', 'にじむ光', 0, 1, .01, pct, [.2, .75]), R('conv', 'コンバーゼンスずれ', 0, 1, .01, pct, [0, .6]), R('chroma', '色にじみ', 0, 1, .01, pct, [.1, .7]), R('noise', 'スノーノイズ', 0, 1, .01, pct, [0, .25]), R('hum', 'ハムバー', 0, 1, .01, pct, [0, .4]),
+    R('roll', '垂直同期（ロール）', -1, 1, .01, v => (v * 100 | 0) + '', [0, 0]), R('jitter', '横ゆれ', 0, 1, .01, pct, [0, .35]), R('persist', '残光', 0, .97, .01, pct, [.2, .8]), R('vig', '周辺減光', 0, 1, .01, pct, [.2, .7]), R('tgain', '輝度', .6, 1.6, .01, v => v.toFixed(2))] }
+};
+SECS.layer.defs = ['layers', ...layerDefs('a'), ...layerDefs('b')];
+// which controls the dice moves (checkbox next to each) and which sections roll by themselves on the auto-dice beat
+const DICE_ON = ['mixMode', 'appear', 'bScale', 'bX', 'bY', 'bDepth', 'bFeather', 'bFloat', 'aDepth', 'gSlip', 'gRgb', 'gBlock', 'gPunch', 'echoMix', 'verb', 'tmode', 'tdepth',
+  'fbAmt', 'fbZoom', 'fbRot', 'fbHue', 'hue', 'sat', 'tint', 'tintHue', 'bloom', 'conv', 'chroma', 'persist'];
+let DICE = {}, AUTO = { mix: 0, appear: 1, layer: 1, glitch: 1, echo: 1, time: 0, fb: 1, cc: 0, tube: 0 };
+DICE_ON.forEach(k => DICE[k] = 1);
+{ const s = LS.get('phosphor-cut-dice'); if (s) { if (s.DICE) DICE = s.DICE; if (s.AUTO) Object.assign(AUTO, s.AUTO); } }
 const PRESETS = {
   '標準': {},
-  '無限トンネル': { fbMode: 0, fbAmt: .95, fbZoom: .94, fbRot: 2.4, fbHue: .02, fbGain: 1.0, fbThr: .42, fbBlur: .15, tmode: 0 },
-  'スリットスキャン': { tmode: 2, tdepth: 31, fbAmt: .25, fbZoom: 1.0, fbRot: 0, persist: .3 },
-  'RGB 時差': { tmode: 7, tdepth: 10, fbAmt: .3, conv: .6, bloom: .6 },
+  'ふわっと重ねる': { mixMode: 6, appear: 2, appearT: 2, bScale: .75, bDepth: .35, bFeather: .7, bShape: 1, bFloat: .5, verb: .35, fbAmt: .35 },
+  'DJ 交互カット': { mixMode: 1, xAuto: 2, xDiv: 2, gSlip: .5, gRgb: .45, gPunch: .45, gStutter: .25, echoMix: .25 },
+  '無限トンネル': { fbMode: 0, fbAmt: .9, fbZoom: .95, fbRot: 2.2, fbHue: .02, fbGain: 1.0, fbThr: .42, fbBlur: .15 },
+  '奥行きの窓': { bScale: .6, bDepth: .45, bX: .2, bY: .1, bFeather: .25, aDepth: .2, bFloat: .4, mixMode: 1, fbAmt: .4, fbZoom: 1.01 },
+  'スリットスキャン': { tmode: 2, tdepth: 31, fbAmt: .2, fbZoom: 1, fbRot: 0, persist: .3 },
+  'ディレイの残響': { echoMix: .6, echoDiv: 2, echoFb: .7, verb: .4, fbAmt: .25 },
   '家庭用ビデオ 3倍': { cnr: .9, chroma: .9, jitter: .55, noise: .38, hum: .45, sat: .78, bloom: .55, fbAmt: .1, scan: .65, bright: .04 },
-  'ビデオアート': { tint: .85, tintHue: .55, post: .55, fbAmt: .75, fbZoom: 1.06, fbRot: -1.2, fbHue: .03, fbMode: 1, tmode: 6, tdepth: 12 },
   'モアレ育成': { fbTube: 1, fbAmt: .8, fbZoom: 1.012, fbRot: .25, fbMode: 3, mask: .8, scan: .8, curv: .7 },
-  '補正だけ': { fbAmt: 0, tmode: 0, curv: .2, scan: .2, mask: .1, noise: 0, hum: 0, jitter: 0, persist: 0, bloom: .2, conv: 0, chroma: .1 }
+  '補正だけ': { fbAmt: 0, tmode: 0, gSlip: 0, gRgb: 0, gBlock: 0, gPunch: 0, gWarp: 0, curv: .2, scan: .2, mask: .1, noise: 0, hum: 0, jitter: 0, persist: 0, bloom: .2, conv: 0, chroma: .1 }
 };
-
 /* ---------------- WebGL ---------------- */
 const cv = $('#screen');
 const gl = cv.getContext('webgl2', { antialias: false, premultipliedAlpha: false, preserveDrawingBuffer: false });
@@ -81,9 +115,10 @@ vec3 hue3(float h){return clamp(abs(fract(h+vec3(0.,2./3.,1./3.))*6.-3.)-1.,0.,1
 vec3 hueRot(vec3 c,float a){vec3 y=toYiq(c);float s=sin(a),k=cos(a);y.yz=mat2(k,-s,s,k)*y.yz;return fromYiq(y);}
 `;
 const FS_MIX = HEAD + `
-uniform sampler2D uA,uB; uniform float uSeed,uAspA,uAspB,uAmt,uSoft,uBorder,uKey,uFade; uniform int uHasA,uHasB,uFit,uMode,uWipe,uBg; uniform vec3 uBorderCol,uBgCol;
+uniform sampler2D uA,uB; uniform int uHas[2],uSty[2],uShape[2],uTiles[2],uFit,uMode,uWipe,uBg;
+uniform float uAsp[2],uDep[2],uFea[2],uP[2],uAmt,uSoft,uBorder,uKey,uFade,uTime,uSeed; uniform vec4 uXf[2]; uniform vec3 uBorderCol,uBgCol;
+float ease(float x){x=clamp(x,0.,1.);return x*x*(3.-2.*x);}
 vec2 fitUV(vec2 q,float asp){float r=asp/(4./3.);vec2 s=vec2(1.);if(uFit==2)return q;if(uFit==0){if(r>1.)s.x=1./r;else s.y=r;}else{if(r>1.)s.y=r;else s.x=1./r;}return (q-.5)*s+.5;}
-vec3 samp(sampler2D t,vec2 q,float asp){vec2 u=fitUV(q,asp);if(u.x<0.||u.y<0.||u.x>1.||u.y>1.)return vec3(0.);return texture(t,u).rgb;}
 vec3 bars(vec2 q){float y=1.-q.y;int i=clamp(int(floor(q.x*7.)),0,6);
  vec3 c[7]=vec3[7](vec3(.75),vec3(.75,.75,0.),vec3(0.,.75,.75),vec3(0.,.75,0.),vec3(.75,0.,.75),vec3(.75,0.,0.),vec3(0.,0.,.75));
  vec3 d[7]=vec3[7](vec3(0.,0.,.75),vec3(.07),vec3(.75,0.,.75),vec3(.07),vec3(0.,.75,.75),vec3(.07),vec3(.75));
@@ -94,16 +129,40 @@ float wipeV(vec2 q){float x=q.x,y=q.y,cx=x-.5,cy=y-.5;
  if(uWipe==7)return fract(y*8.); if(uWipe==8)return fract(x*10.); if(uWipe==9)return mod(floor(x*8.)+floor(y*6.),2.)*.5+fract(x*8.)*.5;
  if(uWipe==10)return abs(cx)*2.; if(uWipe==11)return abs(cy)*2.; if(uWipe==12)return max(x,1.-y); if(uWipe==13)return min(abs(cx),abs(cy))*2.;
  return hash(floor(q*vec2(32.,24.)));}
+// one picture layer: transform (position / size / rotation / depth), soft mask, mirrored tiles and its entrance animation
+vec4 layer(sampler2D t,int i,vec2 q){
+ if(uHas[i]==0)return vec4(0.);
+ float p=clamp(uP[i],0.,1.),e=1.-p; int st=uSty[i]; vec4 xf=uXf[i];
+ float dep=uDep[i]; float sc=xf.z/(1.+dep*1.4); vec2 off=xf.xy; float blur=dep*2.5; float a=1.; float gain=1.-dep*.4;
+ if(st==1)a=ease(p);
+ else if(st==2){a=ease(p);blur+=e*5.;}
+ else if(st==3){sc*=mix(.08,1.,ease(p));a=ease(p);blur+=e*2.;}
+ else if(st==4){off.x+=(1.-ease(p))*1.3;}
+ else if(st==5){float r=hash(vec2(floor(q.y*36.),floor(uTime*24.)));a=step(r,p*1.15);off.x+=(hash(vec2(floor(q.y*18.),floor(uTime*30.)+1.))-.5)*e*.5;}
+ else if(st==6){float h=mix(.006,1.,ease(clamp(p*1.7-.7,0.,1.)));float w=ease(clamp(p*2.4,0.,1.));if(abs(q.y-.5)>h*.5||abs(q.x-.5)>w*.5)a=0.;gain*=1.+e*2.;}
+ vec2 r=(q-.5-off)*vec2(4./3.,1.); float s=sin(-xf.w),k=cos(-xf.w); r=mat2(k,-s,s,k)*r/max(sc,.01); vec2 u=r/vec2(4./3.,1.)+.5;
+ int tl=uTiles[i];
+ if(tl>1){u=u*float(tl);vec2 f=fract(u);vec2 c=floor(u);u=mix(f,1.-f,mod(c,2.));}
+ else if(u.x<0.||u.y<0.||u.x>1.||u.y>1.)return vec4(0.);
+ float m=1.; float fe=uFea[i];
+ if(uShape[i]==1)m=1.-smoothstep(.5-max(fe,.004)*.5,.5,length(u-.5));
+ else if(fe>0.){vec2 d=min(u,1.-u);m=smoothstep(0.,fe*.5,d.x)*smoothstep(0.,fe*.5,d.y);}
+ vec2 tu=fitUV(u,uAsp[i]); vec3 col=vec3(0.);
+ if(!(tu.x<0.||tu.y<0.||tu.x>1.||tu.y>1.))col=textureLod(t,tu,blur).rgb;
+ return vec4(col*gain,a*m);}
 void main(){
- vec3 a=uHasA==1?samp(uA,uv,uAspA):vec3(0.); vec3 b=uHasB==1?samp(uB,uv,uAspB):a; vec3 c=a;
- if(uMode==0){float e=max(uSoft,.0008);float w=wipeV(uv);float t=uAmt*(1.+2.*e)-e;float m=1.-smoothstep(t-e,t+e,w);c=mix(a,b,m);
-   if(uBorder>0.&&uAmt>.001&&uAmt<.999){float bd=1.-smoothstep(uBorder*.5,uBorder*.5+.003,abs(w-t));c=mix(c,uBorderCol,bd);}}
- else if(uMode==1)c=mix(a,b,uAmt);
- else if(uMode==2){float k=smoothstep(uKey-uSoft-.01,uKey+uSoft+.01,luma(b));c=mix(a,b,k*uAmt);}
- else if(uMode==3)c=mix(a,max(a,b),uAmt);
- else if(uMode==4)c=mix(a,abs(a-b),uAmt);
- else c=a+b*uAmt;
- if(uHasA==0&&uHasB==0)c=vec3(hash(uv*vec2(640.,480.)+fract(uSeed))*.55);
+ vec4 la=layer(uA,0,uv),lb=layer(uB,1,uv);
+ vec3 a=la.rgb*la.a,b=lb.rgb; float ab=lb.a,amt=uAmt*ab; vec3 c=a;
+ if(uMode==0){float e=max(uSoft,.0008);float w=wipeV(uv);float t=uAmt*(1.+2.*e)-e;float m=1.-smoothstep(t-e,t+e,w);c=mix(a,b,m*ab);
+   if(uBorder>0.&&uAmt>.001&&uAmt<.999){float bd=1.-smoothstep(uBorder*.5,uBorder*.5+.003,abs(w-t));c=mix(c,uBorderCol,bd*ab);}}
+ else if(uMode==1)c=mix(a,b,amt);
+ else if(uMode==2){float k=smoothstep(uKey-uSoft-.01,uKey+uSoft+.01,luma(b));c=mix(a,b,k*amt);}
+ else if(uMode==3)c=mix(a,max(a,b),amt);
+ else if(uMode==4)c=mix(a,abs(a-b),amt);
+ else if(uMode==5)c=a+b*amt;
+ else if(uMode==6)c=mix(a,1.-(1.-a)*(1.-b),amt);
+ else c=mix(a,a*b,amt);
+ if(uHas[0]==0&&uHas[1]==0)c=vec3(hash(uv*vec2(640.,480.)+fract(uSeed))*.55);
  vec3 bg=uBg==8?bars(uv):uBgCol; c=mix(c,bg,uFade);
  o=vec4(clamp(c,0.,1.),1.);}`;
 const FS_CC = HEAD + `
@@ -137,6 +196,22 @@ void main(){vec3 cur=texture(uC,uv).rgb;vec3 c=cur;float D=uD;
  else if(uMode==6){c=cur*.36+hl(D*.25,uv)*.25+hl(D*.5,uv)*.18+hl(D*.75,uv)*.12+hl(D,uv)*.09;}
  else if(uMode==7){c=vec3(cur.r,hl(D*.5,uv).g,hl(D,uv).b);}
  o=vec4(mix(cur,c,uMix),1.);}`;
+const FS_GLITCH = HEAD + `
+uniform sampler2D uT; uniform sampler2DArray uH; uniform int uHead,uN; uniform float uEnv,uSlip,uRgb,uBlock,uSeed,uEchoMix,uEchoD,uEchoFb,uVerb,uPunch,uWarp,uTime;
+vec3 hl(float lag,vec2 q){lag=clamp(lag,0.,float(uN-1));float l0=floor(lag);float f=lag-l0;
+ float a=mod(float(uHead)-l0+float(uN)*4.,float(uN)),b=mod(float(uHead)-l0-1.+float(uN)*4.,float(uN));
+ return mix(texture(uH,vec3(q,a)).rgb,texture(uH,vec3(q,b)).rgb,f);}
+void main(){vec2 q=uv;
+ q=(q-.5)/(1.+uPunch*uEnv*.12)+.5;
+ q.x+=sin(q.y*11.+uTime*1.3)*uWarp*.012; q.y+=sin(q.x*8.+uTime*.9)*uWarp*.009;
+ float band=floor(q.y*26.); float on=step(1.-uSlip*uEnv*.75,hash(vec2(band*1.7,uSeed+3.))); q.x+=(hash(vec2(band,uSeed))-.5)*on*.16*uEnv;
+ float rs=uRgb*(.0015+uEnv*.012);
+ vec3 c=vec3(texture(uT,q+vec2(rs,0.)).r,texture(uT,q).g,texture(uT,q-vec2(rs,rs*.3)).b);
+ vec2 cell=floor(q*vec2(12.,9.));
+ if(hash(cell+uSeed)<uBlock*uEnv*.55)c=hl(3.+floor(hash(cell+uSeed+1.)*22.),q+(vec2(hash(cell),hash(cell+5.))-.5)*.06);
+ if(uEchoMix>0.){vec3 e=vec3(0.);float w=uEchoFb;for(int k=1;k<=4;k++){e+=hl(uEchoD*float(k),q)*w;w*=uEchoFb;}c=1.-(1.-c)*(1.-clamp(e*uEchoMix,0.,1.));}
+ if(uVerb>0.){vec3 v=vec3(0.);for(int k=1;k<=8;k++){float fk=float(k);v+=hl(fk*3.,(q-.5)*(1.+fk*.006)+.5+vec2(sin(fk*2.1),cos(fk*1.7))*fk*.0012);}v/=8.;c=mix(c,max(c,v*1.05),uVerb);}
+ o=vec4(clamp(c,0.,1.),1.);}`;
 const FS_FB = HEAD + `
 uniform sampler2D uT,uF; uniform float uAmt,uZoom,uRot,uHue,uGain,uThr,uBlur; uniform vec2 uOff; uniform int uMode;
 void main(){vec3 cur=texture(uT,uv).rgb;
@@ -204,11 +279,12 @@ function initGL() {
   if (!gl) return false;
   try {
     F16 = !!gl.getExtension('EXT_color_buffer_float');
-    PR.mix = mkProg(FS_MIX); PR.cc = mkProg(FS_CC); PR.copy = mkProg(FS_COPY); PR.time = mkProg(FS_TIME); PR.fb = mkProg(FS_FB); PR.persist = mkProg(FS_PERSIST); PR.tube = mkProg(FS_TUBE);
+    PR.mix = mkProg(FS_MIX); PR.cc = mkProg(FS_CC); PR.copy = mkProg(FS_COPY); PR.time = mkProg(FS_TIME); PR.glitch = mkProg(FS_GLITCH); PR.fb = mkProg(FS_FB); PR.persist = mkProg(FS_PERSIST); PR.tube = mkProg(FS_TUBE);
     quad = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, quad); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
     gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
     T_.srcA = mkTex(2, 2); T_.srcB = mkTex(2, 2);
-    T_.M = mkTarget(PW, PH); T_.C = mkTarget(PW, PH); T_.T = mkTarget(PW, PH);
+    for (const t of [T_.srcA, T_.srcB]) { gl.bindTexture(gl.TEXTURE_2D, t); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); }
+    T_.M = mkTarget(PW, PH); T_.C = mkTarget(PW, PH); T_.T = mkTarget(PW, PH); T_.G = mkTarget(PW, PH);
     const ff = F16 ? 'f16' : 'u8'; T_.F = [mkTarget(PW, PH, ff), mkTarget(PW, PH, ff)];
     T_.P = [mkTarget(PW, PH, 'u8', true), mkTarget(PW, PH, 'u8', true)];
     T_.D = mkTarget(OW, OH);
@@ -216,7 +292,7 @@ function initGL() {
     gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     histFb = gl.createFramebuffer();
-    for (const t of [T_.M, T_.C, T_.T, ...T_.F, ...T_.P, T_.D]) clearTarget(t);
+    for (const t of [T_.M, T_.C, T_.T, T_.G, ...T_.F, ...T_.P, T_.D]) clearTarget(t);
     return true;
   } catch (e) { console.error(e); return false; }
 }
@@ -227,15 +303,17 @@ function pass(prog, target, tex, uni) {
   let unit = 0;
   for (const k in tex) { const [t, kind] = Array.isArray(tex[k]) ? tex[k] : [tex[k], 0]; gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(kind ? gl.TEXTURE_2D_ARRAY : gl.TEXTURE_2D, t); if (prog.u[k]) gl.uniform1i(prog.u[k], unit); unit++; }
   for (const k in uni) {
-    const l = prog.u[k]; if (!l) continue; const v = uni[k];
-    if (typeof v === 'number') gl.uniform1f(l, v); else if (v.i != null) gl.uniform1i(l, v.i); else if (v.length === 2) gl.uniform2f(l, v[0], v[1]); else if (v.length === 3) gl.uniform3f(l, v[0], v[1], v[2]);
+    const l = prog.u[k] || prog.u[k + '[0]']; if (!l) continue; const v = uni[k];
+    if (typeof v === 'number') gl.uniform1f(l, v); else if (v.i != null) gl.uniform1i(l, v.i);
+    else if (v.iv) gl.uniform1iv(l, v.iv); else if (v.fv) gl.uniform1fv(l, v.fv); else if (v.f4) gl.uniform4fv(l, v.f4);
+    else if (v.length === 2) gl.uniform2f(l, v[0], v[1]); else if (v.length === 3) gl.uniform3f(l, v[0], v[1], v[2]);
   }
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 }
 const I = i => ({ i: i | 0 });
 function upload(tex, el) {
   gl.bindTexture(gl.TEXTURE_2D, tex); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-  try { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, el); } catch (e) { }
+  try { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, el); gl.generateMipmap(gl.TEXTURE_2D); } catch (e) { }
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
 }
 
@@ -282,7 +360,7 @@ function finishVideo(c, m, blob, note) {
   Object.assign(c, { url: m.url, el: m.el, dur: m.dur, in: 0, out: m.dur, w: m.w, h: m.h, thumb: m.thumb, busy: '', blob });
   m.el.controls = true; m.el.muted = false; m.el.pause();
   if (note) c.note = note;
-  renderBin(); selectClip(c);
+  renderBin(); onClipReady(c);
 }
 async function addTs(f, name) {
   let vcodecSeen = '';
@@ -314,7 +392,7 @@ function addImage(f, name) {
     const s = Math.min(1, 1280 / Math.max(img.naturalWidth, img.naturalHeight)); const k = document.createElement('canvas'); k.width = Math.round(img.naturalWidth * s); k.height = Math.round(img.naturalHeight * s); k.getContext('2d').drawImage(img, 0, 0, k.width, k.height);
     const tk = document.createElement('canvas'); tk.width = 160; tk.height = 120; const x = tk.getContext('2d'); const ss = Math.max(160 / k.width, 120 / k.height); x.drawImage(k, (160 - k.width * ss) / 2, (120 - k.height * ss) / 2, k.width * ss, k.height * ss);
     URL.revokeObjectURL(url);
-    const c = newClip('image', name, { canvas: k, w: k.width, h: k.height, dur: 4, out: 4, thumb: tk.toDataURL('image/jpeg', .8) }); renderBin(); selectClip(c);
+    const c = newClip('image', name, { canvas: k, w: k.width, h: k.height, dur: 4, out: 4, thumb: tk.toDataURL('image/jpeg', .8) }); renderBin(); onClipReady(c);
   };
   img.onerror = () => { URL.revokeObjectURL(url); toast(`「${name}」はこのブラウザで開けない画像です（HEIC は Safari で開けます）。`, 7000); };
   img.src = url;
@@ -323,7 +401,7 @@ async function addCamera() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast('この環境ではカメラが使えません。撮った動画をファイルとして読み込んでください。', 6000); return; }
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
-    const c = newClip('live', 'ライブカメラ', { stream, dur: 3600, out: 3600, thumb: '' }); renderBin(); selectClip(c);
+    const c = newClip('live', 'ライブカメラ', { stream, dur: 3600, out: 3600, thumb: '' }); renderBin(); onClipReady(c);
     toast('カメラを素材に追加しました。タイムラインに置くか、パッドに割り当ててください。');
   } catch (e) { toast('カメラの使用が許可されませんでした。この画面ではカメラを使えないことがあります。撮った動画をファイルとして読み込んでください。', 7000); }
 }
@@ -334,6 +412,8 @@ function removeClip(c) {
   for (const [k, v] of pool) if (v.clip === c) poolFree(k);
   try { if (c.el) { c.el.pause(); c.el.remove(); } if (c.url) URL.revokeObjectURL(c.url); if (c.stream) c.stream.getTracks().forEach(t => t.stop()); } catch (e) { }
   if (selClip === c) selClip = null;
+  for (const k of ['A', 'B']) if (decks[k].clip === c) { decks[k].clip = null; decks[k].dir = 0; }
+  renderDecks();
   renderBin(); renderPads(); renderTimeline();
 }
 
@@ -345,6 +425,7 @@ function ensureAudio() {
   try {
     AC = new (window.AudioContext || window.webkitAudioContext)(); master = AC.createGain(); master.connect(AC.destination);
     recDest = AC.createMediaStreamDestination(); master.connect(recDest);
+    analyser = AC.createAnalyser(); analyser.fftSize = 256; analyser.smoothingTimeConstant = .5; fbuf = new Uint8Array(analyser.frequencyBinCount); master.connect(analyser);
     for (const k of ['A', 'B', 'P']) { buses[k] = AC.createGain(); buses[k].connect(master); }
     pool.forEach(connectAudio);
   } catch (e) { AC = null; }
@@ -387,16 +468,92 @@ function localTime(seg, t) {
 }
 function envelope(seg, t) { if (!seg.fade) return 1; return clamp(Math.min((t - seg.start) / seg.fade, (seg.start + seg.len - t) / seg.fade), 0, 1); }
 
+
 /* ---------------- playback state ---------------- */
 let T = 0, playing = false, loop = true, masterRate = 1, exporting = false;
 let padHit = null, assignMode = false, latch = false, padRec = false;
 let freeze = false, strobeCount = 0, histHead = 0, fbIdx = 0, rollPos = 0, field = 0, blockSeed = 1;
 let lastNow = performance.now();
 
+/* ---------------- live decks ---------------- */
+const mkDeck = () => ({ clip: null, pos: 0, speed: 1, rev: 0, p: 0, dir: 0 });
+const decks = { A: mkDeck(), B: mkDeck() };
+const offAir = () => { if (!decks.A.clip && !decks.B.clip) return 'A'; return P.amt < .5 ? 'B' : 'A'; };
+function loadDeck(k, c) {
+  if (!c || c.busy) return;
+  ensureAudio();
+  const d = decks[k]; d.clip = c; d.pos = 0; d.dir = 1; d.p = P.appear === 0 ? 1 : 0; if (d.p >= 1) d.dir = 0;
+  const v = pool.get(k); if (v && v.clip === c && c.kind === 'video') { try { v.el.currentTime = c.in; } catch (e) { } }
+  if (P.autoMix && (decks.A.clip && decks.B.clip)) xGlide(k === 'A' ? 0 : 1, Math.max(P.appearT, beatSec() * 2));
+  else if (!decks[k === 'A' ? 'B' : 'A'].clip) { xGlide(k === 'A' ? 0 : 1, .01); }
+  renderDecks();
+}
+function ejectDeck(k) { const d = decks[k]; if (!d.clip) return; if (P.appear === 0) { d.clip = null; d.dir = 0; renderDecks(); } else d.dir = -1; }
+let xAnim = null;
+function xGlide(to, sec) { xAnim = { from: P.amt, to, t0: performance.now(), dur: Math.max(.01, sec) * 1000 }; }
+
+/* ---------------- tempo clock + audio reaction ---------------- */
+let bpm = LS.get('phosphor-cut-bpm') || 120, tickPh = 0, tickN = 0, beatN = 0, env = 0, gSeed = 1, holdF = 0, taps = [];
+let analyser = null, fbuf = null, bassAvg = 0, lastOnset = 0, level = 0;
+const beatSec = () => 60 / bpm;
+function setBpm(v) { bpm = clamp(Math.round(v * 10) / 10, 40, 220); $('#bpm').textContent = bpm.toFixed(1); LS.set('phosphor-cut-bpm', bpm); }
+function tap() {
+  const n = performance.now(); if (taps.length && n - taps[taps.length - 1] > 2000) taps = []; taps.push(n); if (taps.length > 6) taps.shift();
+  if (taps.length >= 3) { const iv = []; for (let i = 1; i < taps.length; i++) iv.push(taps[i] - taps[i - 1]); setBpm(60000 / (iv.reduce((a, b) => a + b) / iv.length)); }
+  tickPh = 0; tickN = 0; beatN = 0; onTick();
+}
+function trigger() {
+  env = 1; gSeed = Math.random() * 100; blockSeed = Math.random() * 100;
+  if (P.gStutter > 0 && Math.random() < P.gStutter) holdF = Math.max(2, Math.round(30 * beatSec() / 4));
+}
+function onTick() { // two ticks per beat
+  const even = tickN % 2 === 0;
+  if (P.modSrc !== 1) { const ev = P.gEvery; if (ev === 3 || (even && (ev === 0 || (ev === 1 && tickN % 4 === 0) || (ev === 2 && tickN % 8 === 0)))) trigger(); }
+  if (even) {
+    const b = beatN; const leds = document.querySelectorAll('#beats i'); leds.forEach((l, i) => l.classList.toggle('on', i === b % 4));
+    if (b > 0 && P.xAuto && b % P.xDiv === 0 && decks.A.clip && decks.B.clip) { const to = P.amt < .5 ? 1 : 0; if (P.xAuto === 2) { xAnim = null; P.amt = to; syncX(); } else xGlide(to, beatSec() * P.xDiv * .9); }
+    if (b > 0 && P.diceEvery && b % P.diceEvery === 0) autoDice();
+    beatN++;
+  }
+  tickN++;
+}
+function audioReact(now) {
+  if (!analyser || P.modSrc === 0) { level = 0; return; }
+  analyser.getByteFrequencyData(fbuf); let bass = 0, all = 0; for (let i = 0; i < fbuf.length; i++) { all += fbuf[i]; if (i < 8) bass += fbuf[i]; }
+  bass /= 8 * 255; all /= fbuf.length * 255; level = all;
+  if (bass - bassAvg > .1 && bass > .25 && now - lastOnset > 180) { lastOnset = now; trigger(); }
+  bassAvg = lerp(bassAvg, bass, .06);
+  env = Math.max(env, Math.min(1, all * P.audioGain * 2.2));
+}
+
+/* ---------------- dice ---------------- */
+const glides = {};
+const DEFS = {}; for (const k in SECS) for (const d of SECS[k].defs) if (typeof d === 'object') { d.sec = k; DEFS[d.id] = d; }
+['wbX', 'wbY', 'bbX', 'bbY'].forEach(id => { DEFS[id] = { t: 'r', id, min: -1, max: 1, step: .01, r: [-.35, .35], sec: 'cc' }; });
+function rollValue(d) {
+  if (d.t === 'ch') { const pool = d.r || d.opts.map((_, i) => i); return pool[Math.floor(Math.random() * pool.length)]; }
+  const r = d.r || [lerp(DEF[d.id], d.min, .5), lerp(DEF[d.id], d.max, .5)];
+  const v = r[0] + Math.random() * (r[1] - r[0]); return d.step >= 1 ? Math.round(v) : v;
+}
+function setTarget(id, v, glide) {
+  const d = DEFS[id];
+  if (d.t === 'ch' || !glide) { delete glides[id]; P[id] = v; return; }
+  glides[id] = { from: P[id], to: v, t0: performance.now(), dur: glide * 1000 };
+}
+function rollSection(sec, glide = P.glide) { let n = 0; for (const id in DEFS) { const d = DEFS[id]; if (d.sec === sec && DICE[id]) { setTarget(id, rollValue(d), glide); n++; } } syncAll(); saveFx(); return n; }
+function autoDice() { let n = 0; for (const s in AUTO) if (AUTO[s]) n += rollSection(s); return n; }
+function diceAll() { let n = 0; for (const s in SECS) n += rollSection(s); toast(n ? `チェックした ${n} 項目を振りました。` : 'ダイスの対象がありません。各項目の左のチェックを入れてください。', 1800); }
+function stepGlides(now) {
+  let any = false;
+  for (const id in glides) { const g = glides[id]; const k = clamp((now - g.t0) / g.dur, 0, 1); const e = k * k * (3 - 2 * k); P[id] = lerp(g.from, g.to, e); any = true; if (k >= 1) delete glides[id]; }
+  return any;
+}
+
+/* ---------------- sources ---------------- */
 function driveVideo(v, local, rate, continuous) {
   const el = v.el; if (el.readyState < 1) return;
   const dur = v.clip.dur || el.duration || 0; local = clamp(local, 0, Math.max(0, dur - 1 / 60));
-  if (playing && continuous) {
+  if (continuous) {
     if (Math.abs(el.playbackRate - rate) > 1e-3) { try { el.playbackRate = rate; } catch (e) { } }
     if (el.paused) { if (Math.abs(el.currentTime - local) > .08) el.currentTime = local; el.play().catch(() => { }); }
     else if (!el.seeking && Math.abs(el.currentTime - local) > .3 + .08 * rate) el.currentTime = local;
@@ -405,12 +562,11 @@ function driveVideo(v, local, rate, continuous) {
     if (!el.seeking && Math.abs(el.currentTime - local) > .02) el.currentTime = local;
   }
 }
-// returns {clip, el/canvas, asp, ready, static}
 function resolveSource(key, clip, local, rate, continuous, vol) {
   if (clip.kind === 'image') return { clip, img: clip.canvas, asp: clip.w / clip.h, ready: true, still: true };
   const v = poolGet(key, clip); v.used = true;
   if (clip.kind === 'video') driveVideo(v, local, rate, continuous);
-  if (v.g) v.g.gain.setTargetAtTime(vol, AC.currentTime, .02);
+  if (v.g) v.g.gain.setTargetAtTime(vol, AC.currentTime, .03);
   const el = v.el; return { clip, img: el, asp: el.videoWidth ? el.videoWidth / el.videoHeight : 4 / 3, ready: el.readyState >= 2 && el.videoWidth > 0 };
 }
 const texOwner = { A: null, B: null }; const texAsp = { A: 4 / 3, B: 4 / 3 };
@@ -420,135 +576,186 @@ function pushTex(slot, src) {
   if (src.still && texOwner[slot] === src.clip.id) return true;
   upload(slot === 'A' ? T_.srcA : T_.srcB, src.img); texOwner[slot] = src.clip.id; texAsp[slot] = src.asp; return true;
 }
+function clipSpan(c) { return Math.max(1 / 30, Math.min(c.out, c.dur) - c.in); }
+function deckLocal(d) { const c = d.clip, span = clipSpan(c); const m = ((d.pos % span) + span) % span; return c.in + m; }
+function layerXf(k, t) { // position / size / rotation with the slow "float" drift
+  const f = P[k + 'Float']; const ph = k === 'a' ? 0 : 2.1;
+  return [P[k + 'X'] + Math.sin(t * .31 + ph) * f * .06, P[k + 'Y'] + Math.cos(t * .23 + ph) * f * .045, P[k + 'Scale'] * (1 + Math.sin(t * .17 + ph) * f * .05), P[k + 'Rot'] + Math.sin(t * .13 + ph) * f * .04];
+}
 
 function frame(now) {
   requestAnimationFrame(frame);
-  const dt = Math.min(.1, (now - lastNow) / 1000); lastNow = now;
+  const rawDt = Math.min(1, (now - lastNow) / 1000), dt = Math.min(.1, rawDt); lastNow = now; const ts = now / 1000;
+  // clocks (tempo runs on wall-clock time even when frames drop)
+  tickPh += rawDt * bpm / 30; while (tickPh >= 1) { tickPh -= 1; onTick(); }
+  env *= Math.exp(-dt / Math.max(.05, P.gDecay)); audioReact(now);
+  if (xAnim) { const k = clamp((now - xAnim.t0) / xAnim.dur, 0, 1); P.amt = lerp(xAnim.from, xAnim.to, k * k * (3 - 2 * k)); if (k >= 1) xAnim = null; syncX(); }
+  if (stepGlides(now) && (frameN++ % 4 === 0)) syncAll();
   if (playing) {
     T += dt * masterRate; const end = seqEnd();
-    if (T >= end) {
-      if (exporting) { T = end; finishExport(); }
-      else if (loop && end > 0) T = T % end;
-      else { T = end; setPlaying(false); }
-    }
+    if (T >= end) { if (exporting) { T = end; finishExport(); } else if (loop && end > 0) T = T % end; else { T = end; setPlaying(false); } }
+  }
+  for (const k of ['A', 'B']) {
+    const d = decks[k]; if (!d.clip) continue;
+    d.pos += dt * d.speed * masterRate * (d.rev ? -1 : 1);
+    if (d.dir) { d.p += d.dir * dt / Math.max(.05, P.appearT); if (d.p >= 1) { d.p = 1; d.dir = 0; } if (d.p <= 0) { d.p = 0; d.dir = 0; d.clip = null; renderDecks(); } }
   }
   pool.forEach(v => { v.used = false; });
-  const segA = activeSeg('A', T), segB = activeSeg('B', T);
-  const mk = (key, seg) => { const c = clipById(seg.clip); if (!c || c.busy) return null; const cont = !seg.rev && !seg.stutter && seg.speed * masterRate >= .0625 && seg.speed * masterRate <= 16; return resolveSource(key, c, localTime(seg, T), seg.speed * masterRate, cont, seg.vol * (key === 'B' ? envelope(seg, T) * P.amt : 1)); };
-  const sA = segA ? mk('A', segA) : null;
-  let sB = null, mode = P.mixMode, wipe = P.wipe, amt = 0;
+  // slot A: deck A, otherwise the timeline's A track
+  let sA = null, pA = 1, sB = null, pB = 1, mode = P.mixMode, wipe = P.wipe, amt = P.amt;
+  const fromSeg = (key, seg, vol) => { const c = clipById(seg.clip); if (!c || c.busy) return null; const r = seg.speed * masterRate; const cont = playing && !seg.rev && !seg.stutter && r >= .0625 && r <= 16; return resolveSource(key, c, localTime(seg, T), r, cont, vol); };
+  const fromDeck = (key, d, vol) => { const r = d.speed * masterRate; return resolveSource(key, d.clip, deckLocal(d), r, !d.rev && r >= .0625 && r <= 16, vol); };
+  if (decks.A.clip) { sA = fromDeck('A', decks.A, (1 - P.amt * .5) * decks.A.p); pA = decks.A.p; }
+  else { const s = activeSeg('A', T); if (s) sA = fromSeg('A', s, s.vol); }
   if (padHit) {
-    const c = padHit.clip; const span = Math.max(1 / 30, Math.min(c.out, c.dur) - c.in); const loc = c.in + (((now - padHit.t0) / 1000) * masterRate) % span;
-    sB = resolveSource('P', c, loc, masterRate, true, 1); amt = P.amt;
-    if (padHit.started !== true) { padHit.started = true; const v = pool.get('P'); if (v && v.el && c.kind === 'video') { v.el.currentTime = c.in; } }
-  } else if (segB) {
-    sB = mk('B', segB); if (segB.mode >= 0) mode = segB.mode; if (segB.wipe >= 0) wipe = segB.wipe; amt = P.amt * envelope(segB, T);
-  }
-  pool.forEach((v, k) => { if (!v.used) { if (!v.el.paused && v.clip.kind !== 'live') v.el.pause(); if (v.g) v.g.gain.setTargetAtTime(0, AC.currentTime, .02); } });
+    const c = padHit.clip; const loc = c.in + (((now - padHit.t0) / 1000) * masterRate) % clipSpan(c);
+    sB = resolveSource('P', c, loc, masterRate, true, 1); amt = 1; pB = clamp((now - padHit.t0) / 1000 / Math.max(.05, P.appearT * .35), 0, 1);
+    if (!padHit.started) { padHit.started = true; const v = pool.get('P'); if (v && c.kind === 'video') { try { v.el.currentTime = c.in; } catch (e) { } } }
+  } else if (decks.B.clip) { sB = fromDeck('B', decks.B, P.amt * decks.B.p); pB = decks.B.p; }
+  else { const s = activeSeg('B', T); if (s) { sB = fromSeg('B', s, s.vol * envelope(s, T) * P.amt); if (s.mode >= 0) mode = s.mode; if (s.wipe >= 0) wipe = s.wipe; amt = P.amt * envelope(s, T); } }
+  pool.forEach(v => { if (!v.used) { if (!v.el.paused && v.clip.kind !== 'live') v.el.pause(); if (v.g) v.g.gain.setTargetAtTime(0, AC.currentTime, .03); } });
   if (master) master.gain.setTargetAtTime(P.fadeAudio ? 1 - P.fade : 1, AC.currentTime, .03);
-  updateTally(sA, sB);
-  if (!glOk) return;
+  updateTally(sA, sB); updateAir();
+  if (!glOk) { updateClock(); return; }
 
-  // strobe / freeze gate
-  let hold = freeze; if (!hold && P.strobe > 0) { strobeCount = (strobeCount + 1) % (P.strobe + 1); hold = strobeCount !== 0; }
+  let hold = freeze; if (holdF > 0) { holdF--; hold = true; }
+  if (!hold && P.strobe > 0) { strobeCount = (strobeCount + 1) % (P.strobe + 1); hold = strobeCount !== 0; }
   if (!hold) {
     const hasA = pushTex('A', sA), hasB = pushTex('B', sB);
-    const bc = BG_COLORS[Math.min(7, P.bg)] || [0, 0, 0];
+    const xa = layerXf('a', ts), xb = layerXf('b', ts);
+    const sty = st => P.appear === 0 ? 0 : P.appear;
     pass(PR.mix, T_.M, { uA: T_.srcA, uB: T_.srcB }, {
-      uSeed: now * .001, uAspA: texAsp.A, uAspB: texAsp.B, uAmt: hasB ? amt : 0, uSoft: P.soft, uBorder: P.border, uKey: P.keyThr, uFade: P.fade,
-      uHasA: I(hasA ? 1 : 0), uHasB: I(hasB ? 1 : 0), uFit: I(P.fit), uMode: I(mode), uWipe: I(wipe), uBg: I(P.bg), uBorderCol: hsl(P.borderHue, .9, .6), uBgCol: bc
+      uHas: { iv: [hasA ? 1 : 0, hasB ? 1 : 0] }, uSty: { iv: [sty(), sty()] }, uShape: { iv: [P.aShape, P.bShape] }, uTiles: { iv: [P.aTiles + 1, P.bTiles + 1] },
+      uAsp: { fv: [texAsp.A, texAsp.B] }, uDep: { fv: [P.aDepth, P.bDepth] }, uFea: { fv: [P.aFeather, P.bFeather] }, uP: { fv: [hasA ? pA : 0, hasB ? pB : 0] },
+      uXf: { f4: [...xa, ...xb] }, uAmt: hasB ? amt : 0, uSoft: P.soft, uBorder: P.border, uKey: P.keyThr, uFade: P.fade, uTime: ts, uSeed: ts * .001,
+      uFit: I(P.fit), uMode: I(mode), uWipe: I(wipe), uBg: I(P.bg), uBorderCol: hsl(P.borderHue, .9, .6), uBgCol: BG_COLORS[Math.min(7, P.bg)] || [0, 0, 0]
     });
   }
   const rw = P.wideW ? .55 : .2, rb = P.wideB ? .5 : .18;
   pass(PR.cc, T_.C, { uM: T_.M.tex }, { uWB: [P.wbX, P.wbY], uBB: [P.bbX, P.bbY], uRW: rw, uRB: rb, uHue: P.hue, uSat: P.sat, uGamma: P.gamma, uBright: P.bright, uContrast: P.contrast, uCnr: P.cnr, uMosaic: P.mosaic, uPost: P.post, uNeg: P.neg, uTint: P.tint, uTintHue: P.tintHue });
-  // history
   histHead = (histHead + 1) % HL;
   gl.bindFramebuffer(gl.FRAMEBUFFER, histFb); gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, histTex, 0, histHead);
   gl.viewport(0, 0, HW, HH); gl.useProgram(PR.copy.p); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, T_.C.tex); gl.uniform1i(PR.copy.u.uS, 0); gl.drawArrays(gl.TRIANGLES, 0, 3);
   pass(PR.time, T_.T, { uC: T_.C.tex, uH: [histTex, 1] }, { uMode: I(P.tmode), uHead: I(histHead), uN: I(HL), uD: P.tdepth, uSeed: blockSeed, uMix: P.tmix });
-  // feedback
+  const echoD = clamp([1 / 16, 1 / 8, 1 / 4, 1 / 2][P.echoDiv] * beatSec() * 30, 1, 7.7);
+  pass(PR.glitch, T_.G, { uT: T_.T.tex, uH: [histTex, 1] }, { uHead: I(histHead), uN: I(HL), uEnv: env, uSlip: P.gSlip, uRgb: P.gRgb, uBlock: P.gBlock, uSeed: gSeed, uEchoMix: P.echoMix, uEchoD: echoD, uEchoFb: P.echoFb, uVerb: P.verb, uPunch: P.gPunch, uWarp: P.gWarp * (.4 + .6 * env), uTime: ts });
   const prevF = T_.F[fbIdx], nextF = T_.F[1 - fbIdx];
-  pass(PR.fb, nextF, { uT: T_.T.tex, uF: P.fbTube ? T_.D.tex : prevF.tex }, { uAmt: P.fbAmt, uZoom: P.fbZoom, uRot: P.fbRot * Math.PI / 180, uHue: P.fbHue, uGain: P.fbGain, uThr: P.fbThr, uBlur: P.fbBlur, uOff: [P.fbX, P.fbY], uMode: I(P.fbMode) });
+  pass(PR.fb, nextF, { uT: T_.G.tex, uF: P.fbTube ? T_.D.tex : prevF.tex }, { uAmt: P.fbAmt, uZoom: P.fbZoom, uRot: P.fbRot * Math.PI / 180, uHue: P.fbHue, uGain: P.fbGain, uThr: P.fbThr, uBlur: P.fbBlur, uOff: [P.fbX, P.fbY], uMode: I(P.fbMode) });
   fbIdx = 1 - fbIdx;
-  // phosphor persistence
   const pp = T_.P[0], pn = T_.P[1]; T_.P = [pn, pp];
   pass(PR.persist, pn, { uF: nextF.tex, uP: pp.tex }, { uDecay: P.persist });
   gl.bindTexture(gl.TEXTURE_2D, pn.tex); gl.generateMipmap(gl.TEXTURE_2D);
-  // tube
   if (Math.abs(P.roll) > .015) rollPos = (rollPos + P.roll * dt * .6) % 1; else rollPos = Math.abs(rollPos) < .002 ? 0 : rollPos * .9;
   field = 1 - field;
   pass(PR.tube, T_.D, { uP: pn.tex }, {
     uOut: [OW, OH], uCurv: P.curv, uScan: P.scan, uMask: P.mask, uBloom: P.bloom, uConv: P.conv, uChroma: P.chroma, uNoise: P.noise, uHum: P.hum, uRoll: rollPos, uJit: P.jitter, uVig: P.vig,
-    uTime: now / 1000, uGain: P.tgain, uLines: P.lines ? 480 : 240, uField: field, uMaskType: I(P.maskType)
+    uTime: ts, uGain: P.tgain, uLines: P.lines ? 480 : 240, uField: field, uMaskType: I(P.maskType)
   });
   pass(PR.copy, null, { uS: T_.D.tex }, {});
   updateClock();
 }
+let frameN = 0;
 function hsl(h, s, l) { const k = n => (n + h * 12) % 12; const a = s * Math.min(l, 1 - l); const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1)); return [f(0), f(8), f(4)]; }
 
-/* ---------------- UI: transport ---------------- */
-function setPlaying(p) {
-  playing = p; $('#bPlay').setAttribute('aria-pressed', p); $('#playLbl').textContent = p ? '停止' : '再生';
-  if (p) ensureAudio();
-}
+/* ---------------- UI: transport / status ---------------- */
+function setPlaying(p) { playing = p; $('#bPlay').setAttribute('aria-pressed', p); $('#playLbl').textContent = p ? '停止' : '再生'; if (p) ensureAudio(); }
 let lastTcText = '';
 function updateClock() {
   const t = tcode(T); if (t !== lastTcText) { lastTcText = t; $('#tc').firstChild.textContent = t; }
-  $('#phLine').style.left = (T * pps) + 'px';
-  if (playing && !dragging) { const sc = $('#tlScroll'); const x = T * pps; if (x < sc.scrollLeft || x > sc.scrollLeft + sc.clientWidth - 30) sc.scrollLeft = Math.max(0, x - 60); }
+  const ph = $('#phLine'); if (ph) ph.style.left = (T * pps) + 'px';
+  if (playing && !dragging) { const sc = $('#tlScroll'); const x = T * pps; if (sc.clientWidth && (x < sc.scrollLeft || x > sc.scrollLeft + sc.clientWidth - 30)) sc.scrollLeft = Math.max(0, x - 60); }
 }
 let lastTally = '';
 function updateTally(a, b) {
-  const s = (a ? 1 : 0) + ',' + (b ? 1 : 0) + ',' + (padHit ? 1 : 0) + (a ? a.clip.id : '') + (b ? b.clip.id : '');
+  const s = (a ? a.clip.id : '-') + (b ? b.clip.id : '-') + (padHit ? 1 : 0);
   if (s === lastTally) return; lastTally = s;
   $('#tA').classList.toggle('on', !!a); $('#tB').classList.toggle('on', !!b && !padHit); $('#tP').classList.toggle('on', !!padHit);
   $('#srcInfo').textContent = [a ? 'A ' + a.clip.name : 'A —', b ? (padHit ? 'PAD ' : 'B ') + b.clip.name : 'B —'].join('  /  ');
 }
+let lastAir = '';
+function updateAir() {
+  const s = (P.amt < .5 ? 'A' : 'B') + (decks.A.clip ? 1 : 0) + (decks.B.clip ? 1 : 0); if (s === lastAir) return; lastAir = s;
+  $('#deckA').classList.toggle('air', !!decks.A.clip && P.amt < .98); $('#deckB').classList.toggle('air', !!decks.B.clip && P.amt > .02);
+}
+function syncX() { const x = $('#xf'); if (document.activeElement !== x || xAnim) x.value = P.amt; updateAir(); }
 
 /* ---------------- UI: controls ---------------- */
-function slider(def, host, onChange) {
-  const w = document.createElement('label'); w.className = 'ctl';
-  const id = 'p-' + def.id;
-  w.innerHTML = `<span class="lab"><b>${def.label}</b><output for="${id}"></output></span><input type="range" id="${id}" min="${def.min}" max="${def.max}" step="${def.step}">`;
-  const inp = w.querySelector('input'), out = w.querySelector('output');
-  const sync = () => { inp.value = P[def.id]; out.textContent = def.fmt(P[def.id]); };
-  inp.addEventListener('input', () => { P[def.id] = parseFloat(inp.value); out.textContent = def.fmt(P[def.id]); saveFx(); onChange && onChange(); });
-  inp.addEventListener('dblclick', () => { P[def.id] = DEF[def.id]; sync(); saveFx(); });
+const syncers = [];
+function syncAll() { syncers.forEach(f => f()); }
+function diceBox(id) {
+  const b = document.createElement('input'); b.type = 'checkbox'; b.className = 'dk'; b.title = 'ダイスで動かす'; b.setAttribute('aria-label', 'ダイスで動かす');
+  b.checked = !!DICE[id]; b.onchange = () => { DICE[id] = b.checked ? 1 : 0; saveFx(); }; b.onclick = e => e.stopPropagation(); return b;
+}
+function rangeCtl(d, host) {
+  const w = document.createElement('div'); w.className = 'c'; const id = 'p-' + d.id;
+  w.innerHTML = `<label class="lab" for="${id}"><b>${d.label}</b><output></output></label><input type="range" id="${id}" min="${d.min}" max="${d.max}" step="${d.step}">`;
+  w.querySelector('.lab').prepend(diceBox(d.id));
+  const inp = w.querySelector('input[type=range]'), out = w.querySelector('output');
+  const sync = () => { if (document.activeElement !== inp) inp.value = P[d.id]; out.textContent = d.fmt(P[d.id]); w.classList.toggle('moving', !!glides[d.id]); };
+  inp.addEventListener('input', () => { delete glides[d.id]; P[d.id] = parseFloat(inp.value); out.textContent = d.fmt(P[d.id]); saveFx(); });
+  inp.addEventListener('dblclick', () => { P[d.id] = DEF[d.id]; sync(); saveFx(); });
   sync(); host.append(w); syncers.push(sync);
 }
-const syncers = [];
-function choice(host, labels, key, onChange) {
-  host.innerHTML = '';
-  labels.forEach((l, i) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = l; b.onclick = () => { P[key] = i; syncAll(); saveFx(); onChange && onChange(); }; host.append(b); });
-  const sync = () => [...host.children].forEach((b, i) => b.setAttribute('aria-pressed', P[key] === i)); sync(); syncers.push(sync);
+function choiceCtl(d, host) {
+  const w = document.createElement('div'); w.className = 'c'; w.style.gridColumn = '1/-1';
+  const row = document.createElement('div'); row.className = 'segbar'; row.setAttribute('role', 'group'); row.setAttribute('aria-label', d.label);
+  row.append(diceBox(d.id)); const lab = document.createElement('span'); lab.className = 'silk'; lab.textContent = d.label; lab.style.marginRight = '4px'; row.append(lab);
+  const bs = d.opts.map((l, i) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = l; b.onclick = () => { P[d.id] = i; syncAll(); saveFx(); }; row.append(b); return b; });
+  syncers.push(() => bs.forEach((b, i) => b.setAttribute('aria-pressed', P[d.id] === i)));
+  w.append(row); host.append(w);
 }
-function toggle(btn, key) { btn.onclick = () => { P[key] = P[key] ? 0 : 1; syncAll(); saveFx(); }; syncers.push(() => btn.setAttribute('aria-pressed', !!P[key])); }
-function syncAll() { syncers.forEach(f => f()); }
-function lever(el, key, outEl, fmt) {
-  const tr = el; const knob = tr.querySelector('.knob');
-  const set = v => { P[key] = clamp(v, 0, 1); render(); saveFx(); };
-  const render = () => { knob.style.top = (10 + (1 - P[key]) * (tr.clientHeight - 20)) + 'px'; outEl.textContent = fmt(P[key]); tr.setAttribute('aria-valuenow', Math.round(P[key] * 100)); };
-  let drag = false;
-  const at = e => { const r = tr.getBoundingClientRect(); return 1 - (e.clientY - r.top - 10) / (r.height - 20); };
-  tr.addEventListener('pointerdown', e => { drag = true; tr.setPointerCapture(e.pointerId); autoAnim = null; set(at(e)); });
-  tr.addEventListener('pointermove', e => { if (drag) set(at(e)); });
-  tr.addEventListener('pointerup', () => { drag = false; }); tr.addEventListener('pointercancel', () => { drag = false; });
-  tr.addEventListener('keydown', e => { const st = e.shiftKey ? .1 : .02; if (e.key === 'ArrowUp' || e.key === 'ArrowRight') { set(P[key] + st); e.preventDefault(); } if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') { set(P[key] - st); e.preventDefault(); } });
-  tr.addEventListener('dblclick', () => autoTake(key));
-  tr.setAttribute('aria-valuemin', 0); tr.setAttribute('aria-valuemax', 100);
-  syncers.push(render); requestAnimationFrame(render); window.addEventListener('resize', render);
+function toggleBtn(label, key, host) { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn sm'; b.innerHTML = '<span class="led"></span>' + label; b.onclick = () => { P[key] = P[key] ? 0 : 1; syncAll(); saveFx(); }; syncers.push(() => b.setAttribute('aria-pressed', !!P[key])); host.append(b); return b; }
+function plainBtn(label, f, host, cls = '') { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn sm ' + cls; b.textContent = label; b.onclick = f; host.append(b); return b; }
+function buildSection(key) {
+  const S = SECS[key], host = $('#sec-' + key); host.innerHTML = '';
+  const hd = document.createElement('div'); hd.className = 'sech';
+  hd.innerHTML = `<h3>${S.h}<small>${S.jp}</small></h3>`;
+  const db = document.createElement('button'); db.type = 'button'; db.className = 'btn sm dice'; db.innerHTML = '<b>⚄</b>ダイス'; db.title = 'この欄のチェックした項目を振る'; db.onclick = () => { const n = rollSection(key); if (!n) toast('この欄にダイスの対象がありません。項目の左のチェックを入れてください。', 2400); };
+  const ab = document.createElement('button'); ab.type = 'button'; ab.className = 'btn sm'; ab.innerHTML = '<span class="led"></span>自動'; ab.title = '自動ダイスの拍でこの欄も振る';
+  ab.onclick = () => { AUTO[key] = AUTO[key] ? 0 : 1; ab.setAttribute('aria-pressed', !!AUTO[key]); saveFx(); if (AUTO[key] && !P.diceEvery) toast('自動ダイスの間隔（左の Auto 欄）を選ぶと、拍に合わせて振られます。', 3200); };
+  ab.setAttribute('aria-pressed', !!AUTO[key]);
+  hd.append(db, ab); host.append(hd);
+  let grid = null; const g = () => { if (!grid) { grid = document.createElement('div'); grid.className = 'cgrid'; host.append(grid); } return grid; };
+  const flush = () => { grid = null; };
+  for (const d of S.defs) {
+    if (typeof d === 'object') { if (d.t === 'r') rangeCtl(d, g()); else { choiceCtl(d, g()); } continue; }
+    flush();
+    const box = document.createElement('div'); box.className = 'row'; host.append(box);
+    if (d === 'wipes') { box.remove(); buildWipes(host); }
+    else if (d === 'bgs') { box.className = 'bgs'; buildBgs(box); }
+    else if (d === 'automix') { toggleBtn('読み込んだら自動でクロスフェード', 'autoMix', box); }
+    else if (d === 'timebtns') { const f = plainBtn('フリーズ', () => { freeze = !freeze; f.setAttribute('aria-pressed', freeze); }, box); f.title = 'F キー'; plainBtn('ブロックを振り直す', () => { blockSeed = Math.random() * 100; }, box); }
+    else if (d === 'fbbtns') { toggleBtn('管面ごと再撮影', 'fbTube', box); plainBtn('帰還を消す', () => { if (glOk) { T_.F.forEach(clearTarget); T_.P.forEach(clearTarget); } }, box); }
+    else if (d === 'ccreset') { plainBtn('補正をリセット', () => { ['wbX', 'wbY', 'bbX', 'bbY', 'wideW', 'wideB', ...SECS.cc.defs.filter(x => typeof x === 'object').map(x => x.id)].forEach(k => P[k] = DEF[k]); syncAll(); saveFx(); }, box); }
+    else if (d === 'joys') { box.remove(); buildJoys(host); }
+    else if (d === 'layers') {
+      box.remove(); const two = document.createElement('div'); two.className = 'lay2'; host.append(two);
+      for (const k of ['a', 'b']) {
+        const col = document.createElement('div'); col.className = k.toUpperCase(); col.innerHTML = `<h4>${k === 'a' ? 'LAYER A（下）' : 'LAYER B（上）'}</h4>`;
+        const cg = document.createElement('div'); cg.className = 'cgrid'; col.append(cg); two.append(col);
+        layerDefs(k).forEach(x => { const dd = DEFS[x.id]; if (dd.t === 'r') rangeCtl(dd, cg); else choiceCtl(dd, cg); });
+        const rr = document.createElement('div'); rr.className = 'row'; rr.style.marginTop = '6px'; col.append(rr);
+        plainBtn('元に戻す', () => { layerDefs(k).forEach(x => { delete glides[x.id]; P[x.id] = DEF[x.id]; }); syncAll(); saveFx(); }, rr);
+      }
+      break;
+    }
+  }
 }
-let autoAnim = null;
-function autoTake(key) { // double-click a lever: auto transition to the opposite end over 1 s
-  const from = P[key], to = from > .5 ? 0 : 1, t0 = performance.now(); autoAnim = key;
-  const step = () => { if (autoAnim !== key) return; const k = Math.min(1, (performance.now() - t0) / 1000); P[key] = lerp(from, to, k * k * (3 - 2 * k)); syncAll(); if (k < 1) requestAnimationFrame(step); else { autoAnim = null; saveFx(); } };
-  step();
+function buildJoys(host) {
+  const wrap = document.createElement('div'); wrap.className = 'joys'; host.append(wrap);
+  for (const [lab, kx, ky, wide] of [['White balance', 'wbX', 'wbY', 'wideW'], ['Black balance', 'bbX', 'bbY', 'wideB']]) {
+    const j = document.createElement('div'); j.className = 'joy';
+    j.innerHTML = `<span class="silk">${lab}</span><div class="pad2" role="slider" tabindex="0" aria-label="${lab}"><span class="ax" style="left:6px;top:48px">B</span><span class="ax" style="right:6px;top:48px">R</span><span class="ax" style="left:51px;top:6px">G</span><span class="ax" style="left:51px;bottom:6px">M</span><div class="stick"></div></div>`;
+    const row = document.createElement('div'); row.className = 'row'; const dk = diceBox(kx); dk.onchange = () => { DICE[kx] = DICE[ky] = dk.checked ? 1 : 0; saveFx(); }; row.append(dk);
+    toggleBtn('Wide', wide, row); plainBtn('中央', () => { P[kx] = P[ky] = 0; syncAll(); saveFx(); }, row);
+    j.append(row); wrap.append(j); joystick(j.querySelector('.pad2'), kx, ky);
+  }
 }
 function joystick(el, kx, ky) {
   const st = el.querySelector('.stick');
-  const render = () => { const r = el.clientWidth / 2 - 18; st.style.left = (el.clientWidth / 2 + P[kx] * r) + 'px'; st.style.top = (el.clientHeight / 2 - P[ky] * r) + 'px'; el.setAttribute('aria-valuetext', `横 ${Math.round(P[kx] * 100)} 縦 ${Math.round(P[ky] * 100)}`); };
+  const render = () => { const r = el.clientWidth / 2 - 17; st.style.left = (el.clientWidth / 2 + P[kx] * r) + 'px'; st.style.top = (el.clientHeight / 2 - P[ky] * r) + 'px'; };
   let drag = false;
-  const at = e => { const b = el.getBoundingClientRect(); const r = b.width / 2 - 18; let x = (e.clientX - b.left - b.width / 2) / r, y = -(e.clientY - b.top - b.height / 2) / r; const m = Math.hypot(x, y); if (m > 1) { x /= m; y /= m; } P[kx] = x; P[ky] = y; render(); saveFx(); };
+  const at = e => { const b = el.getBoundingClientRect(); const r = b.width / 2 - 17; let x = (e.clientX - b.left - b.width / 2) / r, y = -(e.clientY - b.top - b.height / 2) / r; const m = Math.hypot(x, y); if (m > 1) { x /= m; y /= m; } delete glides[kx]; delete glides[ky]; P[kx] = x; P[ky] = y; render(); saveFx(); };
   el.addEventListener('pointerdown', e => { drag = true; el.setPointerCapture(e.pointerId); at(e); });
   el.addEventListener('pointermove', e => { if (drag) at(e); });
   el.addEventListener('pointerup', () => drag = false); el.addEventListener('pointercancel', () => drag = false);
@@ -566,83 +773,105 @@ function wipeJs(i, x, y) {
     default: return fr(Math.sin(Math.floor(x * 32) * 12.9898 + Math.floor(y * 24) * 78.233) * 43758.5453);
   }
 }
-function buildWipes() {
-  const host = $('#wipes'); host.innerHTML = '';
+function buildWipes(parent) {
+  const wrap = document.createElement('div'); wrap.className = 'c'; wrap.style.gap = '6px';
+  const lab = document.createElement('div'); lab.className = 'chrow'; lab.append(diceBox('wipe')); const s = document.createElement('span'); s.className = 'silk'; s.textContent = 'ワイプパターン（ワイプ選択時）'; lab.append(s); wrap.append(lab);
+  DEFS.wipe = { t: 'ch', id: 'wipe', opts: Array(15).fill(0), sec: 'mix' };
+  const host = document.createElement('div'); host.className = 'wipes'; host.setAttribute('role', 'group'); host.setAttribute('aria-label', 'ワイプパターン'); wrap.append(host); parent.append(wrap);
   for (let i = 0; i < 15; i++) {
     const b = document.createElement('button'); b.type = 'button'; b.title = 'ワイプ ' + (i + 1); b.setAttribute('aria-label', 'ワイプパターン ' + (i + 1));
     const k = document.createElement('canvas'); k.width = 48; k.height = 36; const x = k.getContext('2d'); const im = x.createImageData(48, 36);
     for (let py = 0; py < 36; py++) for (let px = 0; px < 48; px++) { const v = wipeJs(i, (px + .5) / 48, 1 - (py + .5) / 36); const on = v < .5; const o = (py * 48 + px) * 4; im.data[o] = on ? 143 : 255; im.data[o + 1] = on ? 183 : 211; im.data[o + 2] = on ? 255 : 110; im.data[o + 3] = 255; }
-    x.putImageData(im, 0, 0); b.append(k); const s = document.createElement('span'); s.textContent = i + 1; b.append(s);
+    x.putImageData(im, 0, 0); b.append(k); const n = document.createElement('span'); n.textContent = i + 1; b.append(n);
     b.onclick = () => { P.wipe = i; P.mixMode = 0; syncAll(); saveFx(); }; host.append(b);
   }
   syncers.push(() => [...host.children].forEach((b, i) => b.setAttribute('aria-pressed', P.wipe === i && P.mixMode === 0)));
 }
-function buildBgs() {
-  const host = $('#bgs');
-  const cols = BG_COLORS.map(c => `rgb(${c.map(v => Math.round(v * 255)).join(',')})`);
-  cols.forEach((c, i) => { const b = document.createElement('button'); b.type = 'button'; b.style.background = c; b.title = '背景色 ' + (i + 1); b.setAttribute('aria-label', '背景色 ' + (i + 1)); b.onclick = () => { P.bg = i; syncAll(); saveFx(); }; host.append(b); });
-  const bb = document.createElement('button'); bb.type = 'button'; bb.title = 'カラーバー'; bb.setAttribute('aria-label', 'カラーバー'); bb.style.background = 'linear-gradient(90deg,#c0c0c0 0 14%,#c0c000 14% 28%,#00c0c0 28% 43%,#00c000 43% 57%,#c000c0 57% 71%,#c00000 71% 86%,#0000c0 86%)'; bb.style.width = '34px';
-  bb.onclick = () => { P.bg = 8; syncAll(); saveFx(); }; host.append(bb);
-  const fa = document.createElement('button'); fa.type = 'button'; fa.className = 'btn sm'; fa.style.width = 'auto'; fa.style.height = 'auto'; fa.style.marginLeft = '6px'; fa.innerHTML = '<span class="led"></span>音もフェード'; toggle(fa, 'fadeAudio'); host.append(fa);
-  syncers.push(() => [...host.querySelectorAll('button:not(.btn)')].forEach((b, i) => b.setAttribute('aria-pressed', P.bg === i)));
+function buildBgs(host) {
+  const l = document.createElement('span'); l.className = 'silk'; l.textContent = 'Back color'; host.append(l);
+  const all = [];
+  BG_COLORS.forEach((c, i) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'sw'; b.style.background = `rgb(${c.map(v => Math.round(v * 255)).join(',')})`; b.setAttribute('aria-label', '背景色 ' + (i + 1)); b.onclick = () => { P.bg = i; syncAll(); saveFx(); }; host.append(b); all.push(b); });
+  const bb = document.createElement('button'); bb.type = 'button'; bb.className = 'sw'; bb.setAttribute('aria-label', 'カラーバー'); bb.style.cssText = 'width:34px;background:linear-gradient(90deg,#c0c0c0 0 14%,#c0c000 14% 28%,#00c0c0 28% 43%,#00c000 43% 57%,#c000c0 57% 71%,#c00000 71% 86%,#0000c0 86%)';
+  bb.onclick = () => { P.bg = 8; syncAll(); saveFx(); }; host.append(bb); all.push(bb);
+  toggleBtn('音もフェード', 'fadeAudio', host);
+  syncers.push(() => all.forEach((b, i) => b.setAttribute('aria-pressed', P.bg === i)));
 }
 function buildControls() {
-  choice($('#mixModes'), MIX_MODES, 'mixMode');
-  const fitHost = document.createElement('div'); fitHost.className = 'segbar'; $('#mixModes').after(fitHost);
-  const fl = document.createElement('span'); fl.className = 'silk'; fl.textContent = '画角'; fl.style.alignSelf = 'center';
-  choice(fitHost, ['フィル', '全体', '引き伸ばし'], 'fit'); fitHost.prepend(fl);
-  buildWipes(); buildBgs();
-  SCH.mix.forEach(d => slider(d, $('#mixCtl')));
-  SCH.cc.forEach(d => slider(d, $('#ccCtl')));
-  SCH.time.forEach(d => slider(d, $('#timeCtl')));
-  SCH.fb.forEach(d => slider(d, $('#fbCtl')));
-  SCH.tube.forEach(d => slider(d, $('#tubeCtl')));
-  choice($('#tModes'), T_MODES, 'tmode'); choice($('#fbModes'), FB_MODES, 'fbMode'); choice($('#maskModes'), MASKS, 'maskType');
-  const lh = document.createElement('div'); lh.className = 'segbar'; $('#maskModes').after(lh); choice(lh, ['240 本', '480 本'], 'lines');
-  lever($('#levAmt'), 'amt', $('#oAmt'), v => Math.round(v * 100)); lever($('#levFade'), 'fade', $('#oFade'), v => Math.round(v * 100));
-  joystick($('#joyW'), 'wbX', 'wbY'); joystick($('#joyB'), 'bbX', 'bbY');
-  toggle($('#wideW'), 'wideW'); toggle($('#wideB'), 'wideB'); toggle($('#bTubeFb'), 'fbTube');
-  document.querySelectorAll('[data-zero]').forEach(b => b.onclick = () => { b.dataset.zero.split(',').forEach(k => P[k] = 0); syncAll(); saveFx(); });
-  $('#ccReset').onclick = () => { ['wbX', 'wbY', 'bbX', 'bbY', 'wideW', 'wideB', ...SCH.cc.map(d => d.id)].forEach(k => P[k] = DEF[k]); syncAll(); saveFx(); };
-  $('#bFreeze').onclick = () => { freeze = !freeze; $('#bFreeze').setAttribute('aria-pressed', freeze); };
-  $('#bReseed').onclick = () => { blockSeed = Math.random() * 100; };
-  $('#bFbClear').onclick = () => { if (glOk) { T_.F.forEach(clearTarget); T_.P.forEach(clearTarget); } };
+  for (const k in SECS) buildSection(k);
   // tabs
   document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => {
     document.querySelectorAll('#tabs button').forEach(x => x.setAttribute('aria-selected', x === b));
     document.querySelectorAll('.tabp').forEach(p => p.hidden = p.dataset.p !== b.dataset.tab);
-    try { localStorage.setItem('phosphor-cut-tab', b.dataset.tab); } catch (e) { }
+    LS.set('phosphor-cut-tab2', b.dataset.tab); if (b.dataset.tab === 'edit') renderTimeline();
   });
-  try { const t = localStorage.getItem('phosphor-cut-tab'); const b = t && document.querySelector(`#tabs button[data-tab="${t}"]`); if (b) b.click(); } catch (e) { }
-  // presets
+  const t = LS.get('phosphor-cut-tab2'); const tb = t && document.querySelector(`#tabs button[data-tab="${t}"]`); if (tb) tb.click();
   const ps = $('#preset'); ps.innerHTML = '<option value="">プリセット…</option>' + Object.keys(PRESETS).map(k => `<option>${k}</option>`).join('');
-  ps.onchange = () => { const p = PRESETS[ps.value]; if (!p) return; const keep = { amt: P.amt, fade: P.fade, mixMode: P.mixMode, wipe: P.wipe, bg: P.bg, fit: P.fit }; Object.assign(P, DEF, keep, p); syncAll(); saveFx(); toast('プリセット「' + ps.value + '」', 1800); ps.value = ''; };
-  $('#bDice').onclick = dice;
+  ps.onchange = () => {
+    const p = PRESETS[ps.value]; if (!p) return; const keep = {}; ['amt', 'fade', 'bg', 'fit', 'modSrc', 'diceEvery', 'glide', 'xDiv'].forEach(k => keep[k] = P[k]);
+    for (const k in glides) delete glides[k]; Object.assign(P, DEF, keep, p); syncAll(); syncSelects(); saveFx(); toast('プリセット「' + ps.value + '」', 1800); ps.value = '';
+  };
+  // tempo / auto selects
+  const sel = (id, key) => { const s = $('#' + id); s.onchange = () => { P[key] = +s.value; saveFx(); }; };
+  sel('modSrc', 'modSrc'); sel('xAuto', 'xAuto'); sel('xDiv', 'xDiv'); sel('diceEvery', 'diceEvery');
+  const gs = document.createElement('select'); gs.id = 'glideSel'; gs.setAttribute('aria-label', 'ダイスの変化の速さ');
+  gs.innerHTML = [[0, '変化：すぐ'], [.5, 'ふわっと 0.5 秒'], [1.5, 'ふわっと 1.5 秒'], [4, 'ゆっくり 4 秒'], [8, 'とてもゆっくり 8 秒']].map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+  gs.onchange = () => { P.glide = +gs.value; saveFx(); }; $('#diceEvery').after(gs);
+  syncSelects();
+  $('#xf').addEventListener('input', e => { xAnim = null; P.amt = +e.target.value; updateAir(); saveFx(); });
+  $('#fadeR').addEventListener('input', e => { P.fade = +e.target.value; $('#oFade').textContent = Math.round(P.fade * 100); saveFx(); });
+  syncers.push(() => { syncX(); $('#fadeR').value = P.fade; $('#oFade').textContent = Math.round(P.fade * 100); });
+  syncAll();
 }
-function dice() {
-  const r = Math.random, pick = a => a[Math.floor(r() * a.length)];
-  Object.assign(P, {
-    fbMode: pick([0, 0, 1, 3]), fbAmt: .35 + r() * .6, fbZoom: pick([.92 + r() * .06, 1.01 + r() * .08, 1]), fbRot: (r() * 2 - 1) * 3, fbHue: (r() * 2 - 1) * .035, fbGain: .93 + r() * .08, fbThr: .15 + r() * .5,
-    tmode: pick([0, 0, 1, 2, 3, 4, 5, 6, 7]), tdepth: 4 + Math.floor(r() * 27), hue: r() < .4 ? (r() - .5) * .4 : 0, sat: .6 + r() * 1.2,
-    tint: r() < .25 ? r() : 0, tintHue: r(), post: r() < .2 ? r() * .8 : 0, mosaic: r() < .12 ? r() * .6 : 0, strobe: r() < .15 ? 1 + Math.floor(r() * 4) : 0,
-    curv: r(), scan: r(), mask: r() * .8, bloom: r() * .8, conv: r() * .7, chroma: r() * .8, jitter: r() * .5, hum: r() * .5, persist: r() * .8
-  });
-  syncAll(); saveFx(); toast('ダイスを振りました。気に入らなければもう一度。', 1800);
+function syncSelects() { $('#modSrc').value = P.modSrc; $('#xAuto').value = P.xAuto; $('#xDiv').value = P.xDiv; $('#diceEvery').value = P.diceEvery; const g = $('#glideSel'); if (g) g.value = P.glide; }
+
+/* ---------------- UI: decks ---------------- */
+function renderDecks() {
+  for (const k of ['A', 'B']) {
+    const d = decks[k], c = d.clip, host = $('#deck' + k); host.innerHTML = '';
+    const hd = document.createElement('div'); hd.className = 'dh'; hd.innerHTML = `<b>DECK ${k}</b><i></i>`;
+    if (c) { const x = document.createElement('button'); x.type = 'button'; x.className = 'btn sm x'; x.textContent = '抜く'; x.title = 'デッキから外す（消え方は現れ方と同じ）'; x.onclick = () => ejectDeck(k); hd.append(x); }
+    host.append(hd);
+    const th = document.createElement('div'); th.className = 'dth' + (c ? '' : ' empty');
+    if (c) { th.style.backgroundImage = c.thumb ? `url(${c.thumb})` : 'none'; th.innerHTML = `<span>${esc(c.name)}</span>`; }
+    else th.textContent = '素材をタップ / ドロップ';
+    host.append(th);
+    if (c) {
+      const ctl = document.createElement('div'); ctl.className = 'dctl';
+      const r = document.createElement('input'); r.type = 'range'; r.min = .1; r.max = 3; r.step = .05; r.value = d.speed; r.setAttribute('aria-label', `デッキ ${k} の速度`);
+      const o = document.createElement('output'); o.textContent = '×' + d.speed.toFixed(2);
+      r.oninput = () => { d.speed = +r.value; o.textContent = '×' + d.speed.toFixed(2); }; r.ondblclick = () => { d.speed = 1; r.value = 1; o.textContent = '×1.00'; };
+      const rv = document.createElement('button'); rv.type = 'button'; rv.className = 'btn sm'; rv.textContent = '逆'; rv.title = '逆再生'; rv.setAttribute('aria-pressed', !!d.rev); rv.onclick = () => { d.rev = d.rev ? 0 : 1; rv.setAttribute('aria-pressed', !!d.rev); };
+      ctl.append(r, o, rv); host.append(ctl);
+    }
+  }
+  lastAir = ''; updateAir();
 }
 
-/* ---------------- UI: bin ---------------- */
+/* ---------------- UI: clip strip (bin) ---------------- */
 function renderBin() {
-  const host = $('#clips'); host.innerHTML = '';
+  const host = $('#strip'); host.innerHTML = '';
+  const add = document.createElement('button'); add.type = 'button'; add.className = 'clip add'; add.innerHTML = '<span><b>＋</b>素材を<br>入れる</span>'; add.onclick = () => $('#fFile').click(); host.append(add);
   for (const c of clips) {
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'clip'; b.setAttribute('aria-pressed', selClip === c);
+    const b = document.createElement('div'); b.className = 'clip' + (selClip === c ? ' sel' : ''); b.tabIndex = 0; b.setAttribute('role', 'button');
+    b.setAttribute('aria-label', `${c.name}：タップで空いている側のデッキに入れる`);
     const kind = { image: 'STILL', video: 'VIDEO', live: 'LIVE' }[c.kind];
-    b.innerHTML = `<div class="th" style="background-image:${c.thumb ? `url(${c.thumb})` : 'none'}"><i style="background:${c.color}"></i><em>${c.kind === 'video' && !c.busy ? tcode(c.dur, false).slice(3) : kind}</em>${c.busy ? `<div class="busy">${esc(c.busy)}</div>` : ''}</div><div class="nm">${esc(c.name)}<small>${kind}${c.kind === 'video' && c.w ? ' ' + c.w + '×' + c.h : ''}</small></div>`;
-    b.onclick = () => { if (!c.busy) selectClip(c); };
+    b.innerHTML = `<div class="th" style="background-image:${c.thumb ? `url(${c.thumb})` : 'none'}"><i style="background:${c.color}"></i><em>${c.kind === 'video' && !c.busy ? tcode(c.dur, false).slice(3) : kind}</em>${c.busy ? `<div class="busy">${esc(c.busy)}</div>` : ''}</div><div class="nm">${esc(c.name)}</div>` +
+      (c.busy ? '' : `<div class="ab"><span class="a" data-k="A" title="デッキ A に入れる">A</span><span class="b" data-k="B" title="デッキ B に入れる">B</span><span class="i" data-k="i" title="詳細・タイムライン">i</span></div>`);
+    b.onclick = e => {
+      if (c.busy) return; const k = e.target.dataset && e.target.dataset.k;
+      if (k === 'i') { selectClip(c); openTab('edit'); return; }
+      loadDeck(k || offAir(), c);
+    };
+    b.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); if (!c.busy) loadDeck(offAir(), c); } };
     b.draggable = !c.busy; b.addEventListener('dragstart', e => { e.dataTransfer.setData('text/x-clip', c.id); e.dataTransfer.effectAllowed = 'copy'; });
     host.append(b);
   }
-  if (!clips.length) { const e = document.createElement('button'); e.type = 'button'; e.className = 'empty-bin'; e.innerHTML = '<b>素材がまだありません</b>MOV / MP4 / M2TS / MTS / 画像をここにドロップするか、押して選んでください。読み込んだら「A に置く」でタイムラインへ。'; e.onclick = () => $('#fFile').click(); host.append(e); }
-  $('#binCount').textContent = clips.length + ' 素材';
+}
+function openTab(t) { const b = document.querySelector(`#tabs button[data-tab="${t}"]`); if (b) b.click(); }
+function onClipReady(c) {
+  renderBin();
+  if (pendingDeck) loadDeck(pendingDeck, c);
+  else if (!decks.A.clip) loadDeck('A', c); else if (!decks.B.clip) loadDeck('B', c);
 }
 let delArm = null;
 function selectClip(c) {
@@ -662,7 +891,8 @@ function selectClip(c) {
     btn('OUT をここに', () => { c.out = Math.max(c.el.currentTime, c.in + .05); selectClip(c); });
     btn('IN/OUT を戻す', () => { c.in = 0; c.out = c.dur; selectClip(c); });
   }
-  btn('A に置く', () => placeClip(c, 'A'), 'prime'); btn('B に置く', () => placeClip(c, 'B'), 'prime');
+  btn('デッキ A へ', () => loadDeck('A', c)); btn('デッキ B へ', () => loadDeck('B', c));
+  btn('タイムライン A に置く', () => placeClip(c, 'A'), 'prime'); btn('タイムライン B に置く', () => placeClip(c, 'B'), 'prime');
   btn('パッドへ', () => { const i = pads.findIndex(p => !p); const j = i < 0 ? 7 : i; pads[j] = c.id; renderPads(); toast(`パッド ${j + 1} に割り当てました。`, 1800); });
   const d = btn('素材を外す', () => { if (delArm === c) { delArm = null; removeClip(c); $('#clipInsp').hidden = true; } else { delArm = c; d.textContent = 'もう一度押すと外す'; setTimeout(() => { if (delArm === c) { delArm = null; d.textContent = '素材を外す'; } }, 3000); } });
   box.append(bar);
@@ -887,12 +1117,14 @@ async function saveResult() {
   const a = document.createElement('a'); a.href = recUrl; a.download = name; document.body.append(a); a.click(); a.remove(); toast('保存しました：' + name, 3000);
 }
 
+
 /* ---------------- wiring ---------------- */
 function wire() {
   $('#bAdd').onclick = () => $('#fFile').click();
   $('#fFile').onchange = e => { const f = [...e.target.files]; e.target.value = ''; addFiles(f); };
   $('#bCam').onclick = addCamera;
-  $('#bPlay').onclick = () => { if (exporting) return; if (!playing && T >= seqEnd() - .01) T = 0; setPlaying(!playing); };
+  $('#bDiceAll').onclick = diceAll;
+  $('#bPlay').onclick = () => { if (exporting) return; if (!seqEnd()) { toast('タイムラインが空です。素材の「i」→「タイムライン A に置く」で並べられます。デッキは再生ボタンなしで常に動いています。', 4200); return; } if (!playing && T >= seqEnd() - .01) T = 0; setPlaying(!playing); };
   $('#bHome').onclick = () => { if (exporting) return; T = 0; updateClock(); };
   $('#bLoop').onclick = () => { loop = !loop; $('#bLoop').setAttribute('aria-pressed', loop); };
   $('#bRec').onclick = () => { if (exporting) return; if (rec) stopRec(); else startRec('live'); };
@@ -900,38 +1132,57 @@ function wire() {
   $('#mClose').onclick = () => { $('#modal').hidden = true; $('#mVid').pause(); };
   $('#mSave').onclick = saveResult;
   $('#master').oninput = e => { masterRate = parseFloat(e.target.value); $('#oMaster').textContent = '×' + masterRate.toFixed(2); };
-  $('#bAssign').onclick = () => { assignMode = !assignMode; $('#bAssign').setAttribute('aria-pressed', assignMode); if (assignMode) toast('Bin で素材を選んでからパッドを押すと割り当てます。終わったらもう一度「割り当て」を押してください。', 4000); };
+  $('#bpmDn').onclick = () => setBpm(bpm - 1); $('#bpmUp').onclick = () => setBpm(bpm + 1); $('#bTap').onclick = tap;
+  $('#bAssign').onclick = () => { assignMode = !assignMode; $('#bAssign').setAttribute('aria-pressed', assignMode); if (assignMode) toast('素材の「i」で選んでからパッドを押すと割り当てます。終わったらもう一度「割り当て」を押してください。', 4000); };
   $('#bLatch').onclick = () => { latch = !latch; $('#bLatch').setAttribute('aria-pressed', latch); if (!latch && padHit) padRelease(); };
-  $('#bPadRec').onclick = () => { padRec = !padRec; $('#bPadRec').setAttribute('aria-pressed', padRec); if (padRec) toast('再生中にパッドを叩くと、押していた長さで B トラックに記録されます。', 3500); };
-  // drag & drop files anywhere
-  const dz = $('#binDrop'); let dc = 0;
-  window.addEventListener('dragenter', e => { if ([...e.dataTransfer.types].includes('Files')) { dc++; dz.classList.add('over'); } });
-  window.addEventListener('dragleave', () => { dc = Math.max(0, dc - 1); if (!dc) dz.classList.remove('over'); });
-  window.addEventListener('dragover', e => { if ([...e.dataTransfer.types].includes('Files')) e.preventDefault(); });
-  window.addEventListener('drop', e => { if (e.dataTransfer.files && e.dataTransfer.files.length) { e.preventDefault(); dc = 0; dz.classList.remove('over'); addFiles([...e.dataTransfer.files]); } });
+  $('#bPadRec').onclick = () => { padRec = !padRec; $('#bPadRec').setAttribute('aria-pressed', padRec); if (padRec) toast('タイムライン再生中にパッドを叩くと、押していた長さで B トラックに記録されます。', 3500); };
+  // drop onto the monitor: left half → deck A, right half → deck B (clips from the strip, or files)
+  const tube = $('#tube');
+  const side = e => { const r = tube.getBoundingClientRect(); return e.clientX - r.left < r.width / 2 ? 'A' : 'B'; };
+  tube.addEventListener('dragover', e => { const ty = [...e.dataTransfer.types]; if (ty.includes('text/x-clip') || ty.includes('Files')) { e.preventDefault(); e.stopPropagation(); const s = side(e); tube.classList.toggle('dropA', s === 'A'); tube.classList.toggle('dropB', s === 'B'); } });
+  tube.addEventListener('dragleave', () => tube.classList.remove('dropA', 'dropB'));
+  tube.addEventListener('drop', async e => {
+    e.preventDefault(); e.stopPropagation(); tube.classList.remove('dropA', 'dropB'); const k = side(e);
+    const id = e.dataTransfer.getData('text/x-clip'); if (id) { loadDeck(k, clipById(id)); return; }
+    const files = [...(e.dataTransfer.files || [])]; if (!files.length) return;
+    pendingDeck = k; await addFiles(files); pendingDeck = null;
+  });
+  const strip = $('#strip');
+  window.addEventListener('dragover', e => { if ([...e.dataTransfer.types].includes('Files')) { e.preventDefault(); strip.classList.add('over'); } });
+  window.addEventListener('dragleave', e => { if (!e.relatedTarget) strip.classList.remove('over'); });
+  window.addEventListener('drop', e => { strip.classList.remove('over'); if (e.dataTransfer.files && e.dataTransfer.files.length) { e.preventDefault(); addFiles([...e.dataTransfer.files]); } });
   // keyboard
-  const typing = e => /INPUT|SELECT|TEXTAREA/.test(e.target.tagName) && e.target.type !== 'range';
+  const typing = e => /INPUT|SELECT|TEXTAREA/.test(e.target.tagName) && e.target.type !== 'range' && e.target.type !== 'checkbox';
   window.addEventListener('keydown', e => {
     if (typing(e) || e.altKey) return;
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); return; }
     if (e.ctrlKey || e.metaKey) return;
     if (/^[1-8]$/.test(e.key)) { if (!e.repeat) padDown(+e.key - 1); e.preventDefault(); return; }
-    if (e.target.closest && e.target.closest('button,[role=slider],input')) { if (e.key === ' ' || e.key === 'Enter' || e.key.startsWith('Arrow')) return; }
+    if (e.target.closest && e.target.closest('button,[role=slider],[role=button],input')) { if (e.key === ' ' || e.key === 'Enter' || e.key.startsWith('Arrow')) return; }
+    const k = e.key.toLowerCase();
     if (e.key === ' ') { e.preventDefault(); $('#bPlay').click(); }
-    else if (e.key === 'Home') { T = 0; updateClock(); }
-    else if (e.key === 's' || e.key === 'S') splitSel();
+    else if (k === 'x') { xAnim = null; P.amt = P.amt < .5 ? 1 : 0; syncX(); }
+    else if (k === 'c') { xGlide(P.amt < .5 ? 1 : 0, beatSec() * 2); }
+    else if (k === 'd') diceAll();
+    else if (k === 't') tap();
+    else if (k === 'g') trigger();
+    else if (k === 'f') { freeze = !freeze; toast(freeze ? 'フリーズ' : 'フリーズ解除', 900); }
+    else if (k === 's') splitSel();
     else if (e.key === 'Delete' || e.key === 'Backspace') { if (selSeg) { e.preventDefault(); delSel(); } }
-    else if (e.key === 'f' || e.key === 'F') $('#bFreeze').click();
     else if (e.key === 'ArrowLeft') { T = Math.max(0, T - (e.shiftKey ? 1 : 1 / 30)); updateClock(); }
     else if (e.key === 'ArrowRight') { T = T + (e.shiftKey ? 1 : 1 / 30); updateClock(); }
   });
   window.addEventListener('keyup', e => { if (/^[1-8]$/.test(e.key)) padUp(+e.key - 1); });
   document.addEventListener('pointerdown', () => { if (AC && AC.state === 'suspended') AC.resume().catch(() => { }); }, { capture: true });
+  // keep the tab bar just under the pinned monitor on phones
+  const pinH = () => { const p = $('#pin'); const sticky = getComputedStyle(p).position === 'sticky'; document.documentElement.style.setProperty('--pinH', sticky ? p.offsetHeight + 'px' : '0px'); };
+  window.addEventListener('resize', pinH); new ResizeObserver(pinH).observe($('#pin')); pinH();
 }
+let pendingDeck = null;
 
 /* ---------------- boot ---------------- */
 glOk = initGL();
 if (!glOk) toast('このブラウザでは WebGL2 が使えないため、映像処理を動かせません。最新の Chrome / Safari / Edge / Firefox で開いてください。', 0);
-buildControls(); renderBin(); renderPads(); initTimeline(); renderTimeline(); wire();
+setBpm(bpm); buildControls(); renderBin(); renderDecks(); renderPads(); initTimeline(); renderTimeline(); wire();
 requestAnimationFrame(frame);
 getDownloads();
