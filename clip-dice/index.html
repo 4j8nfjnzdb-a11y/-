@@ -229,7 +229,13 @@ kbd{font-family:var(--f-mono);border:1px solid var(--rule);border-radius:3px;pad
 
       <div class="panel">
         <div class="ph"><h2>コラージュ</h2><button class="btn" id="bBeatSpawn" aria-pressed="false" title="拍に合わせて現れる">拍で出す</button></div>
-        <p class="hint">「コラージュ」ボタンで開始。現れ方にチェックを入れたものが混ざって出てきます。</p>
+        <p class="hint">「コラージュ」ボタンで開始。この欄の中のチェックとフェーダーで、出てくるもの・色・エフェクトを決められます。</p>
+        <div class="ph">
+          <button class="btn" id="bCRand" title="この欄の設定をまるごとランダムにする"><svg class="die"><use href="#die"/></svg>コラージュ設定を振る</button>
+          <button class="btn" id="bCReroll" title="いま画面に出ている絵の色・枠・エフェクトを振り直す"><svg class="die"><use href="#die"/></svg>いま出ている絵を振る</button>
+          <button class="btn" id="bCAuto" aria-pressed="false" title="決めた拍ごとに自動で設定を振る"><svg class="die"><use href="#die"/></svg>オート</button>
+          <label class="hint" for="kCAutoBeats" style="display:inline-flex;gap:6px;align-items:center">間隔<select id="kCAutoBeats"><option value="4">4拍ごと</option><option value="8" selected>8拍ごと</option><option value="16">16拍ごと</option><option value="32">32拍ごと</option></select></label>
+        </div>
         <div class="fxg" id="cStyles" data-g="col"></div>
         <div class="knobs">
           <div class="knob"><label for="kLayers">最大枚数 <output id="oLayers">10</output></label><input type="range" id="kLayers" min="1" max="24" step="1" value="10"></div>
@@ -239,7 +245,6 @@ kbd{font-family:var(--f-mono);border:1px solid var(--rule);border-radius:3px;pad
           <div class="knob"><label for="kDepth">奥行き（手前 ↔ 奥） <output id="oDepth">0.50</output></label><input type="range" id="kDepth" min="0" max="1" step="0.05" value="0.5"></div>
           <div class="knob"><label for="kDepthR">奥行きのばらつき <output id="oDepthR">0.50</output></label><input type="range" id="kDepthR" min="0" max="1" step="0.05" value="0.5"></div>
           <div class="knob"><label for="kDof">ぼやけ <output id="oDof">0.50</output></label><input type="range" id="kDof" min="0" max="1" step="0.05" value="0.5"></div>
-          <div class="knob"><label for="kCol">色の変化 <output id="oCol">0.60</output></label><input type="range" id="kCol" min="0" max="1" step="0.05" value="0.6"></div>
           <div class="knob"><label for="kSrc">素材の選び方</label><select id="kSrc"><option value="mix">ランダム</option><option value="same">同じ素材をしばらく続ける</option><option value="diff">なるべくちがう素材</option></select></div>
           <div class="knob"><label for="kLifeMin">表示秒数（短いほう） <output id="oLifeMin">1.0 秒</output></label><input type="range" id="kLifeMin" min="0.2" max="10" step="0.1" value="1"></div>
           <div class="knob"><label for="kLifeMax">表示秒数（長いほう） <output id="oLifeMax">8.0 秒</output></label><input type="range" id="kLifeMax" min="0.5" max="20" step="0.5" value="8"></div>
@@ -258,6 +263,21 @@ kbd{font-family:var(--f-mono);border:1px solid var(--rule);border-radius:3px;pad
           <div class="knob"><label for="kFrameMode">枠の変わり方</label><select id="kFrameMode"><option value="mix">いろいろ混ぜる</option><option value="none">変わらない</option><option value="morph">ゆっくり変形</option><option value="beat">拍で切り替え</option></select></div>
           <div class="knob"><label for="kFrameRot">枠の回転 <output id="oFrameRot">0.30</output></label><input type="range" id="kFrameRot" min="0" max="1" step="0.05" value="0.3"></div>
           <div class="knob"><label for="kBorder">枠線 <output id="oBorder">0.25</output></label><input type="range" id="kBorder" min="0" max="1" step="0.05" value="0.25"></div>
+        </div>
+        <h3 class="subh">色合い</h3>
+        <p class="hint">チェックした色の変え方の中から、一枚ずつランダムに選ばれます。</p>
+        <div class="fxg" id="cColors" data-g="col"></div>
+        <div class="knobs">
+          <div class="knob"><label for="kCol">色が変わる割合 <output id="oCol">0.60</output></label><input type="range" id="kCol" min="0" max="1" step="0.05" value="0.6"></div>
+          <div class="knob"><label for="kHueSpd">色の動く速さ <output id="oHueSpd">1.0</output></label><input type="range" id="kHueSpd" min="0" max="4" step="0.1" value="1"></div>
+        </div>
+        <h3 class="subh">コラージュのエフェクト</h3>
+        <p class="hint">コラージュの絵だけにかかるエフェクトです。上のメインのエフェクトとは別に選べます。「レイヤーFX」をオンにすると全部の絵にかかり、次々に変わります。</p>
+        <div class="ph"><button class="btn sm" id="bCAll">全部</button><button class="btn sm" id="bCNone">なし</button></div>
+        <div class="fxgroups" id="cPool"></div>
+        <div class="knobs">
+          <div class="knob"><label for="kFxRate">エフェクトのかかりやすさ <output id="oFxRate">0.30</output></label><input type="range" id="kFxRate" min="0" max="1" step="0.05" value="0.3"></div>
+          <div class="knob"><label for="kFxNum">一枚にかかる数（最大） <output id="oFxNum">2</output></label><input type="range" id="kFxNum" min="1" max="4" step="1" value="2"></div>
         </div>
       </div>
 
@@ -300,8 +320,9 @@ const CSTYLES=[['stack','重なる'],['flow','流れてくる'],['float','ただ
 
 const S={items:[],cur:-1,playing:true,stopped:false,loop:false,randSeg:false,auto:false,every:2,speed:1,
   collage:false,layerFx:false,maxLayers:10,pace:1,chaos:.6,area:'any',depth:.5,depthR:.5,dof:.5,colAmt:.6,beatSpawn:false,cstyles:new Set(CSTYLES.map(c=>c[0])),
-  shapes:new Set(['rect','round','circle','ellipse','tri','diamond','hex','star']),frameMode:'mix',frameRot:.3,border:.25,
+  shapes:new Set(['rect','round','circle','ellipse','tri','diamond','hex']),frameMode:'mix',frameRot:.3,border:.25,
   cgroups:new Set(['echo','warhol','scatter','mixrow']),groupRate:.35,groupMax:5,srcMode:'mix',lifeMin:1,lifeMax:8,
+  ccolors:new Set(['keep','tint','hueMove','hueShift','fade']),hueSpd:1,cpool:new Set(FX.filter(f=>f.g!=='time').map(f=>f.id).concat(['reverse','slow','stutter'])),fxRate:.3,fxNum:2,cAuto:false,cAutoBeats:8,cBeats:0,
   aspect:'16:9',fit:'cover',pool:new Set(FX.map(f=>f.id)),clipT:0,clipLen:3,fxAge:0,autoT:0,
   bpm:120,beatF:0,sync:true,linkSpeed:false,diceBeats:4,beatsSinceRoll:0,
   zoomOn:true,zTarget:'random',zSpeed:1,zMax:2.5,zEase:'smooth',move:1,moveAmt:1,point:[.5,.5]};
@@ -738,7 +759,7 @@ function areaPt(){
   }
   return[clamp(x,-.05,1.05),clamp(y,-.05,1.05)];
 }
-const SHAPES=[['rect','四角'],['round','角丸'],['circle','丸'],['ellipse','だ円'],['tri','三角'],['diamond','ひし形'],['hex','六角形'],['star','星']];
+const SHAPES=[['rect','四角'],['round','角丸'],['circle','丸'],['ellipse','だ円'],['tri','三角'],['diamond','ひし形'],['hex','六角形']];
 const SHAPE_ID={rect:0,round:1,circle:2,ellipse:3,tri:4,diamond:5,hex:6,star:7};
 const CGROUPS=[['echo','ずれて重なる'],['warhol','色ちがいで並べる'],['scatter','同じ絵を散らす'],['mixrow','ちがう素材を並べる']];
 function randLife(k=1){const lo=S.lifeMin,hi=Math.max(lo,S.lifeMax);return lo*Math.pow(hi/lo,Math.random())*k;}
@@ -766,15 +787,25 @@ function baseLayer(it,ph,style){
   L.bcol=pick([[1,1,1],[.95,.93,.86],[.91,.27,.37],[.06,.05,.08],hsl(Math.random(),.9,.6)]);
   return L;
 }
+const CCOLORS=[['keep','そのまま'],['tint','色をのせる'],['hueMove','色相が動く'],['hueShift','色相をずらす'],['fade','色を抜く'],['mono','モノクロ'],['invert','ネガ'],['thermal','サーモ'],['poster','ポスタライズ'],['vivid','ビビッド'],['neon','ネオン線']];
+/* collage-only effect dice: uses the collage pool, at most one per time/zoom/move group */
+function rollC(max){
+  const pool=FX.filter(f=>S.cpool.has(f.id)&&(S.zoomOn||f.g!=='zoom'));const out=new Set();if(!pool.length)return out;
+  const n=1+Math.floor(Math.random()*Math.min(max??S.fxNum,pool.length));const used=new Set();
+  for(const f of pool.slice().sort(()=>Math.random()-.5)){if(out.size>=n)break;if(ONE_OF.has(f.g)){if(used.has(f.g))continue;used.add(f.g);}out.add(f.id);}
+  return out;
+}
 function colorize(L){
-  const C=S.chaos;
-  if(Math.random()<S.colAmt){const m=Math.floor(Math.random()*4);
-    if(m===0){const c=hsl(Math.random(),.9,.72);L.tint=c.map(v=>.6+v*.5);}
-    else if(m===1){L.hue0=rnd(0,6.28);L.hs=rnd(-1.2,1.2)*(.4+C);}
-    else if(m===2){L.hue0=rnd(0,6.28);}
-    else{L.sat=rnd(0,.4);const c=hsl(Math.random(),.8,.7);L.tint=c.map(v=>.7+v*.4);}}
-  if(S.layerFx)L.fx=new Set([...L.baseFx,...roll()]);
-  else if(Math.random()<C*.35)L.fx=new Set([...L.baseFx,...rollOne()]);
+  const C=S.chaos;L.hue0=0;L.hs=0;L.tint=[1,1,1];L.sat=1;L.baseFx=new Set();
+  const modes=[...S.ccolors];
+  if(modes.length&&Math.random()<S.colAmt){const m=pick(modes);
+    if(m==='tint'){const c=hsl(Math.random(),.9,.72);L.tint=c.map(v=>.6+v*.5);}
+    else if(m==='hueMove'){L.hue0=rnd(0,6.28);L.hs=rnd(-1.2,1.2)*(.4+C);}
+    else if(m==='hueShift'){L.hue0=rnd(0,6.28);}
+    else if(m==='fade'){L.sat=rnd(0,.4);const c=hsl(Math.random(),.8,.7);L.tint=c.map(v=>.7+v*.4);}
+    else if(m!=='keep')L.baseFx.add(m==='thermal'?'thermal':m);}
+  if(S.layerFx)L.fx=new Set([...L.baseFx,...rollC()]);
+  else if(Math.random()<S.fxRate)L.fx=new Set([...L.baseFx,...rollC()]);
   else L.fx=new Set(L.baseFx);
 }
 function spawnLayer(){
@@ -823,7 +854,7 @@ function spawnGroup(kind){
       if(i===0&&!hueStep)colorize(L);else L.fx=new Set();out.push(L);}
   }else if(kind==='warhol'){
     const ph=newPH(it);const cells=gridLayout(n,px,py,it.asp||16/9);const mode=Math.random()<.5?'hue':'mixed';const h0=rnd(0,6.28);const sh=Math.random()<.6?pickShape():-1;
-    const CF=['mono','invert','thermal','poster','neon','vivid','hue'];
+    const CFall=['mono','invert','thermal','poster','neon','vivid'];const CF=CFall.filter(k=>S.ccolors.has(k));if(!CF.length)CF.push(...CFall);
     cells.forEach((c,i)=>{const L=baseLayer(it,ph,'group');
       Object.assign(L,{gx:c.x,gy:c.y,dx:0,dy:0,wob:0,z,base:c.w/persp(z),life,vx:drift[0],vy:drift[1],alphaMax:1,fade:rnd(.2,.6),delay:i*rnd(0,.25)*(.3+C),zOsc:0,add:false,blurX:0,iris:Math.random()<.3});
       if(sh>=0){L.shA=L.shB=sh;}
@@ -864,7 +895,7 @@ function updateLayers(dt,t,beatHit){
     else if(L.style==='orbit'){L.ang+=L.om*dt;L.x=L.cxo+Math.cos(L.ang)*L.rad*(H/W)*1.6;L.y=L.cyo+Math.sin(L.ang)*L.rad;}
     else if(L.style==='group'){L.gx+=L.vx*dt;L.gy+=L.vy*dt;const k=1+(L.wob?Math.sin(L.age*L.wob*2)*.6:0);L.x=L.gx+L.dx*k;L.y=L.gy+L.dy*k;}
     else{L.vy+=L.ay*dt;L.x+=L.vx*dt;L.y+=L.vy*dt;L.z=L.style==='fly'?L.z+L.vz*dt:clamp(L.z+L.vz*dt,0,1);}
-    if(S.layerFx){if(L.fxT>L.fxEvery||L.fx.size===L.baseFx.size){L.fx=new Set([...L.baseFx,...roll()]);L.fxT=0;L.fxEvery=rnd(1.2,5);}}
+    if(S.layerFx){if(L.fxT>L.fxEvery||L.fx.size===L.baseFx.size){L.fx=new Set([...L.baseFx,...rollC()]);L.fxT=0;L.fxEvery=rnd(1.2,5);}}
     const dead=L.age>=L.life||(L.style==='rain'&&L.y>1.45)||(L.style==='fly'&&L.z<-.44);
     if(dead)killLayer(L);
     else if(L.ph._f!==FRAME){L.ph._f=FRAME;L.ph.update(dt,L.fx);}
@@ -884,7 +915,7 @@ function drawLayers(t){
     if(L.style==='stack'){w=h=sc;}else{w=sc;h=sc*(W/H)/(L.ph.w/L.ph.h);if(h>1.2&&L.style!=='fly'){const k=1.2/h;w*=k;h*=k;}}
     let cx=L.x,cy=L.y;if(L.style==='fly'){cx=.5+(L.x-.5)*P*.9;cy=.5+(L.y-.5)*P*.9;}
     const u=fxU(L.fx,t,L.fxT,L.seed);
-    u.uHue+=L.hue0+t*L.hs;u.uSat*=L.sat;
+    u.uHue+=L.hue0+t*L.hs*S.hueSpd;u.uSat*=L.sat;
     const db=S.dof*(16*Math.max(0,z-.3)+10*Math.max(0,-z))+L.blurX;
     if(db>.3)u.uBlur=Math.max(u.uBlur,db);
     let A=L.shA,B=L.shA,m=0;
@@ -917,7 +948,7 @@ let last=performance.now(),T=0,hudT=0;
 function frame(now){
   const rdt=Math.min(.1,(now-last)/1000);last=now;const dt=S.playing?rdt:0;T+=dt;
   const pb=S.beatF;S.beatF+=dt*S.bpm/60;const beatHit=Math.floor(S.beatF)!==Math.floor(pb);
-  if(beatHit){flashLamp(Math.floor(S.beatF)%4===0);S.beatsSinceRoll++;}
+  if(beatHit){flashLamp(Math.floor(S.beatF)%4===0);S.beatsSinceRoll++;if(S.cAuto&&S.collage&&++S.cBeats>=S.cAutoBeats){S.cBeats=0;randCollage();rerollLayers();}}
   const it=curItem();
   if(it&&S.playing){
     S.clipT+=dt;
@@ -968,6 +999,40 @@ function renderChecks(sel,list,set,label){
   const el=$(sel);el.innerHTML=`<span class="gl">${label}</span>`+list.map(([id,n])=>`<label class="fxck" data-g="col"><input type="checkbox" id="${sel.slice(1)}-${id}" data-k="${id}" ${set.has(id)?'checked':''}>${n}</label>`).join('');
   el.addEventListener('change',e=>{const k=e.target.dataset.k;if(!k)return;if(e.target.checked)set.add(k);else set.delete(k);});
 }
+function syncChecks(sel,set,attr='k'){document.querySelectorAll(`${sel} input[data-${attr}]`).forEach(i=>{i.checked=set.has(i.dataset[attr]);});}
+function renderCPool(){
+  $('#cPool').innerHTML=GROUPS.map(([g,l])=>`<div class="fxg" data-g="${g}"><span class="gl">${l}</span>${FX.filter(f=>f.g===g).map(f=>`<label class="fxck" data-g="${g}"><input type="checkbox" id="cp-${f.id}" data-cfx="${f.id}" ${S.cpool.has(f.id)?'checked':''}>${f.name}</label>`).join('')}</div>`).join('');
+}
+$('#cPool').addEventListener('change',e=>{const id=e.target.dataset.cfx;if(!id)return;if(e.target.checked)S.cpool.add(id);else S.cpool.delete(id);});
+$('#bCAll').onclick=()=>{FX.forEach(f=>S.cpool.add(f.id));syncChecks('#cPool',S.cpool,'cfx');};
+$('#bCNone').onclick=()=>{S.cpool.clear();syncChecks('#cPool',S.cpool,'cfx');};
+/* re-roll what is on screen now */
+function rerollLayers(){
+  for(const L of layers){if(L.style==='group'&&L.ph.ref>1&&L.baseFx.size&&!S.layerFx)continue;
+    colorize(L);L.shA=pickShape();L.shB=pickShape();L.fmode=S.frameMode==='mix'?pick(['none','none','morph','beat']):S.frameMode;
+    L.border=Math.random()<S.border?rnd(.012,.05)*(.5+S.border):0;L.bcol=pick([[1,1,1],[.95,.93,.86],[.91,.27,.37],[.06,.05,.08],hsl(Math.random(),.9,.6)]);L.fxT=0;}
+}
+/* randomise every collage setting in this panel */
+function setVal(id,v){const el=$(id);el.value=v;el.dispatchEvent(new Event(el.tagName==='SELECT'?'change':'input'));}
+function randSet(set,list,p,keepOne){set.clear();list.forEach(([k])=>{if(Math.random()<p)set.add(k);});if(keepOne&&!set.size)set.add(pick(list)[0]);}
+function randCollage(){
+  randSet(S.cstyles,CSTYLES,.55,true);randSet(S.shapes,SHAPES,.45,true);if(Math.random()<.4)S.shapes.add('rect');
+  randSet(S.cgroups,CGROUPS,.5,false);randSet(S.ccolors,CCOLORS,.45,true);
+  randSet(S.cpool,FX.map(f=>[f.id]),.35,false);
+  renderStyles();syncChecks('#cShapes',S.shapes);syncChecks('#cGroups',S.cgroups);syncChecks('#cColors',S.ccolors);syncChecks('#cPool',S.cpool,'cfx');
+  const r=(a,b,st)=>Math.round(rnd(a,b)/st)*st;
+  setVal('#kLayers',r(4,18,1));setVal('#kPace',r(.4,3,.1));setVal('#kChaos',r(.15,1,.05));
+  setVal('#kDepth',r(0,1,.05));setVal('#kDepthR',r(0,1,.05));setVal('#kDof',r(0,1,.05));
+  const lo=r(.3,3,.1);setVal('#kLifeMin',lo);setVal('#kLifeMax',Math.min(20,r(lo+.5,12,.5)));
+  setVal('#kGroupRate',r(0,.8,.05));setVal('#kGroupMax',r(2,8,1));setVal('#kFrameRot',r(0,1,.05));setVal('#kBorder',r(0,.8,.05));
+  setVal('#kCol',r(.2,1,.05));setVal('#kHueSpd',r(0,3,.1));setVal('#kFxRate',r(0,.8,.05));setVal('#kFxNum',r(1,3,1));
+  setVal('#kArea',pick(['any','any','center','top','bottom','left','right','corners']));setVal('#kFrameMode',pick(['mix','none','morph','beat']));setVal('#kSrc',pick(['mix','same','diff']));
+  if(Math.random()<.3)$('#bBeatSpawn').click();
+}
+$('#bCRand').onclick=()=>{randCollage();rerollLayers();if(!S.collage)toast('「コラージュ」をオンにすると、振った設定で出てきます');};
+$('#bCReroll').onclick=()=>{rerollLayers();if(!layers.length)toast('いまは画面にコラージュの絵がありません');};
+$('#bCAuto').onclick=()=>toggle('#bCAuto','cAuto',()=>{S.cBeats=0;});
+$('#kCAutoBeats').onchange=e=>S.cAutoBeats=+e.target.value;
 
 function chipsHtml(it){
   const opts=FX.filter(f=>!it.fx.has(f.id)).map(f=>`<option value="${f.id}">${f.name}</option>`).join('');
@@ -1054,6 +1119,9 @@ knob('#kDepth','#oDepth',v=>v.toFixed(2),v=>S.depth=v);
 knob('#kDepthR','#oDepthR',v=>v.toFixed(2),v=>S.depthR=v);
 knob('#kDof','#oDof',v=>v.toFixed(2),v=>S.dof=v);
 knob('#kCol','#oCol',v=>v.toFixed(2),v=>S.colAmt=v);
+knob('#kHueSpd','#oHueSpd',v=>v.toFixed(1),v=>S.hueSpd=v);
+knob('#kFxRate','#oFxRate',v=>v.toFixed(2),v=>S.fxRate=v);
+knob('#kFxNum','#oFxNum',v=>String(v),v=>S.fxNum=v);
 knob('#kLifeMin','#oLifeMin',v=>v.toFixed(1)+' 秒',v=>S.lifeMin=v);
 knob('#kLifeMax','#oLifeMax',v=>v.toFixed(1)+' 秒',v=>S.lifeMax=v);
 knob('#kGroupRate','#oGroupRate',v=>v.toFixed(2),v=>S.groupRate=v);
@@ -1119,7 +1187,7 @@ async function saveRec(blob,ext){
 
 /* boot */
 try{initGL();}catch(e){console.error(e);toast('描画の初期化に失敗しました: '+e.message,10000);}
-renderPool();renderStyles();renderChecks('#cGroups',CGROUPS,S.cgroups,'組み合わせ');renderChecks('#cShapes',SHAPES,S.shapes,'かたち');addDemos();renderClips();startClip(0);
+renderPool();renderStyles();renderChecks('#cGroups',CGROUPS,S.cgroups,'組み合わせ');renderChecks('#cShapes',SHAPES,S.shapes,'かたち');renderChecks('#cColors',CCOLORS,S.ccolors,'色の変え方');renderCPool();addDemos();renderClips();startClip(0);
 requestAnimationFrame(t=>{last=t;requestAnimationFrame(frame);});
 </script>
 
