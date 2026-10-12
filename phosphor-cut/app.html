@@ -135,6 +135,9 @@ input[type=range]::-moz-range-thumb{width:14px;height:20px;border-radius:3px;bor
 .drop{position:relative}
 .drop.over::after{content:"ここにドロップして読み込む";position:absolute;inset:6px;border:2px dashed var(--vfd);border-radius:6px;display:grid;place-items:center;background:rgba(10,30,26,.8);color:var(--vfd);font-weight:700;z-index:5}
 .clips{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px;padding:10px;min-height:120px}
+.empty-bin{grid-column:1/-1;appearance:none;border:1px dashed var(--line);border-radius:6px;background:#101215;color:var(--dim);padding:26px 16px;text-align:center;cursor:pointer;font-size:12.5px;line-height:1.7}
+.empty-bin b{display:block;color:var(--silk);font-weight:500;font-size:14px;margin-bottom:4px}
+.empty-bin:hover{border-color:var(--vfd);color:var(--silk)}
 .clip{appearance:none;text-align:left;border:1px solid #000;border-radius:4px;background:#101215;padding:0;cursor:pointer;overflow:hidden;display:flex;flex-direction:column;min-width:0;color:var(--silk)}
 .clip .th{aspect-ratio:4/3;background:#000 center/cover no-repeat;position:relative}
 .clip .th i{position:absolute;left:0;top:0;bottom:0;width:4px}
@@ -792,7 +795,7 @@ vec3 hue3(float h){return clamp(abs(fract(h+vec3(0.,2./3.,1./3.))*6.-3.)-1.,0.,1
 vec3 hueRot(vec3 c,float a){vec3 y=toYiq(c);float s=sin(a),k=cos(a);y.yz=mat2(k,-s,s,k)*y.yz;return fromYiq(y);}
 `;
 const FS_MIX = HEAD + `
-uniform sampler2D uA,uB; uniform float uAspA,uAspB,uAmt,uSoft,uBorder,uKey,uFade; uniform int uHasA,uHasB,uFit,uMode,uWipe,uBg; uniform vec3 uBorderCol,uBgCol;
+uniform sampler2D uA,uB; uniform float uSeed,uAspA,uAspB,uAmt,uSoft,uBorder,uKey,uFade; uniform int uHasA,uHasB,uFit,uMode,uWipe,uBg; uniform vec3 uBorderCol,uBgCol;
 vec2 fitUV(vec2 q,float asp){float r=asp/(4./3.);vec2 s=vec2(1.);if(uFit==2)return q;if(uFit==0){if(r>1.)s.x=1./r;else s.y=r;}else{if(r>1.)s.y=r;else s.x=1./r;}return (q-.5)*s+.5;}
 vec3 samp(sampler2D t,vec2 q,float asp){vec2 u=fitUV(q,asp);if(u.x<0.||u.y<0.||u.x>1.||u.y>1.)return vec3(0.);return texture(t,u).rgb;}
 vec3 bars(vec2 q){float y=1.-q.y;int i=clamp(int(floor(q.x*7.)),0,6);
@@ -814,6 +817,7 @@ void main(){
  else if(uMode==3)c=mix(a,max(a,b),uAmt);
  else if(uMode==4)c=mix(a,abs(a-b),uAmt);
  else c=a+b*uAmt;
+ if(uHasA==0&&uHasB==0)c=vec3(hash(uv*vec2(640.,480.)+fract(uSeed))*.55);
  vec3 bg=uBg==8?bars(uv):uBgCol; c=mix(c,bg,uFade);
  o=vec4(clamp(c,0.,1.),1.);}`;
 const FS_CC = HEAD + `
@@ -949,49 +953,11 @@ function upload(tex, el) {
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
 }
 
-/* ---------------- generated sources (built-in test material) ---------------- */
-const GENS = {
-  bars(c, t, W, H) {
-    const b = ['#c0c0c0', '#c0c000', '#00c0c0', '#00c000', '#c000c0', '#c00000', '#0000c0']; const bw = W / 7;
-    b.forEach((x, i) => { c.fillStyle = x; c.fillRect(i * bw, 0, bw + 1, H * .67); });
-    ['#0000c0', '#131313', '#c000c0', '#131313', '#00c0c0', '#131313', '#c0c0c0'].forEach((x, i) => { c.fillStyle = x; c.fillRect(i * bw, H * .67, bw + 1, H * .08); });
-    [['#00214c', 1.25], ['#ffffff', 1.25], ['#32006a', 1.25], ['#131313', 3.25]].reduce((x, [col, w]) => { c.fillStyle = col; c.fillRect(x, H * .75, bw * w + 1, H * .25); return x + bw * w; }, 0);
-    c.save(); c.translate(W / 2, H * .38); c.rotate(t * .7); c.strokeStyle = '#fff'; c.lineWidth = 8; c.setLineDash([26, 16]); c.beginPath(); c.arc(0, 0, 120, 0, Math.PI * 2); c.stroke(); c.restore();
-    c.fillStyle = '#000'; c.fillRect(W / 2 - 130, H * .82, 260, 50); c.fillStyle = '#fff'; c.font = '34px "Share Tech Mono", monospace'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(tcode(t), W / 2, H * .82 + 26);
-  },
-  mono(c, t, W, H) {
-    c.fillStyle = '#6d6d6d'; c.fillRect(0, 0, W, H);
-    c.strokeStyle = '#d8d8d8'; c.lineWidth = 2; for (let x = 0; x <= W; x += 40) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, H); c.stroke(); } for (let y = 0; y <= H; y += 40) { c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); }
-    c.fillStyle = '#111'; c.beginPath(); c.arc(W / 2, H / 2, 190, 0, Math.PI * 2); c.fill();
-    for (let i = 0; i < 6; i++) { const g = Math.round(i * 51); c.fillStyle = `rgb(${g},${g},${g})`; c.fillRect(W / 2 - 150 + i * 50, H / 2 + 60, 50, 46); }
-    c.save(); c.translate(W / 2, H / 2); for (let i = 0; i < 24; i++) { c.rotate(Math.PI / 12); c.fillStyle = i % 2 ? '#fff' : '#000'; c.beginPath(); c.moveTo(0, 0); c.lineTo(180, -8); c.lineTo(180, 8); c.fill(); } c.restore();
-    c.fillStyle = '#111'; c.beginPath(); c.arc(W / 2, H / 2, 100, 0, Math.PI * 2); c.fill();
-    c.fillStyle = '#fff'; c.font = '700 30px "Barlow Semi Condensed", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('PHOSPHOR', W / 2, H / 2 - 18); c.font = '22px "Share Tech Mono", monospace'; c.fillText(tcode(t), W / 2, H / 2 + 18);
-    const y = ((t * 90) % (H + 40)) - 20; c.fillStyle = 'rgba(255,255,255,.85)'; c.fillRect(0, y, W, 6);
-  },
-  liss(c, t, W, H) {
-    c.fillStyle = '#000'; c.fillRect(0, 0, W, H); c.lineWidth = 3; c.globalCompositeOperation = 'lighter';
-    const cols = ['#33ffcc', '#ff5bd6', '#ffd23f'];
-    cols.forEach((col, k) => { c.strokeStyle = col; c.beginPath(); for (let i = 0; i <= 600; i++) { const a = i / 600 * Math.PI * 2; const x = W / 2 + Math.sin(a * (3 + k) + t * (.7 + k * .3)) * 250; const y = H / 2 + Math.sin(a * (2 + k) + t * .5) * 190; i ? c.lineTo(x, y) : c.moveTo(x, y); } c.stroke(); });
-    c.globalCompositeOperation = 'source-over';
-  },
-  orbs(c, t, W, H) {
-    const g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#120a24'); g.addColorStop(1, '#03141a'); c.fillStyle = g; c.fillRect(0, 0, W, H);
-    for (let i = 0; i < 7; i++) {
-      const x = W / 2 + Math.cos(t * (.4 + i * .13) + i) * W * .36, y = H / 2 + Math.sin(t * (.55 + i * .09) + i * 2) * H * .34, r = 50 + 40 * Math.sin(t + i);
-      const rg = c.createRadialGradient(x, y, 0, x, y, r * 1.6); const h = (i * 52 + t * 30) % 360; rg.addColorStop(0, `hsla(${h},95%,70%,1)`); rg.addColorStop(.5, `hsla(${h},95%,55%,.55)`); rg.addColorStop(1, `hsla(${h},95%,50%,0)`);
-      c.fillStyle = rg; c.fillRect(x - r * 2, y - r * 2, r * 4, r * 4);
-    }
-  }
-};
-
 /* ---------------- clips (bin) ---------------- */
 const clips = []; let clipSeq = 1, selClip = null;
 const PALETTE = ['#e0a33a', '#4fb3d9', '#d9645a', '#7bc96f', '#b48be0', '#e07fb0', '#d6cf5a', '#5ad6b4'];
 function newClip(kind, name, extra = {}) { const c = Object.assign({ id: 'c' + (clipSeq++), kind, name, dur: 30, in: 0, out: 30, w: 640, h: 480, color: PALETTE[(clipSeq - 2) % PALETTE.length], thumb: '', busy: '' }, extra); clips.push(c); return c; }
 const clipById = id => clips.find(c => c.id === id) || null;
-function genThumb(c) { const k = document.createElement('canvas'); k.width = 160; k.height = 120; const x = k.getContext('2d'); x.scale(.25, .25); GENS[c.gen](x, 2.2, 640, 480); return k.toDataURL('image/jpeg', .8); }
-function addGen(gen, name) { const c = newClip('gen', name, { gen, dur: 60, out: 60 }); c.thumb = genThumb(c); return c; }
 
 const TS_EXT = ['m2ts', 'mts', 'm2t', 'ts', 'tod', 'mod'];
 async function addFiles(list) { for (const f of list) await addFile(f); }
@@ -1086,7 +1052,7 @@ function removeClip(c) {
 }
 
 /* ---------------- media element pool + audio graph ---------------- */
-const pool = new Map(); const genCv = {};
+const pool = new Map();
 let AC = null, master = null, recDest = null; const buses = {};
 function ensureAudio() {
   if (AC) { if (AC.state === 'suspended') AC.resume().catch(() => { }); return; }
@@ -1155,10 +1121,6 @@ function driveVideo(v, local, rate, continuous) {
 }
 // returns {clip, el/canvas, asp, ready, static}
 function resolveSource(key, clip, local, rate, continuous, vol) {
-  if (clip.kind === 'gen') {
-    let k = genCv[key]; if (!k) { k = genCv[key] = document.createElement('canvas'); k.width = 640; k.height = 480; k.ctx = k.getContext('2d'); }
-    GENS[clip.gen](k.ctx, local, 640, 480); return { clip, img: k, asp: 4 / 3, ready: true };
-  }
   if (clip.kind === 'image') return { clip, img: clip.canvas, asp: clip.w / clip.h, ready: true, still: true };
   const v = poolGet(key, clip); v.used = true;
   if (clip.kind === 'video') driveVideo(v, local, rate, continuous);
@@ -1207,7 +1169,7 @@ function frame(now) {
     const hasA = pushTex('A', sA), hasB = pushTex('B', sB);
     const bc = BG_COLORS[Math.min(7, P.bg)] || [0, 0, 0];
     pass(PR.mix, T_.M, { uA: T_.srcA, uB: T_.srcB }, {
-      uAspA: texAsp.A, uAspB: texAsp.B, uAmt: hasB ? amt : 0, uSoft: P.soft, uBorder: P.border, uKey: P.keyThr, uFade: P.fade,
+      uSeed: now * .001, uAspA: texAsp.A, uAspB: texAsp.B, uAmt: hasB ? amt : 0, uSoft: P.soft, uBorder: P.border, uKey: P.keyThr, uFade: P.fade,
       uHasA: I(hasA ? 1 : 0), uHasB: I(hasB ? 1 : 0), uFit: I(P.fit), uMode: I(mode), uWipe: I(wipe), uBg: I(P.bg), uBorderCol: hsl(P.borderHue, .9, .6), uBgCol: bc
     });
   }
@@ -1387,12 +1349,13 @@ function renderBin() {
   const host = $('#clips'); host.innerHTML = '';
   for (const c of clips) {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'clip'; b.setAttribute('aria-pressed', selClip === c);
-    const kind = { gen: 'TEST', image: 'STILL', video: 'VIDEO', live: 'LIVE' }[c.kind];
+    const kind = { image: 'STILL', video: 'VIDEO', live: 'LIVE' }[c.kind];
     b.innerHTML = `<div class="th" style="background-image:${c.thumb ? `url(${c.thumb})` : 'none'}"><i style="background:${c.color}"></i><em>${c.kind === 'video' && !c.busy ? tcode(c.dur, false).slice(3) : kind}</em>${c.busy ? `<div class="busy">${esc(c.busy)}</div>` : ''}</div><div class="nm">${esc(c.name)}<small>${kind}${c.kind === 'video' && c.w ? ' ' + c.w + '×' + c.h : ''}</small></div>`;
     b.onclick = () => { if (!c.busy) selectClip(c); };
     b.draggable = !c.busy; b.addEventListener('dragstart', e => { e.dataTransfer.setData('text/x-clip', c.id); e.dataTransfer.effectAllowed = 'copy'; });
     host.append(b);
   }
+  if (!clips.length) { const e = document.createElement('button'); e.type = 'button'; e.className = 'empty-bin'; e.innerHTML = '<b>素材がまだありません</b>MOV / MP4 / M2TS / MTS / 画像をここにドロップするか、押して選んでください。読み込んだら「A に置く」でタイムラインへ。'; e.onclick = () => $('#fFile').click(); host.append(e); }
   $('#binCount').textContent = clips.length + ' 素材';
 }
 let delArm = null;
@@ -1404,7 +1367,7 @@ function selectClip(c) {
   else { const im = document.createElement('div'); im.style.cssText = `width:180px;max-width:100%;aspect-ratio:4/3;background:#000 url(${c.thumb}) center/cover;border-radius:3px;border:1px solid #000`; row.append(im); }
   const meta = document.createElement('div'); meta.className = 'meta';
   const inout = c.kind === 'video' ? `<div>IN ${tcode(c.in)}　OUT ${tcode(c.out)}　長さ ${fmtSec(c.out - c.in)}</div>` : '';
-  meta.innerHTML = `<b>${esc(c.name)}</b>${inout}${c.note ? `<div>${esc(c.note)}</div>` : ''}${c.kind === 'gen' ? '<div>内蔵のテスト映像。時間操作の練習用に。</div>' : ''}`;
+  meta.innerHTML = `<b>${esc(c.name)}</b>${inout}${c.note ? `<div>${esc(c.note)}</div>` : ''}`;
   row.append(meta); box.append(row);
   const bar = document.createElement('div'); bar.className = 'insp-row';
   const btn = (t, f, cls = '') => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn sm ' + cls; b.textContent = t; b.onclick = f; bar.append(b); return b; };
@@ -1681,17 +1644,9 @@ function wire() {
 }
 
 /* ---------------- boot ---------------- */
-function seed() {
-  const bars = addGen('bars', 'カラーバー'), mono = addGen('mono', 'モノスコープ'), liss = addGen('liss', 'リサージュ'), orbs = addGen('orbs', '光の玉');
-  tracks.A.push(mkSeg(bars, 0, 4, { in: 0, out: 60 }), mkSeg(mono, 4, 5, { in: 0, out: 60 }), mkSeg(orbs, 9, 6, { in: 0, out: 60, speed: 1.5 }));
-  tracks.B.push(mkSeg(liss, 1.5, 5.5, { in: 0, out: 60, mode: 2, fade: .8 }), mkSeg(bars, 10.5, 3.5, { in: 0, out: 60, mode: 0, wipe: 4, fade: 1.2, rev: 1 }));
-  pads[0] = liss.id; pads[1] = orbs.id; pads[2] = bars.id; pads[3] = mono.id;
-}
 glOk = initGL();
 if (!glOk) toast('このブラウザでは WebGL2 が使えないため、映像処理を動かせません。最新の Chrome / Safari / Edge / Firefox で開いてください。', 0);
-buildControls(); seed(); renderBin(); renderPads(); initTimeline(); renderTimeline(); wire();
-// start running muted so the first frame already shows the demo sequence; audio starts on the first click
-playing = true; $('#bPlay').setAttribute('aria-pressed', 'true'); $('#playLbl').textContent = '停止';
+buildControls(); renderBin(); renderPads(); initTimeline(); renderTimeline(); wire();
 requestAnimationFrame(frame);
 getDownloads();
 </script>
