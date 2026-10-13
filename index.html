@@ -710,6 +710,24 @@ input[type="range"]::-moz-range-thumb {
   }
   cutMethodEl.addEventListener("change", updateMethodUI);
 
+  // 断片の長さ counts characters for 継ぎ目 and whole tokens for every other
+  // unit, so a value tuned for one is nonsense for the other: 7-17 means a
+  // readable phrase in 継ぎ目 and seventeen whole sentences in 文, which
+  // swallowed the text into two or three immovable blocks. Crossing between
+  // the two scales resets the sliders to that scale's default; moving
+  // within a scale leaves whatever the user set alone.
+  const CHAR_SCALE = (u) => u === "splice" || u === "char";
+  let prevUnit = unitEl.value;
+  unitEl.addEventListener("change", () => {
+    if (CHAR_SCALE(unitEl.value) !== CHAR_SCALE(prevUnit)) {
+      const [lo, hi] = CHAR_SCALE(unitEl.value) ? [7, 17] : [1, 3];
+      chunkMinEl.value = lo;
+      chunkMaxEl.value = hi;
+      syncLabels();
+    }
+    prevUnit = unitEl.value;
+  });
+
   presetsEl.addEventListener("click", (e) => {
     const btn = e.target.closest(".presetBtn");
     if (!btn) return;
@@ -1070,7 +1088,6 @@ input[type="range"]::-moz-range-thumb {
     "ゃ": "a", "ゅ": "u", "ょ": "o", "ぁ": "a", "ぃ": "i", "ぅ": "u", "ぇ": "e", "ぉ": "o",
     "ャ": "a", "ュ": "u", "ョ": "o", "ァ": "a", "ィ": "i", "ゥ": "u", "ェ": "e", "ォ": "o",
   };
-  const KANA_ONLY_RE = /^[぀-ゟー゠-ヿ]+$/;
 
   const KANA_TO_PHONEME = new Map();
   const PHONEME_TO_HIRAGANA = new Map();
@@ -1293,41 +1310,66 @@ input[type="range"]::-moz-range-thumb {
   // mora count whose vowels line up in roughly the same pattern — real
   // words, chosen by resemblance-by-sound rather than meaning, the way a
   // pun or a mishearing substitutes one word for another.
+  // Find a wordbank entry of roughly the same mora count whose vowels line
+  // up in the same positions, with a bonus for rhyming on the last mora.
+  function moraMatch(word, rand) {
+    const srcMora = toMora(word);
+    const candidates = MORA_WORDBANK.filter((w) => Math.abs(w.mora.length - srcMora.length) <= 1 && w.word !== word);
+    if (candidates.length === 0) return null;
+
+    const scored = candidates.map((w) => {
+      let score = 0;
+      const len = Math.min(w.mora.length, srcMora.length);
+      for (let i = 0; i < len; i++) {
+        const a = moraPhoneme(srcMora[i]);
+        const b = moraPhoneme(w.mora[i]);
+        if (a && b && a.vowel === b.vowel) score++;
+      }
+      const aLast = moraPhoneme(srcMora[srcMora.length - 1]);
+      const bLast = moraPhoneme(w.mora[w.mora.length - 1]);
+      if (aLast && bLast && aLast.vowel === bLast.vowel) score += 2; // rhyme bonus
+      return { w, score };
+    });
+    scored.sort((a, b) => b.score - a.score);
+    const topScore = scored[0].score;
+    const top = topScore > 0 ? scored.filter((s) => s.score >= topScore * 0.6) : scored;
+    const pick = top[Math.floor(rand() * top.length)];
+    return pick ? pick.w.word : null;
+  }
+
+  // Substituting only when a whole fragment happened to be pure かな meant
+  // the mode silently did nothing as soon as fragments were big enough to
+  // contain a 漢字 — which is most of the time outside カオス2's own small
+  // chunk sizes. It works on かな runs inside a fragment instead, which is
+  // what the UI promises: 漢字 is left alone, the かな around it is swapped
+  // for a word that rhymes with it. Some runs are left intact so the
+  // result stays readable rather than turning into solid substitution.
+  const KANA_RUN_RE = /[぀-ゟー゠-ヿ]{2,}/g;
+
   function moraSubstitute(chunks, rand) {
     return chunks.map((c) => {
-      const trimmed = c.text.trim();
-      if (trimmed.length < 2 || !KANA_ONLY_RE.test(trimmed)) return c;
-
-      const srcMora = toMora(trimmed);
-      const candidates = MORA_WORDBANK.filter((w) => Math.abs(w.mora.length - srcMora.length) <= 1 && w.word !== trimmed);
-      if (candidates.length === 0) return c;
-
-      const scored = candidates.map((w) => {
-        let score = 0;
-        const len = Math.min(w.mora.length, srcMora.length);
-        for (let i = 0; i < len; i++) {
-          const a = moraPhoneme(srcMora[i]);
-          const b = moraPhoneme(w.mora[i]);
-          if (a && b && a.vowel === b.vowel) score++;
-        }
-        const aLast = moraPhoneme(srcMora[srcMora.length - 1]);
-        const bLast = moraPhoneme(w.mora[w.mora.length - 1]);
-        if (aLast && bLast && aLast.vowel === bLast.vowel) score += 2; // rhyme bonus
-        return { w, score };
+      const next = c.text.replace(KANA_RUN_RE, (run) => {
+        if (rand() < 0.3) return run;
+        return moraMatch(run, rand) || run;
       });
-      scored.sort((a, b) => b.score - a.score);
-      const topScore = scored[0].score;
-      const top = topScore > 0 ? scored.filter((s) => s.score >= topScore * 0.6) : scored;
-      const pick = top[Math.floor(rand() * top.length)];
-      return pick ? { ...c, text: pick.w.word } : c;
+      return next === c.text ? c : { ...c, text: next };
     });
   }
 
+  // Guarantee at least two pieces to move. This is only a safety net: a
+  // size pinned hard against the cap would make every chunk identical in
+  // length and leave just two or three pieces however long the text is,
+  // so the real correction is resetting the sliders when the unit changes
+  // scale (see unitEl's change handler).
   function groupTokens(tokens, min, max, joinStr, rand) {
+    const cap = Math.max(1, Math.floor(tokens.length / 2));
+    const hi = Math.max(1, Math.min(max, cap));
+    const lo = Math.max(1, Math.min(min, hi));
+
     const chunks = [];
     let i = 0;
     while (i < tokens.length) {
-      const size = min === max ? min : min + Math.floor(rand() * (max - min + 1));
+      const size = lo === hi ? lo : lo + Math.floor(rand() * (hi - lo + 1));
       chunks.push(tokens.slice(i, i + size).join(joinStr));
       i += size;
     }
@@ -1521,7 +1563,13 @@ input[type="range"]::-moz-range-thumb {
   // back in a different case. 第四回 insists this dictionary belongs to the
   // user rather than the programmer, so it is editable in the UI.
 
-  const HEAD_START = -1;
+  // 第三回's table codes 文頭 as 0 — the same number as 。 and 、 — so the
+  // opening fragment is not a class of its own: it is an ordinary group-0
+  // piece, and any other group-0 piece can take its place. Giving it a
+  // private group meant there was only ever one fragment eligible to open
+  // the piece, so every cut began with the same words no matter how many
+  // times you pressed. 文頭 is group 0.
+  const HEAD_START = 0;
   const TAIL_END = -2;
 
   const DEFAULT_SCISSORS = [
@@ -1642,10 +1690,13 @@ input[type="range"]::-moz-range-thumb {
     const used = new Array(n).fill(false);
     const out = [];
 
-    const openers = byHead.get(HEAD_START) || [];
-    let cur = openers.length
-      ? openers[Math.floor(rand() * openers.length)]
-      : Math.floor(rand() * n);
+    // Where the piece opens is itself a jump: at 0 the walk starts at the
+    // real beginning of the text so the original reassembles exactly, and
+    // only once randomness is up does it open on some other group-0 piece.
+    const starts = byHead.get(HEAD_START) || [];
+    let cur = (starts.length && rand() < jump)
+      ? starts[Math.floor(rand() * starts.length)]
+      : 0;
     used[cur] = true;
     out.push(frags[cur]);
 
@@ -1791,8 +1842,13 @@ input[type="range"]::-moz-range-thumb {
     // looks like something is happening because lines still get reordered,
     // but nothing inside a line ever breaks. Detect that case and fall back
     // to bunsetsu splitting instead of pretending "word" mode applies.
-    const effectiveUnit = (options.unit === "word" && !sourceTexts.some((t) => /[ \t]/.test(t)))
-      ? "bunsetsu"
+    // 行 on a text with no line breaks yields a single token, and one token
+    // cannot be reordered — the unit sits there doing nothing every press.
+    // Same reflex as the word fallback: drop to the next finer unit that
+    // the text actually supports.
+    const effectiveUnit =
+      (options.unit === "word" && !sourceTexts.some((t) => /[ \t]/.test(t))) ? "bunsetsu"
+      : (options.unit === "line" && !sourceTexts.some((t) => /\r?\n/.test(t.trim()))) ? "sentence"
       : options.unit;
 
     const intensity = Math.min(1, Math.max(0, options.randomness / 100));
@@ -1817,6 +1873,15 @@ input[type="range"]::-moz-range-thumb {
           out = burroughsPaste(frags, options.randomness, rand);
           tries++;
         } while (tries < 5 && options.randomness > 0 && out.map((f) => f.text).join("") === before);
+
+        // A piece that opens on a 。 or 、 fragment leads with a stray mark,
+        // which reads as a typo rather than as a cut. The opening fragment
+        // sheds it; every other mark in the text is left exactly where the
+        // scissors put it.
+        if (out.length) {
+          const lead = out[0].text.replace(/^[。、！？．，,.!?\s]+/, "");
+          if (lead && lead !== out[0].text) out = [{ ...out[0], text: lead }, ...out.slice(1)];
+        }
 
         if (!options.keepPunct) out = out.map((c) => ({ ...c, text: stripPunct(c.text) }));
         if (options.capRandom) out = out.map((c) => ({ ...c, text: randomizeCase(c.text, rand) }));
