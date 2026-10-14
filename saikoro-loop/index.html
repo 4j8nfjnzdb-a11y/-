@@ -85,6 +85,12 @@ button{cursor:pointer}
 .num{display:inline-flex;align-items:center;gap:4px;font-size:13px;color:var(--dim);white-space:nowrap}
 .num input[type=number]{width:62px;padding:4px 7px;border-radius:8px;border:1px solid var(--line);background:var(--felt-deep);font-family:var(--f-mono)}
 .grow{flex:1}
+.formrow{display:flex;align-items:center;gap:8px;min-width:0}
+.formrow .form{flex:1;min-width:0}
+.cutstep{display:inline-flex;align-items:center;gap:3px;flex:none}
+.cutstep .lbl{font-size:12px;color:var(--dim);margin-right:2px}
+.btn.round.sm{width:28px;height:28px;min-height:0;font-size:15px}
+#cutNow{font-family:var(--f-mono);min-width:2.2em;text-align:center;font-variant-numeric:tabular-nums}
 
 /* ---------- dice tray ---------- */
 .tray{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 6px;scrollbar-width:thin}
@@ -244,7 +250,15 @@ input[type=range]{width:100%;accent-color:var(--brass);margin:0}
 
       <div class="tray" id="tray" role="group" aria-label="サイコロ"></div>
 
-      <div class="form" id="form" aria-label="構成"></div>
+      <div class="formrow">
+          <div class="cutstep" title="1周のカット数">
+            <span class="lbl">カット</span>
+            <button class="btn round sm" id="cutMinus" aria-label="カットを減らす">−</button>
+            <output id="cutNow">12</output>
+            <button class="btn round sm" id="cutPlus" aria-label="カットを増やす">＋</button>
+          </div>
+        <div class="form" id="form" aria-label="構成"></div>
+      </div>
       <div class="timeline" id="timeline"></div>
       <div class="tl-scale" id="tlScale"></div>
     </section>
@@ -257,6 +271,22 @@ input[type=range]{width:100%;accent-color:var(--brass);margin:0}
       </div>
 
       <div class="pane" id="p-seq" role="tabpanel" aria-labelledby="t-seq">
+        <section class="panel" aria-labelledby="h-cuts">
+          <h2 id="h-cuts">カット数 <small id="cutInfo"></small></h2>
+          <div class="chips" id="cutModeChips">
+            <button class="chip" data-v="auto">おまかせ（並びの数ずつ）</button>
+            <button class="chip" data-v="set">数を決める</button>
+          </div>
+          <div class="row">
+            <div class="k"><span>1周のカット数</span><output id="cutsOut">12</output></div>
+            <input type="range" id="cuts" min="1" max="80" step="1" value="12">
+          </div>
+          <div class="row">
+            <div class="k"><span>ばらつき</span><output id="cutVarOut">少し</output></div>
+            <input type="range" id="cutVar" min="0" max="1" step="0.05" value="0.3">
+          </div>
+          <p class="note">少ないと1カットが長く引き延ばされ、使わない素材も出ます。多いと並びを何周もして細かく刻みます。ばらつきを上げると、区切りごとにカット数が変わり、同じ素材が続いたり飛ばされたりします。順番は崩れません。</p>
+        </section>
         <section class="panel" aria-labelledby="h-seq">
           <h2 id="h-seq">並び <small id="seqCount"></small></h2>
           <p class="note">ここに並べた順に1周が流れます。並べた順番と中身はサイコロでは変わりません。</p>
@@ -435,7 +465,7 @@ const DICEBY = Object.fromEntries(DICE.map(d => [d.id, d]));
 
 /* ================= state ================= */
 const S = {
-  loopLen: 17, aspect: '16:9', prob: .55, sound: false, auto: 'off', when: 'now', drift: .35,
+  loopLen: 17, cutMode: 'auto', cuts: 12, cutVar: .3, aspect: '16:9', prob: .55, sound: false, auto: 'off', when: 'now', drift: .35,
   fx: {
     rewind:{dice:true,fixed:false,amt:.6}, reverse:{dice:true,fixed:false,amt:.5}, speed:{dice:true,fixed:false,amt:.5},
     slow:{dice:true,fixed:false,amt:.5}, stutter:{dice:true,fixed:false,amt:.5},
@@ -680,13 +710,56 @@ function rollBeats(n){
   return b;
 }
 const ATTR_ROLL = { beats: rollBeat, fx: rollFx, cut: () => Math.random(), zoom: rollZoom };
-function newPattern(n){ return { beats: rollBeats(n), fx: Array.from({ length:n }, rollFx), cut: Array.from({ length:n }, Math.random), zoom: Array.from({ length:n }, rollZoom) }; }
-/* a variant (A′, A″…) overrides a few positions; more primes = more different */
-function primeMut(n, p, attrs = ['beats', 'beats', 'fx', 'cut', 'zoom']){
-  const m = {}; if (!n) return m;
+const ATTRS = ['beats', 'fx', 'cut', 'zoom'];
+/* How many cuts a letter gets. 'auto' = one per arranged clip; otherwise the lap total is shared out by section length.
+   vf is the pattern's own random lean (−.6….6), scaled by the ばらつき slider. */
+function countFor(L, vf){
+  const n = seq.length, F = plan.form; if (!n || !F.length) return 1;
+  let base;
+  if (S.cutMode === 'auto') base = n;
+  else {
+    const W = sum(F.map(x => x.w)), ws = F.filter(x => x.L === L).map(x => x.w);
+    if (!ws.length) return 1;
+    base = S.cuts * (sum(ws) / ws.length) / W;
+  }
+  return Math.max(1, Math.round(base * (1 + S.cutVar * vf)));
+}
+/* which arranged clip each cut shows: always walks the arrangement forward, so its order is kept.
+   Fewer cuts than clips → leave some out. More → go round again, now and then doubling or skipping one. */
+function pickItems(c, n, seed, offset){
+  const r = mulberry(seed), v = S.cutVar, out = [];
+  if (c >= n) {
+    let i = offset;
+    while (out.length < c) {
+      out.push(i % n);
+      const x = r(), last2 = out.length > 1 && out[out.length - 2] === out[out.length - 1];
+      i += x < v * .25 && !last2 ? 0 : x < v * .4 && n > 2 ? 2 : 1;
+    }
+  } else if (v < .15) {
+    for (let k = 0; k < c; k++) out.push((Math.floor((k + .5) * n / c) + offset) % n);
+    out.sort((a, b) => a - b);
+  } else {
+    const idx = Array.from({ length:n }, (_, k) => k);
+    for (let k = n - 1; k > 0; k--) { const q = r() * (k + 1) | 0; [idx[k], idx[q]] = [idx[q], idx[k]]; }
+    out.push(...idx.slice(0, c).sort((a, b) => a - b));
+  }
+  return out;
+}
+function newPattern(L){ const P = { L, seed: Math.random() * 1e9 | 0, vf: rand(-.6, .6), off: L === 'A' ? 0 : Math.random() * 97 | 0, c:0, items:[], beats:[], fx:[], cut:[], zoom:[] }; refit(P); return P; }
+/* recompute a pattern's cut count and clips, keeping whatever was already rolled for the cuts that remain */
+function refit(P){
+  const n = seq.length;
+  P.c = countFor(P.L, P.vf);
+  P.items = n ? pickItems(P.c, n, P.seed, P.off % Math.max(1, n)) : [];
+  while (P.beats.length < P.c) { P.beats.push(rollBeat()); P.fx.push(rollFx()); P.cut.push(Math.random()); P.zoom.push(rollZoom()); }
+  for (const k of ATTRS) P[k].length = P.c;
+}
+/* a variant (A′, A″…) overrides a few cuts; more primes = more different */
+function primeMut(c, p, attrs = ['beats', 'beats', 'fx', 'cut', 'zoom']){
+  const m = {}; if (!c) return m;
   const prob = Math.min(.7, .18 + .14 * p + S.drift * .2);
-  for (let i = 0; i < n; i++) if (Math.random() < prob) { const a = pick(attrs); m[i] = { ...m[i], [a]: ATTR_ROLL[a]() }; }
-  if (!Object.keys(m).length) { const i = Math.random() * n | 0, a = pick(attrs); m[i] = { [a]: ATTR_ROLL[a]() }; }
+  for (let i = 0; i < c; i++) if (Math.random() < prob) { const a = pick(attrs); m[i] = { ...m[i], [a]: ATTR_ROLL[a]() }; }
+  if (!Object.keys(m).length) { const i = Math.random() * c | 0, a = pick(attrs); m[i] = { [a]: ATTR_ROLL[a]() }; }
   return m;
 }
 const FORMS = {
@@ -700,48 +773,41 @@ const FORMS = {
 const FORM_W = { 1:1, 2:3, 3:4, 4:4, 5:2, 6:1 };
 function rollForm(keepPats){
   const n = seq.length; if (!n) { plan = { form:[], pats:{}, muts:[] }; return; }
-  const maxSec = clamp(Math.floor(S.loopLen / Math.max(1.2, n * .45)), 1, 6);
+  const per = S.cutMode === 'auto' ? n : Math.max(1, S.cuts / 3);
+  const maxSec = clamp(Math.floor(S.loopLen / Math.max(1.2, per * .45)), 1, S.cutMode === 'auto' ? 6 : clamp(S.cuts, 1, 6));
   const opts = []; for (let c = 1; c <= maxSec; c++) for (let k = 0; k < FORM_W[c]; k++) opts.push(c);
   const tpl = pick(FORMS[pick(opts)]).split(' ');
   const lw = { A:1, B:pick([.6, 1, 1.4]), C:pick([.5, .8]) };
   plan.form = tpl.map(t => { const L = t[0], p = t.length - 1; return { L, p, w: lw[L] * (p ? rand(.85, 1.15) : 1) }; });
-  const pats = {};
-  for (const s of plan.form) if (!pats[s.L]) pats[s.L] = keepPats && plan.pats[s.L] ? plan.pats[s.L] : newPattern(n);
+  const old = plan.pats, pats = {};
   plan.pats = pats;
-  plan.muts = plan.form.map(s => s.p ? primeMut(n, s.p) : {});
+  for (const sec of plan.form) if (!pats[sec.L]) { if (keepPats && old[sec.L]) { pats[sec.L] = old[sec.L]; refit(pats[sec.L]); } else pats[sec.L] = newPattern(sec.L); }
+  plan.muts = plan.form.map(sec => sec.p ? primeMut(pats[sec.L].c, sec.p) : {});
 }
-/* keep every pattern the same length as the arrangement */
+/* after the arrangement, lap length or cut settings change */
 function fitPlan(){
-  const n = seq.length;
+  if (!seq.length) { plan = { form:[], pats:{}, muts:[] }; return; }
   if (!plan.form.length) { rollForm(); return; }
-  for (const P of Object.values(plan.pats)) {
-    while (P.beats.length < n) { P.beats.push(rollBeat()); P.fx.push(rollFx()); P.cut.push(Math.random()); P.zoom.push(rollZoom()); }
-    for (const k of ['beats', 'fx', 'cut', 'zoom']) P[k].length = n;
-  }
-  plan.muts = plan.muts.map(m => Object.fromEntries(Object.entries(m).filter(([i]) => +i < n)));
-}
-function spliceAt(j){
-  for (const P of Object.values(plan.pats)) for (const k of ['beats', 'fx', 'cut', 'zoom']) P[k].splice(j, 1);
-  plan.muts = plan.muts.map(m => { const o = {}; for (const [i, v] of Object.entries(m)) { const x = +i; if (x < j) o[x] = v; else if (x > j) o[x - 1] = v; } return o; });
+  for (const P of Object.values(plan.pats)) refit(P);
+  plan.muts = plan.form.map((sec, k) => Object.fromEntries(Object.entries(plan.muts[k] || {}).filter(([i]) => +i < plan.pats[sec.L].c)));
 }
 /* clear one kind of override everywhere, then let the variants re-diverge on that kind only */
 function regenMuts(attrs){
-  const n = seq.length;
-  plan.muts = plan.form.map((s, k) => {
-    const m = {};
-    for (const [i, v] of Object.entries(plan.muts[k] || {})) { const o = { ...v }; for (const a of attrs) delete o[a]; if (Object.keys(o).length) m[i] = o; }
-    if (s.p && Math.random() < .85) for (const [i, v] of Object.entries(primeMut(n, s.p, attrs))) m[i] = { ...m[i], ...v };
+  plan.muts = plan.form.map((sec, k) => {
+    const m = {}, c = plan.pats[sec.L].c;
+    for (const [i, v] of Object.entries(plan.muts[k] || {})) { if (+i >= c) continue; const o = { ...v }; for (const a of attrs) delete o[a]; if (Object.keys(o).length) m[i] = o; }
+    if (sec.p && Math.random() < .85) for (const [i, v] of Object.entries(primeMut(c, sec.p, attrs))) m[i] = { ...m[i], ...v };
     return m;
   });
 }
 function drift(){
-  const n = seq.length, F = plan.form; if (!n || !F.length) return [];
+  const F = plan.form; if (!seq.length || !F.length) return [];
   const ops = 1 + Math.round(S.drift * 2.5 * Math.random()), done = [];
   for (let j = 0; j < ops; j++) {
-    const r = Math.random(), k = Math.random() * F.length | 0;
+    const r = Math.random(), k = Math.random() * F.length | 0, P = plan.pats[F[k].L];
     if (r < .14 && F.length > 1) { F[k].w = clamp(F[k].w * rand(.8, 1.22), .3, 3); done.push('区切り'); continue; }
-    const i = Math.random() * n | 0, a = pick(['beats', 'beats', 'fx', 'cut', 'zoom']);
-    const cur = (plan.muts[k][i] || {}).beats ?? plan.pats[F[k].L].beats[i];
+    const i = Math.random() * P.c | 0, a = pick(['beats', 'beats', 'fx', 'cut', 'zoom']);
+    const cur = (plan.muts[k][i] || {}).beats ?? P.beats[i];
     const v = a === 'beats' ? clamp(cur + pick([-1, 1]), 1, 6) : ATTR_ROLL[a]();
     plan.muts[k] = { ...plan.muts[k], [i]: { ...(plan.muts[k][i] || {}), [a]: v } };
     if (!F[k].p && F.some((s, x) => x !== k && s.L === F[k].L)) F[k].p = 1 + Math.max(...F.filter(s => s.L === F[k].L).map(s => s.p));
@@ -757,9 +823,11 @@ function doDice(id){
   let msg = '';
   switch (id) {
     case 'form': rollForm(true); msg = `構成：${formText()}`; break;
-    case 'beat': for (const P of Object.values(plan.pats)) P.beats = rollBeats(seq.length); regenMuts(['beats']); msg = `拍：${Object.entries(plan.pats).map(([L, P]) => `${L}＝${P.beats.join('+')}`).join('　')}`; break;
-    case 'fx': for (const P of Object.values(plan.pats)) P.fx = seq.map(rollFx); regenMuts(['fx']); msg = '効果を振り直しました'; break;
-    case 'pic': for (const P of Object.values(plan.pats)) { P.cut = seq.map(Math.random); P.zoom = seq.map(rollZoom); } regenMuts(['cut', 'zoom']); msg = '切り出す場所とズームを振り直しました'; break;
+    case 'beat':
+      for (const P of Object.values(plan.pats)) { P.seed = Math.random() * 1e9 | 0; P.vf = rand(-.6, .6); refit(P); P.beats = rollBeats(P.c); }
+      regenMuts(['beats']); msg = `拍：${Object.entries(plan.pats).map(([L, P]) => `${L}＝${P.c}カット ${P.beats.join('+')}`).join('　')}`; break;
+    case 'fx': for (const P of Object.values(plan.pats)) P.fx = Array.from({ length:P.c }, rollFx); regenMuts(['fx']); msg = '効果を振り直しました'; break;
+    case 'pic': for (const P of Object.values(plan.pats)) { P.cut = Array.from({ length:P.c }, Math.random); P.zoom = Array.from({ length:P.c }, rollZoom); } regenMuts(['cut', 'zoom']); msg = '切り出す場所とズームを振り直しました'; break;
     case 'drift': msg = `ゆらぎ：${drift().join('・')}が少し変わりました`; break;
     case 'all': rollForm(false); msg = `ぜんぶ振りました（${formText()}）`; break;
   }
@@ -795,20 +863,21 @@ function makeSeg(m, start, dur, fx, cut){
   seg.range = [seg.a, seg.a + span * seg.k];
   return seg;
 }
-function itemOf(k, i){
-  const s = plan.form[k], P = plan.pats[s.L], o = (plan.muts[k] || {})[i] || {};
-  return { beats: o.beats ?? P.beats[i], fx: o.fx ?? P.fx[i], cut: o.cut ?? P.cut[i], zoom: 'zoom' in o ? o.zoom : P.zoom[i] };
+function itemOf(k, j){
+  const s = plan.form[k], P = plan.pats[s.L], o = (plan.muts[k] || {})[j] || {};
+  return { i: P.items[j], beats: o.beats ?? P.beats[j], fx: o.fx ?? P.fx[j], cut: o.cut ?? P.cut[j], zoom: 'zoom' in o ? o.zoom : P.zoom[j] };
 }
+const slotsOf = k => Array.from({ length: plan.pats[plan.form[k].L].c }, (_, j) => itemOf(k, j));
 function buildTimeline(){
   const n = seq.length; if (!n || !plan.form.length) return [];
   const L = S.loopLen, tw = sum(plan.form.map(s => s.w)), out = [];
   let t = 0;
   plan.form.forEach((sec, k) => {
-    const sd = L * sec.w / tw, items = seq.map((_, i) => itemOf(k, i)), tb = sum(items.map(x => x.beats));
-    seq.forEach((m, i) => {
-      const it = items[i], d = sd * it.beats / tb;
-      const seg = makeSeg(m, t, d, { ...it.fx, zoom: it.zoom }, it.cut);
-      seg.sec = k; seg.item = i; seg.key = `${k}:${i}`; seg.beats = it.beats;
+    const sd = L * sec.w / tw, slots = slotsOf(k), tb = sum(slots.map(x => x.beats));
+    slots.forEach((it, j) => {
+      const d = sd * it.beats / tb;
+      const seg = makeSeg(seq[it.i], t, d, { ...it.fx, zoom: it.zoom }, it.cut);
+      seg.sec = k; seg.slot = j; seg.item = it.i; seg.key = `${k}:${j}`; seg.beats = it.beats;
       out.push(seg); t += d;
     });
   });
@@ -860,19 +929,19 @@ function applyToggle(id){
 /* one clip only: tap on the timeline re-rolls that clip's effect in that section */
 function rerollClip(i){
   const s = timeline[i]; if (!s) return;
-  plan.muts[s.sec] = { ...plan.muts[s.sec], [s.item]: { ...(plan.muts[s.sec][s.item] || {}), fx: rollFx() } };
+  plan.muts[s.sec] = { ...plan.muts[s.sec], [s.slot]: { ...(plan.muts[s.sec][s.slot] || {}), fx: rollFx() } };
   rebuild();
   const el = $('#timeline').children[i]; if (el) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
 }
 function setClipZoom(seg, z){
-  plan.muts[seg.sec] = { ...plan.muts[seg.sec], [seg.item]: { ...(plan.muts[seg.sec][seg.item] || {}), zoom: z } };
+  plan.muts[seg.sec] = { ...plan.muts[seg.sec], [seg.slot]: { ...(plan.muts[seg.sec][seg.slot] || {}), zoom: z } };
   seg.fx = { ...seg.fx, zoom: z };
   renderNow(); renderTimeline();
 }
 
 /* ================= arrangement edits ================= */
 function addSeq(m){ seq.push(m); fitPlan(); rebuild(); }
-function removeSeq(j){ seq.splice(j, 1); spliceAt(j); if (!seq.length) plan = { form:[], pats:{}, muts:[] }; rebuild(); }
+function removeSeq(j){ seq.splice(j, 1); fitPlan(); rebuild(); }
 function moveSeq(j, d){ const k = j + d; if (k < 0 || k >= seq.length) return; [seq[j], seq[k]] = [seq[k], seq[j]]; rebuild(); }
 function autoSeq(){
   const pool = media.filter(m => m.kind !== 'video' || m.dur > 0); if (!pool.length) return;
@@ -1224,7 +1293,7 @@ function renderForm(){
   const tw = sum(plan.form.map(s => s.w));
   plan.form.forEach((s, k) => {
     const d = document.createElement('div'); d.className = 'sec'; d.style.width = `${s.w / tw * 100}%`; d.style.setProperty('--sc', `var(--s-${s.L})`);
-    const beats = seq.map((_, i) => itemOf(k, i).beats).join('+');
+    const beats = slotsOf(k).map(x => x.beats).join('+');
     d.innerHTML = '<b></b><span></span>'; d.firstChild.textContent = secName(s); d.lastChild.textContent = beats;
     d.title = `${secName(s)}：${beats}`;
     box.appendChild(d);
@@ -1269,7 +1338,8 @@ function renderSeq(){
     up.addEventListener('click', () => moveSeq(j, -1)); dn.addEventListener('click', () => moveSeq(j, 1)); rm.addEventListener('click', () => removeSeq(j));
     ol.appendChild(li);
   });
-  $('#seqCount').textContent = seq.length ? `${seq.length}個 × ${plan.form.length}回 ＝ ${timeline.length}カット` : '';
+  $('#seqCount').textContent = seq.length ? `${seq.length}個 → 1周 ${timeline.length}カット` : '';
+  renderCuts();
   renderMedia();
   if (curSeg) renderNow();
 }
@@ -1285,12 +1355,39 @@ function renderMedia(){
     if (n) { const s = document.createElement('span'); s.className = 'cnt'; s.textContent = `並び ${n}`; c.appendChild(s); }
     c.addEventListener('click', () => { if (m.kind === 'video' && !m.dur) return; addSeq(m); toast(`「${m.name}」を${seq.length}番目に並べました`); });
     const rm = document.createElement('button'); rm.className = 'rm'; rm.type = 'button'; rm.textContent = '×'; rm.setAttribute('aria-label', `${m.name}を素材から消す`);
-    rm.addEventListener('click', () => { let j; while ((j = seq.indexOf(m)) >= 0) { seq.splice(j, 1); spliceAt(j); } if (!seq.length) plan = { form:[], pats:{}, muts:[] }; dropMedia(m); rebuild(); });
+    rm.addEventListener('click', () => { seq = seq.filter(x => x !== m); fitPlan(); dropMedia(m); rebuild(); });
     w.append(c, rm); box.appendChild(w);
   }
   const note = $('#sampleNote');
   if (!media.some(m => m.sample)) { note.innerHTML = ''; const b = document.createElement('button'); b.className = 'linkbtn'; b.textContent = 'サンプル素材を戻す'; b.addEventListener('click', () => { addSamples(); renderMedia(); }); note.appendChild(b); }
   else if (media.some(m => !m.sample)) note.textContent = 'サンプルもタップすれば並びに混ぜられます。';
+}
+const maxCuts = () => clamp(Math.floor(S.loopLen / .15), 4, 120);
+function renderCuts(){
+  const n = timeline.length;
+  $('#cutNow').textContent = n;
+  const r = $('#cuts'); r.max = maxCuts(); r.value = S.cutMode === 'auto' ? n : S.cuts;
+  $('#cutsOut').textContent = S.cutMode === 'auto' ? `おまかせ（今 ${n}）` : `${n}`;
+  for (const c of $('#cutModeChips').children) c.setAttribute('aria-pressed', c.dataset.v === S.cutMode);
+  $('#cutInfo').textContent = n ? `1カット平均 ${(S.loopLen / n).toFixed(2)}秒` : '';
+  const v = S.cutVar; $('#cutVarOut').textContent = v < .1 ? 'なし（きっちり）' : v < .4 ? '少し' : v < .7 ? 'ほどほど' : 'たくさん';
+}
+const totalCuts = () => sum(plan.form.map(x => plan.pats[x.L].c));
+/* dir = ±1 from the stepper: keep nudging until the count really moves (rounding can swallow a small step);
+   below one cut per section, drop the last section instead */
+function setCuts(v, dir){
+  const before = totalCuts();
+  S.cutMode = 'set'; S.cuts = clamp(Math.round(v), 1, maxCuts());
+  fitPlan();
+  if (dir) {
+    const stuck = () => dir < 0 ? totalCuts() >= before : totalCuts() <= before;
+    for (let n = 0; n < 60 && stuck(); n++) {
+      if (dir < 0 && plan.form.length > 1 && plan.form.every(x => plan.pats[x.L].c === 1)) { plan.form.pop(); plan.muts.pop(); for (const L of Object.keys(plan.pats)) if (!plan.form.some(x => x.L === L)) delete plan.pats[L]; break; }
+      const nx = clamp(S.cuts + dir, 1, maxCuts()); if (nx === S.cuts) break;
+      S.cuts = nx; fitPlan();
+    }
+  }
+  rebuild();
 }
 const PIPS = { 1:[4], 2:[2,6], 3:[2,4,6], 4:[0,2,6,8], 5:[0,2,4,6,8], 6:[0,2,3,5,6,8] };
 function setDie(d, n){ d.innerHTML = ''; for (let i = 0; i < 9; i++) { const p = document.createElement('i'); if (PIPS[n].includes(i)) p.className = 'on'; d.appendChild(p); } d.classList.toggle('one', n === 1); }
@@ -1416,6 +1513,16 @@ function bindUI(){
   $('#prob').addEventListener('input', e => { S.prob = +e.target.value; $('#probOut').textContent = `${Math.round(S.prob * 100)}%`; });
   $('#allOn').addEventListener('click', () => { for (const f of FX) { S.fx[f.id].dice = true; $(`#fx-${f.id}-dice`).checked = true; $(`[data-fx="${f.id}"]`).classList.remove('idle'); } doDice('fx'); });
   $('#allOff').addEventListener('click', () => { for (const f of FX) { S.fx[f.id].dice = false; S.fx[f.id].fixed = false; $(`#fx-${f.id}-dice`).checked = false; $(`#fx-${f.id}-fix`).checked = false; $(`[data-fx="${f.id}"]`).classList.add('idle'); } doDice('fx'); doDice('pic'); toast('エフェクトを全部外しました'); });
+  $('#cutMinus').addEventListener('click', () => { const n = timeline.length; setCuts(n - (n > 30 ? 3 : 1), -1); });
+  $('#cutPlus').addEventListener('click', () => { const n = timeline.length; setCuts(n + (n > 30 ? 3 : 1), 1); });
+  $('#cuts').addEventListener('input', e => { $('#cutsOut').textContent = e.target.value; });
+  $('#cuts').addEventListener('change', e => setCuts(+e.target.value));
+  $('#cutModeChips').addEventListener('click', e => {
+    const b = e.target.closest('.chip'); if (!b) return;
+    if (b.dataset.v === 'auto') { S.cutMode = 'auto'; fitPlan(); rebuild(); } else setCuts(timeline.length || S.cuts);
+  });
+  $('#cutVar').addEventListener('input', e => { S.cutVar = +e.target.value; renderCuts(); });
+  $('#cutVar').addEventListener('change', () => { fitPlan(); rebuild(); });
   $('#seqAuto').addEventListener('click', () => { autoSeq(); toast(`おまかせで${seq.length}個並べました`); });
   $('#seqClear').addEventListener('click', () => { seq = []; plan = { form:[], pats:{}, muts:[] }; rebuild(); });
   const fi = $('#fileIn'), drop = $('#drop');
