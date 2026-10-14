@@ -1,0 +1,1176 @@
+<title>サイコロ・ループ</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=DM+Mono:wght@400;500&family=M+PLUS+1p:wght@400;500;700&display=swap">
+<style>
+/* Layout: a dice table. Monitor, transport and timeline sit on the left (sticky on desktop, monitor pinned on phones);
+   a rack of ivory tiles (one per effect) lies on green felt to the right. Single deliberate dark look. */
+:root{
+  color-scheme: dark;
+  --felt:#0f3a2e; --felt-deep:#0a2a21; --felt-hi:#175140;
+  --ivory:#efe7d3; --ivory-2:#e2d8bf; --ivory-edge:#bfae86; --ink:#1d1b16; --ink-dim:#655f4d;
+  --pip:#c9283e; --brass:#e2b354;
+  --fg:#e9efe6; --dim:#a8c1b5; --faint:#6f8c80; --line:rgba(233,239,230,.14);
+  --screen:#050706;
+  --c-none:#cfc6ae; --c-rewind:#e2b354; --c-reverse:#6db4dd; --c-speed:#e8664f; --c-slow:#8ccf9c; --c-stutter:#b98ce0;
+  --f-disp:"Dela Gothic One","M PLUS 1p","Hiragino Sans",system-ui,sans-serif;
+  --f-body:"M PLUS 1p","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  --f-mono:"DM Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --r:10px;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--felt);color:var(--fg);font-family:var(--f-body);font-size:14px;line-height:1.5;-webkit-tap-highlight-color:transparent}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+.app{min-height:100%;
+  background:
+    radial-gradient(120% 70% at 20% 0%, var(--felt-hi) 0%, transparent 60%),
+    radial-gradient(90% 60% at 100% 100%, var(--felt-deep) 0%, transparent 70%),
+    var(--felt);
+  padding-left:max(16px, env(safe-area-inset-left,0px));padding-right:max(16px, env(safe-area-inset-right,0px));padding-block:14px 40px}
+.top{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;max-width:1400px;margin:0 auto 12px}
+.top h1{font-family:var(--f-disp);font-weight:400;font-size:clamp(22px,4vw,30px);margin:0;letter-spacing:.02em;display:flex;align-items:center;gap:10px}
+.top p{margin:0;color:var(--dim);font-size:13px;min-width:0}
+.layout{display:grid;grid-template-columns:minmax(0,1fr);gap:18px;max-width:1400px;margin:0 auto}
+@media (min-width:980px){ .layout{grid-template-columns:minmax(0,1fr) 420px;gap:24px} .stage{position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px);align-self:start} }
+.stage{display:flex;flex-direction:column;gap:12px;min-width:0}
+@media (max-width:979px){
+  .stage{display:contents}
+  .screen-wrap{position:sticky;top:env(safe-area-inset-top,0px);z-index:10;background:var(--felt);margin-inline:calc(-1 * max(16px, env(safe-area-inset-left,0px)));padding:6px max(16px, env(safe-area-inset-left,0px)) 8px}
+}
+
+/* ---------- monitor ---------- */
+.screen{position:relative;background:var(--screen);border-radius:var(--r);overflow:hidden;
+  height:min(calc((100vw - 32px) / var(--arn,1.7778)), 40vh);
+  box-shadow:0 0 0 1px #000, 0 0 0 6px #1b130d, 0 0 0 7px #3a2a1c, 0 14px 30px rgba(0,0,0,.45)}
+@media (min-width:980px){ .screen{height:min(calc((100vw - 420px - 24px - 40px) / var(--arn,1.7778)), 62vh)} }
+.screen canvas{display:block;width:100%;height:100%;object-fit:contain}
+.mon-bot{position:absolute;left:8px;right:8px;display:flex;gap:6px;flex-wrap:wrap;pointer-events:none}
+.now{display:flex;gap:6px;flex-wrap:wrap;min-height:24px;margin-top:8px}
+.mon-bot{bottom:8px;justify-content:space-between;align-items:flex-end}
+.chip-fx{font-size:12px;font-weight:700;padding:2px 10px;border-radius:999px;background:var(--felt-deep);color:var(--ivory);border:1px solid var(--line)}
+.chip-fx[data-t]{color:var(--ink);border-color:transparent}
+.clock{font-family:var(--f-mono);font-size:12px;font-variant-numeric:tabular-nums;background:rgba(5,7,6,.62);padding:2px 8px;border-radius:6px;color:var(--ivory)}
+
+/* ---------- transport ---------- */
+.transport{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:rgba(10,42,33,.7);color:var(--fg);font-weight:500}
+.btn:hover{border-color:rgba(233,239,230,.35)}
+.btn.round{width:44px;height:44px;padding:0;font-size:16px}
+.btn.rec[aria-pressed="true"]{background:var(--pip);border-color:var(--pip);color:#fff}
+.dice-btn{display:inline-flex;align-items:center;gap:10px;min-height:48px;padding:4px 18px 4px 6px;border-radius:999px;border:none;background:var(--ivory);color:var(--ink);font-weight:700;font-size:15px;box-shadow:0 3px 0 var(--ivory-edge),0 6px 12px rgba(0,0,0,.3)}
+.dice-btn:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ivory-edge),0 3px 6px rgba(0,0,0,.3)}
+.die{width:38px;height:38px;border-radius:9px;background:#fbf8ef;box-shadow:inset 0 -3px 0 #ddd2b5, inset 0 0 0 1px #d6cba9;display:grid;grid-template:repeat(3,1fr)/repeat(3,1fr);padding:6px;gap:1px}
+.die i{width:7px;height:7px;border-radius:50%;place-self:center;background:transparent}
+.die i.on{background:var(--ink)}
+.die.one i.on{background:var(--pip);width:11px;height:11px}
+.die.rolling{animation:roll .5s cubic-bezier(.3,.7,.4,1)}
+@keyframes roll{0%{transform:rotate(0) scale(1)}40%{transform:rotate(200deg) scale(.85)}100%{transform:rotate(360deg) scale(1)}}
+@media (prefers-reduced-motion:reduce){ .die.rolling{animation:none} }
+.seg{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:999px;padding:3px;background:rgba(10,42,33,.7);gap:2px}
+.seg .lbl{font-size:12px;color:var(--dim);padding:0 6px 0 8px}
+.seg button{border:none;background:transparent;border-radius:999px;padding:6px 10px;font-size:13px;color:var(--dim)}
+.seg button[aria-pressed="true"]{background:var(--ivory);color:var(--ink);font-weight:700}
+.grow{flex:1}
+
+/* ---------- timeline ---------- */
+.tl{display:flex;flex-direction:column;gap:6px}
+.tl-head{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--dim);flex-wrap:wrap}
+.tl-head b{color:var(--fg);font-weight:700;letter-spacing:.04em}
+.timeline{position:relative;display:flex;height:64px;border-radius:8px;overflow:hidden;background:var(--felt-deep);box-shadow:inset 0 0 0 1px var(--line)}
+.clip{position:relative;flex:0 0 auto;border:none;padding:0;border-right:2px solid var(--felt-deep);background:#222 center/cover no-repeat;min-width:0;overflow:hidden;text-align:left}
+.clip::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg, transparent 20%, color-mix(in srgb, var(--tc) 85%, transparent) 100%)}
+.clip::after{content:"";position:absolute;left:0;right:0;top:0;height:4px;background:var(--tc)}
+.clip:hover{filter:brightness(1.12)}
+.clip.cur{box-shadow:inset 0 0 0 2px var(--ivory)}
+.clip .ct{position:absolute;left:4px;bottom:3px;right:2px;font-size:10px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2}
+.clip .dots{position:absolute;left:4px;top:7px;display:flex;gap:2px}
+.clip .dots span{width:6px;height:6px;border-radius:50%;background:var(--ivory);box-shadow:0 0 0 1px rgba(0,0,0,.5)}
+.clip.flash{animation:flash .5s}
+@keyframes flash{0%{filter:brightness(2)}100%{filter:none}}
+.playhead{position:absolute;top:0;bottom:0;width:2px;background:var(--pip);box-shadow:0 0 0 1px rgba(0,0,0,.4);pointer-events:none;z-index:2;left:0}
+.tl-scale{display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums}
+.legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11px;color:var(--dim)}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend span::before{content:"";width:10px;height:10px;border-radius:3px;background:var(--tc)}
+
+/* ---------- rack ---------- */
+.rack{display:flex;flex-direction:column;gap:18px;min-width:0}
+.panel{display:flex;flex-direction:column;gap:12px;padding:14px;border-radius:14px;background:rgba(10,42,33,.55);box-shadow:inset 0 0 0 1px var(--line)}
+.panel h2{font-family:var(--f-disp);font-weight:400;font-size:17px;margin:0;letter-spacing:.04em;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.panel h2 small{font-family:var(--f-body);font-size:12px;color:var(--dim);letter-spacing:0}
+.panel h3{margin:4px 0 0;font-size:12px;color:var(--dim);font-weight:700;letter-spacing:.12em}
+.row{display:flex;flex-direction:column;gap:6px}
+.row > .k{font-size:12px;color:var(--dim);display:flex;justify-content:space-between;gap:8px}
+.row > .k output{font-family:var(--f-mono);color:var(--fg);font-variant-numeric:tabular-nums}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:transparent;border-radius:999px;padding:5px 12px;font-size:13px;color:var(--dim)}
+.chip[aria-pressed="true"]{background:var(--ivory);color:var(--ink);border-color:var(--ivory);font-weight:700}
+.num{display:inline-flex;align-items:center;gap:4px;font-size:13px;color:var(--dim)}
+.num input{width:70px;padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:var(--felt-deep);font-family:var(--f-mono)}
+input[type=range]{width:100%;accent-color:var(--brass);margin:0}
+.check{display:flex;align-items:center;gap:8px;font-size:13px}
+.check input{width:18px;height:18px;accent-color:var(--brass)}
+
+.drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:1.5px dashed rgba(239,231,211,.35);border-radius:12px;padding:14px;text-align:center;cursor:pointer}
+.drop b{font-size:15px}
+.drop span{font-size:12px;color:var(--dim)}
+.drop.over{background:rgba(239,231,211,.08);border-color:var(--ivory)}
+.drop input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.media{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px}
+.mcard{position:relative;display:flex;flex-direction:column;border-radius:8px;overflow:hidden;background:var(--felt-deep);box-shadow:inset 0 0 0 1px var(--line);min-width:0}
+.mcard.off{opacity:.45}
+.mcard .th{aspect-ratio:16/10;background:#111 center/cover no-repeat}
+.mcard .mi{display:flex;align-items:center;gap:6px;padding:4px 6px}
+.mcard .mi input{width:16px;height:16px;accent-color:var(--brass);flex:none}
+.mcard .mn{font-size:11px;line-height:1.3;min-width:0;overflow:hidden}
+.mcard .mn b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+.mcard .mn span{color:var(--dim);font-family:var(--f-mono);font-size:10px}
+.mcard .rm{position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;border:none;background:rgba(5,7,6,.7);color:var(--ivory);font-size:14px;line-height:1}
+.note{font-size:12px;color:var(--dim);margin:0}
+.note a,.linkbtn{color:var(--brass);background:none;border:none;padding:0;text-decoration:underline;font-size:12px}
+
+/* effect tiles: ivory, like mahjong tiles on the felt */
+.tiles{display:flex;flex-direction:column;gap:10px}
+.tile{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 10px;align-items:center;padding:10px 12px 12px;border-radius:10px;background:var(--ivory);color:var(--ink);box-shadow:0 4px 0 var(--ivory-edge),0 6px 10px rgba(0,0,0,.28)}
+.tile.idle{background:var(--ivory-2);box-shadow:0 2px 0 var(--ivory-edge),0 3px 6px rgba(0,0,0,.2)}
+.tile .tt b{display:flex;align-items:center;gap:6px;font-size:15px}
+.tile .tt b::before{content:"";width:8px;height:8px;border-radius:2px;background:var(--tc,transparent)}
+.tile .tt small{display:block;color:var(--ink-dim);font-size:12px;line-height:1.35}
+.tile .full{grid-column:1 / -1}
+.dbox{position:relative;display:inline-flex;flex-direction:column;align-items:center;gap:1px;cursor:pointer}
+.dbox input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer}
+.dbox .face{width:30px;height:30px;border-radius:7px;background:#fff;box-shadow:inset 0 0 0 1.5px #b8aa86, inset 0 -2px 0 #d8ccad;display:grid;place-items:center}
+.dbox .face::after{content:"";width:10px;height:10px;border-radius:50%;background:transparent;box-shadow:inset 0 0 0 1.5px #b8aa86}
+.dbox input:checked + .face::after{background:var(--pip);box-shadow:none}
+.dbox input:focus-visible + .face{outline:2px solid var(--ink);outline-offset:2px}
+.dbox em{font-style:normal;font-size:9px;color:var(--ink-dim);font-weight:700;letter-spacing:.04em}
+.pin{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:var(--ink-dim);padding:4px 8px;border-radius:999px;box-shadow:inset 0 0 0 1px #c3b48e;cursor:pointer}
+.pin input{width:14px;height:14px;accent-color:var(--ink);margin:0}
+.pin:has(input:checked){background:var(--ink);color:var(--ivory)}
+.tile input[type=range]{accent-color:var(--pip)}
+.amt{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--ink-dim)}
+.amt span{flex:none}
+.tile .chips .chip{color:var(--ink-dim);border-color:#c3b48e;font-size:12px;padding:3px 9px}
+.tile .chips .chip[aria-pressed="true"]{background:var(--ink);color:var(--ivory);border-color:var(--ink)}
+.fx-tools{display:flex;gap:8px;flex-wrap:wrap}
+
+/* ---------- modal & toast ---------- */
+.modal{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:rgba(3,10,8,.72);padding:max(16px, env(safe-area-inset-top,0px)) max(16px, env(safe-area-inset-right,0px)) max(16px, env(safe-area-inset-bottom,0px)) max(16px, env(safe-area-inset-left,0px))}
+.sheet{width:min(560px,100%);max-height:100%;overflow:auto;background:var(--felt);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px;box-shadow:0 0 0 1px var(--line),0 20px 50px rgba(0,0,0,.5)}
+.sheet h2{font-family:var(--f-disp);font-weight:400;margin:0;font-size:18px}
+.sheet video{width:100%;max-height:50vh;background:#000;border-radius:8px}
+.sheet .acts{display:flex;gap:8px;flex-wrap:wrap}
+.toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:60;background:var(--ivory);color:var(--ink);padding:8px 14px;border-radius:999px;font-weight:500;font-size:13px;box-shadow:0 6px 18px rgba(0,0,0,.35);max-width:calc(100% - 32px);text-align:center}
+.vpool{position:fixed;left:0;bottom:0;width:2px;height:2px;overflow:hidden;opacity:.01;pointer-events:none}
+.vpool video{width:2px;height:2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+</style>
+
+<div class="app" id="app">
+  <header class="top">
+    <h1><span class="die one" aria-hidden="true" style="width:30px;height:30px;padding:4px"><i></i><i></i><i></i><i></i><i class="on"></i><i></i><i></i><i></i><i></i></span>サイコロ・ループ</h1>
+    <p>動画と写真を入れて、ループの秒数を決めて、サイコロで効果を振る。</p>
+  </header>
+
+  <main class="layout">
+    <section class="stage" aria-label="プレビュー">
+      <div class="screen-wrap">
+        <div class="screen" id="screen">
+          <canvas id="out" width="960" height="540"></canvas>
+          <div class="mon-bot"><span class="clock" id="clock">00:00.0 / 00:30</span><span class="clock" id="loopNo">LOOP 1</span></div>
+        </div>
+        <div class="now" id="nowFx" aria-live="polite"></div>
+      </div>
+
+      <div class="transport">
+        <button class="btn round" id="playBtn" aria-label="一時停止">❚❚</button>
+        <button class="dice-btn" id="diceBtn"><span class="die" id="die" aria-hidden="true"></span>サイコロを振る</button>
+        <div class="seg" id="autoSeg" role="group" aria-label="自動で振る">
+          <span class="lbl">自動</span>
+          <button data-v="off" aria-pressed="true">切</button>
+          <button data-v="clip" aria-pressed="false">クリップごと</button>
+          <button data-v="loop" aria-pressed="false">ループごと</button>
+        </div>
+        <span class="grow"></span>
+        <button class="btn rec" id="recBtn" aria-pressed="false">● 1ループ録画</button>
+      </div>
+
+      <div class="tl">
+        <div class="tl-head"><b>タイムライン</b><span>クリップをタップすると、そこだけ振り直し</span></div>
+        <div class="timeline" id="timeline"></div>
+        <div class="tl-scale" id="tlScale"></div>
+        <div class="legend">
+          <span style="--tc:var(--c-none)">効果なし</span>
+          <span style="--tc:var(--c-rewind)">巻き戻し</span>
+          <span style="--tc:var(--c-reverse)">逆再生</span>
+          <span style="--tc:var(--c-speed)">スピード</span>
+          <span style="--tc:var(--c-slow)">スロー</span>
+          <span style="--tc:var(--c-stutter)">コマ返し</span>
+          <span style="--tc:var(--ivory)">● 色・質感</span>
+        </div>
+      </div>
+    </section>
+
+    <aside class="rack">
+      <section class="panel" aria-labelledby="h-media">
+        <h2 id="h-media">素材 <small id="mediaCount"></small></h2>
+        <label class="drop" id="drop">
+          <input type="file" id="fileIn" accept="video/*,image/*" multiple>
+          <b>＋ 動画・写真を追加</b>
+          <span>ここにドラッグ&ドロップでも追加できます</span>
+        </label>
+        <div class="media" id="media"></div>
+        <p class="note" id="sampleNote">最初はサンプル素材で動いています。自分の素材を入れるとサンプルは外れます。</p>
+      </section>
+
+      <section class="panel" aria-labelledby="h-loop">
+        <h2 id="h-loop">ループ</h2>
+        <div class="row">
+          <div class="k"><span>ループの長さ</span><output id="loopOut">30秒</output></div>
+          <div class="chips" id="loopChips">
+            <button class="chip" data-v="15">15秒</button>
+            <button class="chip" data-v="30">30秒</button>
+            <button class="chip" data-v="60">1分</button>
+            <button class="chip" data-v="120">2分</button>
+            <label class="num">自由 <input type="number" id="loopNum" min="3" max="600" step="1" value="30"> 秒</label>
+          </div>
+        </div>
+        <div class="row">
+          <div class="k"><span>1クリップの長さ（最短〜最長）</span><output id="clipOut">1.5〜4.0秒</output></div>
+          <input type="range" id="clipMin" min="0.3" max="10" step="0.1" value="1.5" aria-label="最短">
+          <input type="range" id="clipMax" min="0.5" max="20" step="0.1" value="4" aria-label="最長">
+        </div>
+        <div class="row">
+          <div class="k"><span>画面の形</span></div>
+          <div class="chips" id="aspChips">
+            <button class="chip" data-v="16:9">16:9 横</button>
+            <button class="chip" data-v="9:16">9:16 縦</button>
+            <button class="chip" data-v="1:1">1:1</button>
+            <button class="chip" data-v="4:3">4:3</button>
+          </div>
+        </div>
+        <label class="check"><input type="checkbox" id="osdChk" checked> ビデオデッキ風の表示（▶ PLAY / ◀◀ REW）</label>
+        <label class="check"><input type="checkbox" id="sndChk"> 動画の音を出す（逆再生・巻き戻し中は無音）</label>
+      </section>
+
+      <section class="panel" aria-labelledby="h-fx">
+        <h2 id="h-fx">エフェクト <small>赤い目＝サイコロの対象</small></h2>
+        <div class="row">
+          <div class="k"><span>サイコロで効果が付く確率</span><output id="probOut">55%</output></div>
+          <input type="range" id="prob" min="0" max="1" step="0.05" value="0.55">
+        </div>
+        <div class="fx-tools">
+          <button class="btn" id="allOn">全部サイコロ対象</button>
+          <button class="btn" id="allOff">全部外す</button>
+        </div>
+        <h3>動き</h3>
+        <div class="tiles" id="fxTime"></div>
+        <h3>色・質感</h3>
+        <div class="tiles" id="fxLook"></div>
+        <p class="note">「固定」は毎回必ず付けます。動きの効果は1クリップにつき1つ、色・質感は重ねがけされます。</p>
+      </section>
+    </aside>
+  </main>
+
+  <div class="modal" id="recModal" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="recTitle">
+      <h2 id="recTitle">録画できました</h2>
+      <video id="recVideo" controls playsinline loop></video>
+      <p class="note" id="recInfo"></p>
+      <div class="acts">
+        <a class="btn" id="recSave" download="saikoro-loop.webm">保存する</a>
+        <button class="btn" id="recClose">閉じる</button>
+      </div>
+      <p class="note">保存ボタンが反応しないときは、このページをブラウザで直接開いて録画してください。</p>
+    </div>
+  </div>
+  <div class="toast" id="toast" role="status" hidden></div>
+  <div class="vpool" id="vpool" aria-hidden="true"></div>
+</div>
+
+<script>
+(() => {
+'use strict';
+const $ = (s, r = document) => r.querySelector(s);
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const rand = (a, b) => a + Math.random() * (b - a);
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const lerp = (a, b, k) => a + (b - a) * k;
+function mulberry(seed){ return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+/* ================= definitions ================= */
+const FX = [
+  { id:'rewind',  g:'time', name:'巻き戻し',       desc:'少し進んでから、ビデオのようにキュルキュル戻る', amt:'ノイズ', c:'--c-rewind' },
+  { id:'reverse', g:'time', name:'逆再生',         desc:'クリップを後ろから再生する', c:'--c-reverse' },
+  { id:'speed',   g:'time', name:'スピードチェンジ', desc:'早回し。強いほど最高倍率が上がる', amt:'倍率', c:'--c-speed' },
+  { id:'slow',    g:'time', name:'スローモーション', desc:'ゆっくり再生。強いほど遅い', amt:'遅さ', c:'--c-slow' },
+  { id:'stutter', g:'time', name:'コマ返し',       desc:'短い区間を3回繰り返してから進む', amt:'細かさ', c:'--c-stutter' },
+  { id:'oldphoto',g:'look', name:'古い写真',       desc:'セピア、色あせ、傷とほこり', amt:'強さ' },
+  { id:'lofi',    g:'look', name:'ローファイ',     desc:'画素を荒く、色数を減らす', amt:'荒さ' },
+  { id:'camera',  g:'look', name:'カメラの色味',   desc:'昔のカメラやフィルムの色。入れたい機種を選ぶ', amt:'強さ', sub:'cams' },
+  { id:'ghost',   g:'look', name:'残像',           desc:'ぼやけた像を後ろに重ねる（ダブル／トリプル）', amt:'濃さ', sub:'ghost' },
+];
+const TIME = FX.filter(f => f.g === 'time').map(f => f.id);
+const FXBY = Object.fromEntries(FX.map(f => [f.id, f]));
+const TLABEL = { rewind:'◀◀ 巻き戻し', reverse:'◀ 逆再生', speed:'▶▶ スピード', slow:'▷ スロー', stutter:'⟲ コマ返し' };
+
+const CAMS = [
+  { id:'8mm',     name:'8ミリフィルム', sat:.82, con:1.12, bri:.01, fade:.07, sh:[.05,.01,-.04], hi:[.07,.02,-.05], grain:.24, vig:.6, flick:.1, weave:.0035 },
+  { id:'vhs',     name:'VHS',          sat:1.18, con:.94, fade:.05, sh:[0,.02,.06], hi:[.03,0,.02], grain:.08, vig:.25, chroma:.0045, scan:.22, bleed:.9 },
+  { id:'utsurun', name:'使い捨てカメラ', sat:1.15, con:1.25, fade:.03, sh:[-.02,.05,.02], hi:[.08,.03,-.04], grain:.18, vig:.65, date:true },
+  { id:'insta',   name:'インスタント写真', sat:.78, con:.86, fade:.13, sh:[-.03,.03,.07], hi:[.07,.04,-.02], grain:.08, vig:.35 },
+  { id:'mono',    name:'白黒フィルム', mono:1, con:1.35, grain:.28, vig:.5, fade:.03 },
+  { id:'cross',   name:'クロスプロセス', sat:1.45, con:1.3, sh:[-.05,-.02,.13], hi:[.09,.11,-.11], vig:.4, grain:.1 },
+  { id:'cine',    name:'シネマ',       sat:1.1, con:1.15, sh:[-.05,.03,.09], hi:[.09,.03,-.06], vig:.32, grain:.05 },
+  { id:'dv',      name:'ミニDV',       sat:1.05, con:1.05, bri:.05, sh:[0,0,.03], hi:[0,.01,.05], scan:.14, chroma:.0015, grain:.06 },
+  { id:'keitai',  name:'ガラケー',     sat:1.3, con:1.22, bri:.06, pixel:4, poster:20, grain:.12, hi:[.05,.05,-.02] },
+  { id:'green',   name:'グリーンネガ', sat:.9, con:1.05, fade:.07, sh:[-.02,.06,0], hi:[0,.04,-.03], grain:.14, vig:.3 },
+];
+const CAMBY = Object.fromEntries(CAMS.map(c => [c.id, c]));
+
+/* ================= state ================= */
+const S = {
+  loopLen: 30, clipMin: 1.5, clipMax: 4, aspect: '16:9', prob: .55, osd: true, sound: false, auto: 'off',
+  fx: {
+    rewind:{dice:true,fixed:false,amt:.6}, reverse:{dice:true,fixed:false,amt:.5}, speed:{dice:true,fixed:false,amt:.5},
+    slow:{dice:true,fixed:false,amt:.5}, stutter:{dice:false,fixed:false,amt:.5},
+    oldphoto:{dice:true,fixed:false,amt:.65}, lofi:{dice:false,fixed:false,amt:.45},
+    camera:{dice:true,fixed:false,amt:.8}, ghost:{dice:true,fixed:false,amt:.55},
+  },
+  cams: new Set(CAMS.map(c => c.id)),
+  ghosts: new Set([2, 3]),
+};
+const amt = id => S.fx[id].amt;
+
+let W = 960, H = 540;
+let media = [];
+let timeline = [], pending = null;
+let loopTime = 0, loopNo = 1, playing = true;
+let curSeg = null, curIdx = -1, lastBack = null;
+let recording = null;
+let mid = 0, sid = 0;
+
+/* ================= sample media ================= */
+function makeBokeh(){
+  const r = mulberry(7), out = [];
+  const cols = ['#ffb347','#ff6b5a','#ffd27a','#6ad1e8','#f7f0d0','#ff8fb1'];
+  for (let i = 0; i < 46; i++) out.push({ x:r()*1.2, y:.12 + r()*.55, v:.015 + r()*.06, r:.02 + r()*.07, a:.12 + r()*.3, c:cols[i % cols.length], ph:r()*6 });
+  return out;
+}
+const BOKEH = makeBokeh();
+const SKY = (() => { const r = mulberry(3), b = []; let x = 0; while (x < 1.05) { const w = .04 + r()*.07; b.push({ x, w, h:.18 + r()*.32, win: Array.from({length:14}, () => r() < .35) }); x += w + .004; } return b; })();
+function stamp(ctx, w, h, t, label){
+  const s = Math.max(10, h * .035);
+  ctx.font = `500 ${s}px "DM Mono", ui-monospace, monospace`;
+  ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.textBaseline = 'alphabetic';
+  const tt = ((t % 12) + 12) % 12;
+  ctx.fillText(`${label}  ${String(Math.floor(tt)).padStart(2,'0')}.${String(Math.floor((tt % 1) * 100)).padStart(2,'0')}`, s, h - s * .9);
+}
+const SYN = {
+  night(ctx, w, h, t){
+    const g = ctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#0a1330'); g.addColorStop(1, '#251236');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+    ctx.globalCompositeOperation = 'lighter';
+    for (const b of BOKEH) {
+      const x = ((b.x + t * b.v) % 1.2 + 1.2) % 1.2 - .1, y = b.y + Math.sin(t * .8 + b.ph) * .01;
+      ctx.globalAlpha = b.a; ctx.fillStyle = b.c; ctx.beginPath(); ctx.arc(x * w, y * h, b.r * h, 0, 7); ctx.fill();
+    }
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = '#05060d';
+    for (const b of SKY) {
+      const bx = b.x * w, bw = b.w * w, bh = b.h * h, by = h * .86 - bh;
+      ctx.fillRect(bx, by, bw, bh + h);
+      ctx.fillStyle = '#ffd98a';
+      b.win.forEach((on, i) => { if (on) ctx.fillRect(bx + bw * (.18 + (i % 2) * .44), by + bh * (.08 + Math.floor(i / 2) * .12), bw * .2, bh * .05); });
+      ctx.fillStyle = '#05060d';
+    }
+    ctx.fillStyle = '#0b0b12'; ctx.fillRect(0, h * .86, w, h);
+    const cx = (1.15 - ((t * .2) % 1.5)) * w, cy = h * .9;
+    ctx.globalCompositeOperation = 'lighter';
+    for (const dx of [0, w * .05]) { const rg = ctx.createRadialGradient(cx + dx, cy, 0, cx + dx, cy, h * .12); rg.addColorStop(0, 'rgba(255,250,220,.95)'); rg.addColorStop(1, 'rgba(255,240,200,0)'); ctx.fillStyle = rg; ctx.fillRect(cx + dx - h * .12, cy - h * .12, h * .24, h * .24); }
+    ctx.globalCompositeOperation = 'source-over';
+    stamp(ctx, w, h, t, 'SAMPLE 夜の街');
+  },
+  sea(ctx, w, h, t){
+    const g = ctx.createLinearGradient(0, 0, 0, h * .6); g.addColorStop(0, '#4f5c9a'); g.addColorStop(.6, '#f2876a'); g.addColorStop(1, '#ffc58a');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+    const sy = h * (.44 + .03 * Math.sin(t * .5));
+    ctx.fillStyle = '#fff1c9'; ctx.beginPath(); ctx.arc(w * .68, sy, h * .09, 0, 7); ctx.fill();
+    ctx.fillStyle = '#2c3f78'; ctx.fillRect(0, h * .58, w, h);
+    const blues = ['#3b5590','#4a68a3','#5b7db5','#6f93c6','#86aad4'];
+    for (let i = 0; i < 5; i++) {
+      const y0 = h * (.6 + i * .085), A = h * .012 * (1 + i * .6), k = 6 + i * 2, ph = t * (.7 + i * .35);
+      ctx.fillStyle = blues[i]; ctx.beginPath(); ctx.moveTo(0, h);
+      for (let x = 0; x <= w; x += 8) ctx.lineTo(x, y0 + Math.sin(x / w * k + ph) * A);
+      ctx.lineTo(w, h); ctx.fill();
+    }
+    ctx.fillStyle = 'rgba(255,236,190,.55)';
+    for (let i = 0; i < 9; i++) { const y = h * (.6 + i * .04), ww = w * (.1 - i * .006) * (1 + .3 * Math.sin(t * 3 + i)); ctx.fillRect(w * .68 - ww / 2, y, ww, h * .008); }
+    const bx = ((t * .09) % 1.3 - .15) * w, by = h * (.2 + .03 * Math.sin(t * 1.3)), wing = Math.sin(t * 9) * h * .02;
+    ctx.strokeStyle = '#1d2140'; ctx.lineWidth = Math.max(2, h * .006); ctx.beginPath();
+    ctx.moveTo(bx - h * .04, by - wing); ctx.quadraticCurveTo(bx - h * .015, by - h * .01, bx, by); ctx.quadraticCurveTo(bx + h * .015, by - h * .01, bx + h * .04, by - wing); ctx.stroke();
+    stamp(ctx, w, h, t, 'SAMPLE 夕方の海');
+  },
+  metro(ctx, w, h, t){
+    ctx.fillStyle = '#e8dfc8'; ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#d6cbad'; ctx.fillRect(0, h * .78, w, h);
+    const px = w * .5, py = h * .06, L = h * .55, ang = .65 * Math.sin(t * Math.PI);
+    ctx.strokeStyle = '#a99d7c'; ctx.lineWidth = 2;
+    for (let i = -6; i <= 6; i++) { const a = i * .11; ctx.beginPath(); ctx.moveTo(px + Math.sin(a) * L * 1.02, py + Math.cos(a) * L * 1.02); ctx.lineTo(px + Math.sin(a) * L * 1.08, py + Math.cos(a) * L * 1.08); ctx.stroke(); }
+    const bx = px + Math.sin(ang) * L, by = py + Math.cos(ang) * L;
+    ctx.strokeStyle = '#2a261d'; ctx.lineWidth = Math.max(3, h * .01); ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(bx, by); ctx.stroke();
+    ctx.fillStyle = '#c9283e'; ctx.beginPath(); ctx.arc(bx, by, h * .06, 0, 7); ctx.fill();
+    const rx = ((t * .11) % 1.2 - .1) * w, ry = h * .78 - h * .07, rr = h * .07;
+    ctx.fillStyle = '#2b5fa8'; ctx.beginPath(); ctx.arc(rx, ry, rr, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#e8dfc8'; ctx.lineWidth = Math.max(2, h * .008);
+    const rot = t * .11 * w / rr; ctx.beginPath(); ctx.moveTo(rx - Math.cos(rot) * rr, ry - Math.sin(rot) * rr); ctx.lineTo(rx + Math.cos(rot) * rr, ry + Math.sin(rot) * rr); ctx.stroke();
+    const tt = ((t % 12) + 12) % 12;
+    ctx.fillStyle = '#2a261d'; ctx.font = `500 ${h * .12}px "DM Mono", ui-monospace, monospace`; ctx.textAlign = 'right';
+    ctx.fillText(`${String(Math.floor(tt)).padStart(2,'0')}.${String(Math.floor((tt % 1) * 100)).padStart(2,'0')}`, w * .95, h * .95);
+    ctx.textAlign = 'left'; ctx.font = `500 ${h * .035}px "DM Mono", ui-monospace, monospace`; ctx.fillText('SAMPLE 振り子', h * .035, h * .95);
+  },
+};
+function makeParkImage(){
+  const c = document.createElement('canvas'); c.width = 1280; c.height = 800; const x = c.getContext('2d');
+  const g = x.createLinearGradient(0, 0, 0, 520); g.addColorStop(0, '#7fa8d8'); g.addColorStop(.7, '#f5c38c'); g.addColorStop(1, '#f39a72');
+  x.fillStyle = g; x.fillRect(0, 0, 1280, 800);
+  x.fillStyle = '#fff3d6'; x.beginPath(); x.arc(330, 380, 60, 0, 7); x.fill();
+  const hill = (col, y, a, k) => { x.fillStyle = col; x.beginPath(); x.moveTo(0, 800); for (let i = 0; i <= 1280; i += 10) x.lineTo(i, y + Math.sin(i / 1280 * k) * a); x.lineTo(1280, 800); x.fill(); };
+  hill('#7b6f9c', 470, 40, 5); hill('#5c7d5a', 560, 25, 7); hill('#3f6845', 640, 18, 9);
+  const r = mulberry(11);
+  for (let i = 0; i < 9; i++) { const tx = 80 + r() * 1120, ty = 600 + r() * 60, s = 40 + r() * 50; x.fillStyle = '#4a3423'; x.fillRect(tx - 5, ty, 10, s * .9); x.fillStyle = ['#2f5a37','#386b3f','#e08a5c'][i % 3]; x.beginPath(); x.arc(tx, ty, s * .6, 0, 7); x.fill(); }
+  x.fillStyle = '#b8323f'; x.fillRect(720, 690, 160, 16); x.fillRect(720, 660, 160, 10); x.fillStyle = '#3b2b20'; x.fillRect(730, 706, 8, 34); x.fillRect(862, 706, 8, 34);
+  x.fillStyle = 'rgba(255,255,255,.75)'; x.font = '500 26px "DM Mono", monospace'; x.fillText('SAMPLE 夕方の公園（写真）', 28, 770);
+  return c;
+}
+function thumbOf(drawFn, sw = 192, sh = 120){ const c = document.createElement('canvas'); c.width = sw; c.height = sh; drawFn(c.getContext('2d'), sw, sh); return c.toDataURL('image/jpeg', .72); }
+function addSamples(){
+  const defs = [['night','夜の街'],['sea','夕方の海'],['metro','振り子']];
+  for (const [k, name] of defs) media.push({ id:++mid, kind:'synth', name, sample:true, on:true, dur:12, draw:SYN[k], thumb:thumbOf((c, w, h) => SYN[k](c, w, h, 3)) });
+  const img = makeParkImage();
+  media.push({ id:++mid, kind:'image', name:'夕方の公園', sample:true, on:true, img, iw:img.width, ih:img.height, dur:Infinity, thumb:thumbOf((c, w, h) => drawCover(c, img, img.width, img.height, w, h)) });
+}
+
+/* ================= user media ================= */
+const vpool = $('#vpool');
+function mkVideo(url){
+  const v = document.createElement('video');
+  v.muted = true; v.playsInline = true; v.setAttribute('playsinline', ''); v.setAttribute('webkit-playsinline', '');
+  v.preload = 'auto'; v.src = url; vpool.appendChild(v); v.load();
+  return v;
+}
+function seek(v, t){
+  return new Promise(res => {
+    let done = false; const fin = () => { if (done) return; done = true; v.removeEventListener('seeked', fin); res(); };
+    v.addEventListener('seeked', fin); v.currentTime = t; setTimeout(fin, 2000);
+  });
+}
+async function fixDuration(v){
+  return new Promise(res => {
+    const on = () => { v.removeEventListener('durationchange', on); const d = v.duration; v.currentTime = 0; res(isFinite(d) ? d : 10); };
+    v.addEventListener('durationchange', on); v.currentTime = 1e7; setTimeout(() => on(), 3000);
+  });
+}
+function addVideoFile(file){
+  return new Promise(res => {
+    const url = URL.createObjectURL(file);
+    const m = { id:++mid, kind:'video', name:file.name, on:true, url, dur:0, thumb:null };
+    m.el = mkVideo(url); m.prep = mkVideo(url);
+    let settled = false;
+    const fail = () => { if (settled) return; settled = true; dropMedia(m); res(null); };
+    m.el.addEventListener('error', fail, { once:true });
+    m.el.addEventListener('loadedmetadata', async () => {
+      let d = m.el.duration; if (!isFinite(d) || !d) d = await fixDuration(m.el);
+      m.dur = d; m.iw = m.el.videoWidth; m.ih = m.el.videoHeight;
+      if (!m.iw) { fail(); return; }
+      settled = true; res(m);
+      try { await seek(m.prep, Math.min(d * .15, 2)); m.thumb = thumbOf((c, w, h) => drawCover(c, m.prep, m.iw, m.ih, w, h)); renderMedia(); renderTimeline(); } catch (e) {}
+    }, { once:true });
+    setTimeout(fail, 15000);
+  });
+}
+function addImageFile(file){
+  return new Promise(res => {
+    const url = URL.createObjectURL(file); const img = new Image();
+    img.onload = () => { const m = { id:++mid, kind:'image', name:file.name, on:true, url, img, iw:img.naturalWidth, ih:img.naturalHeight, dur:Infinity };
+      m.thumb = thumbOf((c, w, h) => drawCover(c, img, m.iw, m.ih, w, h)); res(m); };
+    img.onerror = () => { URL.revokeObjectURL(url); res(null); };
+    img.src = url;
+  });
+}
+async function addFiles(files){
+  const list = [...files].filter(f => /^(video|image)\//.test(f.type) || /\.(mp4|mov|m4v|webm|mkv|jpe?g|png|gif|webp|avif)$/i.test(f.name));
+  if (!list.length) { toast('動画か画像のファイルを選んでください'); return; }
+  toast(`${list.length}件を読み込み中…`);
+  const had = media.some(m => !m.sample);
+  let ok = 0, bad = 0;
+  for (const f of list) {
+    const isVid = f.type.startsWith('video/') || /\.(mp4|mov|m4v|webm|mkv)$/i.test(f.name);
+    const m = isVid ? await addVideoFile(f) : await addImageFile(f);
+    if (m) { media.push(m); ok++; } else bad++;
+  }
+  if (ok && !had) media.forEach(m => { if (m.sample) m.on = false; });
+  renderMedia(); roll(true);
+  toast(bad ? `${ok}件追加。${bad}件はこのブラウザで開けませんでした` : `${ok}件追加して、サイコロを振りました`);
+}
+function dropMedia(m){
+  if (m.el) { m.el.pause(); m.el.remove(); }
+  if (m.prep) { m.prep.pause(); m.prep.remove(); }
+  if (m.url) URL.revokeObjectURL(m.url);
+  media = media.filter(x => x !== m);
+}
+
+/* ================= dice ================= */
+function rollFx(){
+  const F = S.fx, p = S.prob;
+  const hit = id => F[id].fixed || (F[id].dice && Math.random() < p);
+  let time = null;
+  const fixedT = TIME.filter(id => F[id].fixed), diceT = TIME.filter(id => F[id].dice);
+  if (fixedT.length) time = pick(fixedT);
+  else if (diceT.length && Math.random() < p) time = pick(diceT);
+  const cams = [...S.cams], gs = [...S.ghosts];
+  return {
+    time,
+    cam: hit('camera') && cams.length ? pick(cams) : null,
+    old: hit('oldphoto'),
+    lofi: hit('lofi'),
+    ghost: hit('ghost') && gs.length ? pick(gs) : 0,
+  };
+}
+function spanOf(seg){
+  const D = seg.dur;
+  switch (seg.fx.time) {
+    case 'speed': case 'slow': return D * seg.rate;
+    case 'rewind': return D * seg.fwd;
+    case 'stutter': return (Math.floor(Math.floor(D / seg.slice) / 3) + 1) * seg.slice;
+    default: return D;
+  }
+}
+function makeSeg(m, start, dur, fx){
+  const seg = { id:++sid, m, start, dur, fx, rate:1, slice:.3, fwd:rand(.55, .7), k:1, a:0, cache:null,
+    gOff:[(Math.random() < .5 ? -1 : 1) * rand(.006, .016), rand(-.01, .01)],
+    date:`'${String(rand(94, 104) | 0).slice(-2).padStart(2,'0')}  ${String(1 + (Math.random() * 12 | 0)).padStart(2,' ')}  ${String(1 + (Math.random() * 28 | 0)).padStart(2,' ')}` };
+  if (fx.time === 'speed') seg.rate = Math.round(rand(1.4, 1.6 + amt('speed') * 2.6) * 10) / 10;
+  if (fx.time === 'slow') { const lo = .62 - amt('slow') * .47; seg.rate = Math.round(rand(lo, lo + .1) * 100) / 100; }
+  if (fx.time === 'stutter') seg.slice = Math.max(.1, rand(.12, .62 - amt('stutter') * .42));
+  const span = spanOf(seg);
+  if (m.kind === 'video') {
+    const room = m.dur - .08;
+    if (span > room) { seg.k = Math.max(.02, room / span); seg.a = 0; }
+    else seg.a = rand(0, room - span);
+  } else seg.a = rand(0, 10);
+  seg.range = [seg.a, seg.a + span * seg.k];
+  return seg;
+}
+function activeMedia(){ return media.filter(m => m.on && (m.kind !== 'video' || m.dur > 0)); }
+function buildTimeline(keepFrom){
+  const pool = activeMedia(); if (!pool.length) return [];
+  const L = S.loopLen, lo = Math.min(S.clipMin, S.clipMax), hi = Math.max(S.clipMin, S.clipMax);
+  const out = []; let t = 0, last = null, bag = [];
+  if (keepFrom) {
+    for (const s of keepFrom) out.push(makeSeg(s.m, s.start, s.dur, rollFx()));
+    return out;
+  }
+  while (t < L - 1e-3) {
+    let d = rand(lo, hi);
+    if (L - t - d < lo * .6) d = L - t;
+    d = Math.min(d, L - t);
+    if (!bag.length) bag = shuffle(pool.slice());
+    let m = bag.pop(); if (m === last && pool.length > 1) { bag.unshift(m); m = bag.pop(); }
+    out.push(makeSeg(m, t, d, rollFx())); t += d; last = m;
+  }
+  return out;
+}
+function shuffle(a){ for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function retire(segs){ for (const s of segs) { s.dead = true; freeCache(s); } }
+function roll(full = true){
+  const old = timeline;
+  timeline = buildTimeline(full ? null : timeline);
+  retire(old); if (pending) { retire(pending); pending = null; }
+  curSeg = null; curIdx = -1;
+  rollDie();
+  renderTimeline(); schedulePrep();
+}
+function rerollAt(i, withMedia){
+  const s = timeline[i]; if (!s) return;
+  const pool = activeMedia(); if (!pool.length) return;
+  const m = withMedia ? pick(pool.length > 1 ? pool.filter(x => x !== s.m) : pool) : s.m;
+  const n = makeSeg(m, s.start, s.dur, rollFx());
+  retire([s]); timeline[i] = n;
+  if (curSeg === s) curSeg = null;
+  renderTimeline(); schedulePrep();
+  const el = $('#timeline').children[i]; if (el) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+}
+/* apply a checkbox change to the clips already rolled, without re-rolling everything */
+function applyToggle(id){
+  const F = S.fx[id], allowed = F.dice || F.fixed;
+  timeline = timeline.map(s => {
+    const fx = { ...s.fx };
+    if (FXBY[id].g === 'time') {
+      if (F.fixed && fx.time !== id && !TIME.some(t => t !== id && S.fx[t].fixed && fx.time === t)) fx.time = id;
+      else if (!allowed && fx.time === id) fx.time = null;
+      else return s;
+      const n = makeSeg(s.m, s.start, s.dur, fx); retire([s]); if (curSeg === s) curSeg = null; return n;
+    }
+    if (id === 'camera') fx.cam = allowed && S.cams.size ? (F.fixed && !fx.cam ? pick([...S.cams]) : (fx.cam && !S.cams.has(fx.cam) ? pick([...S.cams]) : fx.cam)) : null;
+    if (id === 'oldphoto') fx.old = F.fixed ? true : allowed && fx.old;
+    if (id === 'lofi') fx.lofi = F.fixed ? true : allowed && fx.lofi;
+    if (id === 'ghost') fx.ghost = allowed && S.ghosts.size ? (F.fixed && !fx.ghost ? pick([...S.ghosts]) : (fx.ghost && !S.ghosts.has(fx.ghost) ? pick([...S.ghosts]) : fx.ghost)) : 0;
+    s.fx = fx; return s;
+  });
+  renderTimeline(); schedulePrep(); renderNow(true);
+}
+
+/* ================= time mapping ================= */
+function segTime(seg, tau){
+  const D = seg.dur, k = seg.k; let o, fwd = true, rate = k, back = false;
+  switch (seg.fx.time) {
+    case 'speed': case 'slow': o = tau * seg.rate; rate = seg.rate * k; break;
+    case 'reverse': o = D - tau; fwd = false; break;
+    case 'rewind': { const f = seg.fwd * D; if (tau < f) o = tau; else { o = f - (tau - f) * f / (D - f); fwd = false; back = true; } break; }
+    case 'stutter': { const L = seg.slice, i = Math.floor(tau / L); o = Math.floor(i / 3) * L + (tau - i * L); fwd = false; break; }
+    default: o = tau;
+  }
+  return { s: seg.a + Math.max(0, o) * k, fwd, rate, back };
+}
+
+/* ================= frame caches (for reverse / rewind / stutter on real video) ================= */
+let cacheFrames = 0; const BUDGET = 320; const caches = new Set();
+const needsCache = s => s && s.m.kind === 'video' && (s.fx.time === 'reverse' || s.fx.time === 'rewind' || s.fx.time === 'stutter');
+function freeCache(s){ if (!s.cache) return; for (const f of s.cache.frames) { f.c.width = 0; } cacheFrames -= s.cache.frames.length; caches.delete(s.cache); s.cache = null; }
+function cacheLookup(c, t){
+  const f = c.frames; if (!f.length) return null;
+  let lo = 0, hi = f.length - 1;
+  while (lo < hi) { const m = (lo + hi) >> 1; if (f[m].t < t) lo = m + 1; else hi = m; }
+  let b = f[lo]; if (lo > 0 && Math.abs(f[lo - 1].t - t) < Math.abs(b.t - t)) b = f[lo - 1];
+  return Math.abs(b.t - t) < .2 ? b : null;
+}
+const prepQ = []; let prepping = null;
+function schedulePrep(){
+  if (!timeline.length) return;
+  const i = Math.max(0, curIdx), want = [];
+  for (let k = 0; k < 3; k++) { const s = timeline[(i + k) % timeline.length]; if (needsCache(s)) want.push(s); }
+  if (pending && needsCache(pending[0])) want.push(pending[0]);
+  for (const s of want) if (!s.cache && !s.dead && !prepQ.includes(s) && prepping !== s) prepQ.push(s);
+  runPrep();
+}
+async function runPrep(){
+  if (prepping) return;
+  const s = prepQ.shift(); if (!s) return;
+  if (s.dead || s.cache) { runPrep(); return; }
+  prepping = s;
+  try { await capture(s); } catch (e) {}
+  prepping = null; trimCaches(); runPrep();
+}
+function trimCaches(){
+  if (cacheFrames <= BUDGET) return;
+  const keep = new Set([curSeg, timeline[curIdx + 1], timeline[curIdx + 2]].filter(Boolean).map(s => s.cache));
+  for (const s of timeline.concat(pending || [])) { if (cacheFrames <= BUDGET) break; if (s.cache && !keep.has(s.cache)) freeCache(s); }
+}
+function capture(seg){
+  return new Promise(async resolve => {
+    const m = seg.m, v = m.prep, [t0, t1raw] = seg.range, t1 = Math.min(t1raw, m.dur);
+    const span = Math.max(.1, t1 - t0), fps = Math.min(20, 150 / span), step = 1 / fps;
+    const sc = Math.min(1, 384 / Math.max(m.iw, m.ih)), cw = Math.max(2, Math.round(m.iw * sc)), ch = Math.max(2, Math.round(m.ih * sc));
+    const cache = { frames:[], done:false }; seg.cache = cache; caches.add(cache);
+    let done = false, lastT = -1;
+    const grab = t => { const c = document.createElement('canvas'); c.width = cw; c.height = ch; c.getContext('2d').drawImage(v, 0, 0, cw, ch); cache.frames.push({ t, c }); cacheFrames++; lastT = t; };
+    const finish = () => { if (done) return; done = true; clearTimeout(timer); v.pause(); cache.done = true; resolve(); };
+    const timer = setTimeout(finish, (span / 2.5 + 6) * 1000);
+    await seek(v, t0);
+    if (seg.dead) return finish();
+    grab(v.currentTime);
+    v.playbackRate = 3;
+    const tick = () => {
+      if (done) return;
+      if (seg.dead || seg.cache !== cache) return finish();
+      const t = v.currentTime;
+      if (t - lastT >= step * .9) grab(t);
+      if (t >= t1 - .01 || v.ended) return finish();
+      requestAnimationFrame(tick);
+    };
+    try { await v.play(); requestAnimationFrame(tick); }
+    catch (e) {
+      // play() refused: walk the range by seeking instead
+      for (let t = t0 + step; t <= t1 && !seg.dead; t += step) { await seek(v, t); grab(v.currentTime); }
+      finish();
+    }
+  });
+}
+
+/* ================= rendering ================= */
+const out = $('#out');
+const src = document.createElement('canvas'), sctx = src.getContext('2d');
+const RING = 26; let ring = [], ringIdx = 0;
+function drawCover(ctx, el, sw, sh, w, h, zoom = 1, px = 0, py = 0){
+  if (!sw || !sh) return;
+  const sc = Math.max(w / sw, h / sh) * zoom, dw = sw * sc, dh = sh * sc;
+  ctx.drawImage(el, (w - dw) / 2 + px * (dw - w) / 2, (h - dh) / 2 + py * (dh - h) / 2, dw, dh);
+}
+function setSize(){
+  const [a, b] = S.aspect.split(':').map(Number);
+  const long = 960; if (a >= b) { W = long; H = Math.round(long * b / a); } else { H = long; W = Math.round(long * a / b); }
+  W -= W % 2; H -= H % 2;
+  src.width = W; src.height = H; out.width = W; out.height = H;
+  ring = Array.from({ length:RING }, () => { const c = document.createElement('canvas'); c.width = W >> 1; c.height = H >> 1; return c; });
+  $('#app').style.setProperty('--arn', (W / H).toFixed(4));
+  if (gl) gl.viewport(0, 0, W, H);
+}
+function liveVideo(seg, st){
+  const v = seg.m.el, d = seg.m.dur; const s = clamp(st.s, 0, d - .02);
+  if (st.fwd) {
+    const r = clamp(st.rate, .0625, 16);
+    if (Math.abs(v.playbackRate - r) > .001) v.playbackRate = r;
+    v.muted = !S.sound || r < .5 || r > 4;
+    if (playing && v.paused) v.play().catch(() => {});
+    if (!playing && !v.paused) v.pause();
+    if (!v.seeking && Math.abs(v.currentTime - s) > .4) v.currentTime = s;
+    if (v.readyState >= 2 && !v.seeking) { drawCover(sctx, v, seg.m.iw, seg.m.ih, W, H); return true; }
+    return false;
+  }
+  if (!v.paused) v.pause();
+  const f = seg.cache && cacheLookup(seg.cache, s);
+  if (f) { drawCover(sctx, f.c, f.c.width, f.c.height, W, H); return true; }
+  if (!v.seeking && Math.abs(v.currentTime - s) > .04) v.currentTime = s;
+  if (v.readyState >= 2 && !v.seeking) { drawCover(sctx, v, seg.m.iw, seg.m.ih, W, H); return true; }
+  return false;
+}
+function drawSource(seg, st){
+  const m = seg.m;
+  if (m.kind === 'synth') { sctx.save(); m.draw(sctx, W, H, st.s); sctx.restore(); return true; }
+  if (m.kind === 'image') {
+    const s = st.s, z = 1.05 + .12 * (.5 - .5 * Math.cos(s * .35)), px = Math.sin(s * .23 + m.id) * .85, py = Math.cos(s * .17 + m.id) * .85;
+    sctx.fillStyle = '#000'; sctx.fillRect(0, 0, W, H);
+    drawCover(sctx, m.img, m.iw, m.ih, W, H, z, px, py); return true;
+  }
+  return liveVideo(seg, st);
+}
+function osdText(seg, st){
+  switch (seg.fx.time) {
+    case 'rewind': return st.back ? '◀◀ REW' : '▶ PLAY';
+    case 'reverse': return '◀ REV';
+    case 'speed': return `▶▶ ×${seg.rate.toFixed(1)}`;
+    case 'slow': return `▶ SLOW ×${seg.rate.toFixed(2).replace(/^0/, '')}`;
+    case 'stutter': return '▶‖ REPEAT';
+    default: return '▶ PLAY';
+  }
+}
+function drawOverlays(seg, st, now){
+  const u = Math.min(W, H);
+  if (S.osd) {
+    const txt = osdText(seg, st);
+    if (!(seg.fx.time === 'rewind' && st.back && Math.floor(now * 2.5) % 2)) {
+      sctx.font = `500 ${u * .065}px "DM Mono", ui-monospace, monospace`; sctx.textBaseline = 'top';
+      sctx.lineWidth = u * .012; sctx.strokeStyle = 'rgba(0,0,0,.55)'; sctx.strokeText(txt, u * .06, u * .06);
+      sctx.fillStyle = '#f4f4ee'; sctx.fillText(txt, u * .06, u * .06);
+    }
+  }
+  if (seg.fx.cam && CAMBY[seg.fx.cam].date) {
+    sctx.font = `500 ${u * .055}px "DM Mono", ui-monospace, monospace`; sctx.textBaseline = 'alphabetic'; sctx.textAlign = 'right';
+    sctx.shadowColor = 'rgba(255,120,30,.9)'; sctx.shadowBlur = u * .02; sctx.fillStyle = '#ff9a3c';
+    sctx.fillText(seg.date, W - u * .06, H - u * .06);
+    sctx.shadowBlur = 0; sctx.textAlign = 'left';
+  }
+}
+
+/* ---- WebGL look pipeline ---- */
+const VS = `attribute vec2 p;varying vec2 vUv;void main(){vUv=p*.5+.5;gl_Position=vec4(p,0.,1.);}`;
+const FS = `precision mediump float;
+varying vec2 vUv;
+uniform sampler2D uCur,uG1,uG2;
+uniform vec2 uRes,uWeave,uGOff;
+uniform float uTime,uSat,uCon,uBri,uFade,uMono,uGrain,uVig,uFlick,uChroma,uScan,uBleed,uTrack,uPixel,uPoster,uOld,uGN,uGA;
+uniform vec3 uSh,uHi;
+float hash(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
+vec3 blur(sampler2D t,vec2 uv,float r){vec2 d=r/uRes;vec3 c=texture2D(t,uv).rgb*.25;
+ c+=(texture2D(t,uv+vec2(d.x,0.)).rgb+texture2D(t,uv-vec2(d.x,0.)).rgb+texture2D(t,uv+vec2(0.,d.y)).rgb+texture2D(t,uv-vec2(0.,d.y)).rgb)*.125;
+ c+=(texture2D(t,uv+d).rgb+texture2D(t,uv-d).rgb+texture2D(t,uv+vec2(d.x,-d.y)).rgb+texture2D(t,uv-vec2(d.x,-d.y)).rgb)*.0625;return c;}
+void main(){
+ vec2 uv=vUv+uWeave;
+ float band=0.;
+ if(uTrack>0.){
+  float row=floor(uv.y*140.);
+  float bp=fract(uTime*.45);
+  band=1.-smoothstep(0.,.07,abs(uv.y-bp));
+  uv.x+=(hash(vec2(row,floor(uTime*30.)))-.5)*.012*uTrack+band*(hash(vec2(row,uTime))-.5)*.08*uTrack;
+  uv.x+=sin(uv.y*40.+uTime*20.)*.002*uTrack;
+ }
+ if(uPixel>1.){vec2 g=uRes/uPixel;uv=(floor(uv*g)+.5)/g;}
+ vec2 co=vec2(uChroma,0.);
+ vec3 col=vec3(texture2D(uCur,uv+co).r,texture2D(uCur,uv).g,texture2D(uCur,uv-co).b);
+ if(uBleed>0.){float b=uBleed*2.5/uRes.x;vec3 s=(texture2D(uCur,uv+vec2(b,0.)).rgb+texture2D(uCur,uv-vec2(b,0.)).rgb+texture2D(uCur,uv+vec2(b*2.,0.)).rgb)/3.;col=mix(col,s,.55*uBleed);}
+ if(uGN>.5){
+  vec3 acc=col;float ws=1.;
+  vec3 g1=blur(uG1,uv-uGOff,4.);acc+=g1*uGA;ws+=uGA;
+  if(uGN>1.5){vec3 g2=blur(uG2,uv-uGOff*2.,7.);float w2=uGA*.8;acc+=g2*w2;ws+=w2;}
+  col=acc/ws;
+  col=mix(col,max(col,(g1)*.92),.25*uGA);
+ }
+ col+=uBri;
+ col=(col-.5)*uCon+.5;
+ float l=dot(col,vec3(.299,.587,.114));
+ col=mix(vec3(l),col,uSat);
+ col=mix(col,vec3(l),uMono);
+ l=clamp(l,0.,1.);
+ col+=uSh*(1.-l)+uHi*l;
+ col=mix(vec3(uFade),vec3(1.-uFade*.35),clamp(col,0.,1.));
+ if(uOld>0.){
+  float L=dot(col,vec3(.299,.587,.114));
+  vec3 sep=mix(vec3(.16,.1,.05),vec3(.98,.9,.74),L);
+  col=mix(col,sep,uOld*.9);
+  float fr=floor(uTime*12.);
+  float sx=hash(vec2(fr,3.1));
+  float scr=(1.-smoothstep(0.,.0016,abs(vUv.x-sx)))*step(.45,hash(vec2(fr,7.3)));
+  col=mix(col,vec3(.95,.9,.8),scr*.55*uOld);
+  float d=hash(floor(vUv*uRes/3.)+fr);
+  col=mix(col,vec3(.08,.06,.04),step(.9992,d)*uOld);
+  col=mix(col,vec3(.97,.93,.85),step(.9995,hash(floor(vUv*uRes/2.)+fr+5.))*uOld);
+ }
+ if(uPoster>1.)col=floor(col*uPoster+.5)/uPoster;
+ col+=(hash(vUv*uRes+fract(uTime*7.)*91.)-.5)*uGrain;
+ col*=1.+uFlick*(hash(vec2(floor(uTime*18.),1.7))-.5);
+ col*=1.-uScan*(.5+.5*sin(vUv.y*uRes.y*3.14159));
+ if(uTrack>0.){col+=band*step(.72,hash(vec2(floor(vUv.x*uRes.x/5.),floor(vUv.y*uRes.y/2.)+uTime)))*.55*uTrack;}
+ vec2 dv=vUv-.5;col*=1.-uVig*dot(dv,dv)*1.7;
+ gl_FragColor=vec4(clamp(col,0.,1.),1.);
+}`;
+let gl = null, prog, U = {}, tex = [];
+function initGL(){
+  try { gl = out.getContext('webgl', { premultipliedAlpha:false, antialias:false }) || out.getContext('experimental-webgl'); } catch (e) { gl = null; }
+  if (!gl) return false;
+  const sh = (type, code) => { const s = gl.createShader(type); gl.shaderSource(s, code); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
+  try {
+    prog = gl.createProgram(); gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS)); gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+  } catch (e) { console.error(e); gl = null; return false; }
+  gl.useProgram(prog);
+  const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  const n = gl.getProgramParameter(prog, gl.ACTIVE_UNIFORMS);
+  for (let i = 0; i < n; i++) { const u = gl.getActiveUniform(prog, i); U[u.name] = gl.getUniformLocation(prog, u.name); }
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  ['uCur','uG1','uG2'].forEach((name, i) => {
+    const t = gl.createTexture(); gl.activeTexture(gl.TEXTURE0 + i); gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.uniform1i(U[name], i); tex.push(t);
+  });
+  return true;
+}
+let weave = [0, 0], weaveAt = 0;
+function lookParams(seg, st, now){
+  const P = { sat:1, con:1, bri:0, fade:0, mono:0, sh:[0,0,0], hi:[0,0,0], grain:.012, vig:.06, flick:0, chroma:0, scan:0, bleed:0, track:0, pixel:1, poster:0, old:0, gn:0, ga:0, wv:0 };
+  const fx = seg.fx;
+  if (fx.cam) {
+    const c = CAMBY[fx.cam], k = .3 + .7 * amt('camera');
+    for (const key of ['sat','con','bri','fade','mono','grain','vig','flick','chroma','scan','bleed']) if (c[key] != null) P[key] = lerp(P[key], c[key], k);
+    if (c.sh) P.sh = c.sh.map(v => v * k); if (c.hi) P.hi = c.hi.map(v => v * k);
+    if (c.pixel) P.pixel = Math.max(1, Math.round(1 + (c.pixel - 1) * k));
+    if (c.poster) P.poster = c.poster; if (c.weave) P.wv = c.weave * k;
+  }
+  if (fx.old) { const k = .35 + .65 * amt('oldphoto'); P.old = k; P.fade = Math.max(P.fade, .08 * k); P.vig = Math.max(P.vig, .7 * k); P.grain += .12 * k; P.flick += .07 * k; P.wv = Math.max(P.wv, .002 * k); }
+  if (fx.lofi) { const a = amt('lofi'); P.pixel = Math.max(P.pixel, Math.round(2 + a * 10)); P.poster = P.poster ? Math.min(P.poster, Math.round(16 - a * 11)) : Math.round(16 - a * 11); P.grain += .05; P.chroma = Math.max(P.chroma, .0018); }
+  if (fx.ghost) { P.gn = fx.ghost - 1; P.ga = .55 + .65 * amt('ghost'); }
+  if (fx.time === 'rewind' && st.back) { const a = amt('rewind'); P.track = .35 + .65 * a; P.scan = Math.max(P.scan, .18); P.chroma = Math.max(P.chroma, .003 + .003 * a); }
+  if (now - weaveAt > 1 / 18) { weaveAt = now; weave = [(Math.random() - .5) * P.wv, (Math.random() - .5) * P.wv * 1.6]; }
+  if (!P.wv) weave = [0, 0];
+  return P;
+}
+function upload(i, canvas){ gl.activeTexture(gl.TEXTURE0 + i); gl.bindTexture(gl.TEXTURE_2D, tex[i]); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas); }
+let octx2d = null;
+function present(seg, st, now){
+  const r = ring[ringIdx]; r.getContext('2d').drawImage(src, 0, 0, r.width, r.height);
+  if (!gl) { if (!octx2d) octx2d = out.getContext('2d'); octx2d.drawImage(src, 0, 0); ringIdx = (ringIdx + 1) % RING; return; }
+  const P = lookParams(seg, st, now);
+  upload(0, src);
+  if (P.gn) {
+    const d1 = Math.round(4 + amt('ghost') * 7), d2 = Math.min(RING - 1, d1 * 2);
+    upload(1, ring[(ringIdx - d1 + RING * 2) % RING]); upload(2, ring[(ringIdx - d2 + RING * 2) % RING]);
+  }
+  ringIdx = (ringIdx + 1) % RING;
+  const f = (n, v) => U[n] && gl.uniform1f(U[n], v);
+  gl.uniform2f(U.uRes, W, H); gl.uniform2f(U.uWeave, weave[0], weave[1]); gl.uniform2f(U.uGOff, seg.gOff[0] * (.6 + amt('ghost')), seg.gOff[1] * (.6 + amt('ghost')));
+  f('uTime', now % 1000); f('uSat', P.sat); f('uCon', P.con); f('uBri', P.bri); f('uFade', P.fade); f('uMono', P.mono); f('uGrain', P.grain); f('uVig', P.vig);
+  f('uFlick', P.flick); f('uChroma', P.chroma); f('uScan', P.scan); f('uBleed', P.bleed); f('uTrack', P.track); f('uPixel', P.pixel); f('uPoster', P.poster); f('uOld', P.old); f('uGN', P.gn); f('uGA', P.ga);
+  gl.uniform3fv(U.uSh, P.sh); gl.uniform3fv(U.uHi, P.hi);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+/* ================= main loop ================= */
+function segAt(t){ for (let i = 0; i < timeline.length; i++) { const s = timeline[i]; if (t < s.start + s.dur) return i; } return timeline.length - 1; }
+function enter(i){
+  const seg = timeline[i]; curSeg = seg; curIdx = i; lastBack = null;
+  for (const m of media) if (m.el && m.el !== seg.m.el && !m.el.paused) m.el.pause();
+  if (seg.m.kind === 'video') {
+    const st = segTime(seg, Math.max(0, loopTime - seg.start));
+    if (st.fwd && Math.abs(seg.m.el.currentTime - st.s) > .05) seg.m.el.currentTime = clamp(st.s, 0, seg.m.dur - .02);
+  }
+  if (S.auto === 'clip') { const j = (i + 1) % timeline.length; if (timeline.length > 1 && j !== i) rerollAt(j, true); }
+  if (S.auto === 'loop' && i === timeline.length - 1 && !pending) { pending = buildTimeline(); }
+  const nx = (pending && i === timeline.length - 1) ? pending[0] : timeline[i + 1];
+  if (nx && nx.m.kind === 'video' && nx.m !== seg.m) { const st = segTime(nx, 0); if (st.fwd) { nx.m.el.pause(); nx.m.el.currentTime = clamp(st.s, 0, nx.m.dur - .02); } }
+  schedulePrep(); trimCaches();
+  markCurrent(); renderNow(true);
+}
+function onWrap(){
+  loopNo++;
+  if (recording) stopRec();
+  if (S.auto === 'loop') {
+    const old = timeline; timeline = pending || buildTimeline(); pending = null; retire(old);
+    rollDie(); renderTimeline();
+  }
+  curSeg = null; curIdx = -1;
+}
+let lastT = performance.now(), uiAt = 0;
+function frame(nowMs){
+  requestAnimationFrame(frame);
+  const dt = Math.min(.1, (nowMs - lastT) / 1000); lastT = nowMs;
+  const now = nowMs / 1000;
+  if (!timeline.length) { sctx.fillStyle = '#050706'; sctx.fillRect(0, 0, W, H); idleCard(); return; }
+  if (playing) { loopTime += dt; if (loopTime >= S.loopLen) { loopTime %= S.loopLen; onWrap(); } }
+  const i = segAt(loopTime);
+  if (timeline[i] !== curSeg) enter(i);
+  const seg = curSeg, st = segTime(seg, loopTime - seg.start);
+  if (seg.fx.time === 'rewind' && st.back !== lastBack) { lastBack = st.back; renderNow(true); }
+  if (drawSource(seg, st)) drawOverlays(seg, st, now);
+  present(seg, st, now);
+  if (nowMs - uiAt > 80) { uiAt = nowMs; renderClock(); }
+}
+function idleCard(){
+  const u = Math.min(W, H);
+  sctx.fillStyle = '#efe7d3'; sctx.font = `500 ${u * .05}px "M PLUS 1p", sans-serif`; sctx.textAlign = 'center'; sctx.textBaseline = 'middle';
+  sctx.fillText('素材がありません。動画か写真を追加してください', W / 2, H / 2); sctx.textAlign = 'left';
+  if (gl) { upload(0, src); gl.uniform2f(U.uRes, W, H); ['uSat','uCon'].forEach(n => gl.uniform1f(U[n], 1)); ['uGN','uOld','uTrack','uPixel','uPoster','uGrain','uVig','uFlick','uChroma','uScan','uBleed','uFade','uMono','uBri'].forEach(n => gl.uniform1f(U[n], 0)); gl.uniform3fv(U.uSh, [0,0,0]); gl.uniform3fv(U.uHi, [0,0,0]); gl.uniform2f(U.uWeave, 0, 0); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); }
+  else { if (!octx2d) octx2d = out.getContext('2d'); octx2d.drawImage(src, 0, 0); }
+}
+
+/* ================= UI ================= */
+const fmt = t => { const m = Math.floor(t / 60), s = t - m * 60; return `${String(m).padStart(2,'0')}:${s.toFixed(1).padStart(4,'0')}`; };
+const fmtLen = t => t >= 60 && t % 60 === 0 ? `${t / 60}分` : t >= 60 ? `${Math.floor(t / 60)}分${Math.round(t % 60)}秒` : `${t}秒`;
+function renderClock(){
+  $('#clock').textContent = `${fmt(loopTime)} / ${fmt(S.loopLen).replace(/\.0$/, '')}`;
+  $('#loopNo').textContent = recording ? `● REC  LOOP ${loopNo}` : `LOOP ${loopNo}`;
+  $('#playhead') && ($('#playhead').style.left = `${loopTime / S.loopLen * 100}%`);
+}
+function fxNames(fx){
+  const a = [];
+  if (fx.time) a.push([TLABEL[fx.time], fx.time]);
+  if (fx.cam) a.push([CAMBY[fx.cam].name]);
+  if (fx.old) a.push(['古い写真']);
+  if (fx.lofi) a.push(['ローファイ']);
+  if (fx.ghost) a.push([fx.ghost === 2 ? '残像ダブル' : '残像トリプル']);
+  return a;
+}
+function renderNow(){
+  const box = $('#nowFx'); box.textContent = '';
+  if (!curSeg) return;
+  const list = fxNames(curSeg.fx);
+  if (!list.length) list.push(['効果なし']);
+  for (const [t, k] of list) { const s = document.createElement('span'); s.className = 'chip-fx'; s.textContent = t; if (k) { s.dataset.t = k; s.style.background = `var(${FXBY[k].c})`; } box.appendChild(s); }
+}
+function renderTimeline(){
+  const tl = $('#timeline'); tl.textContent = '';
+  const L = S.loopLen;
+  timeline.forEach((s, i) => {
+    const b = document.createElement('button'); b.className = 'clip'; b.type = 'button';
+    b.style.width = `${s.dur / L * 100}%`;
+    b.style.setProperty('--tc', s.fx.time ? `var(${FXBY[s.fx.time].c})` : 'var(--c-none)');
+    if (s.m.thumb) b.style.backgroundImage = `url("${s.m.thumb}")`;
+    const names = fxNames(s.fx).map(x => x[0]);
+    b.title = `${s.m.name}（${s.dur.toFixed(1)}秒）${names.length ? '：' + names.join('・') : '：効果なし'}。タップで振り直し`;
+    b.setAttribute('aria-label', b.title);
+    const ct = document.createElement('span'); ct.className = 'ct';
+    ct.textContent = s.fx.time ? TLABEL[s.fx.time].split(' ')[0] + (s.fx.time === 'speed' || s.fx.time === 'slow' ? ` ×${s.rate}` : '') : '';
+    b.appendChild(ct);
+    const n = (s.fx.cam ? 1 : 0) + (s.fx.old ? 1 : 0) + (s.fx.lofi ? 1 : 0) + (s.fx.ghost ? 1 : 0);
+    if (n) { const d = document.createElement('span'); d.className = 'dots'; for (let k = 0; k < n; k++) d.appendChild(document.createElement('span')); b.appendChild(d); }
+    b.addEventListener('click', () => { rerollAt(i, false); toast('このクリップの効果を振り直しました'); });
+    tl.appendChild(b);
+  });
+  const ph = document.createElement('div'); ph.className = 'playhead'; ph.id = 'playhead'; tl.appendChild(ph);
+  const sc = $('#tlScale'); sc.textContent = '';
+  for (const f of [0, .25, .5, .75, 1]) { const s = document.createElement('span'); s.textContent = fmt(L * f).replace(/\.0$/, ''); sc.appendChild(s); }
+  markCurrent(); renderClock();
+}
+function markCurrent(){ const kids = $('#timeline').children; for (let i = 0; i < kids.length; i++) kids[i].classList.toggle('cur', i === curIdx); }
+function renderMedia(){
+  const box = $('#media'); box.textContent = '';
+  for (const m of media) {
+    const c = document.createElement('div'); c.className = 'mcard' + (m.on ? '' : ' off');
+    const th = document.createElement('div'); th.className = 'th'; if (m.thumb) th.style.backgroundImage = `url("${m.thumb}")`;
+    const mi = document.createElement('label'); mi.className = 'mi';
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = m.on; cb.id = `m-${m.id}`;
+    cb.addEventListener('change', () => { m.on = cb.checked; renderMedia(); roll(true); });
+    const mn = document.createElement('span'); mn.className = 'mn';
+    const kind = m.sample ? (m.kind === 'image' ? 'サンプル写真' : 'サンプル') : m.kind === 'video' ? `動画 ${fmt(m.dur).replace(/\.\d$/, '')}` : '写真';
+    mn.innerHTML = '<b></b><span></span>'; mn.firstChild.textContent = m.name; mn.lastChild.textContent = kind;
+    mi.append(cb, mn);
+    const rm = document.createElement('button'); rm.className = 'rm'; rm.type = 'button'; rm.textContent = '×'; rm.setAttribute('aria-label', `${m.name}を外す`);
+    rm.addEventListener('click', () => { dropMedia(m); renderMedia(); roll(true); });
+    c.append(th, mi, rm); box.appendChild(c);
+  }
+  const user = media.filter(m => !m.sample).length;
+  $('#mediaCount').textContent = `${media.filter(m => m.on).length} / ${media.length} 使用中`;
+  const note = $('#sampleNote');
+  if (!media.some(m => m.sample)) { note.innerHTML = ''; const b = document.createElement('button'); b.className = 'linkbtn'; b.textContent = 'サンプル素材を戻す'; b.addEventListener('click', () => { addSamples(); renderMedia(); roll(true); }); note.appendChild(b); }
+  else if (user) note.textContent = 'サンプルはチェックを入れると混ぜられます。';
+}
+const PIPS = { 1:[4], 2:[2,6], 3:[2,4,6], 4:[0,2,6,8], 5:[0,2,4,6,8], 6:[0,2,3,5,6,8] };
+function setDie(n){ const d = $('#die'); d.innerHTML = ''; for (let i = 0; i < 9; i++) { const p = document.createElement('i'); if (PIPS[n].includes(i)) p.className = 'on'; d.appendChild(p); } d.classList.toggle('one', n === 1); }
+function rollDie(){ const d = $('#die'); setDie(1 + (Math.random() * 6 | 0)); d.classList.remove('rolling'); void d.offsetWidth; d.classList.add('rolling'); }
+let toastT = 0;
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 2400); }
+
+function buildFxUI(){
+  for (const f of FX) {
+    const st = S.fx[f.id];
+    const tile = document.createElement('div'); tile.className = 'tile'; tile.dataset.fx = f.id;
+    if (f.c) tile.style.setProperty('--tc', `var(${f.c})`);
+    tile.innerHTML = `
+      <label class="dbox" title="サイコロの対象にする"><input type="checkbox" id="fx-${f.id}-dice"><span class="face"></span><em>サイコロ</em></label>
+      <div class="tt"><b></b><small></small></div>
+      <label class="pin" title="毎回必ず付ける"><input type="checkbox" id="fx-${f.id}-fix">固定</label>`;
+    tile.querySelector('b').append(f.name); tile.querySelector('small').textContent = f.desc;
+    const dice = tile.querySelector(`#fx-${f.id}-dice`), fix = tile.querySelector(`#fx-${f.id}-fix`);
+    dice.checked = st.dice; fix.checked = st.fixed;
+    const sync = () => tile.classList.toggle('idle', !st.dice && !st.fixed);
+    dice.addEventListener('change', () => { st.dice = dice.checked; sync(); applyToggle(f.id); });
+    fix.addEventListener('change', () => {
+      st.fixed = fix.checked;
+      if (st.fixed && f.g === 'time') for (const t of TIME) if (t !== f.id && S.fx[t].fixed) { S.fx[t].fixed = false; $(`#fx-${t}-fix`).checked = false; }
+      sync(); applyToggle(f.id);
+    });
+    if (f.amt) {
+      const row = document.createElement('label'); row.className = 'amt full';
+      row.innerHTML = `<span></span><input type="range" id="fx-${f.id}-amt" min="0" max="1" step="0.01">`;
+      row.firstChild.textContent = f.amt;
+      const r = row.querySelector('input'); r.value = st.amt; r.setAttribute('aria-label', `${f.name}の${f.amt}`);
+      r.addEventListener('input', () => { st.amt = +r.value; });
+      if (f.g === 'time') r.addEventListener('change', () => { timeline = timeline.map(s => { if (s.fx.time !== f.id) return s; const n = makeSeg(s.m, s.start, s.dur, s.fx); retire([s]); if (curSeg === s) curSeg = null; return n; }); renderTimeline(); schedulePrep(); });
+      tile.appendChild(row);
+    }
+    if (f.sub) {
+      const chips = document.createElement('div'); chips.className = 'chips full';
+      const items = f.sub === 'cams' ? CAMS.map(c => [c.id, c.name]) : [[2, 'ダブル'], [3, 'トリプル']];
+      const set = f.sub === 'cams' ? S.cams : S.ghosts;
+      for (const [v, name] of items) {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.textContent = name; b.setAttribute('aria-pressed', set.has(v));
+        b.addEventListener('click', () => {
+          if (set.has(v) && set.size === 1) { toast('最低1つは選んでおいてください'); return; }
+          set.has(v) ? set.delete(v) : set.add(v); b.setAttribute('aria-pressed', set.has(v));
+          if (set.has(v) && f.sub === 'cams') { previewCam(v); }
+          applyToggle(f.id);
+        });
+        chips.appendChild(b);
+      }
+      tile.appendChild(chips);
+    }
+    sync();
+    $(f.g === 'time' ? '#fxTime' : '#fxLook').appendChild(tile);
+  }
+}
+/* tapping a camera chip on also shows it right away on the current clip */
+function previewCam(id){ if (curSeg) { curSeg.fx = { ...curSeg.fx, cam:id }; renderNow(); renderTimeline(); } }
+
+function bindUI(){
+  $('#playBtn').addEventListener('click', () => {
+    playing = !playing; $('#playBtn').textContent = playing ? '❚❚' : '▶'; $('#playBtn').setAttribute('aria-label', playing ? '一時停止' : '再生');
+    if (!playing) media.forEach(m => m.el && m.el.pause());
+  });
+  $('#diceBtn').addEventListener('click', () => { roll(true); toast('サイコロを振りました'); });
+  $('#autoSeg').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    S.auto = b.dataset.v; for (const x of $('#autoSeg').querySelectorAll('button')) x.setAttribute('aria-pressed', x === b);
+    if (pending && S.auto !== 'loop') { retire(pending); pending = null; }
+    toast(S.auto === 'off' ? '自動で振るのを止めました' : S.auto === 'clip' ? 'クリップが変わるたびに次を振り直します' : 'ループが一周するたびに全部振り直します');
+  });
+  const setLoop = v => {
+    v = clamp(Math.round(+v || 30), 3, 600); S.loopLen = v; loopTime = loopTime % v;
+    $('#loopOut').textContent = fmtLen(v); $('#loopNum').value = v;
+    for (const c of $('#loopChips').querySelectorAll('.chip')) c.setAttribute('aria-pressed', +c.dataset.v === v);
+    roll(true);
+  };
+  $('#loopChips').addEventListener('click', e => { const b = e.target.closest('.chip'); if (b) setLoop(b.dataset.v); });
+  $('#loopNum').addEventListener('change', e => setLoop(e.target.value));
+  const clipOut = () => $('#clipOut').textContent = `${Math.min(S.clipMin, S.clipMax).toFixed(1)}〜${Math.max(S.clipMin, S.clipMax).toFixed(1)}秒`;
+  $('#clipMin').addEventListener('input', e => { S.clipMin = +e.target.value; clipOut(); });
+  $('#clipMax').addEventListener('input', e => { S.clipMax = +e.target.value; clipOut(); });
+  $('#clipMin').addEventListener('change', () => roll(true)); $('#clipMax').addEventListener('change', () => roll(true));
+  const setAsp = v => { S.aspect = v; for (const c of $('#aspChips').querySelectorAll('.chip')) c.setAttribute('aria-pressed', c.dataset.v === v); setSize(); };
+  $('#aspChips').addEventListener('click', e => { const b = e.target.closest('.chip'); if (b) setAsp(b.dataset.v); });
+  $('#osdChk').addEventListener('change', e => S.osd = e.target.checked);
+  $('#sndChk').addEventListener('change', e => { S.sound = e.target.checked; });
+  $('#prob').addEventListener('input', e => { S.prob = +e.target.value; $('#probOut').textContent = `${Math.round(S.prob * 100)}%`; });
+  $('#allOn').addEventListener('click', () => { for (const f of FX) { S.fx[f.id].dice = true; $(`#fx-${f.id}-dice`).checked = true; $(`[data-fx="${f.id}"]`).classList.remove('idle'); } roll(true); toast('全部をサイコロの対象にして振りました'); });
+  $('#allOff').addEventListener('click', () => { for (const f of FX) { S.fx[f.id].dice = false; S.fx[f.id].fixed = false; $(`#fx-${f.id}-dice`).checked = false; $(`#fx-${f.id}-fix`).checked = false; $(`[data-fx="${f.id}"]`).classList.add('idle'); } roll(true); toast('エフェクトを全部外しました'); });
+  const fi = $('#fileIn'), drop = $('#drop');
+  fi.addEventListener('change', () => { if (fi.files.length) addFiles(fi.files); fi.value = ''; });
+  ['dragenter','dragover'].forEach(n => drop.addEventListener(n, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave','drop'].forEach(n => drop.addEventListener(n, e => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', e => { if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer && e.dataTransfer.files.length && !drop.contains(e.target)) addFiles(e.dataTransfer.files); });
+  $('#recBtn').addEventListener('click', () => recording ? stopRec(true) : startRec());
+  $('#recClose').addEventListener('click', closeRec);
+  $('#recModal').addEventListener('click', e => { if (e.target.id === 'recModal') closeRec(); });
+  document.addEventListener('keydown', e => {
+    if (e.target.matches('input')) return;
+    if (e.code === 'Space') { e.preventDefault(); $('#playBtn').click(); }
+    if (e.key === 'd' || e.key === 'D') $('#diceBtn').click();
+    if (e.key === 'Escape') closeRec();
+  });
+  setLoop(S.loopLen); setAsp(S.aspect); clipOut();
+  $('#probOut').textContent = `${Math.round(S.prob * 100)}%`;
+}
+
+/* ================= recording ================= */
+let recUrl = null;
+function startRec(){
+  if (!out.captureStream || !window.MediaRecorder) { toast('このブラウザは録画に対応していません'); return; }
+  const types = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+  const mime = types.find(t => MediaRecorder.isTypeSupported(t)) || '';
+  let rec;
+  try { rec = new MediaRecorder(out.captureStream(30), mime ? { mimeType:mime, videoBitsPerSecond:8e6 } : undefined); }
+  catch (e) { toast('録画を始められませんでした'); return; }
+  const chunks = [];
+  rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+  rec.onstop = () => {
+    const type = rec.mimeType || mime || 'video/webm';
+    const blob = new Blob(chunks, { type });
+    if (recUrl) URL.revokeObjectURL(recUrl);
+    recUrl = URL.createObjectURL(blob);
+    const ext = type.includes('mp4') ? 'mp4' : 'webm';
+    $('#recVideo').src = recUrl; $('#recSave').href = recUrl; $('#recSave').download = `saikoro-loop-${S.loopLen}s.${ext}`;
+    $('#recInfo').textContent = `${fmtLen(S.loopLen)}のループ・${W}×${H}・${ext.toUpperCase()}・${(blob.size / 1048576).toFixed(1)}MB（音声なし）`;
+    $('#recModal').hidden = false;
+  };
+  recording = rec;
+  loopTime = 0; curSeg = null; curIdx = -1; playing = true; $('#playBtn').textContent = '❚❚';
+  rec.start(250);
+  $('#recBtn').setAttribute('aria-pressed', 'true'); $('#recBtn').textContent = '■ 録画を止める';
+  toast(`1ループ（${fmtLen(S.loopLen)}）を録画しています`);
+}
+function stopRec(){
+  if (!recording) return; const r = recording; recording = null;
+  try { r.stop(); } catch (e) {}
+  $('#recBtn').setAttribute('aria-pressed', 'false'); $('#recBtn').textContent = '● 1ループ録画';
+}
+function closeRec(){ $('#recModal').hidden = true; $('#recVideo').pause(); }
+
+/* ================= boot ================= */
+setDie(5);
+initGL();
+setSize();
+addSamples();
+buildFxUI();
+bindUI();
+renderMedia();
+roll(true);
+if (!gl) toast('このブラウザではWebGLが使えないため、色の効果は表示されません');
+requestAnimationFrame(frame);
+})();
+</script>
