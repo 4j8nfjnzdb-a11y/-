@@ -225,17 +225,17 @@ const FONTS = [["Dela Gothic One","デラゴシック（極太）",400],["Rampar
 const fontWeight = f => (FONTS.find(x => x[0] === f) || [0,0,400])[2];
 
 /* ---------- state ---------- */
-const anim = o => Object.assign({start:0, len:1.4, ease:"back", spin:0, flip:0, scale0:0, dist:0, dir:0, swirl:0, fade:true, stagger:0}, o);
+const anim = o => Object.assign({start:0, len:1.4, ease:"back", spinSpeed:0, after:"slow", afterSpeed:.5, flip:0, scale0:0, dist:0, dir:0, swirl:0, fade:true, stagger:0}, o);
 const S = {
   mode: "motion", aspect: "16:9", dur: 6, loop: true,
   bg:  { type:"gradient", c1:"#241a4d", c2:"#ff8a5c", media:null },
   img: { on:true, media:null, size:52, x:50, y:42, shape:"none", shadow:true,
-         anim: anim({start:.2, len:1.8, ease:"back", spin:3, scale0:0}),
-         exit: { on:false, start:5, len:.8 }, idle: { spin:.15, wobble:0, pulse:0 } },
+         anim: anim({start:.2, len:1.8, ease:"back", spinSpeed:2, after:"keep", afterSpeed:.4, scale0:0}),
+         exit: { on:false, start:5, len:.8 }, idle: { wobble:0, pulse:0 } },
   txt: { on:true, text:"くるくる、こっちへ！", font:"Dela Gothic One", size:11, color:"#ffffff", stroke:"#241a4d", strokeW:12,
          spacing:2, x:50, y:82, shadow:true,
-         anim: anim({start:1.5, len:.9, ease:"back", scale0:0, dist:18, dir:90, spin:1, stagger:.07}),
-         exit: { on:false, start:5.2, len:.6 }, idle: { spin:0, wobble:30, pulse:0 } },
+         anim: anim({start:1.5, len:.9, ease:"back", scale0:0, dist:18, dir:90, spinSpeed:1.1, after:"snap", stagger:.07}),
+         exit: { on:false, start:5.2, len:.6 }, idle: { wobble:30, pulse:0 } },
   kal: { src:"sample", media:null, seg:12, mirror:true, circle:false, cx:50, cy:50, rot:.04, drift:.35, driftAmt:40,
          srcSpin:-.03, zoom:.7, hue:0, hueSpeed:0, bg:"#0c0a11" },
 };
@@ -298,19 +298,36 @@ function drawSample(t){
 }
 
 /* ---------- animation core ---------- */
+/* Rotation runs on its own clock: a speed (turns/s) while approaching, then one of four ways to arrive.
+   Angle 0 is the resting pose. */
+function spinAngle(a, tt){
+  const v = a.spinSpeed, L = Math.max(a.len, .001), te = tt - a.start, x = te - L, te0 = Math.max(0, te);
+  if (a.after === "keep"){
+    if (te < L) return v * TAU * (te0 - L);
+    const w = a.afterSpeed;                       // ease from approach speed into the cruising speed
+    return TAU * (w*x + (v - w) * .4 * (1 - Math.exp(-x / .4)));
+  }
+  if (a.after === "slow"){
+    if (te >= L) return 0;
+    return -(v * L / 3) * TAU * Math.pow(1 - te0 / L, 3);   // starts at speed v, glides to a stop
+  }
+  if (te < L) return -v * TAU * (L - te0);          // constant speed right up to arrival
+  const swing = a.after === "swing";
+  const A = Math.sign(v) * Math.min(Math.abs(v), 3) * (swing ? .35 : .07);
+  return A * Math.exp(-(swing ? 6 : 14) * x) * Math.sin((swing ? 14 : 30) * x);
+}
 function stateAt(L, t, k){
   const a = L.anim, x = L.exit, i = L.idle, tt = t - k;
   const pin = clamp01((tt - a.start) / Math.max(a.len, .001));
   const e = EASE[a.ease](pin);
-  let q = 1 - e;                                   // 1 = start pose, 0 = resting pose
-  if (x.on){ const po = clamp01((tt - x.start) / Math.max(x.len, .001)); if (po > 0) q += 1 - EASE[a.ease](1 - po); }
+  let q = 1 - e, qe = 0;                          // 1 = start pose, 0 = resting pose
+  if (x.on){ const po = clamp01((tt - x.start) / Math.max(x.len, .001)); if (po > 0) qe = 1 - EASE[a.ease](1 - po); }
+  q += qe;
   let s = Math.max(0, 1 + (a.scale0/100 - 1) * q);
-  let rz = a.spin * TAU * q, ry = a.flip * TAU * q;
+  let rz = spinAngle(a, tt) + qe * a.spinSpeed * a.len * TAU, ry = a.flip * TAU * q;
   const ang = a.dir * Math.PI/180 + a.swirl * TAU * q, d = a.dist/100 * q;
   let dx = Math.cos(ang) * d, dy = Math.sin(ang) * d;
   const alpha = a.fade ? clamp01((1 - q) * 1.4) : 1;
-  const after = Math.max(0, tt - a.start - a.len);
-  rz += i.spin * TAU * after;
   const settle = clamp01(pin);
   if (i.wobble){ const w = i.wobble/100 * settle; dy += Math.sin(tt*TAU*.6 + k*4) * w * .02; rz += Math.sin(tt*TAU*.45 + k*3) * w * .14; }
   if (i.pulse){ s *= 1 + Math.sin(tt*TAU*1.1 + k*3) * i.pulse/100 * .12 * settle; }
@@ -477,18 +494,27 @@ function syncVideos(){
 
 /* ---------- presets ---------- */
 const ANIM_PRESETS = [
-  ["くるくる接近", { spin:3, flip:0, scale0:0, dist:0, swirl:0, fade:true, ease:"back", len:1.8 }],
-  ["3Dスピン",     { spin:0, flip:2, scale0:30, dist:0, swirl:0, fade:true, ease:"out", len:1.4 }],
-  ["うず巻き",     { spin:2, flip:0, scale0:10, dist:60, dir:0, swirl:1.5, fade:true, ease:"out", len:2 }],
-  ["奥からズーム", { spin:0, flip:0, scale0:0, dist:0, swirl:0, fade:true, ease:"strong", len:1.2 }],
-  ["手前から",     { spin:0, flip:0, scale0:350, dist:0, swirl:0, fade:true, ease:"strong", len:1 }],
-  ["スライド",     { spin:0, flip:0, scale0:100, dist:70, dir:180, swirl:0, fade:true, ease:"strong", len:.9 }],
-  ["落ちてバウンド",{ spin:0, flip:0, scale0:100, dist:80, dir:270, swirl:0, fade:false, ease:"bounce", len:1.3 }],
-  ["ポップ",       { spin:0, flip:0, scale0:0, dist:0, swirl:0, fade:false, ease:"elastic", len:1.2 }],
-  ["フェード",     { spin:0, flip:0, scale0:100, dist:0, swirl:0, fade:true, ease:"smooth", len:1 }],
+  ["奥から回り続ける", { spinSpeed:1.5, after:"keep", afterSpeed:1.5, flip:0, scale0:0, dist:0, swirl:0, fade:true, ease:"out", len:1.6 }],
+  ["奥から回ってバッと止まる", { spinSpeed:2.5, after:"snap", flip:0, scale0:0, dist:0, swirl:0, fade:true, ease:"strong", len:1.4 }],
+  ["奥から回って揺れ戻る", { spinSpeed:2, after:"swing", flip:0, scale0:0, dist:0, swirl:0, fade:true, ease:"strong", len:1.4 }],
+  ["くるくる接近", { spinSpeed:4, after:"slow", flip:0, scale0:0, dist:0, swirl:0, fade:true, ease:"back", len:1.8 }],
+  ["3Dスピン",     { spinSpeed:0, after:"slow", flip:2, scale0:30, dist:0, swirl:0, fade:true, ease:"out", len:1.4 }],
+  ["うず巻き",     { spinSpeed:3, after:"slow", flip:0, scale0:10, dist:60, dir:0, swirl:1.5, fade:true, ease:"out", len:2 }],
+  ["奥からズーム", { spinSpeed:0, after:"slow", flip:0, scale0:0, dist:0, swirl:0, fade:true, ease:"strong", len:1.2 }],
+  ["手前から",     { spinSpeed:0, after:"slow", flip:0, scale0:350, dist:0, swirl:0, fade:true, ease:"strong", len:1 }],
+  ["スライド",     { spinSpeed:0, after:"slow", flip:0, scale0:100, dist:70, dir:180, swirl:0, fade:true, ease:"strong", len:.9 }],
+  ["落ちてバウンド",{ spinSpeed:0, after:"slow", flip:0, scale0:100, dist:80, dir:270, swirl:0, fade:false, ease:"bounce", len:1.3 }],
+  ["ポップ",       { spinSpeed:0, after:"slow", flip:0, scale0:0, dist:0, swirl:0, fade:false, ease:"elastic", len:1.2 }],
+  ["フェード",     { spinSpeed:0, after:"slow", flip:0, scale0:100, dist:0, swirl:0, fade:true, ease:"smooth", len:1 }],
 ];
-const TEXT_ONLY = [["タイプライター", { spin:0, flip:0, scale0:100, dist:0, swirl:0, fade:true, ease:"linear", len:.04, stagger:.12 }],
-                   ["文字が舞い降りる", { spin:-1, flip:0, scale0:40, dist:25, dir:270, swirl:0, fade:true, ease:"back", len:.8, stagger:.08 }]];
+const TEXT_ONLY = [["タイプライター", { spinSpeed:0, after:"slow", flip:0, scale0:100, dist:0, swirl:0, fade:true, ease:"linear", len:.04, stagger:.12 }],
+                   ["文字が舞い降りる", { spinSpeed:-1.5, after:"swing", flip:0, scale0:40, dist:25, dir:270, swirl:0, fade:true, ease:"back", len:.8, stagger:.08 }]];
+const AFTER_OPTS = [["keep","そのまま回り続ける"],["snap","バッと止まる"],["slow","だんだん止まる"],["swing","止まって揺れ戻る"]];
+function spinHint(p){
+  const a = get(p + ".anim"), turns = Math.abs(a.spinSpeed) * a.len / (a.after === "slow" ? 3 : 1);
+  if (!a.spinSpeed && a.after !== "keep") return "回転の速さを 0 以外にすると回りながら近づきます。";
+  return `近づく間に約${turns.toFixed(1)}回転` + (a.after === "keep" ? `、着いたあとは 1秒に${Math.abs(a.afterSpeed).toFixed(2)}回転で回り続けます。` : "します。");
+}
 const KAL_PRESETS = [
   ["クラシック", { seg:8, mirror:true, rot:.04, zoom:1, drift:.35, driftAmt:40, circle:true }],
   ["雪の結晶",   { seg:12, mirror:true, rot:.02, zoom:1.6, drift:.2, driftAmt:25, circle:false }],
@@ -515,10 +541,14 @@ function animItems(p, isText){
     ["range", p+".anim.len", "長さ", .04, 6, .02, "s"],
     ["select", p+".anim.ease", "動きの質感", EASE_OPTS],
     isText && ["range", "txt.anim.stagger", "1文字ずつずらす", 0, .5, .01, "s"],
-    ["sub", "現れる前の状態"],
-    ["range", p+".anim.spin", "回転", -8, 8, .25, "turn"],
-    ["range", p+".anim.flip", "3D回転", -6, 6, .25, "turn"],
+    ["sub", "回転"],
+    ["range", p+".anim.spinSpeed", "回転の速さ", -5, 5, .05, "rps"],
+    ["select", p+".anim.after", "着いたら", AFTER_OPTS],
+    ["range", p+".anim.afterSpeed", "着いてからの速さ", -5, 5, .05, "rps", () => get(p+".anim.after") === "keep"],
+    ["hint", () => spinHint(p)],
+    ["sub", "現れる前の状態（大きさが小さいほど奥から来る）"],
     ["range", p+".anim.scale0", "はじめの大きさ", 0, 400, 5, "pct"],
+    ["range", p+".anim.flip", "3D回転", -6, 6, .25, "turn"],
     ["range", p+".anim.dist", "はじめの距離", 0, 150, 1, "pct"],
     ["range", p+".anim.dir", "来る方向", 0, 359, 1, "dir"],
     ["range", p+".anim.swirl", "うず巻き", -4, 4, .25, "lap"],
@@ -528,7 +558,6 @@ function animItems(p, isText){
 function exitIdleItems(p){
   return [
     ["sub", "登場したあと"],
-    ["range", p+".idle.spin", "回り続ける", -2, 2, .05, "rps"],
     ["range", p+".idle.wobble", "ゆらゆら", 0, 100, 1, "pct"],
     ["range", p+".idle.pulse", "ドクドク", 0, 100, 1, "pct"],
     ["sub", "退場（登場の逆の動きで消える）"],
@@ -602,8 +631,11 @@ const PANELS = {
 const openState = {};
 const idOf = p => "c-" + p.replace(/\./g, "-");
 
+const hints = [];
+function refreshHint(e){ const txt = e._fn(); e.textContent = txt; e.hidden = !txt; }
+const refreshHints = () => hints.forEach(refreshHint);
 function buildPanel(){
-  const panel = $("#panel"); panel.innerHTML = "";
+  const panel = $("#panel"); panel.innerHTML = ""; hints.length = 0;
   document.getElementById("app").classList.toggle("kalmode", S.mode === "kal");
   for (const sec of PANELS[S.mode]){
     const d = document.createElement("details"); d.className = "sec";
@@ -629,7 +661,9 @@ function buildPanel(){
 function buildItem(it){
   const [type] = it;
   if (type === "sub"){ const e = document.createElement("div"); e.className = "sub"; e.textContent = it[1]; return e; }
-  if (type === "hint"){ const txt = it[1](); if (!txt) return null; const e = document.createElement("p"); e.className = "hint"; e.textContent = txt; return e; }
+  if (type === "hint"){
+    const e = document.createElement("p"); e.className = "hint"; e._fn = it[1]; hints.push(e); refreshHint(e); return e;
+  }
   if (type === "presets"){
     const [, p, list] = it, e = document.createElement("div"); e.className = "chips";
     for (const [name, vals] of list){
@@ -656,8 +690,7 @@ function buildItem(it){
     const r = document.createElement("input"); r.type = "range"; r.id = id;
     r.min = min; r.max = typeof max === "function" ? max() : max; r.step = step; r.value = get(p);
     const out = document.createElement("output"); out.htmlFor = id; out.textContent = FMT[unit](+r.value);
-    r.addEventListener("input", () => { set(p, +r.value); out.textContent = FMT[unit](+r.value); buildTimeline(); });
-    if (p === "kal.seg" || p === "kal.mirror") r.addEventListener("change", buildPanel);
+    r.addEventListener("input", () => { set(p, +r.value); out.textContent = FMT[unit](+r.value); buildTimeline(); refreshHints(); });
     row.append(r, out);
   } else if (type === "select"){
     row.classList.add("two");
