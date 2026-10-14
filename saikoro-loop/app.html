@@ -298,9 +298,9 @@ input[type=range]{width:100%;accent-color:var(--brass);margin:0}
         <section class="panel" aria-labelledby="h-media">
           <h2 id="h-media">素材 <small>タップで並びの最後に追加</small></h2>
           <label class="drop" id="drop">
-            <input type="file" id="fileIn" accept="video/*,image/*" multiple>
+            <input type="file" id="fileIn" accept="video/*,image/*,.m2ts,.mts,.m2t,.ts,video/mp2t" multiple>
             <b>＋ 動画・写真を読み込む</b>
-            <span>ドラッグ&ドロップでも追加できます</span>
+            <span>ドラッグ&ドロップでも追加できます（m2ts / mts も可）</span>
           </label>
           <div class="media" id="media"></div>
           <p class="note" id="sampleNote">最初はサンプル素材が並んでいます。自分の素材を読み込むと、並びが自分の素材に置き換わります。</p>
@@ -429,6 +429,8 @@ const FX = [
   { id:'oldphoto',g:'look', name:'古い写真',       desc:'セピア、色あせ、ほこり', amt:'強さ' },
   { id:'lofi',    g:'look', name:'ローファイ',     desc:'画素を荒く、色数を減らす', amt:'荒さ' },
   { id:'camera',  g:'look', name:'カメラの色味',   desc:'昔のカメラやフィルムの色。入れたい機種を選ぶ', amt:'強さ', sub:'cams' },
+  { id:'selcol',  g:'look', name:'部分色替え',     desc:'白だけピンク、赤だけ残す…など一部の色だけ変える。入れたいものを選ぶ', amt:'強さ', sub:'sels' },
+  { id:'colplay', g:'look', name:'色の遊び',       desc:'色相ずらし、ネガ、2色刷り、サーモ…など全体の色で遊ぶ', amt:'強さ', sub:'plays' },
   { id:'zoom',    g:'zoom', name:'ズーム',         desc:'映像のどこかにランダムで寄ったり引いたりする', amt:'倍率', sub:'zoom' },
   { id:'ghost',   g:'look', name:'残像',           desc:'ぼやけた像を後ろに重ねる（ダブル／トリプル）', amt:'濃さ', sub:'ghost' },
 ];
@@ -449,6 +451,35 @@ const CAMS = [
   { id:'green',   name:'グリーンネガ', sat:.9, con:1.05, fade:.07, sh:[-.02,.06,0], hi:[0,.04,-.03], grain:.14, vig:.3 },
 ];
 const CAMBY = Object.fromEntries(CAMS.map(c => [c.id, c]));
+/* partial colour: 1 whites → colour, 2 blacks → colour, 3 keep one hue (rest grey), 4 one hue → another, 5 highlights → colour */
+const SELS = [
+  { id:'w2pink', name:'白→ピンク',     mode:1, to:[1, .55, .78] },
+  { id:'w2mint', name:'白→ミント',     mode:1, to:[.6, 1, .86] },
+  { id:'w2lav',  name:'白→ラベンダー', mode:1, to:[.78, .7, 1] },
+  { id:'k2blue', name:'黒→青',         mode:2, to:[.12, .22, .8] },
+  { id:'k2plum', name:'黒→赤紫',       mode:2, to:[.6, .1, .42] },
+  { id:'keepR',  name:'赤だけ残す',     mode:3, hue:0,   w:.09 },
+  { id:'keepB',  name:'青だけ残す',     mode:3, hue:.6,  w:.11 },
+  { id:'keepG',  name:'緑だけ残す',     mode:3, hue:.33, w:.11 },
+  { id:'keepY',  name:'黄だけ残す',     mode:3, hue:.14, w:.07 },
+  { id:'r2b',    name:'赤→青',         mode:4, hue:0,   w:.09, toHue:.6 },
+  { id:'b2o',    name:'青→オレンジ',   mode:4, hue:.58, w:.13, toHue:.07 },
+  { id:'g2p',    name:'緑→紫',         mode:4, hue:.3,  w:.13, toHue:.8 },
+  { id:'h2gold', name:'明るい所→金',   mode:5, to:[1, .8, .35] },
+];
+/* whole-picture colour play: 1 hue shift, 2 negative, 3 solarize, 4 duotone, 5 thermal, 6 pop */
+const PLAYS = [
+  { id:'hue',    name:'色相ずらし',          mode:1 },
+  { id:'neg',    name:'ネガ',                mode:2 },
+  { id:'sola',   name:'ソラリゼーション',    mode:3 },
+  { id:'duoPB',  name:'2色刷り ピンク×紺',   mode:4, a:[.1, .1, .35],  b:[1, .55, .72] },
+  { id:'duoYG',  name:'2色刷り 黄×深緑',     mode:4, a:[.04, .26, .2], b:[1, .92, .42] },
+  { id:'duoRK',  name:'2色刷り 赤×黒',       mode:4, a:[.05, .03, .03], b:[.96, .22, .2] },
+  { id:'duoOB',  name:'2色刷り 橙×青',       mode:4, a:[.05, .15, .45], b:[1, .62, .25] },
+  { id:'thermo', name:'サーモ',              mode:5 },
+  { id:'pop',    name:'ポップ',              mode:6 },
+];
+const SELBY = Object.fromEntries(SELS.map(c => [c.id, c])), PLAYBY = Object.fromEntries(PLAYS.map(c => [c.id, c]));
 const ZMODES = [['push', 'ゆっくり寄る'], ['punch', 'パッと寄る'], ['out', '引いていく'], ['hold', '寄ったまま']];
 const ZNAME = Object.fromEntries(ZMODES);
 
@@ -469,9 +500,11 @@ const S = {
     rewind:{dice:true,fixed:false,amt:.6}, reverse:{dice:true,fixed:false,amt:.5}, speed:{dice:true,fixed:false,amt:.5},
     slow:{dice:true,fixed:false,amt:.5}, stutter:{dice:true,fixed:false,amt:.5},
     oldphoto:{dice:true,fixed:false,amt:.65}, lofi:{dice:false,fixed:false,amt:.45},
-    camera:{dice:true,fixed:false,amt:.8}, ghost:{dice:true,fixed:false,amt:.55}, zoom:{dice:true,fixed:false,amt:.45},
+    camera:{dice:true,fixed:false,amt:.8}, selcol:{dice:true,fixed:false,amt:.75}, colplay:{dice:true,fixed:false,amt:.7}, ghost:{dice:true,fixed:false,amt:.55}, zoom:{dice:true,fixed:false,amt:.45},
   },
   cams: new Set(CAMS.map(c => c.id)),
+  sels: new Set(SELS.map(c => c.id)),
+  plays: new Set(PLAYS.map(c => c.id)),
   ghosts: new Set([2, 3]),
   zooms: new Set(['push', 'punch', 'out', 'hold']),
   zoomTool: false, zoomMode: 'hold', zoomZ: 2,
@@ -626,31 +659,150 @@ function addImageFile(file){
     img.src = url;
   });
 }
+/* ---- m2ts / mts / ts (AVCHD, MPEG-TS): browsers can't play these in <video>, so demux the H.264/HEVC stream,
+   decode it once with WebCodecs and keep the frames as small JPEGs. That gives random access for cuts, reverse and rewind. ---- */
+let failWhy = '';
+const TS_FPS = 15, TS_MAX = 180, TS_LONG = 640;
+const isTsFile = f => /\.(m2ts|mts|m2t|ts)$/i.test(f.name) || f.type === 'video/mp2t';
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function addTsFile(file){
+  const fail = msg => { failWhy = msg; toast(msg); return null; };
+  if (typeof VideoDecoder === 'undefined') return fail('このブラウザは m2ts の読み込みに対応していません。最新の Chrome か Safari で開いてください');
+  const head = new Uint8Array(await file.slice(0, 1024).arrayBuffer());
+  let pk = 0; if (head[4] === 0x47 && head[196] === 0x47) pk = 192; else if (head[0] === 0x47 && head[188] === 0x47) pk = 188;
+  if (!pk) return fail(`「${file.name}」は m2ts として読めませんでした`);
+  const st = { pmt:-1, vpid:-1, vtype:0, pes:[], pts:null, last:null, codec:null, aus:[] };
+  const flushPES = () => {
+    if (!st.pes.length) return;
+    let n = 0; for (const s of st.pes) n += s.length;
+    const d = new Uint8Array(n); let o = 0; for (const s of st.pes) { d.set(s, o); o += s.length; } st.pes = [];
+    let key = false;
+    for (let i = 0; i + 3 < d.length; i++) if (d[i] === 0 && d[i + 1] === 0 && d[i + 2] === 1) {
+      const h = d[i + 3];
+      if (st.vtype === 0x1b) { const t = h & 0x1f; if (t === 5) key = true; if (t === 7 && !st.codec) st.codec = 'avc1.' + [d[i + 4], d[i + 5], d[i + 6]].map(x => x.toString(16).padStart(2, '0')).join(''); }
+      else { const t = (h >> 1) & 0x3f; if (t >= 16 && t <= 21) key = true; }
+      i += 3;
+    }
+    const ts = st.pts != null ? st.pts : (st.last != null ? st.last + 3003 : 0); st.last = ts;
+    st.aus.push({ d, key, ts: Math.round(ts * 100 / 9) });
+  };
+  const packet = (b, o) => {
+    const pid = ((b[o + 1] & 0x1f) << 8) | b[o + 2], pusi = b[o + 1] & 0x40, afc = (b[o + 3] >> 4) & 3; if (!(afc & 1)) return;
+    let p = o + 4; if (afc & 2) p += 1 + b[o + 4]; const end = o + 188; if (p >= end) return;
+    if (pid === 0) { if (!pusi) return; p += 1 + b[p]; const sl = ((b[p + 1] & 0x0f) << 8) | b[p + 2], e = p + 3 + sl - 4; for (let q = p + 8; q < e; q += 4) { const prog = (b[q] << 8) | b[q + 1]; if (prog !== 0) { st.pmt = ((b[q + 2] & 0x1f) << 8) | b[q + 3]; break; } } return; }
+    if (pid === st.pmt && st.vpid < 0) { if (!pusi) return; p += 1 + b[p]; const sl = ((b[p + 1] & 0x0f) << 8) | b[p + 2], e = p + 3 + sl - 4, pil = ((b[p + 10] & 0x0f) << 8) | b[p + 11];
+      for (let q = p + 12 + pil; q < e;) { const t = b[q], ep = ((b[q + 1] & 0x1f) << 8) | b[q + 2], il = ((b[q + 3] & 0x0f) << 8) | b[q + 4]; if ([0x1b, 0x24, 0x01, 0x02].includes(t)) { st.vpid = ep; st.vtype = t; break; } q += 5 + il; }
+      return; }
+    if (pid !== st.vpid) return;
+    if (pusi) { flushPES(); if (b[p] === 0 && b[p + 1] === 0 && b[p + 2] === 1) { const fl = b[p + 7], hl = b[p + 8]; st.pts = (fl & 0x80) ? ((b[p + 9] >> 1) & 7) * 1073741824 + b[p + 10] * 4194304 + (b[p + 11] >> 1) * 32768 + b[p + 12] * 128 + (b[p + 13] >> 1) : null; p += 9 + hl; } }
+    if (p < end) st.pes.push(b.subarray(p, end));
+  };
+  const m = { id:++mid, kind:'frames', name:file.name, frames:[], bmps:new Map(), req:new Set(), dur:0, iw:0, ih:0, thumb:null };
+  const cv = document.createElement('canvas'), cx = cv.getContext('2d');
+  let dec = null, t0 = null, lastKept = -1, pending = 0, decErr = null, sawKey = false;
+  const onFrame = f => {
+    if (t0 === null) t0 = f.timestamp;
+    const t = (f.timestamp - t0) / 1e6;
+    if (t < 0 || t > TS_MAX || t - lastKept < 1 / TS_FPS - 1e-3) { f.close(); return; }
+    lastKept = t;
+    if (!m.iw) { const sc = Math.min(1, TS_LONG / Math.max(f.displayWidth, f.displayHeight)); m.iw = cv.width = Math.round(f.displayWidth * sc); m.ih = cv.height = Math.round(f.displayHeight * sc); }
+    cx.drawImage(f, 0, 0, m.iw, m.ih); f.close();
+    pending++; cv.toBlob(b => { pending--; if (b) m.frames.push({ t, blob:b }); }, 'image/jpeg', .82);
+  };
+  const ensureDec = async () => {
+    if (dec) return true;
+    if (st.vtype === 0x01 || st.vtype === 0x02) { decErr = 'この m2ts は MPEG-2 映像なので、ブラウザでは読めません（H.264 / HEVC なら読めます）'; return false; }
+    const cands = st.vtype === 0x24 ? ['hvc1.1.6.L153.B0', 'hev1.1.6.L153.B0', 'hvc1.1.6.L120.B0', 'hev1.2.4.L153.B0'] : [st.codec || 'avc1.640028', 'avc1.640028', 'avc1.4d4028', 'avc1.42e01f'];
+    for (const codec of cands) {
+      try { if ((await VideoDecoder.isConfigSupported({ codec })).supported) { dec = new VideoDecoder({ output:onFrame, error:e => { decErr = 'm2ts の映像をデコードできませんでした'; console.warn(e); } }); dec.configure({ codec }); return true; } } catch (e) {}
+    }
+    decErr = 'この m2ts の映像形式は、このブラウザではデコードできません'; return false;
+  };
+  const feed = async () => {
+    if (st.vpid < 0 || (st.vtype === 0x1b && !st.codec)) return;
+    if (!(await ensureDec())) return;
+    while (st.aus.length && !decErr) {
+      while (dec.decodeQueueSize > 8 || pending > 12) await sleep(4);
+      const a = st.aus.shift();
+      if (!sawKey) { if (!a.key) continue; sawKey = true; }
+      try { dec.decode(new EncodedVideoChunk({ type: a.key ? 'key' : 'delta', timestamp: a.ts, data: a.d })); } catch (e) { sawKey = false; }
+    }
+  };
+  toast(`「${file.name}」を変換しています…`);
+  let off = 0, rem = null, shown = 0;
+  try {
+    while (off < file.size && !decErr && lastKept < TS_MAX) {
+      const buf = new Uint8Array(await file.slice(off, off + (1 << 21)).arrayBuffer()); off += buf.length;
+      let b = buf; if (rem) { b = new Uint8Array(rem.length + buf.length); b.set(rem); b.set(buf, rem.length); }
+      const lead = pk - 188; let i = 0;
+      while (i + pk <= b.length) { if (b[i + lead] !== 0x47) { i++; continue; } packet(b, i + lead); i += pk; }
+      rem = i < b.length ? b.slice(i) : null;
+      await feed();
+      const pc = Math.floor(off / file.size * 10); if (pc > shown) { shown = pc; toast(`「${file.name}」を変換中 ${pc * 10}%`); }
+    }
+    flushPES(); await feed();
+    if (dec && !decErr) await dec.flush();
+    while (pending) await sleep(10);
+  } catch (e) { decErr = decErr || `m2ts の読み込み中にエラー：${e.message || e}`; }
+  try { dec && dec.state !== 'closed' && dec.close(); } catch (e) {}
+  if (st.vpid < 0 && !decErr) decErr = `「${file.name}」に映像が見つかりませんでした`;
+  if (!m.frames.length) return fail(decErr || `「${file.name}」から絵を取り出せませんでした`);
+  m.frames.sort((a, b) => a.t - b.t);
+  m.dur = m.frames[m.frames.length - 1].t + 1 / TS_FPS;
+  try { const bm = await createImageBitmap(m.frames[Math.floor(m.frames.length * .15)].blob); m.thumb = thumbOf((c, w, h) => drawCover(c, bm, bm.width, bm.height, w, h)); bm.close(); } catch (e) {}
+  if (lastKept >= TS_MAX) toast(`長いので最初の${TS_MAX / 60}分だけ読み込みました`);
+  return m;
+}
+function frameIndex(m, s){
+  const f = m.frames; let lo = 0, hi = f.length - 1;
+  while (lo < hi) { const k = (lo + hi) >> 1; if (f[k].t < s) lo = k + 1; else hi = k; }
+  return lo > 0 && Math.abs(f[lo - 1].t - s) < Math.abs(f[lo].t - s) ? lo - 1 : lo;
+}
+function requestFrame(m, i){
+  if (i < 0 || i >= m.frames.length || m.bmps.has(i) || m.req.has(i)) return;
+  m.req.add(i);
+  createImageBitmap(m.frames[i].blob).then(b => {
+    m.req.delete(i); m.bmps.set(i, b);
+    while (m.bmps.size > 48) {
+      let far = -1, fd = -1; for (const k of m.bmps.keys()) { const d = Math.abs(k - i); if (d > fd) { fd = d; far = k; } }
+      const x = m.bmps.get(far); m.bmps.delete(far); if (x !== m.lastBmp) x.close();
+    }
+  }).catch(() => m.req.delete(i));
+}
+/* nearest decoded frame to source time s, asking for it (and its neighbours) to be decoded */
+function framesBitmap(m, s){
+  if (!m.frames.length) return null;
+  const i = frameIndex(m, s);
+  for (let k = -2; k <= 4; k++) requestFrame(m, i + k);
+  for (let k = 0; k < 10; k++) { const b = m.bmps.get(i - k) || m.bmps.get(i + k); if (b) return b; }
+  return m.lastBmp || null;
+}
 async function addFiles(files){
-  const list = [...files].filter(f => /^(video|image)\//.test(f.type) || /\.(mp4|mov|m4v|webm|mkv|jpe?g|png|gif|webp|avif)$/i.test(f.name));
+  const list = [...files].filter(f => /^(video|image)\//.test(f.type) || isTsFile(f) || /\.(mp4|mov|m4v|webm|mkv|jpe?g|png|gif|webp|avif)$/i.test(f.name));
   if (!list.length) { toast('動画か画像のファイルを選んでください'); return; }
   toast(`${list.length}件を読み込み中…`);
-  const had = media.some(m => !m.sample);
+  const had = media.some(m => !m.sample); failWhy = '';
   let ok = 0, bad = 0;
   for (const f of list) {
     const isVid = f.type.startsWith('video/') || /\.(mp4|mov|m4v|webm|mkv)$/i.test(f.name);
-    const m = isVid ? await addVideoFile(f) : await addImageFile(f);
+    const m = isTsFile(f) ? await addTsFile(f) : isVid ? await addVideoFile(f) : await addImageFile(f);
     if (m) { media.push(m); ok++; } else bad++;
   }
   const fresh = media.filter(m => !m.sample).slice(-ok);
   if (ok && (!had || !seq.length || seq.every(m => m.sample))) {
     seq = fresh.slice(0, 8); while (seq.length < 3) seq.push(...fresh.slice(0, 3 - seq.length));
     plan = { form:[], pats:{}, muts:[] }; rollForm(); rebuild();
-    toast(bad ? `${ok}件追加して並べました。${bad}件はこのブラウザで開けませんでした` : `${ok}件を並びに入れました`);
+    toast(bad ? `${ok}件追加して並べました。${failWhy || `${bad}件はこのブラウザで開けませんでした`}` : `${ok}件を並びに入れました`);
   } else {
     renderMedia();
-    toast(bad ? `${ok}件追加。${bad}件はこのブラウザで開けませんでした` : `${ok}件を素材に追加しました。タップで並びに入ります`);
+    toast(bad ? (ok ? `${ok}件追加。` : '') + (failWhy || `${bad}件はこのブラウザで開けませんでした`) : `${ok}件を素材に追加しました。タップで並びに入ります`);
   }
 }
 function dropMedia(m){
   if (m.el) { m.el.pause(); m.el.remove(); }
   if (m.prep) { m.prep.pause(); m.prep.remove(); }
   if (m.url) URL.revokeObjectURL(m.url);
+  if (m.bmps) { for (const b of m.bmps.values()) b.close(); m.bmps.clear(); m.frames = []; }
   media = media.filter(x => x !== m);
 }
 
@@ -679,6 +831,9 @@ function rollFx(){
     cam: hit('camera') && cams.length ? pick(cams) : null,
     old: hit('oldphoto'),
     lofi: hit('lofi'),
+    sel: hit('selcol') && S.sels.size ? pick([...S.sels]) : null,
+    play: (F.colplay.fixed || (F.colplay.dice && Math.random() < p * .6)) && S.plays.size ? pick([...S.plays]) : null,
+    hs: rand(.15, .85),
     ghost: hit('ghost') && gs.length ? pick(gs) : 0,
     fwd: rand(.55, .7),
     gOff: [(Math.random() < .5 ? -1 : 1) * rand(.006, .016), rand(-.01, .01)],
@@ -854,7 +1009,7 @@ function spanOf(seg){
 function makeSeg(m, start, dur, fx, cut){
   const seg = { id:++sid, m, start, dur, fx, rate:fx.rate || 1, slice:fx.slice || .3, fwd:fx.fwd || .6, gOff:fx.gOff || [.01, 0], k:1, a:0, cache:null };
   const span = spanOf(seg);
-  if (m.kind === 'video') {
+  if (m.kind === 'video' || m.kind === 'frames') {
     const room = m.dur - .08;
     if (span > room) { seg.k = Math.max(.02, room / span); seg.a = 0; }
     else seg.a = cut * (room - span);
@@ -906,6 +1061,8 @@ function adjustFx(fx, id){
   }
   const o = { ...fx };
   if (id === 'camera') o.cam = allowed && S.cams.size ? (F.fixed && !o.cam ? pick([...S.cams]) : (o.cam && !S.cams.has(o.cam) ? pick([...S.cams]) : o.cam)) : null;
+  if (id === 'selcol') o.sel = allowed && S.sels.size ? (F.fixed && !o.sel ? pick([...S.sels]) : (o.sel && !S.sels.has(o.sel) ? pick([...S.sels]) : o.sel)) : null;
+  if (id === 'colplay') o.play = allowed && S.plays.size ? (F.fixed && !o.play ? pick([...S.plays]) : (o.play && !S.plays.has(o.play) ? pick([...S.plays]) : o.play)) : null;
   if (id === 'oldphoto') o.old = F.fixed ? true : allowed && o.old;
   if (id === 'lofi') o.lofi = F.fixed ? true : allowed && o.lofi;
   if (id === 'ghost') o.ghost = allowed && S.ghosts.size ? (F.fixed && !o.ghost ? pick([...S.ghosts]) : (o.ghost && !S.ghosts.has(o.ghost) ? pick([...S.ghosts]) : o.ghost)) : 0;
@@ -1071,6 +1228,10 @@ function drawSource(seg, st){
     sctx.fillStyle = '#000'; sctx.fillRect(0, 0, W, H);
     drawCover(sctx, m.img, m.iw, m.ih, W, H, z, px, py); return true;
   }
+  if (m.kind === 'frames') {
+    const b = framesBitmap(m, clamp(st.s, 0, m.dur)); if (!b) return false;
+    m.lastBmp = b; drawCover(sctx, b, b.width, b.height, W, H); return true;
+  }
   return liveVideo(seg, st);
 }
 
@@ -1084,6 +1245,11 @@ uniform vec3 uZoom;
 uniform float uFlip;
 uniform float uTime,uSat,uCon,uBri,uFade,uMono,uGrain,uVig,uFlick,uChroma,uBleed,uTrack,uPixel,uPoster,uOld,uGN,uGA;
 uniform vec3 uSh,uHi;
+uniform float uSelM,uSelAmt,uSelHue,uSelW,uSelTo2,uPlayM,uPlayAmt,uPlayHue;
+uniform vec3 uSelTo,uPlayA,uPlayB;
+vec3 rgb2hsv(vec3 c){vec4 K=vec4(0.,-1./3.,2./3.,-1.);vec4 p=mix(vec4(c.bg,K.wz),vec4(c.gb,K.xy),step(c.b,c.g));vec4 q=mix(vec4(p.xyw,c.r),vec4(c.r,p.yzx),step(p.x,c.r));float d=q.x-min(q.w,q.y);float e=1.0e-10;return vec3(abs(q.z+(q.w-q.y)/(6.*d+e)),d/(q.x+e),q.x);}
+vec3 hsv2rgb(vec3 c){vec4 K=vec4(1.,2./3.,1./3.,3.);vec3 p=abs(fract(c.xxx+K.xyz)*6.-K.www);return c.z*mix(K.xxx,clamp(p-K.xxx,0.,1.),c.y);}
+float hueMask(float h,float c,float w){float d=abs(h-c);d=min(d,1.-d);return 1.-smoothstep(w*.55,w,d);}
 float hash(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
 vec3 blur(sampler2D t,vec2 uv,float r){vec2 d=r/uRes;vec3 c=texture2D(t,uv).rgb*.25;
  c+=(texture2D(t,uv+vec2(d.x,0.)).rgb+texture2D(t,uv-vec2(d.x,0.)).rgb+texture2D(t,uv+vec2(0.,d.y)).rgb+texture2D(t,uv-vec2(0.,d.y)).rgb)*.125;
@@ -1120,6 +1286,24 @@ void main(){
  l=clamp(l,0.,1.);
  col+=uSh*(1.-l)+uHi*l;
  col=mix(vec3(uFade),vec3(1.-uFade*.35),clamp(col,0.,1.));
+ if(uSelM>.5){
+  vec3 hsv=rgb2hsv(col);float L=dot(col,vec3(.299,.587,.114));
+  if(uSelM<1.5){float m=smoothstep(.58,.85,L)*(1.-smoothstep(.18,.45,hsv.y));col=mix(col,uSelTo*(.55+.5*L),m*uSelAmt);}
+  else if(uSelM<2.5){float m=1.-smoothstep(.08,.32,L);col=mix(col,uSelTo*(.3+L*1.6),m*uSelAmt);}
+  else if(uSelM<3.5){float m=hueMask(hsv.x,uSelHue,uSelW)*smoothstep(.12,.3,hsv.y);col=mix(col,mix(vec3(L),col,m),uSelAmt);}
+  else if(uSelM<4.5){float m=hueMask(hsv.x,uSelHue,uSelW)*smoothstep(.12,.3,hsv.y);col=mix(col,hsv2rgb(vec3(uSelTo2,hsv.y,hsv.z)),m*uSelAmt);}
+  else{float m=smoothstep(.5,.9,L);col=mix(col,uSelTo*L*1.15,m*uSelAmt);}
+ }
+ if(uPlayM>.5){
+  vec3 c0=clamp(col,0.,1.);float L=dot(c0,vec3(.299,.587,.114));vec3 r;
+  if(uPlayM<1.5){vec3 hsv=rgb2hsv(c0);r=hsv2rgb(vec3(fract(hsv.x+uPlayHue),hsv.y,hsv.z));}
+  else if(uPlayM<2.5){r=1.-c0;}
+  else if(uPlayM<3.5){r=mix(c0,1.-c0,step(.5,c0))*1.8;}
+  else if(uPlayM<4.5){r=mix(uPlayA,uPlayB,smoothstep(.08,.92,L));}
+  else if(uPlayM<5.5){r=L<.33?mix(vec3(.05,.05,.4),vec3(.1,.7,.65),L/.33):L<.66?mix(vec3(.1,.7,.65),vec3(1.,.9,.1),(L-.33)/.33):mix(vec3(1.,.9,.1),vec3(1.,.15,.1),(L-.66)/.34);}
+  else{vec3 hsv=rgb2hsv(c0);hsv.y=min(1.,hsv.y*1.9);hsv.z=floor(hsv.z*4.+.5)/4.;r=hsv2rgb(hsv);}
+  col=mix(c0,clamp(r,0.,1.),uPlayAmt);
+ }
  if(uOld>0.){
   float L=dot(col,vec3(.299,.587,.114));
   vec3 sep=mix(vec3(.16,.1,.05),vec3(.98,.9,.74),L);
@@ -1195,6 +1379,11 @@ function present(seg, st, now){
   f('uTime', now % 1000); f('uSat', P.sat); f('uCon', P.con); f('uBri', P.bri); f('uFade', P.fade); f('uMono', P.mono); f('uGrain', P.grain); f('uVig', P.vig);
   f('uFlick', P.flick); f('uChroma', P.chroma); f('uBleed', P.bleed); f('uTrack', P.track); f('uPixel', P.pixel); f('uPoster', P.poster); f('uOld', P.old); f('uGN', P.gn); f('uGA', P.ga);
   gl.uniform3fv(U.uSh, P.sh); gl.uniform3fv(U.uHi, P.hi);
+  const sel = seg.fx.sel && SELBY[seg.fx.sel], play = seg.fx.play && PLAYBY[seg.fx.play];
+  f('uSelM', sel ? sel.mode : 0); f('uSelAmt', .45 + .55 * amt('selcol'));
+  if (sel) { f('uSelHue', sel.hue || 0); f('uSelW', sel.w || .1); f('uSelTo2', sel.toHue || 0); gl.uniform3fv(U.uSelTo, sel.to || [1, 1, 1]); }
+  f('uPlayM', play ? play.mode : 0); f('uPlayAmt', .35 + .65 * amt('colplay'));
+  if (play) { f('uPlayHue', seg.fx.hs || .5); gl.uniform3fv(U.uPlayA, play.a || [0, 0, 0]); gl.uniform3fv(U.uPlayB, play.b || [1, 1, 1]); }
   const zv = zoomAt(seg.fx.zoom, clamp((loopTime - seg.start) / seg.dur, 0, 1)); viewZoom = zv;
   gl.uniform3f(U.uZoom, zv[0], zv[1], zv[2]); f('uFlip', mirror ? 1 : 0);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -1245,7 +1434,7 @@ function frame(nowMs){
 const f1 = (n, v) => U[n] && gl.uniform1f(U[n], v);
 function idleCard(){
   const nf = $('#nowFx'); if (nf.dataset.empty !== '1') { nf.dataset.empty = '1'; nf.innerHTML = '<span class="chip-fx">並びが空です。「並び・素材」で素材をタップして並べてください</span>'; }
-  if (gl) { upload(0, src); gl.uniform2f(U.uRes, W, H); ['uSat','uCon'].forEach(n => gl.uniform1f(U[n], 1)); ['uGN','uOld','uTrack','uPixel','uPoster','uGrain','uVig','uFlick','uChroma','uBleed','uFade','uMono','uBri'].forEach(n => f1(n, 0)); gl.uniform3fv(U.uSh, [0,0,0]); gl.uniform3fv(U.uHi, [0,0,0]); gl.uniform2f(U.uWeave, 0, 0); gl.uniform3f(U.uZoom, .5, .5, 1); f1('uFlip', 0); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); }
+  if (gl) { upload(0, src); gl.uniform2f(U.uRes, W, H); ['uSat','uCon'].forEach(n => gl.uniform1f(U[n], 1)); ['uSelM','uPlayM','uGN','uOld','uTrack','uPixel','uPoster','uGrain','uVig','uFlick','uChroma','uBleed','uFade','uMono','uBri'].forEach(n => f1(n, 0)); gl.uniform3fv(U.uSh, [0,0,0]); gl.uniform3fv(U.uHi, [0,0,0]); gl.uniform2f(U.uWeave, 0, 0); gl.uniform3f(U.uZoom, .5, .5, 1); f1('uFlip', 0); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); }
   else { if (!octx2d) octx2d = out.getContext('2d'); octx2d.drawImage(src, 0, 0); }
 }
 function screenPoint(e){
@@ -1273,6 +1462,8 @@ function fxNames(fx){
   const a = [];
   if (fx.time) a.push([TLABEL[fx.time] + (fx.time === 'speed' || fx.time === 'slow' ? ` ×${fx.rate}` : ''), fx.time]);
   if (fx.cam) a.push([CAMBY[fx.cam].name]);
+  if (fx.sel) a.push([SELBY[fx.sel].name]);
+  if (fx.play) a.push([PLAYBY[fx.play].name]);
   if (fx.old) a.push(['古い写真']);
   if (fx.lofi) a.push(['ローファイ']);
   if (fx.ghost) a.push([fx.ghost === 2 ? '残像ダブル' : '残像トリプル']);
@@ -1312,7 +1503,7 @@ function renderTimeline(){
     const ct = document.createElement('span'); ct.className = 'ct';
     ct.textContent = s.fx.time ? TLABEL[s.fx.time].split(' ')[0] : '';
     b.appendChild(ct);
-    const n = (s.fx.cam ? 1 : 0) + (s.fx.old ? 1 : 0) + (s.fx.lofi ? 1 : 0) + (s.fx.ghost ? 1 : 0) + (s.fx.zoom ? 1 : 0);
+    const n = (s.fx.sel ? 1 : 0) + (s.fx.play ? 1 : 0) + (s.fx.cam ? 1 : 0) + (s.fx.old ? 1 : 0) + (s.fx.lofi ? 1 : 0) + (s.fx.ghost ? 1 : 0) + (s.fx.zoom ? 1 : 0);
     if (n) { const d = document.createElement('span'); d.className = 'dots'; for (let k = 0; k < n; k++) d.appendChild(document.createElement('span')); b.appendChild(d); }
     b.addEventListener('click', () => { rerollClip(i); toast('このクリップの効果だけ振り直しました'); });
     tl.appendChild(b);
@@ -1323,7 +1514,7 @@ function renderTimeline(){
   renderForm(); markCurrent(); renderClock();
 }
 function markCurrent(){ const kids = $('#timeline').children; for (let i = 0; i < kids.length; i++) kids[i].classList.toggle('cur', i === curIdx); }
-function kindOf(m){ return m.sample ? (m.kind === 'image' ? 'サンプル写真' : 'サンプル') : m.kind === 'video' ? `動画 ${fmt(m.dur).replace(/\.\d$/, '')}` : '写真'; }
+function kindOf(m){ return m.sample ? (m.kind === 'image' ? 'サンプル写真' : 'サンプル') : m.kind === 'video' || m.kind === 'frames' ? `${m.kind === 'frames' ? 'm2ts' : '動画'} ${fmt(m.dur).replace(/\.\d$/, '')}` : '写真'; }
 function renderSeq(){
   const ol = $('#seq'); ol.textContent = '';
   if (!seq.length) { const li = document.createElement('li'); li.className = 'empty'; li.style.display = 'block'; li.textContent = '下の素材をタップすると、ここに並びます'; ol.appendChild(li); }
@@ -1452,15 +1643,16 @@ function buildFxUI(){
     }
     if (f.sub) {
       const chips = document.createElement('div'); chips.className = 'chips full';
-      const items = f.sub === 'cams' ? CAMS.map(c => [c.id, c.name]) : f.sub === 'zoom' ? ZMODES : [[2, 'ダブル'], [3, 'トリプル']];
-      const set = f.sub === 'cams' ? S.cams : f.sub === 'zoom' ? S.zooms : S.ghosts;
+      const items = { cams: CAMS.map(c => [c.id, c.name]), sels: SELS.map(c => [c.id, c.name]), plays: PLAYS.map(c => [c.id, c.name]), zoom: ZMODES, ghost: [[2, 'ダブル'], [3, 'トリプル']] }[f.sub];
+      const set = { cams: S.cams, sels: S.sels, plays: S.plays, zoom: S.zooms, ghost: S.ghosts }[f.sub];
       for (const [v, name] of items) {
         const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.textContent = name; b.setAttribute('aria-pressed', set.has(v));
         b.addEventListener('click', () => {
           if (set.has(v) && set.size === 1) { toast('最低1つは選んでおいてください'); return; }
           set.has(v) ? set.delete(v) : set.add(v); b.setAttribute('aria-pressed', set.has(v));
           applyToggle(f.id);
-          if (set.has(v) && f.sub === 'cams' && curSeg) { curSeg.fx = { ...curSeg.fx, cam:v }; renderNow(); }
+          const key = { cams:'cam', sels:'sel', plays:'play' }[f.sub];
+          if (set.has(v) && key && curSeg) { curSeg.fx = { ...curSeg.fx, [key]:v }; renderNow(); }
         });
         chips.appendChild(b);
       }
