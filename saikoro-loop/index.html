@@ -283,10 +283,10 @@ input[type=range]{width:100%;accent-color:var(--brass);margin:0}
       <video id="recVideo" controls playsinline loop></video>
       <p class="note" id="recInfo"></p>
       <div class="acts">
-        <a class="btn" id="recSave" download="saikoro-loop.webm">保存する</a>
+        <button class="btn" id="recSave">保存する</button>
         <button class="btn" id="recClose">閉じる</button>
       </div>
-      <p class="note">保存ボタンが反応しないときは、このページをブラウザで直接開いて録画してください。</p>
+      <p class="note" id="recNote"></p>
     </div>
   </div>
   <div class="toast" id="toast" role="status" hidden></div>
@@ -1117,6 +1117,7 @@ function bindUI(){
   document.addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer && e.dataTransfer.files.length && !drop.contains(e.target)) addFiles(e.dataTransfer.files); });
   $('#recBtn').addEventListener('click', () => recording ? stopRec(true) : startRec());
   $('#recClose').addEventListener('click', closeRec);
+  $('#recSave').addEventListener('click', saveRec);
   $('#recModal').addEventListener('click', e => { if (e.target.id === 'recModal') closeRec(); });
   document.addEventListener('keydown', e => {
     if (e.target.matches('input')) return;
@@ -1129,7 +1130,19 @@ function bindUI(){
 }
 
 /* ================= recording ================= */
-let recUrl = null;
+let recUrl = null, recBlob = null, recName = '';
+let dl = null; try { window.claude?.use?.('downloads').then(n => { dl = n; }).catch(() => {}); } catch (e) {}
+async function saveRec(){
+  if (!recBlob) return;
+  const note = $('#recNote');
+  if (dl) {
+    try { await dl.save({ filename:recName, data:recBlob }); note.textContent = `${recName} を保存しました`; }
+    catch (e) { note.textContent = e && e.code === 'declined' ? '保存をやめました' : '保存できませんでした。このページをブラウザで直接開いて試してください'; }
+    return;
+  }
+  const a = document.createElement('a'); a.href = recUrl; a.download = recName; document.body.appendChild(a); a.click(); a.remove();
+  note.textContent = '保存が始まらないときは、このページをブラウザで直接開いて録画してください';
+}
 function startRec(){
   if (!out.captureStream || !window.MediaRecorder) { toast('このブラウザは録画に対応していません'); return; }
   const types = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
@@ -1145,7 +1158,8 @@ function startRec(){
     if (recUrl) URL.revokeObjectURL(recUrl);
     recUrl = URL.createObjectURL(blob);
     const ext = type.includes('mp4') ? 'mp4' : 'webm';
-    $('#recVideo').src = recUrl; $('#recSave').href = recUrl; $('#recSave').download = `saikoro-loop-${S.loopLen}s.${ext}`;
+    recBlob = blob; recName = `saikoro-loop-${S.loopLen}s.${ext}`; $('#recNote').textContent = '';
+    $('#recVideo').src = recUrl;
     $('#recInfo').textContent = `${fmtLen(S.loopLen)}のループ・${W}×${H}・${ext.toUpperCase()}・${(blob.size / 1048576).toFixed(1)}MB（音声なし）`;
     $('#recModal').hidden = false;
   };
