@@ -226,6 +226,8 @@ input[type=range]{width:100%;accent-color:var(--brass);margin:0}
       <div class="now"><div class="nowfx" id="nowFx" aria-live="polite"></div><span class="clock" id="clock">00:00.0 / 00:17</span><span class="clock" id="loopNo">1周目</span></div>
 
       <div class="transport">
+        <button class="btn round" id="topBtn" aria-label="最初から流す" title="最初から流す（キー 0）">⏮</button>
+        <button class="btn round" id="rewBtn" aria-label="巻き戻し" aria-pressed="false" title="押している間 巻き戻し。タップで巻き戻しっぱなし（キー R）">◀◀</button>
         <button class="btn round" id="playBtn" aria-label="一時停止">❚❚</button>
         <div class="len" id="lenChips">
           <span class="lbl">1周</span>
@@ -455,6 +457,7 @@ let timeline = [], pending = null;
 let loopTime = 0, loopNo = 1, playing = true;
 let curSeg = null, curIdx = -1, lastBack = null;
 let recording = null;
+let rewinding = false; const REW_SPEED = 4;
 let mid = 0, sid = 0;
 let viewZoom = [.5, .5, 1];
 const mirror = false;
@@ -1102,6 +1105,7 @@ function lookParams(seg, st, now){
   if (fx.lofi) { const a = amt('lofi'); P.pixel = Math.max(P.pixel, Math.round(2 + a * 10)); P.poster = P.poster ? Math.min(P.poster, Math.round(16 - a * 11)) : Math.round(16 - a * 11); P.grain += .05; P.chroma = Math.max(P.chroma, .0018); }
   if (fx.ghost) { P.gn = fx.ghost - 1; P.ga = .55 + .65 * amt('ghost'); }
   if (fx.time === 'rewind' && st.back) { const a = amt('rewind'); P.track = .35 + .65 * a; P.chroma = Math.max(P.chroma, .003 + .003 * a); }
+  if (rewinding) { P.track = Math.max(P.track, .85); P.chroma = Math.max(P.chroma, .004); P.bleed = Math.max(P.bleed, .5); }
   if (now - weaveAt > 1 / 18) { weaveAt = now; weave = [(Math.random() - .5) * P.wv, (Math.random() - .5) * P.wv * 1.6]; }
   if (!P.wv) weave = [0, 0];
   return P;
@@ -1159,10 +1163,12 @@ function frame(nowMs){
   const dt = Math.min(.1, (nowMs - lastT) / 1000); lastT = nowMs;
   const now = nowMs / 1000;
   if (!timeline.length) { sctx.fillStyle = '#050706'; sctx.fillRect(0, 0, W, H); idleCard(); return; }
-  if (playing) { loopTime += dt; if (loopTime >= S.loopLen) { loopTime %= S.loopLen; onWrap(); } }
+  if (rewinding) { loopTime -= dt * REW_SPEED; if (loopTime < 0) loopTime += S.loopLen; }
+  else if (playing) { loopTime += dt; if (loopTime >= S.loopLen) { loopTime %= S.loopLen; onWrap(); } }
   const i = segAt(loopTime);
   if (timeline[i] !== curSeg) enter(i);
   const seg = curSeg, st = segTime(seg, loopTime - seg.start);
+  if (rewinding) st.fwd = false;
   if (seg.fx.time === 'rewind' && st.back !== lastBack) { lastBack = st.back; renderNow(); }
   drawSource(seg, st);
   present(seg, st, now);
@@ -1371,8 +1377,18 @@ function buildFxUI(){
 
 function bindUI(){
   $('#playBtn').addEventListener('click', () => {
-    playing = !playing; $('#playBtn').textContent = playing ? '❚❚' : '▶'; $('#playBtn').setAttribute('aria-label', playing ? '一時停止' : '再生');
+    setRew(false); playing = !playing; $('#playBtn').textContent = playing ? '❚❚' : '▶'; $('#playBtn').setAttribute('aria-label', playing ? '一時停止' : '再生');
     if (!playing) media.forEach(m => m.el && m.el.pause());
+  });
+  const setRew = on => { rewinding = on; $('#rewBtn').setAttribute('aria-pressed', on); if (on) media.forEach(m => m.el && m.el.pause()); };
+  let rewDownAt = 0, rewWasOn = false;
+  $('#rewBtn').addEventListener('pointerdown', e => { e.preventDefault(); rewWasOn = rewinding; rewDownAt = performance.now(); setRew(true); });
+  const rewUp = () => { if (!rewDownAt) return; const tap = performance.now() - rewDownAt < 250; rewDownAt = 0; if (!tap || rewWasOn) setRew(false); };
+  $('#rewBtn').addEventListener('pointerup', rewUp); $('#rewBtn').addEventListener('pointerleave', rewUp); $('#rewBtn').addEventListener('pointercancel', rewUp);
+  $('#rewBtn').addEventListener('keydown', e => { if (e.key === 'Enter') setRew(!rewinding); });
+  $('#topBtn').addEventListener('click', () => {
+    setRew(false); loopTime = 0; curSeg = null; curIdx = -1; playing = true;
+    $('#playBtn').textContent = '❚❚'; $('#playBtn').setAttribute('aria-label', '一時停止');
   });
   for (const tab of document.querySelectorAll('[role=tab]')) tab.addEventListener('click', () => {
     for (const t of document.querySelectorAll('[role=tab]')) { const on = t === tab; t.setAttribute('aria-selected', on); $('#' + t.getAttribute('aria-controls')).hidden = !on; }
@@ -1425,6 +1441,8 @@ function bindUI(){
   document.addEventListener('keydown', e => {
     if (e.target.matches('input')) return;
     if (e.code === 'Space') { e.preventDefault(); $('#playBtn').click(); }
+    if (e.key === '0') $('#topBtn').click();
+    if ((e.key === 'r' || e.key === 'R') && !e.repeat) setRew(!rewinding);
     const k = +e.key; if (k >= 1 && k <= DICE.length) pressDice(DICE[k - 1].id);
     if (e.key === 'Escape') closeRec();
   });
