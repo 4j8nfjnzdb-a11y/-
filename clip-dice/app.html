@@ -49,9 +49,9 @@ button,input,select{font:inherit;color:inherit}
 
 .monitor{display:flex;flex-direction:column;gap:10px;min-width:0}
 .stage{position:relative;background:var(--well);border-radius:var(--r);overflow:hidden;display:flex;align-items:center;justify-content:center;border:1px solid var(--rule)}
-.stage canvas{display:block;max-width:100%;max-height:62vh;width:auto;height:auto;cursor:crosshair;touch-action:manipulation}
+.stage canvas{position:relative;z-index:1;display:block;max-width:100%;max-height:62vh;width:auto;height:auto;cursor:crosshair;touch-action:manipulation}
 @media (max-width:979px){.stage canvas{max-height:42vh}}
-.hud{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:10px;font-family:var(--f-mono);font-size:11px}
+.hud{position:absolute;inset:0;z-index:2;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:10px;font-family:var(--f-mono);font-size:11px}
 .hud .row{display:flex;gap:6px;flex-wrap:wrap;align-items:flex-start}
 .hud .tag{background:rgba(12,10,18,.72);padding:3px 7px;border-radius:4px;color:var(--text)}
 .hud .tag.loop{background:var(--pip);color:#fff}
@@ -129,7 +129,8 @@ select{background:var(--deck2);border:1px solid var(--rule);border-radius:var(--
 .toast.on{opacity:1}
 .keys{font-family:var(--f-mono);font-size:11px;color:var(--faint)}
 kbd{font-family:var(--f-mono);border:1px solid var(--rule);border-radius:3px;padding:0 4px;color:var(--mute)}
-#hold{position:fixed;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none;left:0;top:0}
+#hold{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:64px;height:36px;overflow:hidden;pointer-events:none;z-index:0}
+#hold video{width:64px;height:36px;display:block;position:absolute;left:0;top:0}
 @media (max-width:979px){.keys,.transport .sep{display:none}.transport .btn{min-height:36px;padding:0 10px}.transport .btn.ic{min-width:36px;padding:0}}
 @media (prefers-reduced-motion:reduce){.btn.rec[aria-pressed="true"]{animation:none}}
 </style>
@@ -149,6 +150,7 @@ kbd{font-family:var(--f-mono);border:1px solid var(--rule);border-radius:3px;pad
   <div class="grid">
     <section class="monitor" aria-label="プレビュー">
       <div class="stage" id="stage">
+        <div id="hold"></div>
         <canvas id="cv" width="1280" height="720"></canvas>
         <div class="hud">
           <div class="row"><span class="tag" id="hName">—</span><span class="tag loop" id="hLoop" hidden>LOOP</span><span class="tag" id="hRec" hidden>● REC</span><span class="tag" id="hFps"></span><span class="fxs" id="hFx"></span></div>
@@ -289,7 +291,6 @@ kbd{font-family:var(--f-mono);border:1px solid var(--rule);border-radius:3px;pad
     </section>
   </div>
 </div>
-<div id="hold"></div>
 <div class="toast" id="toast" role="status"></div>
 
 <script>
@@ -326,7 +327,7 @@ const S={items:[],cur:-1,playing:true,stopped:false,loop:false,randSeg:false,aut
   aspect:'16:9',fit:'cover',pool:new Set(FX.map(f=>f.id)),clipT:0,clipLen:3,fxAge:0,autoT:0,
   bpm:120,beatF:0,sync:true,linkSpeed:false,diceBeats:4,beatsSinceRoll:0,
   zoomOn:true,zTarget:'random',zSpeed:1,zMax:2.5,zEase:'smooth',move:1,moveAmt:1,point:[.5,.5]};
-const QUAL={light:{long:720,dec:1,fps:20,blur:.6},std:{long:960,dec:2,fps:30,blur:.85},hq:{long:1280,dec:4,fps:60,blur:1}};
+const QUAL={light:{long:640,dec:1,fps:20,render:30,demo:384,blur:.5},std:{long:854,dec:2,fps:30,render:30,demo:512,blur:.8},hq:{long:1280,dec:4,fps:60,render:60,demo:640,blur:1}};
 let NOW=0;
 const effSpeed=()=>S.speed*(S.linkSpeed?S.bpm/120:1);
 
@@ -614,8 +615,8 @@ class TSPlayer{
     const w=pick.displayWidth,h=pick.displayHeight;const sc=Math.min(1,MAXS/Math.max(w,h));const Wd=Math.round(w*sc),Hd=Math.round(h*sc);
     if(this.cv.width!==Wd||this.cv.height!==Hd){this.cv.width=Wd;this.cv.height=Hd;this.ring=[];this.ringPool=[];}
     this.ctx.drawImage(pick,0,0,Wd,Hd);pick.close();this.frameNo++;
-    let rc=this.ring.length>=36?this.ring.shift():(this.ringPool.pop()||document.createElement('canvas'));
-    if(rc.width!==Wd>>1){rc.width=Wd>>1;rc.height=Hd>>1;}rc.getContext('2d').drawImage(this.cv,0,0,rc.width,rc.height);this.ring.push(rc);
+    if(this.frameNo%2===0){let rc=this.ring.length>=24?this.ring.shift():(this.ringPool.pop()||document.createElement('canvas'));
+    if(rc.width!==Wd>>2){rc.width=Wd>>2;rc.height=Hd>>2;}rc.getContext('2d').drawImage(this.cv,0,0,rc.width,rc.height);this.ring.push(rc);}
     if(!this.started){this.started=true;this.onReady();}
     return true;
   }
@@ -639,9 +640,8 @@ class Playhead{
       let v;if(this.own){v=this.v||mkVideo();LIVEV.add(this);if(v.dataset.src!==item.url){v.src=item.url;v.dataset.src=item.url;}}else v=item.mainV;
       if(prevV&&prevV!==v&&!this.own)prevV.pause();
       this.v=v;seekV(v,a);v.play().catch(()=>{});
-      if(v.requestVideoFrameCallback&&!v._rvfc){v._rvfc=true;v._fn=0;v._cb=0;const cb=()=>{v._fn++;v._cb=performance.now();v.requestVideoFrameCallback(cb);};v.requestVideoFrameCallback(cb);}
     }else{if(prevV&&!this.own)prevV.pause();if(!this.own)this.v=null;}
-    if(item.kind==='demo'){if(!this.cv){this.cv=document.createElement('canvas');this.cv.width=640;this.cv.height=360;this.cx=this.cv.getContext('2d');}this.w=640;this.h=360;DEMOS[item.demo].draw(this.cx,a,640,360);this.upload(this.cv);}
+    if(item.kind==='demo'){const dw=QUAL[S.q].demo,dh=Math.round(dw*9/16);if(!this.cv){this.cv=document.createElement('canvas');this.cx=this.cv.getContext('2d');}if(this.cv.width!==dw){this.cv.width=dw;this.cv.height=dh;}this.w=dw;this.h=dh;this.cx.setTransform(dw/640,0,0,dh/360,0,0);DEMOS[item.demo].draw(this.cx,a,640,360);this.upload(this.cv);}
     else if(item.kind==='image'){this.w=item.el.naturalWidth;this.h=item.el.naturalHeight;this.upload(item.el);}
     else if(item.kind==='m2ts'){if(!this.own)item.ts.seekFrac(a/(item.dur||1));}
   }
@@ -659,8 +659,7 @@ class Playhead{
       else if(rev){if(!v.paused)v.pause();this.revAcc+=dt*rate;if(!v.seeking&&this.revAcc>=1/24){let t=v.currentTime-this.revAcc;this.revAcc=0;if(t<a)t=Math.max(a,b-.05);try{v.currentTime=t;}catch(e){}}}
       else{this.revAcc=0;const r=clamp(rate,.0625,16);if(Math.abs(v.playbackRate-r)>.01){try{v.playbackRate=r;}catch(e){}}if(v.paused)v.play().catch(()=>{});
         if(!v.seeking&&v.readyState>=1&&(v.currentTime>=b-.03||v.ended||v.currentTime<a-.3)){try{v.currentTime=a;}catch(e){}}}
-      const live=v._rvfc&&!rev&&NOW-v._cb<400;const fresh=live?v._fn!==this.lastFn:NOW-this.lastUp>=33;
-      if(v.readyState>=2&&v.videoWidth&&!v.seeking&&!skip&&(!frz||!this.has)&&fresh&&this.due()){this.lastFn=v._fn;this.w=v.videoWidth;this.h=v.videoHeight;this.upload(v);}
+      if(v.readyState>=2&&v.videoWidth&&!v.seeking&&!skip&&(!frz||!this.has)&&this.due()){this.w=v.videoWidth;this.h=v.videoHeight;this.upload(v);}
     }else if(it.kind==='demo'){
       if(!frz){const L=this.b-this.a;this.pos+=(rev?-1:1)*dt*rate;if(this.pos>this.b)this.pos=this.a+((this.pos-this.a)%L);if(this.pos<this.a)this.pos=this.b-((this.a-this.pos)%L);}
       if(!skip&&!frz&&this.due()){DEMOS[it.demo].draw(this.cx,this.pos,640,360);this.upload(this.cv);}
@@ -670,7 +669,7 @@ class Playhead{
         if(!frz&&!rev){this.pos+=dt*rate;if(this.pos>this.b){this.pos=this.a;ts.seekFrac(this.a/(it.dur||1));}}}
       if(rev&&!frz&&ts.ring.length){
         if(this.rp<0||this.rp>=ts.ring.length)this.rp=ts.ring.length-1;
-        this.revAcc+=dt*rate*24;while(this.revAcc>=1){this.revAcc--;this.rp--;if(this.rp<0)this.rp=ts.ring.length-1;}
+        this.revAcc+=dt*rate*12;while(this.revAcc>=1){this.revAcc--;this.rp--;if(this.rp<0)this.rp=ts.ring.length-1;}
         if(!skip){const r=ts.ring[this.rp];this.w=r.width;this.h=r.height;this.upload(r);}
       }else{this.rp=-1;if(!frz&&!skip&&ts.frameNo!==this.lastFrame&&ts.started){this.lastFrame=ts.frameNo;this.w=ts.cv.width;this.h=ts.cv.height;this.upload(ts.cv);}}
     }
@@ -958,6 +957,7 @@ function flashLamp(down){const l=$('#lamp');l.classList.add('on');l.classList.to
    ========================================================= */
 let last=performance.now(),T=0,hudT=0,fpsA=60;
 function frame(now){
+  if(now-last<1000/QUAL[S.q].render-4){requestAnimationFrame(frame);return;}
   NOW=now;fpsA=fpsA*.95+.05*(1000/Math.max(1,now-last));
   const rdt=Math.min(.1,(now-last)/1000);last=now;const dt=S.playing?rdt:0;T+=dt;
   const pb=S.beatF;S.beatF+=dt*S.bpm/60;const beatHit=Math.floor(S.beatF)!==Math.floor(pb);
