@@ -428,10 +428,15 @@
     }
   }
 
-  // ---- WAV REC: master + 4 track stems -> 5 WAVs in one .zip
+  // ---- WAV REC: master + 4 track stems -> 5 WAVs (players + zip)
+  // A published Artifact can't save .wav/.zip (not in its downloads
+  // allowlist), so there the takes are playable in-page only, and saving
+  // points at the same app served as a normal web page.
+  const WEB_VERSION_URL = "https://4j8nfjnzdb-a11y.github.io/-/";
+
   function startWavRecording() {
     ensureAudio();
-    if (wavRecording || isHostedFrame()) return;
+    if (wavRecording) return;
     wavRecording = true;
     wavRecStartTime = performance.now();
 
@@ -456,11 +461,10 @@
     if (wavRecBtn) { wavRecBtn.classList.remove("active"); wavRecBtn.textContent = "● WAV REC"; }
 
     const baseName = recBaseName();
-    const files = [];
+    const takes = [];
 
     if (recBuffersL.length) {
-      const blob = encodeWavBlob(recBuffersL, recBuffersR, ctx.sampleRate);
-      files.push({ name: `${baseName}_master.wav`, data: new Uint8Array(await blob.arrayBuffer()) });
+      takes.push({ label: "master", name: `${baseName}_master.wav`, blob: encodeWavBlob(recBuffersL, recBuffersR, ctx.sampleRate) });
     }
     recBuffersL = [];
     recBuffersR = [];
@@ -469,20 +473,92 @@
     // bus captured anything, so they always match what was armed at start
     for (let i = 0; i < tracks.length; i++) {
       const blob = tracks[i].stopStemRecording();
-      if (blob) {
-        files.push({ name: `${baseName}_track${i + 1}.wav`, data: new Uint8Array(await blob.arrayBuffer()) });
-      }
+      if (blob) takes.push({ label: `track${i + 1}`, name: `${baseName}_track${i + 1}.wav`, blob });
     }
 
-    if (!files.length) { if (wavRecStatus) wavRecStatus.textContent = ""; return; }
+    if (!takes.length) { if (wavRecStatus) wavRecStatus.textContent = ""; return; }
 
+    const files = [];
+    for (const t of takes) files.push({ name: t.name, data: new Uint8Array(await t.blob.arrayBuffer()) });
+    const zipName = `${baseName}_wav.zip`;
+    const zipBlob = buildZipBlob(files);
+
+    showTakes(baseName, takes, zipName, zipBlob);
+
+    if (isHostedFrame()) {
+      if (wavRecStatus) wavRecStatus.textContent = "録音完了 — 下のプレイヤーで試聴できます";
+      return;
+    }
     // one .zip: most browsers silently block the 2nd+ of several
     // downloads fired without an extra click
-    const zipBlob = buildZipBlob(files);
-    const saved = await saveBlobAsFile(`${baseName}_wav.zip`, zipBlob);
-    if (wavRecStatus) {
-      wavRecStatus.textContent = saved ? `saved: ${baseName}_wav.zip (WAV ${files.length}本)` : "保存されませんでした";
+    await saveBlobAsFile(zipName, zipBlob);
+    if (wavRecStatus) wavRecStatus.textContent = `saved: ${zipName} (WAV ${takes.length}本)`;
+  }
+
+  let takeUrls = [];
+  function showTakes(baseName, takes, zipName, zipBlob) {
+    const panel = document.getElementById("takesPanel");
+    if (!panel) return;
+    takeUrls.forEach((u) => URL.revokeObjectURL(u));
+    takeUrls = [];
+    panel.textContent = "";
+    const hosted = isHostedFrame();
+
+    const head = document.createElement("div");
+    head.className = "takesPanel__head";
+    const title = document.createElement("span");
+    title.textContent = `WAV REC — ${baseName}`;
+    head.appendChild(title);
+    if (!hosted) {
+      const zipUrl = URL.createObjectURL(zipBlob);
+      takeUrls.push(zipUrl);
+      const zipLink = document.createElement("a");
+      zipLink.className = "ghostBtn";
+      zipLink.href = zipUrl;
+      zipLink.download = zipName;
+      zipLink.textContent = `⬇ ZIP（WAV ${takes.length}本まとめて）`;
+      head.appendChild(zipLink);
     }
+    panel.appendChild(head);
+
+    if (hosted) {
+      const note = document.createElement("p");
+      note.className = "takesPanel__note";
+      note.append("この Artifact 画面は WAV / ZIP を保存できない仕組みなので、ここでは試聴のみです。WAV で保存するにはブラウザ版を開いてください → ");
+      const link = document.createElement("a");
+      link.href = WEB_VERSION_URL;
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.textContent = WEB_VERSION_URL;
+      note.appendChild(link);
+      panel.appendChild(note);
+    }
+
+    takes.forEach((t) => {
+      const url = URL.createObjectURL(t.blob);
+      takeUrls.push(url);
+      const row = document.createElement("div");
+      row.className = "takesPanel__row";
+      const label = document.createElement("span");
+      label.className = "takesPanel__label";
+      label.textContent = t.label;
+      const audio = document.createElement("audio");
+      audio.controls = true;
+      audio.preload = "metadata";
+      audio.src = url;
+      row.append(label, audio);
+      if (!hosted) {
+        const dl = document.createElement("a");
+        dl.className = "ghostBtn";
+        dl.href = url;
+        dl.download = t.name;
+        dl.textContent = "⬇ WAV";
+        row.appendChild(dl);
+      }
+      panel.appendChild(row);
+    });
+
+    panel.hidden = false;
   }
 
   function startScheduler() {
@@ -1761,10 +1837,6 @@
 
     wavRecBtn = document.getElementById("wavRecBtn");
     wavRecStatus = document.getElementById("wavRecStatus");
-    if (isHostedFrame()) {
-      wavRecBtn.disabled = true;
-      wavRecStatus.textContent = "WAV はこの Artifact 画面では保存できません（ローカル版で使えます）";
-    }
     wavRecBtn.addEventListener("click", () => {
       if (wavRecording) stopWavRecording(); else startWavRecording();
     });

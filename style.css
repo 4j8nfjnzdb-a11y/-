@@ -177,6 +177,49 @@ button { font-family: inherit; cursor: pointer; }
 .recBtn.active { background: rgba(220, 60, 60, 0.4); border-color: rgba(255,120,120,0.8); }
 .recBtn:disabled { opacity: 0.35; cursor: not-allowed; }
 
+a.ghostBtn { display: inline-block; text-decoration: none; }
+
+.takesPanel {
+  width: 100%;
+  max-width: 1400px;
+  background: var(--panel);
+  border: 1px solid var(--panel-edge);
+  border-radius: 14px;
+  padding: 0.9rem 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.takesPanel__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.8rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  color: var(--ink-dim);
+}
+.takesPanel__note {
+  margin: 0;
+  font-size: 0.7rem;
+  line-height: 1.6;
+  color: var(--ink-dim);
+}
+.takesPanel__note a { color: var(--ink); word-break: break-all; }
+.takesPanel__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+.takesPanel__label {
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  color: var(--ink-faint);
+  min-width: 4.5em;
+}
+.takesPanel__row audio { width: min(100%, 340px); height: 34px; }
+
 .autoDiceBtn { margin-left: auto; }
 .autoDiceBtn.active {
   background: linear-gradient(135deg, rgba(220,80,120,0.3), rgba(90,140,220,0.3));
