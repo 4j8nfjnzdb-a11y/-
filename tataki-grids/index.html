@@ -154,6 +154,16 @@ tr.act td{background:#2a2737}
 .guide .tag.ok{border-color:#4a7a5c;color:#8fd1a6}
 .guide a{color:var(--bone)}
 .hint{font-size:12px;color:var(--faint);margin-top:6px}
+.btn.rec{color:var(--hot);border-color:var(--hot)}
+.btn.rec.on{background:var(--hot);color:#1a0d09;animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:.6}}
+.rectime{font-family:var(--f-mono);font-size:13px;color:var(--hot);font-variant-numeric:tabular-nums;min-width:44px}
+.take{display:flex;flex-direction:column;gap:8px}
+.take .row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.take .tname{font-family:var(--f-mono);font-size:12px;margin-right:auto;overflow-wrap:anywhere;min-width:0}
+.take canvas{width:100%;height:60px;display:block;background:var(--well);border-radius:6px}
+.recmsg{font-size:13px;color:var(--bone);margin:0 0 10px;min-height:1.2em}
+.recmsg.err{color:var(--hot)}
 .vh{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none}
 .smptools{display:flex;flex-wrap:wrap;gap:6px;align-items:center;position:relative}
 .loadbtn{border-color:var(--cc);color:var(--cc)}
@@ -173,6 +183,8 @@ tr.act td{background:#2a2737}
       <label class="num">SWING <input id="swing" type="range" min="0" max="0.6" step="0.01"></label>
       <button class="btn sm" id="sync" title="アクセントのループが終わった瞬間に全チャンネルを0へ揃えます">SYNC</button>
       <button class="btn sm" id="reset" title="全チャンネルの再生位置を先頭へ">RESET</button>
+      <button class="btn sm rec" id="rec" title="マスター出力をそのまま録音します。止めると WAV / MP3 で保存できます">● REC</button>
+      <span class="rectime" id="rectime" hidden>0:00</span>
     </div>
     <div class="transport">
       <div class="slots" id="slots"></div>
@@ -359,7 +371,7 @@ function applyMorph(){
 }
 
 /* ───────── audio ───────── */
-let ctx=null,master,comp,dly,dlyFb,dlyFilt,dlySend,rev,revSend,noiseBuf;
+let ctx=null,recSink,master,comp,dly,dlyFb,dlyFilt,dlySend,rev,revSend,noiseBuf;
 const samples=Array(8).fill(null),sampleNames=Array(8).fill('');
 const DEFAULT_ENG=['kick','snare','hat','conga','clap','bell','rim','bass'];
 // explicit extensions: on iPhone/iPad a bare "audio/*" only offers the Music library, not the Files app
@@ -406,6 +418,97 @@ let idbP=null;
 function idb(){if(!idbP)idbP=new Promise((res,rej)=>{try{const r=indexedDB.open('tataki-grids',1);r.onupgradeneeded=()=>r.result.createObjectStore('samples');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}catch(e){rej(e)}});return idbP}
 function idbPut(k,v){idb().then(db=>db.transaction('samples','readwrite').objectStore('samples').put(v,k)).catch(()=>{})}
 function idbDel(k){idb().then(db=>db.transaction('samples','readwrite').objectStore('samples').delete(k)).catch(()=>{})}
+/* ───────── recording (master out → WAV / MP3) ───────── */
+const REC={on:false,tail:false,proc:null,L:[],R:[],frames:0,t0:0,takes:[],seq:0,playing:null,msg:''};
+function recStart(){
+  initAudio();ctx.resume();
+  REC.L=[];REC.R=[];REC.frames=0;
+  const p=ctx.createScriptProcessor(4096,2,2);p.channelCount=2;p.channelCountMode='explicit';
+  p.onaudioprocess=e=>{if(!REC.on)return;const b=e.inputBuffer,l=b.getChannelData(0);
+    REC.L.push(new Float32Array(l));REC.R.push(new Float32Array(b.numberOfChannels>1?b.getChannelData(1):l));REC.frames+=b.length};
+  comp.connect(p);p.connect(recSink);REC.proc=p;REC.on=true;REC.tail=false;REC.t0=performance.now();
+  if(!RT.playing)start();
+  recUI();
+}
+// tail=true keeps capturing ~1.8 s so reverb and delay ring out
+function recStop(tail){
+  if(!REC.on||REC.tail)return;
+  if(tail){REC.tail=true;recUI();setTimeout(recFinish,1800)}else recFinish();
+}
+function recFinish(){
+  REC.on=false;REC.tail=false;
+  try{comp.disconnect(REC.proc)}catch(e){}try{REC.proc.disconnect()}catch(e){}REC.proc=null;
+  if(REC.frames>ctx.sampleRate*.2){
+    const join=a=>{const o=new Float32Array(REC.frames);let k=0;for(const c of a){o.set(c,k);k+=c.length}return o};
+    const n=++REC.seq;REC.takes.unshift({n,name:`tataki-grids_take${n}_${S.bpm}bpm`,sr:ctx.sampleRate,L:join(REC.L),R:join(REC.R),frames:REC.frames,at:new Date()});
+    REC.msg=`テイク ${n} を録音しました。下の「WAV で保存」から書き出せます。`;
+  }else REC.msg='録音が短すぎたので破棄しました。';
+  REC.L=[];REC.R=[];recUI();S.tab='rec';renderTabs();renderPanel();
+}
+function recUI(){const b=$('#rec');b.classList.toggle('on',REC.on);b.textContent=REC.on?(REC.tail?'● 余韻…':'■ 録音停止'):'● REC';$('#rectime').hidden=!REC.on}
+function wavBytes(t,bits){
+  const ch=2,bps=bits/8,len=t.frames*ch*bps,buf=new ArrayBuffer(44+len),dv=new DataView(buf);
+  const w=(o,s)=>{for(let i=0;i<s.length;i++)dv.setUint8(o+i,s.charCodeAt(i))};
+  w(0,'RIFF');dv.setUint32(4,36+len,true);w(8,'WAVE');w(12,'fmt ');dv.setUint32(16,16,true);dv.setUint16(20,1,true);dv.setUint16(22,ch,true);
+  dv.setUint32(24,t.sr,true);dv.setUint32(28,t.sr*ch*bps,true);dv.setUint16(32,ch*bps,true);dv.setUint16(34,bits,true);w(36,'data');dv.setUint32(40,len,true);
+  let o=44;const L=t.L,R=t.R;
+  for(let i=0;i<t.frames;i++){for(const s of [L[i],R[i]]){const v=clamp(s,-1,1);
+    if(bits===16){dv.setInt16(o,v<0?v*32768:v*32767,true);o+=2}
+    else{const x=Math.round(v<0?v*8388608:v*8388607);dv.setUint8(o,x&255);dv.setUint8(o+1,(x>>8)&255);dv.setUint8(o+2,(x>>16)&255);o+=3}}}
+  return new Uint8Array(buf);
+}
+let lameP=null;
+function loadLame(){
+  if(window.lamejs)return Promise.resolve();
+  if(!lameP)lameP=['https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js','https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js'].reduce((p,src)=>p.catch(()=>new Promise((res,rej)=>{
+    const s=document.createElement('script');s.src=src;s.onload=()=>window.lamejs?res():rej(new Error('lamejs'));s.onerror=()=>{s.remove();rej(new Error('MP3 エンコーダを読み込めませんでした'))};document.head.append(s)})),Promise.reject());
+  return lameP.catch(e=>{lameP=null;throw e});
+}
+async function mp3Bytes(t,kbps,onProg){
+  await loadLame();
+  const enc=new lamejs.Mp3Encoder(2,t.sr,kbps),B=1152*16,parts=[];
+  const toI16=(src,a,b)=>{const o=new Int16Array(b-a);for(let i=a;i<b;i++){const v=clamp(src[i],-1,1);o[i-a]=v<0?v*32768:v*32767}return o};
+  for(let a=0,k=0;a<t.frames;a+=B,k++){const b=Math.min(t.frames,a+B);const d=enc.encodeBuffer(toI16(t.L,a,b),toI16(t.R,a,b));if(d.length)parts.push(new Uint8Array(d));
+    if(k%24===0){onProg&&onProg(a/t.frames);await new Promise(r=>setTimeout(r,0))}}
+  const e=enc.flush();if(e.length)parts.push(new Uint8Array(e));
+  const out=new Uint8Array(parts.reduce((s,p)=>s+p.length,0));let o=0;for(const p of parts){out.set(p,o);o+=p.length}return out;
+}
+// the viewer's save list has no .wav/.mp3, so inside claude.ai the file travels in an uncompressed ZIP
+const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+function crc32(u){let c=0xFFFFFFFF;for(let i=0;i<u.length;i++)c=CRC[(c^u[i])&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0}
+function zipStore(name,data){
+  const nm=new TextEncoder().encode(name),crc=crc32(data),d=new Date();
+  const dt=((d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1))&0xFFFF,dd=(((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate())&0xFFFF;
+  const loc=new DataView(new ArrayBuffer(30)),cen=new DataView(new ArrayBuffer(46)),end=new DataView(new ArrayBuffer(22));
+  loc.setUint32(0,0x04034b50,true);loc.setUint16(4,20,true);loc.setUint16(6,0x0800,true);loc.setUint16(10,dt,true);loc.setUint16(12,dd,true);loc.setUint32(14,crc,true);loc.setUint32(18,data.length,true);loc.setUint32(22,data.length,true);loc.setUint16(26,nm.length,true);
+  cen.setUint32(0,0x02014b50,true);cen.setUint16(4,20,true);cen.setUint16(6,20,true);cen.setUint16(8,0x0800,true);cen.setUint16(12,dt,true);cen.setUint16(14,dd,true);cen.setUint32(16,crc,true);cen.setUint32(20,data.length,true);cen.setUint32(24,data.length,true);cen.setUint16(28,nm.length,true);
+  const cenOff=30+nm.length+data.length;
+  end.setUint32(0,0x06054b50,true);end.setUint16(8,1,true);end.setUint16(10,1,true);end.setUint32(12,46+nm.length,true);end.setUint32(16,cenOff,true);
+  return new Blob([loc.buffer,nm,data,cen.buffer,nm,end.buffer]);
+}
+async function offerFile(filename,bytes,mime){
+  const inViewer=!!(window.claude&&typeof window.claude.use==='function');
+  if(!inViewer){ // standalone page: a normal browser download of the .wav / .mp3 itself
+    const url=URL.createObjectURL(new Blob([bytes],{type:mime}));const a=h('a',{href:url,download:filename});document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+    return `${filename} を書き出しました。`;
+  }
+  const dl=await window.claude.use('downloads');
+  if(!dl)throw new Error('この表示ではファイルを保存できません');
+  const zipName=filename.replace(/\.(\w+)$/,'_$1')+'.zip';
+  try{await dl.save({filename:zipName,data:zipStore(filename,bytes)});return `${zipName} を保存しました(中に ${filename} が入っています)。`}
+  catch(e){const c=e&&e.code;
+    if(c==='declined')return '保存をキャンセルしました。';
+    if(c==='rate_limited')throw new Error('保存の確認がまだ開いています。少し待ってからもう一度押してください');
+    if(c==='too_large')throw new Error('ファイルが大きすぎます。MP3 か短いテイクで試してください');
+    throw new Error('この表示ではファイルを保存できません');}
+}
+function playTake(t){
+  initAudio();ctx.resume();
+  if(REC.playing){try{REC.playing.src.stop()}catch(e){}const same=REC.playing.t===t;REC.playing=null;if(same)return}
+  const b=ctx.createBuffer(2,t.frames,t.sr);b.copyToChannel?(b.copyToChannel(t.L,0),b.copyToChannel(t.R,1)):(b.getChannelData(0).set(t.L),b.getChannelData(1).set(t.R));
+  const s=ctx.createBufferSource();s.buffer=b;s.connect(ctx.destination);s.start();REC.playing={t,src:s,at:ctx.currentTime};
+  s.onended=()=>{if(REC.playing&&REC.playing.src===s)REC.playing=null};
+}
 function restoreSamples(){
   idb().then(db=>new Promise(res=>{const out=[];const tx=db.transaction('samples','readonly'),st=tx.objectStore('samples'),rq=st.openCursor();
     rq.onsuccess=()=>{const c=rq.result;if(c){out.push([c.key,c.value]);c.continue()}else res(out)};rq.onerror=()=>res(out)}))
@@ -424,6 +527,7 @@ function initAudio(){
   const len=ctx.sampleRate*2.6,ir=ctx.createBuffer(2,len,ctx.sampleRate);
   for(let c=0;c<2;c++){const d=ir.getChannelData(c);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,3.2)}
   rev.buffer=ir;revSend.connect(rev);const rg=ctx.createGain();rg.gain.value=.55;rev.connect(rg);rg.connect(master);
+  recSink=ctx.createGain();recSink.gain.value=0;recSink.connect(ctx.destination);
   noiseBuf=ctx.createBuffer(1,ctx.sampleRate,ctx.sampleRate);const nd=noiseBuf.getChannelData(0);for(let i=0;i<nd.length;i++)nd[i]=Math.random()*2-1;
   updateFx();
 }
@@ -610,7 +714,7 @@ function start(){
   RT.playing=true;RT.timer=setInterval(scheduler,25);scheduler();
   $('#play').classList.add('on');$('#play').textContent='■ 停止';
 }
-function stop(){RT.playing=false;clearInterval(RT.timer);$('#play').classList.remove('on');$('#play').textContent='▶ 再生';view.idx.fill(-1);vq.length=0}
+function stop(){if(REC.on)recStop(true);RT.playing=false;clearInterval(RT.timer);$('#play').classList.remove('on');$('#play').textContent='▶ 再生';view.idx.fill(-1);vq.length=0}
 
 /* ───────── knob widget ───────── */
 const polar=(a,r=15)=>{const rad=(a-90)*Math.PI/180;return [20+r*Math.cos(rad),20+r*Math.sin(rad)]};
@@ -640,7 +744,7 @@ const tog=(label,get,set,cls='')=>{const b=h('button',{class:'tog '+cls},label);
 let live=[];  // per-frame UI updaters for the open panel
 const TABS=[
   ['grids','GRIDS','打点'],['logic','LOGIC','論理'],['shares','SHARES','確率'],['notes','NOTES','音程'],
-  ['matrix','MATRIX','変調列'],['weights','WEIGHTS','包絡'],['voices','VOICES','音源'],['perform','PERFORM','演奏'],['guide','GUIDE','解説']];
+  ['matrix','MATRIX','変調列'],['weights','WEIGHTS','包絡'],['voices','VOICES','音源'],['perform','PERFORM','演奏'],['rec','REC','録音'],['guide','GUIDE','解説']];
 function renderTabs(){const n=$('#tabs');n.innerHTML='';TABS.forEach(([k,en,ja])=>n.append(h('button',{class:'tab'+(S.tab===k?' on':''),onclick:()=>{S.tab=k;save();renderTabs();renderPanel()}},h('b',{},en),ja)))}
 function renderPanel(){const p=$('#panel');p.innerHTML='';live=[];p.append(PANELS[S.tab]())}
 const intro=html=>{const e=h('p',{class:'intro'});e.innerHTML=html;return e};
@@ -804,6 +908,31 @@ const PANELS={
     strip.append(h('div',{class:'col',style:`--cc:${BONE}`},'ACC',tog('ON',()=>M.accent.on,v=>M.accent.on=v),tog('INV',()=>M.accent.inv,v=>M.accent.inv=v)));
     wrap.append(h('div',{class:'stack'},morph,h('div',{class:'grid2'},h('div',{class:'card'},h('h3',{},'XY'),pad,h('p',{class:'hint'},'ダブルクリックで中央(等倍)に戻ります。')),h('div',{class:'card'},h('h3',{},'MUTE / SOLO / INV'),strip))));
     return wrap},
+  rec(){
+    if(!S.recBits)S.recBits=16;if(!S.mp3k)S.mp3k=192;
+    const wrap=h('div',{},intro('<strong>REC</strong> はマスター出力(全チャンネル+ディレイ/リバーブ)をそのまま録音します。上の <strong>● REC</strong> で開始(止まっていれば再生も始まります)、もう一度押すか再生を止めると、余韻を約2秒残して終わります。テイクはこの画面に並び、<strong>WAV</strong> か <strong>MP3</strong> で保存できます。テイクはページを閉じると消えるので、残したいものは保存してください。'));
+    const msg=h('p',{class:'recmsg'},REC.msg);
+    const setMsg=(t,err)=>{REC.msg=t;msg.textContent=t;msg.classList.toggle('err',!!err)};
+    const opts=h('div',{class:'card cbody',style:'align-items:flex-end;margin-bottom:10px'},
+      h('label',{class:'field'},'WAV ビット深度',segm([[16,'16-bit'],[24,'24-bit']],()=>S.recBits,v=>S.recBits=v)),
+      sel('MP3 ビットレート',[[128,'128 kbps'],[192,'192 kbps'],[320,'320 kbps']],()=>S.mp3k,v=>S.mp3k=v),
+      h('p',{class:'hint',style:'margin:0;max-width:44ch'},(window.claude&&window.claude.use)?'claude.ai 上では、保存先の制限で WAV / MP3 が ZIP に入った形で保存されます(展開するとそのまま使えます)。':'WAV / MP3 ファイルがそのままダウンロードされます。'));
+    const list=h('div',{class:'stack'});
+    if(!REC.takes.length)list.append(h('div',{class:'card'},h('h3',{},'まだテイクがありません'),h('p',{class:'desc'},'● REC を押して演奏し、もう一度押すと、ここにテイクが並びます。')));
+    REC.takes.forEach(t=>{
+      const cv=h('canvas');const dur=t.frames/t.sr;
+      const busy=async(btn,label,fn)=>{const old=btn.textContent;btn.disabled=true;try{setMsg(await fn(p=>btn.textContent=`${label} ${Math.round(p*100)}%`))}catch(e){setMsg(e.message||String(e),true)}finally{btn.disabled=false;btn.textContent=old}};
+      const bW=h('button',{class:'btn sm on'},'WAV で保存'),bM=h('button',{class:'btn sm'},'MP3 で保存');
+      bW.onclick=()=>busy(bW,'書き出し中',async()=>offerFile(`${t.name}_${S.recBits}bit.wav`,wavBytes(t,S.recBits),'audio/wav'));
+      bM.onclick=()=>busy(bM,'MP3 変換中',async p=>offerFile(`${t.name}_${S.mp3k}k.mp3`,await mp3Bytes(t,S.mp3k,p),'audio/mpeg'));
+      const bP=h('button',{class:'btn sm',onclick:()=>{playTake(t);bP.textContent=REC.playing&&REC.playing.t===t?'■ 停止':'▶ 再生'}},'▶ 再生');
+      const bD=h('button',{class:'btn sm',onclick:()=>{if(REC.playing&&REC.playing.t===t)playTake(t);REC.takes=REC.takes.filter(x=>x!==t);setMsg(`テイク ${t.n} を削除しました。`);renderPanel()}},'削除');
+      list.append(h('div',{class:'card take'},h('div',{class:'row'},h('span',{class:'tname'},`TAKE ${t.n} · ${Math.floor(dur/60)}:${String(Math.floor(dur%60)).padStart(2,'0')}.${String(Math.floor(dur*10%10))} · ${t.sr/1000}kHz stereo`),bP,bW,bM,bD),cv));
+      requestAnimationFrame(()=>{const r=cv.getBoundingClientRect(),d=Math.min(2,devicePixelRatio||1);cv.width=Math.max(10,r.width*d);cv.height=60*d;const g=cv.getContext('2d'),W=cv.width,H=cv.height,step=t.frames/W;
+        g.fillStyle=COL[0];for(let x=0;x<W;x++){let mn=1,mx=-1;const a=Math.floor(x*step),b=Math.min(t.frames,Math.floor((x+1)*step)+1);for(let i=a;i<b;i++){const v=(t.L[i]+t.R[i])/2;if(v<mn)mn=v;if(v>mx)mx=v}g.fillRect(x,H/2-mx*H/2,1,Math.max(1,(mx-mn)*H/2))}});
+      live.push(()=>{const on=REC.playing&&REC.playing.t===t;const lbl=on?'■ 停止':'▶ 再生';if(bP.textContent!==lbl)bP.textContent=lbl});
+    });
+    wrap.append(msg,opts,list);return wrap},
   guide(){const g=h('div',{class:'guide'});g.innerHTML=`
 <p>このアプリは英マンチェスターの <strong>Cong Burn</strong>(John Howes)によるシーケンサー <strong>Strokes</strong> の構造を調べ、ブラウザ上で再構成したものです。Strokes は Can のドラマー Jaki Liebezeit に触発されて Max for Live デバイスとして始まり、のちに VST3/AU と iOS(AUv3)版、内蔵シンセ・サンプラーを持つワークステーションへ発展しました。公式とは無関係の非公式アプリです。</p>
 <p>各項目の <span class="tag ok">資料で確認</span> はレビュー・公式マニュアル抜粋・リリースノートで確かめた仕様、<span class="tag">独自解釈</span> は資料に詳細がなく、このアプリで具体化した部分です。</p>
@@ -847,6 +976,7 @@ swIn.oninput=()=>{S.swing=+swIn.value;save()};
 $('#play').onclick=()=>RT.playing?stop():start();
 $('#sync').onclick=()=>{RT.syncArmed=!RT.syncArmed;$('#sync').classList.toggle('arm',RT.syncArmed)};
 $('#reset').onclick=()=>{resync(RT.tick)};
+$('#rec').onclick=()=>REC.on?recStop(true):recStart();
 let storing=false;
 function renderSlots(){const w=$('#slots');w.innerHTML='';w.classList.toggle('arming',storing);
   S.slots.forEach((s,n)=>w.append(h('button',{class:'slot'+(s?' full':'')+(n===S.cur?' cur':''),'aria-label':`パターン ${'ABCDE'[n]}`,onclick:()=>{
@@ -903,6 +1033,7 @@ function draw(){
   meters.forEach((b,w)=>{const v=ctx?weightValue(w,now):0;b.style.height=Math.abs(v)*50+'%';b.style.bottom=v>=0?'50%':(50-Math.abs(v)*50)+'%'});
   const lit=new Map();M.matrix.layers.forEach((L,i)=>{if(L.on)lit.set(view.cells[i],L.tch===8?BONE:COL[L.tch])});
   mcells.forEach((c,k)=>{c.b.style.height=(M.matrix.dials[k]*100)+'%';c.i.style.borderColor=RT.playing&&lit.has(k)?lit.get(k):'transparent'});
+  if(REC.on){const s=Math.floor((performance.now()-REC.t0)/1000),tx=`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;if($('#rectime').textContent!==tx)$('#rectime').textContent=tx}
   live.forEach(f=>f());
   requestAnimationFrame(draw);
 }
