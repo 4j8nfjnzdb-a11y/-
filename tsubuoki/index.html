@@ -117,10 +117,29 @@ button,select,input{font:inherit;color:inherit}
 .dice .btn{padding:9px 13px;font-size:14px}
 .dice .btn.big{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:700;font-size:15px}
 .dice .btn .face{font-size:18px;line-height:0;vertical-align:-2px;margin-right:4px}
-.dice .btn.flash{outline:2px solid var(--accent);outline-offset:1px}
+.btn.flash,.dice .btn.flash{outline:2px solid var(--accent);outline-offset:1px}
 .diceCtl{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;margin-top:12px}
 .diceCtl input[type=range]{width:140px;accent-color:var(--accent)}
 .autoOn{background:var(--accent)!important;color:var(--accent-ink)!important;border-color:var(--accent)!important}
+.stage{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media (max-width:900px){.stage{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:560px){.stage .s3{grid-column:1/-1;order:3}.stage .step:nth-child(4){order:4;grid-column:1/-1}.stageFoot{order:5}}
+.step{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.step h2{font-family:var(--f-disp);font-weight:400;font-size:18px;letter-spacing:.08em;margin:0;display:flex;align-items:center;gap:8px}
+.sn{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--ink);color:var(--bg);font-family:var(--f-mono);font-size:13px;letter-spacing:0}
+.step .cur{margin:0;color:var(--dim);font-size:12.5px;overflow-wrap:anywhere}
+.btn.big{font-size:16px;padding:12px 10px;width:100%;font-weight:700;text-align:center;white-space:normal}
+.btn.ink{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn .face{font-size:20px;line-height:0;vertical-align:-3px;margin-right:4px}
+.fld.wide{display:flex;flex-wrap:wrap;white-space:normal}
+.fld.wide input[type=range]{flex:1;min-width:80px;accent-color:var(--accent)}
+.stageFoot{grid-column:1/-1;display:flex;flex-direction:column;gap:4px}
+.stageFoot .msg{margin:0;min-height:0}
+.stageFoot .msg:empty{display:none}
+.more{border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+.more>summary{cursor:pointer;padding:12px 14px;font-family:var(--f-disp);font-size:16px;letter-spacing:.06em;list-style-position:inside}
+.more>summary span{font-family:var(--f-body);font-size:12.5px;color:var(--dim);letter-spacing:0;margin-left:12px}
+.moreBody{display:flex;flex-direction:column;gap:14px;padding:0 10px 10px}
 .lower{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr) minmax(0,.8fr);gap:14px;align-items:start}
 @media (max-width:1020px){.lower{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}#pExp{grid-column:1/-1}}
 @media (max-width:680px){.lower{grid-template-columns:minmax(0,1fr)}}
@@ -143,22 +162,82 @@ button,select,input{font:inherit;color:inherit}
 
 <div class="wrap">
 <header class="top">
-  <div class="brand"><h1>ツブオキ</h1><span>マイクロモンタージュの作業台 — 録音を数ミリ秒の粒に刻み、一粒ずつ手で置く</span></div>
-  <div class="transport">
-    <button id="bPlay" class="btn play">▶ 再生</button>
-    <button id="bHome" class="btn" title="頭へ戻る" aria-label="頭へ戻る">⏮</button>
-    <button id="bLoop" class="btn">ループ</button>
-    <button id="bRec" class="btn rec" title="聞こえている音をそのまま録音する（R キー）">● 録音</button>
-    <output id="oRec" class="recTime" hidden></output>
-    <output id="oPos" class="pos">0.0 ms</output>
-    <label class="fld">全長<input id="iLen" type="number" min="50" max="120000" step="10"> ms</label>
-    <label class="fld">吸着<select id="iSnap">
-      <option value="0">なし</option><option value="0.0005">0.5 ms</option><option value="0.001">1 ms</option><option value="0.005">5 ms</option><option value="0.01">10 ms</option><option value="0.025">25 ms</option><option value="0.05">50 ms</option><option value="0.125">125 ms</option>
-    </select></label>
-    <button id="bTouch" class="btn" title="粒に触れたとき、その粒を鳴らす">触れて鳴らす</button>
-  </div>
+  <div class="brand"><h1>ツブオキ</h1><span>録音を細かい粒に刻んで並べ直す、マイクロモンタージュの道具</span></div>
 </header>
 
+<section class="stage" id="pStage" aria-label="基本の操作">
+  <div class="step">
+    <h2><span class="sn">1</span>音を入れる</h2>
+    <label class="btn big file">ファイルを選ぶ<input id="iFile2" type="file" accept=".wav,.wave,.mp3,.m4a,.aac,.aif,.aiff,.caf,.ogg,.oga,.opus,.flac,audio/*"></label>
+    <p class="cur" id="stageSrc"></p>
+  </div>
+  <div class="step">
+    <h2><span class="sn">2</span>鳴らす</h2>
+    <button id="bPlay" class="btn play big">▶ 再生</button>
+    <p class="cur">ループして鳴り続けます。</p>
+  </div>
+  <div class="step s3">
+    <h2><span class="sn">3</span>変える</h2>
+    <button id="bRollAll" class="btn big ink" title="台紙の粒をまとめて振り直す（選んだ粒があればその粒だけ）"><span class="face" aria-hidden="true">⚅</span> サイコロを振る</button>
+    <button id="bAuto" class="btn big" title="ループが一周するたびにサイコロを振る">自動で変わり続ける</button>
+    <label class="fld wide">変化の強さ <input id="dStr" type="range" min="5" max="100" step="5" value="40"> <output id="dStrO" class="pos" style="min-width:3em;font-size:13px">40%</output></label>
+    <label class="fld wide">自動の間隔 <select id="dEvery"><option value="1">毎周</option><option value="2">2 周ごと</option><option value="4">4 周ごと</option><option value="8">8 周ごと</option></select>
+      <button id="bDiceUndo" class="btn" style="margin-left:auto">一つ前へ</button></label>
+  </div>
+  <div class="step">
+    <h2><span class="sn">4</span>録る</h2>
+    <button id="bRec" class="btn rec big" title="聞こえている音をそのまま録音する（R キー）">● 録音</button>
+    <output id="oRec" class="recTime" hidden></output>
+    <p class="cur">止めると下にテイクが並び、WAV で保存できます。</p>
+  </div>
+  <div class="stageFoot">
+    <p class="msg" id="stageMsg" role="status"></p>
+    <p class="msg" id="diceMsg" role="status"></p>
+    <div class="takes" id="takes"></div>
+  </div>
+</section>
+
+<section class="panel" id="pTl">
+  <div class="phead">
+    <h2>台紙</h2>
+    <p class="lede" id="tlLede">いま鳴っている粒の並びです。横が時間、縦が列。粒を押すと選べて、ドラッグで動かせます。</p>
+    <div class="row">
+      <button id="bHome" class="btn" title="頭へ戻る" aria-label="頭へ戻る">⏮</button>
+      <button id="bLoop" class="btn">ループ</button>
+      <output id="oPos" class="pos">0.0 ms</output>
+      <button id="bTzout" class="btn" aria-label="台紙を縮小">－</button>
+      <button id="bTzin" class="btn" aria-label="台紙を拡大">＋</button>
+      <button id="bTzall" class="btn">全体</button>
+    </div>
+  </div>
+  <div class="demoBar" id="demoBar" hidden>
+    <p><b>いまは見本の音で鳴っています。</b>上の「1 音を入れる」で自分の音を選ぶと、この並びのまま自分の音に切り替わります。</p>
+    <button id="bDemoClr" class="btn">白紙から始める</button>
+  </div>
+  <div class="tlwrap" id="tlwrap"><canvas id="cTl" aria-label="台紙。横が時間、縦が列"></canvas></div>
+  <input id="iScroll" class="scroll" type="range" min="0" max="1000" value="0" aria-label="台紙の表示位置">
+  <div class="selBar" id="selBar"></div>
+</section>
+
+<details class="more" id="more">
+  <summary>くわしく編集する<span>素材から自分で粒を切る・一粒ずつ置く・サイコロの種類・WAV 書き出し</span></summary>
+  <div class="moreBody">
+    <section class="panel" id="pSet">
+      <div class="phead"><h2>台紙の設定</h2></div>
+      <div class="row">
+        <label class="fld">全長<input id="iLen" type="number" min="50" max="120000" step="10"> ms</label>
+        <label class="fld">吸着<select id="iSnap">
+          <option value="0">なし</option><option value="0.0005">0.5 ms</option><option value="0.001">1 ms</option><option value="0.005">5 ms</option><option value="0.01">10 ms</option><option value="0.025">25 ms</option><option value="0.05">50 ms</option><option value="0.125">125 ms</option>
+        </select></label>
+        <button id="bTouch" class="btn" title="粒に触れたとき、その粒を鳴らす">触れて鳴らす</button>
+      </div>
+      <p class="keys"><kbd>Space</kbd> 再生/停止　<kbd>R</kbd> 録音/停止　<kbd>Delete</kbd> 削除　<kbd>←</kbd><kbd>→</kbd> 1 ms ずらす（<kbd>Shift</kbd> 10 ms）　<kbd>↑</kbd><kbd>↓</kbd> 列を移る　<kbd>Alt</kbd>＋ドラッグ 複製　<kbd>D</kbd> 複製　<kbd>Shift</kbd>＋押す 追加選択　空いた所をドラッグ 範囲選択　<kbd>⌘/Ctrl</kbd>＋<kbd>Z</kbd> 取り消し　<kbd>Esc</kbd> 選択解除</p>
+    </section>
+    <section class="panel" id="pDice">
+      <div class="phead"><h2>サイコロの種類</h2><p class="lede" id="diceLede"></p></div>
+      <div class="dice" id="dice"></div>
+      <div class="diceCtl"><label class="fld">自動で振るもの<select id="dKind"></select></label></div>
+    </section>
 <section class="panel" id="pSrc">
   <div class="phead">
     <h2>素材</h2>
@@ -190,45 +269,10 @@ button,select,input{font:inherit;color:inherit}
   </div>
   <p class="msg" id="srcMsg"></p>
 </section>
-
 <section class="panel" id="pBin">
   <div class="phead"><h2>小箱</h2><p class="lede">粒を押して持ち、台紙の空いた所を押すと置けます（数字キー 1–9 でも持てます）。もう一度押すと手放します。</p></div>
   <div class="bin" id="bin"></div>
 </section>
-
-<section class="panel" id="pTl">
-  <div class="phead">
-    <h2>台紙</h2>
-    <p class="lede" id="tlLede">粒を押して選び、ドラッグで動かす。端をつまむと長さを詰められます。左端の列番号を押すと列を消音。</p>
-    <div class="row">
-      <button id="bTzout" class="btn" aria-label="台紙を縮小">－</button>
-      <button id="bTzin" class="btn" aria-label="台紙を拡大">＋</button>
-      <button id="bTzall" class="btn">全体</button>
-    </div>
-  </div>
-  <div class="demoBar" id="demoBar" hidden>
-    <p><b>いま台紙に入っているのは見本の並びです。</b>再生して流れるのは、合成した見本素材から切った粒をこの台紙に並べたものです。自分の音を「音声ファイルを開く」で入れると、並びはそのままで、粒がすべて自分の音から切り直されます。</p>
-    <button id="bDemoClr" class="btn">白紙から始める</button>
-  </div>
-  <div class="tlwrap" id="tlwrap"><canvas id="cTl" aria-label="台紙。横が時間、縦が列"></canvas></div>
-  <input id="iScroll" class="scroll" type="range" min="0" max="1000" value="0" aria-label="台紙の表示位置">
-  <div class="selBar" id="selBar"></div>
-  <p class="keys"><kbd>Space</kbd> 再生/停止　<kbd>R</kbd> 録音/停止　<kbd>Delete</kbd> 削除　<kbd>←</kbd><kbd>→</kbd> 1 ms ずらす（<kbd>Shift</kbd> 10 ms）　<kbd>↑</kbd><kbd>↓</kbd> 列を移る　<kbd>Alt</kbd>＋ドラッグ 複製　<kbd>D</kbd> 複製　<kbd>Shift</kbd>＋押す 追加選択　空いた所をドラッグ 範囲選択　<kbd>⌘/Ctrl</kbd>＋<kbd>Z</kbd> 取り消し　<kbd>Esc</kbd> 選択解除</p>
-</section>
-
-<section class="panel" id="pDice">
-  <div class="phead"><h2>サイコロ</h2><p class="lede" id="diceLede">台紙の粒をまとめて振り直します。粒を選んでいればその粒だけ、選んでいなければ台紙全体が変わります。気に入らなければ「取り消し」で一つ前へ。</p></div>
-  <div class="dice" id="dice"></div>
-  <div class="diceCtl">
-    <label class="fld">変化の強さ <input id="dStr" type="range" min="5" max="100" step="5" value="40"> <output id="dStrO" class="pos" style="min-width:3em;font-size:13px">40%</output></label>
-    <button id="bAuto" class="btn" title="ループが一周するたびにサイコロを振る">ループごとに自動で振る</button>
-    <label class="fld">間隔<select id="dEvery"><option value="1">毎周</option><option value="2">2 周ごと</option><option value="4">4 周ごと</option><option value="8">8 周ごと</option></select></label>
-    <label class="fld">振るもの<select id="dKind"></select></label>
-    <button id="bDiceUndo" class="btn">取り消し</button>
-  </div>
-  <p class="msg" id="diceMsg"></p>
-</section>
-
 <div class="lower">
   <section class="panel" id="pInsp"><h2>粒の性質</h2><div id="insp"></div></section>
   <section class="panel" id="pTools"><h2>並べる道具</h2>
@@ -278,12 +322,10 @@ button,select,input{font:inherit;color:inherit}
     </div>
     <div class="row" style="margin-top:10px"><button id="bExp" class="btn accent">WAV を書き出す</button></div>
     <p class="msg" id="expMsg"></p>
-    <hr class="sep" style="margin:12px 0">
-    <h3 style="font-size:12.5px;margin:0 0 4px">録音したテイク</h3>
-    <p class="note" style="margin:0">上の「● 録音」で、再生・試聴・触れて鳴らした音を含め、聞こえている音をそのまま録ります。止めるとここに並び、WAV で保存できます（深さは上の設定を使います）。</p>
-    <div class="takes" id="takes"></div>
   </section>
 </div>
+  </div>
+</details>
 </div>
 
 <script>
@@ -426,9 +468,9 @@ function parseWav(ab){
 async function decodeAny(ab){try{return await decodeNative(ab.slice(0))}catch(e){const w=parseWav(ab);if(w)return w;throw new Error('対応していない形式です')}}
 const readAB=f=>f.arrayBuffer?f.arrayBuffer():new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(r.error);r.readAsArrayBuffer(f)});
 let nextCi=1;
-async function openFiles(files){
+async function openFiles(files,fromStage){
   files=[...files].filter(f=>f&&f.size);if(!files.length)return;
-  const msg=$('srcMsg');msg.className='msg';msg.textContent=`${files.length} 個のファイルを読み込み中…`;
+  const msg=fromStage?$('stageMsg'):$('srcMsg');msg.className='msg';msg.textContent=`${files.length} 個のファイルを読み込み中…`;
   let ok=0,last=null;const bad=[];
   for(const f of files){
     try{const ab=await readAB(f);const buf=await decodeAny(ab);const id='s'+Date.now().toString(36)+Math.floor(Math.random()*1e4);
@@ -436,7 +478,8 @@ async function openFiles(files){
     catch(e){bad.push(f.name)}}
   if(last)selectSource(last,true);
   let note='';
-  if(last&&S.isDemo&&S.events.length){recutFrom(last);note=' 見本の並びを、この音から切り直しました。再生して聴いてみてください。サイコロで変化させられます。'}
+  if(last&&fromStage&&!S.events.length){demoArrangement();$('iLen').value=Math.round(S.L*1000)}
+  if(last&&(fromStage||S.isDemo)&&S.events.length){recutFrom(last);note=' 台紙の粒をすべてこの音から切り直しました。「▶ 再生」で鳴らし、「サイコロを振る」で変えられます。';fitTl()}
   msg.className=bad.length?'msg err':'msg';
   msg.textContent=(ok?`${ok} 個の素材を開きました。${note}`:'')+(bad.length?` 読み込めなかったもの: ${bad.join('、')}（WAV / MP3 / M4A / FLAC / OGG などを使ってください）`:'');
 }
@@ -545,6 +588,8 @@ function pick(){
   const m=$('srcMsg');m.className='msg';m.textContent=`${ms(b.len)} ms の粒を小箱へ入れ、手に持ちました。台紙の空いた所を押すと置けます。`;
   requestAnimationFrame(()=>{const el=document.querySelector('.chip.armed');el&&el.scrollIntoView({block:'nearest',inline:'nearest'})})}
 $('iSrc').addEventListener('change',e=>selectSource(e.target.value,true));
+function syncStageSrc(){const c=new Map();for(const e of S.events)c.set(e.src,(c.get(e.src)||0)+1);const ids=[...c.keys()].sort((a,b)=>c.get(b)-c.get(a));
+  $('stageSrc').textContent=ids.length?`いま鳴っている音：${ids.slice(0,2).map(i=>sources.get(i)?.name||'?').join('、')}${ids.length>2?` ほか ${ids.length-2}`:''}`:'台紙が空です。音を選ぶと、見本の並びでこの音を鳴らします。'}
 function renderSrcSelect(){const sel=$('iSrc');sel.replaceChildren(...[...sources.values()].map(s=>h('option',{value:s.id,selected:s.id===S.srcSel},s.name)));$('bRmSrc').disabled=S.srcSel==='demo'}
 function selectSource(id,reset){if(!sources.has(id))id='demo';const changed=S.srcSel!==id;S.srcSel=id;const s=curSrc();
   if(reset&&changed){S.sel.start=Math.min(s.dur*0.1,s.dur-0.04);S.sel.len=Math.min(0.04,s.dur)}
@@ -565,6 +610,7 @@ $('bRmSrc').onclick=async()=>{const s=curSrc();if(!s||s.id==='demo')return;const
  p.addEventListener('dragleave',()=>{if(--n<=0){n=0;hint.hidden=true}});
  p.addEventListener('drop',e=>{e.preventDefault();n=0;hint.hidden=true;if(e.dataTransfer)openFiles(e.dataTransfer.files)})}
 $('iFile').addEventListener('change',e=>{openFiles(e.target.files).finally(()=>{e.target.value=''})});
+$('iFile2').addEventListener('change',e=>{openFiles(e.target.files,true).finally(()=>{e.target.value=''})});
 
 /* ───────── playback ───────── */
 const live=new Set();
@@ -755,7 +801,7 @@ function renderSelBar(){const el=$('selBar'),sel=S.events.filter(e=>selIds.has(e
     h('button',{class:'btn ghost',onclick:()=>{selIds.clear();renderInsp();inv()}},'選択をやめる'));
   $('demoBar').hidden=!S.isDemo}
 function updateLede(){const b=S.bin.find(q=>q.id===armed),el=$('tlLede');
-  el.textContent=b?`「${b.name||'粒'} ${ms(b.len)} ms」を手に持っています。空いた所を押すと置けます（Esc で手放す）。`:'粒を押して選び、ドラッグで動かす。端をつまむと長さを詰められます。左端の列番号を押すと列を消音。'}
+  el.textContent=b?`「${b.name||'粒'} ${ms(b.len)} ms」を手に持っています。空いた所を押すと置けます（Esc で手放す）。`:'いま鳴っている粒の並びです。横が時間、縦が列。粒を押すと選べて、ドラッグで動かせます。'}
 
 /* ───────── inspector (粒の性質) ───────── */
 const FIELDS=[
@@ -770,7 +816,7 @@ const POS=[
   {k:'len',l:'素材の長さ',get:e=>e.len*1000,set:(e,v)=>{const s=sources.get(e.src);e.len=clamp(v/1000,0.0005,(s?s.dur:1)-e.start)}}];
 let editPushed=false;
 function renderInsp(){
-  repInfo();renderSelBar();syncDiceLede();const el=$('insp'),sel=S.events.filter(e=>selIds.has(e.id));
+  repInfo();renderSelBar();syncDiceLede();syncStageSrc();const el=$('insp'),sel=S.events.filter(e=>selIds.has(e.id));
   if(!sel.length){el.replaceChildren(h('p',{class:'note'},`台紙の粒を押すと、ここで音量・音程・定位・逆再生・フェードを調整できます。いま台紙には ${S.events.length} 粒あります。`));return}
   const f=sel[0],many=sel.length>1;
   const apply=(fn)=>{if(!editPushed){pushUndo();editPushed=true}for(const e of sel)fn(e);save();inv();facts()};
@@ -950,9 +996,10 @@ function syncDiceLede(){const n=selIds.size,el=$('diceLede');if(!el)return;
  if(S.dstr==null)S.dstr=40;$('dStr').value=S.dstr;$('dStrO').textContent=S.dstr+'%';
  $('dStr').oninput=e=>{S.dstr=+e.target.value;$('dStrO').textContent=S.dstr+'%';save()};
  $('dEvery').onchange=e=>{AUTO.every=+e.target.value};$('dKind').onchange=e=>{AUTO.kind=e.target.value};
- $('bAuto').onclick=()=>{AUTO.on=!AUTO.on;const b=$('bAuto');b.classList.toggle('autoOn',AUTO.on);b.textContent=AUTO.on?'自動で振っています（押すと止める）':'ループごとに自動で振る';
+ $('bAuto').onclick=()=>{AUTO.on=!AUTO.on;const b=$('bAuto');b.classList.toggle('autoOn',AUTO.on);b.textContent=AUTO.on?'自動で変化中（押すと止める）':'自動で変わり続ける';
    if(AUTO.on){if(!S.loop){S.loop=true;syncTransport();save()}if(!P.on)play();else{P.wrap=Math.floor((P.pos0+(ctx.currentTime-P.ctx0)+0.3)/S.L);P.wraps=0}}};
- $('bDiceUndo').onclick=undo}
+ $('bDiceUndo').onclick=undo;
+ $('bRollAll').onclick=()=>{roll('all',false);const b=$('bRollAll');b.classList.add('flash');setTimeout(()=>b.classList.remove('flash'),350)}}
 
 /* ───────── live recording of the master out ───────── */
 const REC={on:false,sp:null,z:null,L:[],R:[],n:0,t0:0,timer:0},takes=[];
@@ -987,7 +1034,7 @@ $('bRec').onclick=()=>REC.on?recStop():recStart();
 function takeBuffer(t){return{numberOfChannels:2,length:t.frames,sampleRate:t.sr,getChannelData:c=>c?t.R:t.L}}
 function renderTakes(){
   const el=$('takes');
-  if(!takes.length){el.replaceChildren(h('p',{class:'binEmpty',style:'margin:0'},'まだありません。'));return}
+  if(!takes.length){el.replaceChildren();return}
   el.replaceChildren(...takes.map(t=>{
     const cv=h('canvas'),dur=t.frames/t.sr,playing=preview&&preview.t===t;
     const row=h('div',{class:'take'},
@@ -1023,6 +1070,7 @@ requestAnimationFrame(()=>{fitTl();inv()});
 idbAll().then(recs=>{if(!recs||!recs.length){pruneMissing();return}
   return Promise.all(recs.map(async r=>{try{const buf=await decodeAny(r.data);addSource(r.id,r.name,buf,r.ci||1);nextCi=Math.max(nextCi,(r.ci||1)+1)}catch(e){}})).then(()=>{S.srcSel=wantSrc;pruneMissing();selectSource(S.srcSel,false);viewAll();renderBin();renderInsp();inv()})});
 function pruneMissing(){const n=S.events.length;S.events=S.events.filter(e=>sources.has(e.src));S.bin=S.bin.filter(b=>sources.has(b.src));if(!sources.has(S.srcSel))S.srcSel='demo';if(S.events.length!==n){save();renderInsp()}renderSrcSelect();renderBin();inv()}
+$('more').addEventListener('toggle',()=>{if($('more').open){selectSource(S.srcSel,false);viewAll();renderBin()}inv()});
 new ResizeObserver(()=>{clampTv();syncScroll();inv();renderBin()}).observe($('tlwrap'));
 const mq=matchMedia('(prefers-color-scheme: dark)');(mq.addEventListener?mq.addEventListener('change',readTheme):mq.addListener(readTheme));
 new MutationObserver(readTheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
