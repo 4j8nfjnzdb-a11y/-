@@ -51,6 +51,17 @@ button,select,input{font:inherit;color:inherit}
 .btn.play{min-width:88px;font-weight:700}
 .btn.play.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .btn.ghost{background:transparent}
+.btn.rec{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 50%,var(--line));font-weight:700}
+.btn.rec.on{background:var(--warn);border-color:var(--warn);color:var(--bg)}
+.btn.rec.on::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:currentColor;margin-right:6px;vertical-align:1px;animation:blink 1s steps(2,start) infinite}
+@keyframes blink{to{visibility:hidden}}
+@media (prefers-reduced-motion:reduce){.btn.rec.on::before{animation:none}}
+.recTime{font-family:var(--f-mono);font-variant-numeric:tabular-nums;color:var(--warn);font-size:13px;min-width:4.5em}
+.takes{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.take{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;background:var(--well);border:1px solid var(--line);border-radius:6px;padding:8px}
+.take canvas{width:100%;height:30px;display:block}
+.take .tl{font-family:var(--f-mono);font-size:11.5px;color:var(--dim);font-variant-numeric:tabular-nums}
+.take .tl b{color:var(--ink);font-weight:500}
 .btn.danger{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,var(--line))}
 .btn.file{position:relative;overflow:hidden}
 .btn.file input{position:absolute;inset:0;opacity:0;cursor:pointer}
@@ -123,6 +134,8 @@ button,select,input{font:inherit;color:inherit}
     <button id="bPlay" class="btn play">▶ 再生</button>
     <button id="bHome" class="btn" title="頭へ戻る" aria-label="頭へ戻る">⏮</button>
     <button id="bLoop" class="btn">ループ</button>
+    <button id="bRec" class="btn rec" title="聞こえている音をそのまま録音する（R キー）">● 録音</button>
+    <output id="oRec" class="recTime" hidden></output>
     <output id="oPos" class="pos">0.0 ms</output>
     <label class="fld">全長<input id="iLen" type="number" min="50" max="120000" step="10"> ms</label>
     <label class="fld">吸着<select id="iSnap">
@@ -181,7 +194,7 @@ button,select,input{font:inherit;color:inherit}
   </div>
   <div class="tlwrap" id="tlwrap"><canvas id="cTl" aria-label="台紙。横が時間、縦が列"></canvas></div>
   <input id="iScroll" class="scroll" type="range" min="0" max="1000" value="0" aria-label="台紙の表示位置">
-  <p class="keys"><kbd>Space</kbd> 再生/停止　<kbd>Delete</kbd> 削除　<kbd>←</kbd><kbd>→</kbd> 1 ms ずらす（<kbd>Shift</kbd> 10 ms）　<kbd>↑</kbd><kbd>↓</kbd> 列を移る　<kbd>Alt</kbd>＋ドラッグ 複製　<kbd>D</kbd> 複製　<kbd>Shift</kbd>＋押す 追加選択　空いた所をドラッグ 範囲選択　<kbd>⌘/Ctrl</kbd>＋<kbd>Z</kbd> 取り消し　<kbd>Esc</kbd> 選択解除</p>
+  <p class="keys"><kbd>Space</kbd> 再生/停止　<kbd>R</kbd> 録音/停止　<kbd>Delete</kbd> 削除　<kbd>←</kbd><kbd>→</kbd> 1 ms ずらす（<kbd>Shift</kbd> 10 ms）　<kbd>↑</kbd><kbd>↓</kbd> 列を移る　<kbd>Alt</kbd>＋ドラッグ 複製　<kbd>D</kbd> 複製　<kbd>Shift</kbd>＋押す 追加選択　空いた所をドラッグ 範囲選択　<kbd>⌘/Ctrl</kbd>＋<kbd>Z</kbd> 取り消し　<kbd>Esc</kbd> 選択解除</p>
 </section>
 
 <div class="lower">
@@ -233,6 +246,10 @@ button,select,input{font:inherit;color:inherit}
     </div>
     <div class="row" style="margin-top:10px"><button id="bExp" class="btn accent">WAV を書き出す</button></div>
     <p class="msg" id="expMsg"></p>
+    <hr class="sep" style="margin:12px 0">
+    <h3 style="font-size:12.5px;margin:0 0 4px">録音したテイク</h3>
+    <p class="note" style="margin:0">上の「● 録音」で、再生・試聴・触れて鳴らした音を含め、聞こえている音をそのまま録ります。止めるとここに並び、WAV で保存できます（深さは上の設定を使います）。</p>
+    <div class="takes" id="takes"></div>
   </section>
 </div>
 </div>
@@ -271,7 +288,7 @@ function syncUndo(){$('bUndo').disabled=!U.past.length;$('bRedo').disabled=!U.fu
 /* ───────── audio context ───────── */
 let ctx=null,master=null;
 function makeMaster(c){const g=c.createGain();g.gain.value=0.85;const lim=c.createDynamicsCompressor();
-  lim.threshold.value=-2;lim.knee.value=0;lim.ratio.value=20;lim.attack.value=0.002;lim.release.value=0.08;g.connect(lim);lim.connect(c.destination);return g}
+  lim.threshold.value=-2;lim.knee.value=0;lim.ratio.value=20;lim.attack.value=0.002;lim.release.value=0.08;g.connect(lim);lim.connect(c.destination);g._out=lim;return g}
 function ensureCtx(){if(!ctx){const AC=window.AudioContext||window.webkitAudioContext;ctx=new AC();master=makeMaster(ctx)}return ctx}
 function newBuffer(ch,len,sr){try{return new AudioBuffer({numberOfChannels:ch,length:len,sampleRate:sr})}catch(e){return ensureCtx().createBuffer(ch,len,sr)}}
 
@@ -759,6 +776,7 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){armed=null;selIds.clear();renderBin();renderInsp();inv();return}
   if(e.key==='Delete'||e.key==='Backspace'){if(selIds.size){e.preventDefault();del()}return}
   if(e.key==='d'||e.key==='D'){dup();return}
+  if(e.key==='r'||e.key==='R'){REC.on?recStop():recStart();return}
   if(/^[1-9]$/.test(e.key)){const b=S.bin[+e.key-1];if(b){armed=armed===b.id?null:b.id;renderBin();if(S.touch)audition({...b,semi:0,gain:0,pan:0,rev:false,fi:1,fo:3})}return}
   if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)&&selIds.size&&tg.type!=='range'){
     e.preventDefault();if(Date.now()-nudgeT>800)pushUndo();nudgeT=Date.now();
@@ -817,6 +835,62 @@ $('bExp').onclick=async()=>{
   finally{btn.disabled=false}};
 $('pExp').querySelector('.note').textContent+=inViewer?' claude.ai 上では WAV が ZIP に入った形で保存されます（展開するとそのまま使えます）。':'';
 
+/* ───────── live recording of the master out ───────── */
+const REC={on:false,sp:null,z:null,L:[],R:[],n:0,t0:0,timer:0},takes=[];
+const REC_MAX=600; // seconds; stereo float at 48 kHz is ~230 MB for ten minutes
+let preview=null;
+function recStart(){
+  ensureCtx();ctx.resume();
+  const sp=ctx.createScriptProcessor(4096,2,2);sp.channelCount=2;sp.channelCountMode='explicit';sp.channelInterpretation='speakers';
+  REC.L=[];REC.R=[];REC.n=0;
+  sp.onaudioprocess=e=>{if(!REC.on)return;const a=e.inputBuffer,l=a.getChannelData(0),r=a.numberOfChannels>1?a.getChannelData(1):l;
+    REC.L.push(new Float32Array(l));REC.R.push(new Float32Array(r));REC.n+=a.length;
+    if(REC.n/ctx.sampleRate>=REC_MAX)setTimeout(()=>{if(REC.on){recStop();const m=$('expMsg');m.className='msg';m.textContent='10 分に達したので録音を止めました。'}},0)};
+  const z=ctx.createGain();z.gain.value=0;master._out.connect(sp);sp.connect(z);z.connect(ctx.destination);
+  REC.sp=sp;REC.z=z;REC.on=true;REC.t0=performance.now();
+  REC.timer=setInterval(syncRec,200);syncRec();
+  if(!P.on)play()}
+function recStop(){
+  if(!REC.on)return;REC.on=false;clearInterval(REC.timer);
+  try{master._out.disconnect(REC.sp)}catch(e){}try{REC.sp.disconnect();REC.z.disconnect()}catch(e){}REC.sp.onaudioprocess=null;
+  const n=REC.n,L=new Float32Array(n),R=new Float32Array(n);let o=0;
+  for(let i=0;i<REC.L.length;i++){L.set(REC.L[i],o);R.set(REC.R[i],o);o+=REC.L[i].length}
+  REC.L=[];REC.R=[];
+  // drop leading silence from the processor's warm-up so the take starts with sound
+  let st=0;while(st<n&&Math.abs(L[st])<1e-5&&Math.abs(R[st])<1e-5)st++;
+  if(st>=n){syncRec();const m=$('expMsg');m.className='msg err';m.textContent='録音した間、音が鳴っていませんでした。再生するか粒を鳴らしながら録ってください。';return}
+  const l=L.subarray(st),r=R.subarray(st);let pk=0;for(let i=0;i<l.length;i++){pk=Math.max(pk,Math.abs(l[i]),Math.abs(r[i]))}
+  takes.unshift({id:nid(),no:takes.length+1,L:l,R:r,sr:ctx.sampleRate,frames:l.length,peak:pk,at:new Date()});
+  syncRec();renderTakes()}
+function syncRec(){const b=$('bRec'),o=$('oRec');b.classList.toggle('on',REC.on);b.textContent=REC.on?'録音停止':'● 録音';o.hidden=!REC.on;
+  if(REC.on){const t=(performance.now()-REC.t0)/1000;o.textContent=`${Math.floor(t/60)}:${(t%60).toFixed(1).padStart(4,'0')}`}}
+$('bRec').onclick=()=>REC.on?recStop():recStart();
+function takeBuffer(t){return{numberOfChannels:2,length:t.frames,sampleRate:t.sr,getChannelData:c=>c?t.R:t.L}}
+function renderTakes(){
+  const el=$('takes');
+  if(!takes.length){el.replaceChildren(h('p',{class:'binEmpty',style:'margin:0'},'まだありません。'));return}
+  el.replaceChildren(...takes.map(t=>{
+    const cv=h('canvas'),dur=t.frames/t.sr,playing=preview&&preview.t===t;
+    const row=h('div',{class:'take'},
+      h('div',{class:'tl'},h('b',null,`テイク ${t.no}`),`　${dur.toFixed(2)} s・ピーク ${t.peak>0?(20*Math.log10(t.peak)).toFixed(1):'−∞'} dBFS・${t.sr/1000} kHz`),cv,
+      h('div',{class:'row'},
+        h('button',{class:'btn',onclick:()=>previewTake(t)},playing?'■ 止める':'▶ 聴く'),
+        h('button',{class:'btn accent',onclick:async ev=>{const btn=ev.currentTarget,m=$('expMsg');btn.disabled=true;m.className='msg';m.textContent='WAV を作っています…';
+          try{const p=n=>String(n).padStart(2,'0'),d=t.at;const name=`tsubuoki_rec${t.no}_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.wav`;
+            m.textContent=await offerFile(name,encodeWav(takeBuffer(t),+$('xBits').value))}
+          catch(e){m.className='msg err';m.textContent=`保存できませんでした：${e.message||e}`}finally{btn.disabled=false}}},'WAV で保存'),
+        h('button',{class:'btn ghost danger',onclick:()=>{if(preview&&preview.t===t)stopPreview();takes.splice(takes.indexOf(t),1);renderTakes()}},'消す')));
+    requestAnimationFrame(()=>{const w=cv.clientWidth||200,hh=30,d=dpr();cv.width=w*d;cv.height=hh*d;const g=cv.getContext('2d');g.setTransform(d,0,0,d,0,0);g.fillStyle=T.warn;
+      const spp=t.frames/w;for(let x=0;x<w;x++){let lo=0,hi=0;const a=Math.floor(x*spp),b=Math.min(t.frames,Math.floor((x+1)*spp)),st=Math.max(1,Math.floor((b-a)/200));for(let i=a;i<b;i+=st){const v=(t.L[i]+t.R[i])/2;if(v<lo)lo=v;if(v>hi)hi=v}
+        g.fillRect(x,hh/2-hi*hh/2,1,Math.max(1,(hi-lo)*hh/2))}});
+    return row}))}
+function stopPreview(){if(preview){try{preview.src.stop()}catch(e){}preview=null}}
+function previewTake(t){ensureCtx();ctx.resume();const same=preview&&preview.t===t;stopPreview();
+  if(!same){const b=newBuffer(2,t.frames,t.sr);b.getChannelData(0).set(t.L);b.getChannelData(1).set(t.R);
+    const s=ctx.createBufferSource();s.buffer=b;s.connect(ctx.destination);s.start();preview={t,src:s};
+    s.onended=()=>{if(preview&&preview.src===s){preview=null;renderTakes()}}}
+  renderTakes()}
+
 /* ───────── boot ───────── */
 function syncAll(){$('iLen').value=Math.round(S.L*1000);$('iSnap').value=String(S.snap);if($('iSnap').value!==String(S.snap))$('iSnap').value='0.005';$('iZero').checked=S.zero;syncTransport();syncPos();syncUndo();repInfo()}
 const wantSrc=S.srcSel;
@@ -824,7 +898,7 @@ makeDemo();
 if(!hadSaved)demoArrangement();
 readTheme();
 selectSource(S.srcSel,false);viewAll();if(S.srcSel==='demo'&&!hadSaved){V.v0=0;V.v1=0.5}
-syncAll();renderBin();renderInsp();
+syncAll();renderBin();renderInsp();renderTakes();
 requestAnimationFrame(()=>{fitTl();inv()});
 // bring back files opened in an earlier visit
 idbAll().then(recs=>{if(!recs||!recs.length){pruneMissing();return}
