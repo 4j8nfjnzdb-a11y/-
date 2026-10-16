@@ -175,6 +175,7 @@ button { font-family: inherit; cursor: pointer; }
   color: #fff;
 }
 .recBtn.active { background: rgba(220, 60, 60, 0.4); border-color: rgba(255,120,120,0.8); }
+.recBtn:disabled { opacity: 0.35; cursor: not-allowed; }
 
 .autoDiceBtn { margin-left: auto; }
 .autoDiceBtn.active {

@@ -67,21 +67,22 @@
   const tracks = [];
   let schedulerTimer = null;
 
-  // master recorder: taps the final mix post-compressor and captures
-  // raw PCM so it can be exported as an actual .wav, not a transcoded
-  // webm/opus recording
-  let masterRecTapHandle = null;
+  // two independent recorders:
+  //  - "REC": master mix via MediaRecorder -> mp4/webm (saveable everywhere,
+  //    including a published Artifact, whose downloads allowlist has no wav/zip)
+  //  - "WAV REC": raw PCM taps on the master + every track's post-fader
+  //    signal -> 5 WAVs bundled into one .zip (local page only)
   let masterRecording = false;
-  let recBuffersL = [], recBuffersR = [];
   let recStartTime = 0, recTimerInterval = null;
   let masterRecBtn = null, masterRecStatus = null;
-  let recorderWorkletReady = false;
-  // hosted-context (e.g. a published Artifact) fallback: WAV/ZIP aren't
-  // in that host's downloads allowlist, so record via MediaRecorder to
-  // a compressed webm/mp4 there instead — master mix only, no per-track
-  // stems (would need one MediaRecorder each, and still couldn't be
-  // bundled/saved there anyway)
   let masterMediaRecorder = null, masterMediaDest = null, masterMediaChunks = [];
+
+  let wavRecording = false;
+  let wavRecTapHandle = null;
+  let recBuffersL = [], recBuffersR = [];
+  let wavRecStartTime = 0, wavRecTimerInterval = null;
+  let wavRecBtn = null, wavRecStatus = null;
+  let recorderWorkletReady = false;
 
   function ageFreqFromKnob(v) { return 9000 - v * 8300; } // 0 -> open, 1 -> dull/worn
 
@@ -359,42 +360,47 @@
     return true;
   }
 
+  function recBaseName() {
+    const ts = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    return `torso_${ts.getFullYear()}${pad(ts.getMonth() + 1)}${pad(ts.getDate())}_${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}`;
+  }
+
+  function startRecTimer(startTime, statusEl) {
+    return setInterval(() => {
+      const sec = (performance.now() - startTime) / 1000;
+      const m = Math.floor(sec / 60), s = Math.floor(sec % 60);
+      if (statusEl) statusEl.textContent = `● ${m}:${String(s).padStart(2, "0")}`;
+    }, 250);
+  }
+
+  // ---- REC: master mix -> mp4/webm via MediaRecorder
   function startMasterRecording() {
     ensureAudio();
     if (masterRecording) return;
+    if (!window.MediaRecorder) {
+      if (masterRecStatus) masterRecStatus.textContent = "このブラウザは録音(MediaRecorder)に対応していません";
+      return;
+    }
     masterRecording = true;
     recStartTime = performance.now();
 
-    if (isHostedFrame()) {
-      masterMediaDest = ctx.createMediaStreamDestination();
-      compressor.connect(masterMediaDest);
-      const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
-      let mimeType = "";
-      for (const c of candidates) {
-        if (window.MediaRecorder && MediaRecorder.isTypeSupported(c)) { mimeType = c; break; }
-      }
-      masterMediaChunks = [];
-      masterMediaRecorder = mimeType
-        ? new MediaRecorder(masterMediaDest.stream, { mimeType })
-        : new MediaRecorder(masterMediaDest.stream);
-      masterMediaRecorder.ondataavailable = (e) => { if (e.data.size) masterMediaChunks.push(e.data); };
-      masterMediaRecorder.start();
-    } else {
-      recBuffersL = [];
-      recBuffersR = [];
-      masterRecTapHandle = createRecorderTap(compressor, (l, r) => {
-        recBuffersL.push(l);
-        recBuffersR.push(r);
-      });
-      tracks.forEach((t) => t.startStemRecording());
+    masterMediaDest = ctx.createMediaStreamDestination();
+    compressor.connect(masterMediaDest);
+    const candidates = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm"];
+    let mimeType = "";
+    for (const c of candidates) {
+      if (MediaRecorder.isTypeSupported(c)) { mimeType = c; break; }
     }
+    masterMediaChunks = [];
+    masterMediaRecorder = mimeType
+      ? new MediaRecorder(masterMediaDest.stream, { mimeType })
+      : new MediaRecorder(masterMediaDest.stream);
+    masterMediaRecorder.ondataavailable = (e) => { if (e.data.size) masterMediaChunks.push(e.data); };
+    masterMediaRecorder.start();
 
     if (masterRecBtn) { masterRecBtn.classList.add("active"); masterRecBtn.textContent = "■ STOP REC"; }
-    recTimerInterval = setInterval(() => {
-      const sec = (performance.now() - recStartTime) / 1000;
-      const m = Math.floor(sec / 60), s = Math.floor(sec % 60);
-      if (masterRecStatus) masterRecStatus.textContent = `● ${m}:${String(s).padStart(2, "0")}`;
-    }, 250);
+    recTimerInterval = startRecTimer(recStartTime, masterRecStatus);
   }
 
   async function stopMasterRecording() {
@@ -404,39 +410,60 @@
     recTimerInterval = null;
     if (masterRecBtn) { masterRecBtn.classList.remove("active"); masterRecBtn.textContent = "● REC"; }
 
-    const ts = new Date();
-    const pad = (n) => String(n).padStart(2, "0");
-    const baseName = `torso_${ts.getFullYear()}${pad(ts.getMonth() + 1)}${pad(ts.getDate())}_${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}`;
+    const baseName = recBaseName();
+    const recorder = masterMediaRecorder;
+    const blob = await new Promise((resolve) => {
+      recorder.onstop = () => resolve(new Blob(masterMediaChunks, { type: recorder.mimeType || "audio/webm" }));
+      recorder.stop();
+    });
+    try { compressor.disconnect(masterMediaDest); } catch (e) { /* already gone */ }
+    masterMediaRecorder = null;
+    masterMediaDest = null;
+    masterMediaChunks = [];
 
-    if (masterMediaRecorder) {
-      const recorder = masterMediaRecorder;
-      const blob = await new Promise((resolve) => {
-        recorder.onstop = () => resolve(new Blob(masterMediaChunks, { type: recorder.mimeType || "audio/webm" }));
-        recorder.stop();
-      });
-      try { compressor.disconnect(masterMediaDest); } catch (e) { /* already gone */ }
-      masterMediaRecorder = null;
-      masterMediaDest = null;
-      masterMediaChunks = [];
-
-      const ext = blob.type.includes("mp4") ? "mp4" : "webm";
-      const saved = await saveBlobAsFile(`${baseName}.${ext}`, blob);
-      if (masterRecStatus) {
-        masterRecStatus.textContent = saved
-          ? `saved: ${baseName}.${ext} (master mix only — per-track stems need the local version)`
-          : "この環境では保存できません（ローカル版でお試しください）";
-      }
-      return;
+    const ext = blob.type.includes("mp4") ? "mp4" : "webm";
+    const saved = await saveBlobAsFile(`${baseName}.${ext}`, blob);
+    if (masterRecStatus) {
+      masterRecStatus.textContent = saved ? `saved: ${baseName}.${ext}` : "保存されませんでした";
     }
+  }
 
+  // ---- WAV REC: master + 4 track stems -> 5 WAVs in one .zip
+  function startWavRecording() {
+    ensureAudio();
+    if (wavRecording || isHostedFrame()) return;
+    wavRecording = true;
+    wavRecStartTime = performance.now();
+
+    recBuffersL = [];
+    recBuffersR = [];
+    wavRecTapHandle = createRecorderTap(compressor, (l, r) => {
+      recBuffersL.push(l);
+      recBuffersR.push(r);
+    });
+    tracks.forEach((t) => t.startStemRecording());
+
+    if (wavRecBtn) { wavRecBtn.classList.add("active"); wavRecBtn.textContent = "■ STOP WAV REC"; }
+    wavRecTimerInterval = startRecTimer(wavRecStartTime, wavRecStatus);
+  }
+
+  async function stopWavRecording() {
+    if (!wavRecording) return;
+    wavRecording = false;
+    clearInterval(wavRecTimerInterval);
+    wavRecTimerInterval = null;
+    if (wavRecTapHandle) { wavRecTapHandle.disconnect(); wavRecTapHandle = null; }
+    if (wavRecBtn) { wavRecBtn.classList.remove("active"); wavRecBtn.textContent = "● WAV REC"; }
+
+    const baseName = recBaseName();
     const files = [];
 
     if (recBuffersL.length) {
       const blob = encodeWavBlob(recBuffersL, recBuffersR, ctx.sampleRate);
-      recBuffersL = [];
-      recBuffersR = [];
-      files.push({ name: `${baseName}.wav`, data: new Uint8Array(await blob.arrayBuffer()) });
+      files.push({ name: `${baseName}_master.wav`, data: new Uint8Array(await blob.arrayBuffer()) });
     }
+    recBuffersL = [];
+    recBuffersR = [];
 
     // stop + collect each track's stem regardless of whether the master
     // bus captured anything, so they always match what was armed at start
@@ -447,18 +474,14 @@
       }
     }
 
-    if (!files.length) { if (masterRecStatus) masterRecStatus.textContent = ""; return; }
+    if (!files.length) { if (wavRecStatus) wavRecStatus.textContent = ""; return; }
 
-    // bundle everything into one .zip: most browsers silently block the
-    // 2nd+ of several downloads fired without an extra click, so
-    // offering 5 separate files often left only the first one saved
+    // one .zip: most browsers silently block the 2nd+ of several
+    // downloads fired without an extra click
     const zipBlob = buildZipBlob(files);
-    const saved = await saveBlobAsFile(`${baseName}.zip`, zipBlob);
-
-    if (masterRecStatus) {
-      masterRecStatus.textContent = saved
-        ? `saved: ${baseName}.zip (${files.length} files)`
-        : "この環境では保存できません（ローカル版でお試しください）";
+    const saved = await saveBlobAsFile(`${baseName}_wav.zip`, zipBlob);
+    if (wavRecStatus) {
+      wavRecStatus.textContent = saved ? `saved: ${baseName}_wav.zip (WAV ${files.length}本)` : "保存されませんでした";
     }
   }
 
@@ -1734,6 +1757,16 @@
     masterRecStatus = document.getElementById("masterRecStatus");
     masterRecBtn.addEventListener("click", () => {
       if (masterRecording) stopMasterRecording(); else startMasterRecording();
+    });
+
+    wavRecBtn = document.getElementById("wavRecBtn");
+    wavRecStatus = document.getElementById("wavRecStatus");
+    if (isHostedFrame()) {
+      wavRecBtn.disabled = true;
+      wavRecStatus.textContent = "WAV はこの Artifact 画面では保存できません（ローカル版で使えます）";
+    }
+    wavRecBtn.addEventListener("click", () => {
+      if (wavRecording) stopWavRecording(); else startWavRecording();
     });
 
     const debugBtn = document.getElementById("debugBtn");
