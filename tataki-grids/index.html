@@ -154,6 +154,22 @@ tr.act td{background:#2a2737}
 .guide .tag.ok{border-color:#4a7a5c;color:#8fd1a6}
 .guide a{color:var(--bone)}
 .hint{font-size:12px;color:var(--faint);margin-top:6px}
+.dicerow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:8px}
+.die{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 6px;background:var(--well);border:1px solid var(--line);border-radius:var(--r);cursor:pointer;text-align:center}
+.die:hover{border-color:var(--faint)}
+.die b{font-size:14px}.die small{font-size:11px;color:var(--dim);line-height:1.35}
+.dieface svg{width:54px;height:54px;display:block;transition:transform .35s}
+.dieface rect{fill:var(--bone)}.dieface circle{fill:var(--bg)}
+.die.rolling .dieface svg{transform:rotate(200deg) scale(.9)}
+.dmap{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 10px;align-items:center;font-size:12px}
+.dch{font-family:var(--f-disp);font-size:11px}
+.dname{font-family:var(--f-mono);overflow-wrap:anywhere;min-width:0}.dname.dim{color:var(--faint)}
+.poolstat{font-size:12px;color:var(--dim)}
+.tog.lock.on{background:var(--bone);color:var(--bg)}
+.wave{width:100%;height:44px;display:block;background:var(--well);border-radius:6px}
+.btn:disabled{opacity:.5;cursor:wait}
+.dice.drop{outline:2px dashed var(--bone);outline-offset:2px}
+@media (max-width:520px){.die small{display:none}}
 .btn.rec{color:var(--hot);border-color:var(--hot)}
 .btn.rec.on{background:var(--hot);color:#1a0d09;animation:blink 1s steps(2) infinite}
 @keyframes blink{50%{opacity:.6}}
@@ -372,7 +388,7 @@ function applyMorph(){
 
 /* ───────── audio ───────── */
 let ctx=null,recSink,master,comp,dly,dlyFb,dlyFilt,dlySend,rev,revSend,noiseBuf;
-const samples=Array(8).fill(null),sampleNames=Array(8).fill('');
+const samples=Array(8).fill(null),sampleNames=Array(8).fill(''),sampleData=Array(8).fill(null);
 const DEFAULT_ENG=['kick','snare','hat','conga','clap','bell','rim','bass'];
 // explicit extensions: on iPhone/iPad a bare "audio/*" only offers the Music library, not the Files app
 const AUDIO_ACCEPT='.wav,.wave,.mp3,.m4a,.aac,.aif,.aiff,.caf,.ogg,.oga,.opus,.flac,audio/*';
@@ -409,7 +425,7 @@ async function loadSample(i,f){
   const ab=await readAB(f);
   if(!ab||!ab.byteLength)throw new Error('ファイルが空です');
   const buf=await decodeAny(ab);
-  samples[i]=buf;sampleNames[i]=f.name||'sample';M.voices[i].engine='sample';
+  samples[i]=buf;sampleNames[i]=f.name||'sample';sampleData[i]=ab;M.voices[i].engine='sample';Object.assign(M.voices[i],{sStart:0,sLen:1,sRev:false});
   idbPut(i,{name:sampleNames[i],data:ab});save();
 }
 function audition(i){initAudio();ctx.resume();playVoice(i,ctx.currentTime+.02,1,0,{pitch:0,vel:0,tone:0,decay:0,pan:0,fx:0})}
@@ -509,11 +525,137 @@ function playTake(t){
   const s=ctx.createBufferSource();s.buffer=b;s.connect(ctx.destination);s.start();REC.playing={t,src:s,at:ctx.currentTime};
   s.onended=()=>{if(REC.playing&&REC.playing.src===s)REC.playing=null};
 }
+/* ───────── sample pool + dice ───────── */
+const revCache=new WeakMap();
+function revBuf(b){let r=revCache.get(b);if(!r){r=ctx.createBuffer(b.numberOfChannels,b.length,b.sampleRate);for(let c=0;c<b.numberOfChannels;c++){const s=b.getChannelData(c),d=r.getChannelData(c),n=s.length;for(let i=0;i<n;i++)d[i]=s[n-1-i]}revCache.set(b,r)}return r}
+const AUDIO_EXT=/\.(wav|wave|mp3|m4a|aac|aif|aiff|caf|ogg|oga|opus|flac)$/i;
+const POOL={files:[],label:'',cache:new Map(),bad:new Set()};
+let UNDO=null,diceMsg='';
+function setPool(files,label){
+  const list=[...files].filter(f=>AUDIO_EXT.test(f.name)||(f.type||'').startsWith('audio/')).filter(f=>!f.name.startsWith('._'))
+    .sort((a,b)=>(a.webkitRelativePath||a.name).localeCompare(b.webkitRelativePath||b.name));
+  POOL.files=list;POOL.cache.clear();POOL.bad.clear();
+  POOL.label=label||(list[0]&&list[0].webkitRelativePath?list[0].webkitRelativePath.split('/')[0]:'');
+  return list.length;
+}
+async function poolGet(k){
+  if(POOL.cache.has(k))return POOL.cache.get(k);
+  const f=POOL.files[k];const ab=await readAB(f);const buf=await decodeAny(ab);
+  const e={buf,ab,name:f.name};POOL.cache.set(k,e);
+  if(POOL.cache.size>48)POOL.cache.delete(POOL.cache.keys().next().value);
+  return e;
+}
+async function poolPick(used){
+  const n=POOL.files.length;
+  for(let tries=0;tries<8;tries++){
+    let k=Math.floor(Math.random()*n);
+    if(used.size<n-POOL.bad.size)for(let g=0;g<n&&(used.has(k)||POOL.bad.has(k));g++)k=(k+1)%n;
+    if(POOL.bad.has(k))continue;
+    try{const e=await poolGet(k);used.add(k);return e}catch(err){POOL.bad.add(k)}
+  }
+  return null;
+}
+// pick a slice: usually starting on a detected attack, with a musically short length, sometimes reversed
+function pickSlice(buf){
+  const dur=buf.duration;if(dur<.3)return {sStart:0,sLen:1,sRev:Math.random()<.1};
+  const d=buf.getChannelData(0),hop=512,n=Math.floor(d.length/hop),env=new Float32Array(n);let mx=0;
+  for(let k=0;k<n;k++){let s=0;for(let i=k*hop,e=i+hop;i<e;i++)s+=d[i]*d[i];env[k]=Math.sqrt(s/hop);if(env[k]>mx)mx=env[k]}
+  const on=[];for(let k=1;k<n-1;k++)if(env[k]>mx*.12&&env[k]>env[k-1]*1.6+mx*.02)on.push(k);
+  let st=on.length&&Math.random()<.8?Math.max(0,pick(on)*hop/buf.sampleRate-.004):Math.random()*dur*.9;
+  let len=Math.min(pick([.06,.1,.16,.25,.4,.6,1,1.6]),dur-st);
+  if(len<.03){st=0;len=Math.min(dur,.4)}
+  return {sStart:+(st/dur).toFixed(4),sLen:+clamp(len/(dur-st),.001,1).toFixed(4),sRev:Math.random()<.15};
+}
+const unlocked=only=>(only||[0,1,2,3,4,5,6,7]).filter(i=>!M.voices[i].lock);
+function persistCh(i){if(samples[i]&&sampleData[i])idbPut(i,{name:sampleNames[i],data:sampleData[i]});else idbDel(i)}
+function snapUndo(){UNDO={voices:clone(M.voices),samples:samples.slice(),names:sampleNames.slice(),data:sampleData.slice()}}
+function undoRoll(){if(!UNDO)return '戻せる操作はありません。';
+  M.voices.forEach((v,i)=>{for(const k in v)delete v[k];Object.assign(v,UNDO.voices[i])});
+  for(let i=0;i<8;i++){samples[i]=UNDO.samples[i];sampleNames[i]=UNDO.names[i];sampleData[i]=UNDO.data[i];persistCh(i)}
+  UNDO=null;save();return '直前のサイコロを取り消しました。'}
+// die 1 — material: draw new sounds from the pool into the unlocked channels
+async function rollMaterial(only,onProg){
+  if(!POOL.files.length)throw new Error('先に「フォルダを選ぶ」でサンプルの入ったフォルダを指定してください');
+  initAudio();const T=unlocked(only);if(!T.length)throw new Error('全チャンネルが固定されています');
+  snapUndo();const used=new Set();let got=0;
+  for(const i of T){onProg&&onProg(got,T.length);const e=await poolPick(used);if(!e)continue;
+    samples[i]=e.buf;sampleNames[i]=e.name;sampleData[i]=e.ab;Object.assign(M.voices[i],{engine:'sample'},pickSlice(e.buf));persistCh(i);got++}
+  save();if(!got)throw new Error('フォルダ内の音を読み込めませんでした（形式を確認してください）');
+  return `${got} チャンネルにフォルダの音を割り振りました。`;
+}
+// die 2 — placement: shuffle which channel (rhythm lane) each sound sits on
+function rollPlacement(){
+  const T=unlocked();if(T.length<2)throw new Error('入れ替えるには固定していないチャンネルが2つ以上必要です');
+  snapUndo();
+  let perm;for(let g=0;g<20;g++){perm=T.slice().sort(()=>Math.random()-.5);if(perm.every((p,k)=>p!==T[k]))break}
+  const V=T.map(i=>clone(M.voices[i])),Sb=T.map(i=>samples[i]),Sn=T.map(i=>sampleNames[i]),Sd=T.map(i=>sampleData[i]);
+  T.forEach((dst,k)=>{const src=T.indexOf(perm[k]),v=M.voices[dst];for(const key in v)delete v[key];Object.assign(v,V[src]);
+    samples[dst]=Sb[src];sampleNames[dst]=Sn[src];sampleData[dst]=Sd[src];persistCh(dst)});
+  save();return `${T.length} チャンネルの音の居場所を入れ替えました。`;
+}
+// die 3 — slice: change which part of each sample is used
+function rollSlice(){
+  const T=unlocked().filter(i=>samples[i]&&M.voices[i].engine==='sample');
+  if(!T.length)throw new Error('切り出せるサンプルがありません（先に「素材」のサイコロを振ってください）');
+  snapUndo();T.forEach(i=>Object.assign(M.voices[i],pickSlice(samples[i])));save();
+  return `${T.length} チャンネルの切り出し位置を変えました。`;
+}
+function resetBuiltIn(){const T=unlocked();snapUndo();T.forEach(i=>{M.voices[i].engine=DEFAULT_ENG[i]});save();return `${T.length} チャンネルを内蔵音に戻しました（サンプルは残っています）。`}
+async function filesFromDrop(dt){
+  const items=[...(dt.items||[])].map(it=>it.webkitGetAsEntry&&it.webkitGetAsEntry()).filter(Boolean);
+  if(!items.length)return {files:[...(dt.files||[])],label:''};
+  const out=[];const walk=async e=>{if(e.isFile)out.push(await new Promise((r,j)=>e.file(r,j)));
+    else if(e.isDirectory){const rd=e.createReader();let b;do{b=await new Promise((r,j)=>rd.readEntries(r,j));for(const x of b)await walk(x)}while(b.length)}};
+  for(const e of items)await walk(e);
+  return {files:out,label:items.length===1&&items[0].isDirectory?items[0].name:''};
+}
+const PIPS={1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
+function dieSVG(n){return `<svg viewBox="0 0 60 60" aria-hidden="true"><rect x="3" y="3" width="54" height="54" rx="12"/>${PIPS[n].map(p=>`<circle cx="${15+(p%3)*15}" cy="${15+Math.floor(p/3)*15}" r="5"/>`).join('')}</svg>`}
+function diceCard(){
+  const card=h('div',{class:'card dice'});
+  const msg=h('p',{class:'recmsg'},diceMsg);
+  const setMsg=(t,err)=>{diceMsg=t;msg.textContent=t;msg.classList.toggle('err',!!err)};
+  const dirIn=h('input',{type:'file',class:'vh',id:'pooldir',multiple:true,webkitdirectory:true,'aria-label':'サンプルフォルダを選ぶ'});
+  const filesIn=h('input',{type:'file',class:'vh',id:'poolfiles',multiple:true,accept:AUDIO_ACCEPT,'aria-label':'サンプルファイルをまとめて選ぶ'});
+  const canDir='webkitdirectory' in dirIn&&!/iPhone|iPad|iPod/.test(navigator.userAgent);
+  const status=h('span',{class:'poolstat'},POOL.files.length?`${POOL.label?'「'+POOL.label+'」 ':''}${POOL.files.length} 個のサンプル`:'フォルダ未指定');
+  const take=(files,label)=>{const n=setPool(files,label);status.textContent=n?`${POOL.label?'「'+POOL.label+'」 ':''}${n} 個のサンプル`:'フォルダ未指定';
+    setMsg(n?`${n} 個の音を読み込みました。「素材」のサイコロを振ると割り振られます。`:'音声ファイルが見つかりませんでした（wav / mp3 / m4a / aiff / flac / ogg）。',!n)};
+  dirIn.onchange=()=>{take(dirIn.files);dirIn.value=''};filesIn.onchange=()=>{take(filesIn.files,'選んだファイル');filesIn.value=''};
+  card.addEventListener('dragover',e=>{e.preventDefault();card.classList.add('drop')});
+  card.addEventListener('dragleave',()=>card.classList.remove('drop'));
+  card.addEventListener('drop',async e=>{e.preventDefault();card.classList.remove('drop');const r=await filesFromDrop(e.dataTransfer);take(r.files,r.label)});
+  const die=(label,cap,fn)=>{const face=h('span',{class:'dieface'});face.innerHTML=dieSVG(ri(1,6));
+    const b=h('button',{class:'die','aria-label':label+'のサイコロを振る'},face,h('b',{},label),h('small',{},cap));
+    b.onclick=async()=>{if(b.disabled)return;b.disabled=true;b.classList.add('rolling');
+      const spin=matchMedia('(prefers-reduced-motion: reduce)').matches?0:setInterval(()=>face.innerHTML=dieSVG(ri(1,6)),70);
+      try{const t=await fn(setMsg);await new Promise(r=>setTimeout(r,spin?380:0));setMsg(t);renderPanel()}catch(e){setMsg(e.message||String(e),true)}
+      finally{clearInterval(spin);face.innerHTML=dieSVG(ri(1,6));b.disabled=false;b.classList.remove('rolling')}};
+    return b};
+  const dice=h('div',{class:'dicerow'},
+    die('素材','フォルダから新しい音を引く',set=>rollMaterial(null,(k,n)=>set(`読み込み中… ${k}/${n}`))),
+    die('配置','音とチャンネルの組み合わせを入れ替える',async()=>rollPlacement()),
+    die('切り出し','サンプルのどこを使うかを変える',async()=>rollSlice()));
+  const map=h('div',{class:'dmap'});
+  M.voices.forEach((v,i)=>{const smp=v.engine==='sample'&&samples[i];
+    const info=smp?`${sampleNames[i]} · ${Math.round((v.sStart||0)*samples[i].duration*1000)}ms〜 ${Math.round(clamp(v.sLen??1,0,1)*(1-(v.sStart||0))*samples[i].duration*1000)}ms${v.sRev?' · REV':''}`:`内蔵 ${engName(i)}`;
+    map.append(h('span',{class:'dch',style:`color:${COL[i]}`},chName(i)),h('span',{class:'dname'+(smp?'':' dim')},info),
+      h('span',{},tog('固定',()=>v.lock,x=>{v.lock=x},'lock')))});
+  card.append(h('h3',{},'SAMPLE DICE'),
+    h('div',{class:'smptools',style:'margin-bottom:8px'},canDir?h('label',{class:'btn sm loadbtn',for:'pooldir',style:'--cc:var(--bone)'},'フォルダを選ぶ'):null,dirIn,
+      h('label',{class:'btn sm',for:'poolfiles'},canDir?'ファイルを複数選ぶ':'サンプルをまとめて選ぶ'),filesIn,status),
+    dice,msg,
+    h('div',{class:'smptools',style:'margin:2px 0 10px'},h('button',{class:'btn sm',onclick:()=>{setMsg(undoRoll());renderPanel()}},'元に戻す'),
+      h('button',{class:'btn sm',onclick:()=>{setMsg(resetBuiltIn());renderPanel()}},'内蔵音に戻す'),
+      h('span',{class:'hint',style:'margin:0'},'「固定」したチャンネルはサイコロの影響を受けません。'+(canDir?'フォルダはこのカードにドラッグしても読み込めます。':''))),
+    map);
+  return card;
+}
 function restoreSamples(){
   idb().then(db=>new Promise(res=>{const out=[];const tx=db.transaction('samples','readonly'),st=tx.objectStore('samples'),rq=st.openCursor();
     rq.onsuccess=()=>{const c=rq.result;if(c){out.push([c.key,c.value]);c.continue()}else res(out)};rq.onerror=()=>res(out)}))
   .then(async rows=>{if(!rows.length)return;initAudio();
-    for(const [k,v] of rows){try{samples[k]=await decodeAny(v.data);sampleNames[k]=v.name}catch(e){}}
+    for(const [k,v] of rows){try{samples[k]=await decodeAny(v.data);sampleNames[k]=v.name;sampleData[k]=v.data}catch(e){}}
     if(S.tab==='voices')renderPanel()}).catch(()=>{});
 }
 function initAudio(){
@@ -574,9 +716,12 @@ function playVoice(ch,t,vel,rel,mod){
       o.connect(lp);o2.connect(g2);g2.connect(lp);lp.connect(g);g.connect(out);break}
     case 'pluck':{D=.08+dec*1.2;const f=mtof(midi+12),o=osc('sawtooth',f,t,D),o2=osc('square',f*1.005,t,D),lp=ctx.createBiquadFilter();lp.type='lowpass';lp.Q.value=2;
       lp.frequency.setValueAtTime(400+tone*7000,t);lp.frequency.exponentialRampToValueAtTime(200,t+D);const g=envGain(t,.002,.35,D);o.connect(lp);o2.connect(lp);lp.connect(g);g.connect(out);break}
-    case 'sample':{const b=samples[ch];if(!b)return;const s=ctx.createBufferSource();s.buffer=b;s.playbackRate.value=r;D=Math.min(b.duration/r,.05+dec*b.duration/r);
+    case 'sample':{let b=samples[ch];if(!b)return;
+      const dur=b.duration,st=clamp(v.sStart||0,0,.999)*dur,region=Math.max(.01,clamp(v.sLen??1,.001,1)*(dur-st));let off=st;
+      if(v.sRev){b=revBuf(b);off=Math.max(0,dur-(st+region))}
+      const s=ctx.createBufferSource();s.buffer=b;s.playbackRate.value=r;D=Math.max(.02,region/r*(.12+dec*.88));
       const lp=ctx.createBiquadFilter();lp.type='lowpass';lp.frequency.value=300+tone*tone*18000;const g=ctx.createGain();g.gain.setValueAtTime(1,t);g.gain.setValueAtTime(1,t+Math.max(.005,D-.02));g.gain.linearRampToValueAtTime(0,t+D);
-      s.connect(lp);lp.connect(g);g.connect(out);s.start(t);s.stop(t+D+.05);break}
+      s.connect(lp);lp.connect(g);g.connect(out);s.start(t,off,Math.min(region,D*r+.05));s.stop(t+D+.05);break}
   }
 }
 
@@ -861,8 +1006,8 @@ const PANELS={
     W.sends.forEach((row,i)=>{t.append(h('tr',{},h('td',{style:`color:${COL[i]};font-family:var(--f-disp);font-size:11px`},chName(i)),...row.map((v,w)=>h('td',{style:`--cc:${COL[i]}`},knob({label:'',small:true,min:-1,max:1,step:.05,def:0,fmt:v=>v.toFixed(2),get:()=>row[w],set:v=>row[w]=v})))))});
     sc.append(t);sm.append(sc);wrap.append(g,sm);return wrap},
   voices(){
-    const wrap=h('div',{},intro('<strong>Voices</strong> はチャンネルごとの内蔵音源。ドラム系9種+サンプル。<strong>WAV / MP3</strong>(ほか m4a・aiff・flac・ogg)を各チャンネルの「読み込む」ボタンか、カードへのドラッグ&ドロップで入れられます。読み込んだサンプルはこのブラウザに保存され、次回も残ります。音程は NOTES の度数と Tune で決まります。'));
-    const st=h('div',{class:'stack'});
+    const wrap=h('div',{},intro('<strong>Voices</strong> はチャンネルごとの内蔵音源。ドラム系9種+サンプル。<strong>SAMPLE DICE</strong> でフォルダを指定すると、サイコロで「素材(どの音)」「配置(どのチャンネル)」「切り出し(音のどの部分)」をランダムに入れ替えられます。<strong>WAV / MP3</strong>(ほか m4a・aiff・flac・ogg)を各チャンネルの「読み込む」ボタンか、カードへのドラッグ&ドロップで入れられます。読み込んだサンプルはこのブラウザに保存され、次回も残ります。音程は NOTES の度数と Tune で決まります。'));
+    const st=h('div',{class:'stack'},diceCard());
     M.voices.forEach((v,i)=>{const card=h('div',{class:'chan',style:`--cc:${COL[i]}`});
       const file=h('input',{type:'file',accept:AUDIO_ACCEPT,class:'vh',id:'smp'+i,'aria-label':`${chName(i)} に WAV / MP3 を読み込む`});
       const fileMsg=h('span',{class:'smpname'+(samples[i]?' ok':'')},samples[i]?`♪ ${sampleNames[i]||'サンプル'} · ${samples[i].duration.toFixed(2)}s`:(v.engine==='sample'?'サンプル未読込：右のボタンから WAV / MP3 を選んでください':''));
@@ -876,8 +1021,24 @@ const PANELS={
       const tools=h('div',{class:'smptools'},
         h('label',{class:'btn sm loadbtn',for:'smp'+i},samples[i]?'差し替え':'WAV / MP3 を読み込む'),file,
         samples[i]?h('button',{class:'btn sm',onclick:()=>audition(i)},'▶ 試聴'):null,
-        samples[i]?h('button',{class:'btn sm',onclick:()=>{samples[i]=null;sampleNames[i]='';idbDel(i);if(v.engine==='sample')v.engine=DEFAULT_ENG[i];save();renderPanel()}},'外す'):null);
-      card.append(h('div',{class:'chead'},h('span',{class:'cname'},chName(i)),engSel,tools),fileMsg,
+        POOL.files.length?h('button',{class:'btn sm',title:'このチャンネルだけフォルダから引き直す',onclick:async e=>{const b=e.currentTarget;b.disabled=true;try{diceMsg=await rollMaterial([i]);renderPanel()}catch(err){fileMsg.className='smpname err';fileMsg.textContent=err.message;b.disabled=false}}},'⚀ 引き直す'):null,
+        tog('固定',()=>v.lock,x=>{v.lock=x},'lock'),
+        samples[i]?h('button',{class:'btn sm',onclick:()=>{samples[i]=null;sampleNames[i]='';sampleData[i]=null;idbDel(i);if(v.engine==='sample')v.engine=DEFAULT_ENG[i];save();renderPanel()}},'外す'):null);
+      let slice=null;
+      if(v.engine==='sample'&&samples[i]){
+        const wv=h('canvas',{class:'wave'});
+        const drawW=()=>{const b=samples[i],r=wv.getBoundingClientRect(),dp=Math.min(2,devicePixelRatio||1);wv.width=Math.max(10,r.width*dp);wv.height=44*dp;
+          const g=wv.getContext('2d'),W=wv.width,H=wv.height,d=b.getChannelData(0),stp=d.length/W,st=(v.sStart||0),en=st+clamp(v.sLen??1,0,1)*(1-st);
+          g.clearRect(0,0,W,H);g.fillStyle=COL[i];g.globalAlpha=.18;g.fillRect(st*W,0,Math.max(2,(en-st)*W),H);
+          for(let x=0;x<W;x++){let mn=1,mx=-1;for(let k=Math.floor(x*stp),e=Math.min(d.length,Math.floor((x+1)*stp)+1);k<e;k+=4){const q=d[k];if(q<mn)mn=q;if(q>mx)mx=q}
+            g.globalAlpha=x>=st*W&&x<=en*W?1:.3;g.fillRect(x,H/2-mx*H/2,1,Math.max(1,(mx-mn)*H/2))}g.globalAlpha=1};
+        requestAnimationFrame(drawW);
+        slice=h('div',{class:'cbody',style:'margin-bottom:6px;align-items:center'},h('div',{class:'knobs'},
+          knob({label:'Start',min:0,max:.999,step:.001,def:0,fmt:x=>Math.round(x*samples[i].duration*1000)+'ms',get:()=>v.sStart||0,set:x=>{v.sStart=x;drawW()}}),
+          knob({label:'Length',min:.001,max:1,step:.001,def:1,fmt:x=>Math.round(x*(1-(v.sStart||0))*samples[i].duration*1000)+'ms',get:()=>v.sLen??1,set:x=>{v.sLen=x;drawW()}})),
+          tog('REV',()=>v.sRev,x=>{v.sRev=x}),h('div',{style:'flex:1;min-width:160px'},wv));
+      }
+      card.append(h('div',{class:'chead'},h('span',{class:'cname'},chName(i)),engSel,tools),fileMsg,slice,
         h('div',{class:'knobs'},
           knob({label:'Tune',min:-24,max:24,step:1,def:0,get:()=>v.tune,set:x=>v.tune=x}),
           knob({label:'Decay',min:0,max:1,step:.01,def:.4,fmt:pct,get:()=>v.decay,set:x=>v.decay=x}),
@@ -906,7 +1067,7 @@ const PANELS={
     const strip=h('div',{class:'strip'});
     M.ch.forEach((c,i)=>strip.append(h('div',{class:'col',style:`--cc:${COL[i]}`},chName(i),tog('M',()=>c.mute,v=>c.mute=v,'mute'),tog('S',()=>c.solo,v=>c.solo=v),tog('INV',()=>c.inv,v=>c.inv=v))));
     strip.append(h('div',{class:'col',style:`--cc:${BONE}`},'ACC',tog('ON',()=>M.accent.on,v=>M.accent.on=v),tog('INV',()=>M.accent.inv,v=>M.accent.inv=v)));
-    wrap.append(h('div',{class:'stack'},morph,h('div',{class:'grid2'},h('div',{class:'card'},h('h3',{},'XY'),pad,h('p',{class:'hint'},'ダブルクリックで中央(等倍)に戻ります。')),h('div',{class:'card'},h('h3',{},'MUTE / SOLO / INV'),strip))));
+    wrap.append(h('div',{class:'stack'},diceCard(),morph,h('div',{class:'grid2'},h('div',{class:'card'},h('h3',{},'XY'),pad,h('p',{class:'hint'},'ダブルクリックで中央(等倍)に戻ります。')),h('div',{class:'card'},h('h3',{},'MUTE / SOLO / INV'),strip))));
     return wrap},
   rec(){
     if(!S.recBits)S.recBits=16;if(!S.mp3k)S.mp3k=192;
