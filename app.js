@@ -341,13 +341,17 @@
   // Artifact), a plain <a download> click is inert — go through the
   // platform's save prompt instead; otherwise (a normal page load)
   // trigger a real browser download directly
+  // resolves null when the file was handed over, else an error code
   async function saveBlobAsFile(filename, blob) {
     if (isHostedFrame()) {
       try {
         const dl = await window.claude.use("downloads");
-        if (dl) { await dl.save({ filename, data: blob }); return true; }
-      } catch (e) { /* fall through to false */ }
-      return false;
+        if (!dl) return "unavailable";
+        await dl.save({ filename, data: blob });
+        return null;
+      } catch (e) {
+        return (e && e.code) || "unavailable";
+      }
     }
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -357,7 +361,14 @@
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 30000);
-    return true;
+    return null;
+  }
+
+  function saveErrorMessage(code) {
+    if (code === "declined") return "保存がキャンセルされました（もう一度押せば保存できます）";
+    if (code === "rate_limited") return "保存確認が開いています。少し待ってからもう一度押してください";
+    if (code === "rejected_extension" || code === "extension_not_enabled") return "この画面ではこの形式を保存できません";
+    return "保存できませんでした";
   }
 
   function recBaseName() {
@@ -422,18 +433,13 @@
     masterMediaChunks = [];
 
     const ext = blob.type.includes("mp4") ? "mp4" : "webm";
-    const saved = await saveBlobAsFile(`${baseName}.${ext}`, blob);
+    const err = await saveBlobAsFile(`${baseName}.${ext}`, blob);
     if (masterRecStatus) {
-      masterRecStatus.textContent = saved ? `saved: ${baseName}.${ext}` : "保存されませんでした";
+      masterRecStatus.textContent = err ? saveErrorMessage(err) : `saved: ${baseName}.${ext}`;
     }
   }
 
   // ---- WAV REC: master + 4 track stems -> 5 WAVs (players + zip)
-  // A published Artifact can't save .wav/.zip (not in its downloads
-  // allowlist), so there the takes are playable in-page only, and saving
-  // points at the same app served as a normal web page.
-  const WEB_VERSION_URL = "https://4j8nfjnzdb-a11y.github.io/-/";
-
   function startWavRecording() {
     ensureAudio();
     if (wavRecording) return;
@@ -485,14 +491,17 @@
 
     showTakes(baseName, takes, zipName, zipBlob);
 
-    if (isHostedFrame()) {
-      if (wavRecStatus) wavRecStatus.textContent = "録音完了 — 下のプレイヤーで試聴できます";
-      return;
-    }
     // one .zip: most browsers silently block the 2nd+ of several
-    // downloads fired without an extra click
-    await saveBlobAsFile(zipName, zipBlob);
-    if (wavRecStatus) wavRecStatus.textContent = `saved: ${zipName} (WAV ${takes.length}本)`;
+    // downloads fired without an extra click, and a published Artifact
+    // accepts .zip but not .wav
+    await saveWavZip(zipName, zipBlob, takes.length);
+  }
+
+  async function saveWavZip(zipName, zipBlob, count) {
+    const err = await saveBlobAsFile(zipName, zipBlob);
+    if (wavRecStatus) {
+      wavRecStatus.textContent = err ? saveErrorMessage(err) : `saved: ${zipName} (WAV ${count}本)`;
+    }
   }
 
   let takeUrls = [];
@@ -509,7 +518,14 @@
     const title = document.createElement("span");
     title.textContent = `WAV REC — ${baseName}`;
     head.appendChild(title);
-    if (!hosted) {
+    if (hosted) {
+      const zipBtn = document.createElement("button");
+      zipBtn.type = "button";
+      zipBtn.className = "ghostBtn";
+      zipBtn.textContent = `⬇ ZIP 保存（WAV ${takes.length}本まとめて）`;
+      zipBtn.addEventListener("click", () => saveWavZip(zipName, zipBlob, takes.length));
+      head.appendChild(zipBtn);
+    } else {
       const zipUrl = URL.createObjectURL(zipBlob);
       takeUrls.push(zipUrl);
       const zipLink = document.createElement("a");
@@ -524,13 +540,7 @@
     if (hosted) {
       const note = document.createElement("p");
       note.className = "takesPanel__note";
-      note.append("この Artifact 画面は WAV / ZIP を保存できない仕組みなので、ここでは試聴のみです。WAV で保存するにはブラウザ版を開いてください → ");
-      const link = document.createElement("a");
-      link.href = WEB_VERSION_URL;
-      link.target = "_blank";
-      link.rel = "noopener";
-      link.textContent = WEB_VERSION_URL;
-      note.appendChild(link);
+      note.textContent = "この画面では WAV を1本ずつは保存できないため、5本まとめた ZIP で保存されます。iPhone ではファイル App で ZIP をタップすると展開され、中の WAV を再生できます。";
       panel.appendChild(note);
     }
 
