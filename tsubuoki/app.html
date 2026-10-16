@@ -107,6 +107,19 @@ button,select,input{font:inherit;color:inherit}
 .keys{margin:6px 0 0;color:var(--faint);font-size:11.5px;line-height:1.7}
 .keys kbd{font-family:var(--f-mono);font-size:10.5px;border:1px solid var(--line);border-bottom-width:2px;border-radius:3px;padding:0 4px;color:var(--dim);background:var(--well)}
 
+.demoBar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;background:color-mix(in srgb,var(--accent) 12%,var(--panel));border:1px solid color-mix(in srgb,var(--accent) 45%,var(--line));border-radius:6px;padding:8px 10px;margin-bottom:10px;font-size:13px}
+.demoBar p{margin:0;flex:1 1 30ch;min-width:0}
+.selBar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px;min-height:34px}
+.selBar .what{font-size:12.5px;color:var(--dim);margin-right:4px}
+.selBar .what b{color:var(--sel)}
+.dice{display:flex;flex-wrap:wrap;gap:8px}
+.dice .btn{padding:9px 13px;font-size:14px}
+.dice .btn.big{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:700;font-size:15px}
+.dice .btn .face{font-size:18px;line-height:0;vertical-align:-2px;margin-right:4px}
+.dice .btn.flash{outline:2px solid var(--accent);outline-offset:1px}
+.diceCtl{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;margin-top:12px}
+.diceCtl input[type=range]{width:140px;accent-color:var(--accent)}
+.autoOn{background:var(--accent)!important;color:var(--accent-ink)!important;border-color:var(--accent)!important}
 .lower{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr) minmax(0,.8fr);gap:14px;align-items:start}
 @media (max-width:1020px){.lower{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}#pExp{grid-column:1/-1}}
 @media (max-width:680px){.lower{grid-template-columns:minmax(0,1fr)}}
@@ -192,9 +205,27 @@ button,select,input{font:inherit;color:inherit}
       <button id="bTzall" class="btn">全体</button>
     </div>
   </div>
+  <div class="demoBar" id="demoBar" hidden>
+    <p><b>いま台紙に入っているのは見本の並びです。</b>再生して流れるのは、合成した見本素材から切った粒をこの台紙に並べたものです。自分の音を「音声ファイルを開く」で入れると、並びはそのままで、粒がすべて自分の音から切り直されます。</p>
+    <button id="bDemoClr" class="btn">白紙から始める</button>
+  </div>
   <div class="tlwrap" id="tlwrap"><canvas id="cTl" aria-label="台紙。横が時間、縦が列"></canvas></div>
   <input id="iScroll" class="scroll" type="range" min="0" max="1000" value="0" aria-label="台紙の表示位置">
+  <div class="selBar" id="selBar"></div>
   <p class="keys"><kbd>Space</kbd> 再生/停止　<kbd>R</kbd> 録音/停止　<kbd>Delete</kbd> 削除　<kbd>←</kbd><kbd>→</kbd> 1 ms ずらす（<kbd>Shift</kbd> 10 ms）　<kbd>↑</kbd><kbd>↓</kbd> 列を移る　<kbd>Alt</kbd>＋ドラッグ 複製　<kbd>D</kbd> 複製　<kbd>Shift</kbd>＋押す 追加選択　空いた所をドラッグ 範囲選択　<kbd>⌘/Ctrl</kbd>＋<kbd>Z</kbd> 取り消し　<kbd>Esc</kbd> 選択解除</p>
+</section>
+
+<section class="panel" id="pDice">
+  <div class="phead"><h2>サイコロ</h2><p class="lede" id="diceLede">台紙の粒をまとめて振り直します。粒を選んでいればその粒だけ、選んでいなければ台紙全体が変わります。気に入らなければ「取り消し」で一つ前へ。</p></div>
+  <div class="dice" id="dice"></div>
+  <div class="diceCtl">
+    <label class="fld">変化の強さ <input id="dStr" type="range" min="5" max="100" step="5" value="40"> <output id="dStrO" class="pos" style="min-width:3em;font-size:13px">40%</output></label>
+    <button id="bAuto" class="btn" title="ループが一周するたびにサイコロを振る">ループごとに自動で振る</button>
+    <label class="fld">間隔<select id="dEvery"><option value="1">毎周</option><option value="2">2 周ごと</option><option value="4">4 周ごと</option><option value="8">8 周ごと</option></select></label>
+    <label class="fld">振るもの<select id="dKind"></select></label>
+    <button id="bDiceUndo" class="btn">取り消し</button>
+  </div>
+  <p class="msg" id="diceMsg"></p>
 </section>
 
 <div class="lower">
@@ -269,6 +300,7 @@ const KEY='tsubuoki.v1';
 const S={L:4,snap:0.005,loop:true,touch:true,zero:true,bin:[],events:[],laneMute:Array(LANES).fill(false),srcSel:'demo',sel:{start:0.02,len:0.018},nextId:1,pos:0};
 let hadSaved=false;
 try{const o=JSON.parse(localStorage.getItem(KEY)||'null');if(o&&Array.isArray(o.events)){Object.assign(S,o);hadSaved=true}}catch(e){}
+if(hadSaved&&S.isDemo===undefined)S.isDemo=S.events.length>0&&S.events.every(e=>e.src==='demo');
 if(!Array.isArray(S.laneMute)||S.laneMute.length!==LANES)S.laneMute=Array(LANES).fill(false);
 const nid=()=>S.nextId++;
 let saveT=0;
@@ -352,7 +384,7 @@ function demoArrangement(){
   [[0,0,true],[1,-5,false],[2,7,true],[3,-12,false]].forEach(([x,p,r])=>E(B(5),x,4,{semi:p,rev:r,gain:-8,fi:25,fo:60}));
   E(B(7),1.5,5,{semi:-3,gain:-6,fi:40,fo:90});E(B(7),3.55,5,{semi:2,gain:-8,fi:40,fo:90,rev:true});
   E(B(1),0.995,5,{semi:-12,gain:-6,fo:40});
-  selIds.clear();armed=null;S.pos=0;
+  selIds.clear();armed=null;S.pos=0;S.isDemo=true;
 }
 function newEvent(b,t,lane){return{id:nid(),src:b.src,start:b.start,len:b.len,t:Math.max(0,t),lane:clamp(lane,0,LANES-1),gain:0,semi:0,pan:0,rev:false,fi:Math.min(1.5,b.len*1000*0.15),fo:Math.min(4,b.len*1000*0.3)}}
 const rateOf=e=>Math.pow(2,e.semi/12);
@@ -402,8 +434,10 @@ async function openFiles(files){
       const ci=(nextCi++)%6;addSource(id,f.name||'素材',buf,ci);idbPut({id,name:f.name||'素材',data:ab,ci});last=id;ok++}
     catch(e){bad.push(f.name)}}
   if(last)selectSource(last,true);
+  let note='';
+  if(last&&S.isDemo&&S.events.length){recutFrom(last);note=' 見本の並びを、この音から切り直しました。再生して聴いてみてください。サイコロで変化させられます。'}
   msg.className=bad.length?'msg err':'msg';
-  msg.textContent=(ok?`${ok} 個の素材を開きました。`:'')+(bad.length?` 読み込めなかったもの: ${bad.join('、')}（WAV / MP3 / M4A / FLAC / OGG などを使ってください）`:'');
+  msg.textContent=(ok?`${ok} 個の素材を開きました。${note}`:'')+(bad.length?` 読み込めなかったもの: ${bad.join('、')}（WAV / MP3 / M4A / FLAC / OGG などを使ってください）`:'');
 }
 
 /* ───────── theme colours for canvases ───────── */
@@ -549,7 +583,7 @@ function playGrain(c,dest,ev,when,track){
 function audition(ev){ensureCtx();ctx.resume();playGrain(ctx,master,ev,ctx.currentTime+0.01,true)}
 function auditionSel(){const s=curSrc();if(!s)return;audition({src:s.id,start:S.sel.start,len:S.sel.len,semi:0,gain:0,pan:0,rev:false,fi:Math.min(1,S.sel.len*150),fo:Math.min(3,S.sel.len*300)})}
 const P={on:false,ctx0:0,pos0:0,until:0,timer:0};
-function play(){ensureCtx();ctx.resume();if(S.pos>=S.L)S.pos=0;P.on=true;P.ctx0=ctx.currentTime+0.06;P.pos0=S.pos;P.until=S.pos;tick();P.timer=setInterval(tick,25);syncTransport();requestAnimationFrame(frame)}
+function play(){ensureCtx();ctx.resume();if(S.pos>=S.L)S.pos=0;P.on=true;P.ctx0=ctx.currentTime+0.06;P.pos0=S.pos;P.until=S.pos;P.wrap=Math.floor((S.pos+0.3)/S.L);P.wraps=0;tick();P.timer=setInterval(tick,25);syncTransport();requestAnimationFrame(frame)}
 function stop(keep){if(!P.on)return;S.pos=keep?curPos():S.pos;P.on=false;clearInterval(P.timer);for(const n of live){try{n.stop()}catch(e){}}live.clear();syncTransport();save();inv()}
 function curPos(){const v=P.pos0+(ctx.currentTime-P.ctx0);if(v<P.pos0)return P.pos0;return S.loop?v%S.L:Math.min(v,S.L)}
 function tick(){
@@ -560,7 +594,9 @@ function tick(){
   for(let k=Math.floor(a/L);k<=kEnd;k++)for(const ev of S.events){
     if(ev.t>=L||S.laneMute[ev.lane])continue;const vt=ev.t+k*L;
     if(vt>=a&&vt<b)playGrain(ctx,master,ev,Math.max(now,P.ctx0+(vt-P.pos0)),true)}
-  P.until=b}
+  P.until=b;
+  // auto dice: roll just before the loop wraps so the next pass already plays the new version
+  if(S.loop&&AUTO.on){const w=Math.floor((vNow+0.3)/L);if(w>P.wrap){P.wrap=w;P.wraps++;if(P.wraps%AUTO.every===0&&!drag)setTimeout(()=>roll(AUTO.kind,true),0)}}}
 function frame(){if(!P.on)return;S.pos=curPos();syncPos();inv();
   // keep the playhead in view
   const vis=(cTl.clientWidth-LW)/TV.pps;if(S.pos<TV.x0||S.pos>TV.x0+vis){TV.x0=Math.max(0,S.pos-vis*0.1);syncScroll()}
@@ -633,9 +669,11 @@ function drawGrain(g,ev,x,dw,y,lh,sel){
   if(ev.rev&&dw>10){g.fillStyle=col;g.beginPath();g.moveTo(x+dw-2,top+2);g.lineTo(x+dw-7,top+5);g.lineTo(x+dw-2,top+8);g.fill()}
   if(sel){g.strokeStyle=T.sel;g.lineWidth=1.5;g.strokeRect(x+0.75,top+0.75,Math.max(1,dw-1.5),hh-1.5)}
 }
-function hitTest(x,y){const lh=laneH();if(y<RH)return null;const lane=Math.floor((y-RH)/lh);
-  for(let i=S.events.length-1;i>=0;i--){const ev=S.events[i];if(ev.lane!==lane)continue;const x0=tToX(ev.t),dw=Math.max(3,durOf(ev)*TV.pps);
-    if(x>=x0-2&&x<=x0+dw+2){let edge=null;if(dw>=14){if(x-x0<5)edge='L';else if(x0+dw-x<5)edge='R'}return{ev,edge}}}return null}
+// grains are often only a few pixels wide, so the reach around them is generous (more for fingers) and the nearest one wins
+function hitTest(x,y,coarse){const lh=laneH();if(y<RH)return null;const lane=Math.floor((y-RH)/lh),tol=coarse?12:6;let best=null,bd=Infinity;
+  for(let i=S.events.length-1;i>=0;i--){const ev=S.events[i];if(ev.lane!==lane)continue;const x0=tToX(ev.t),dw=Math.max(2,durOf(ev)*TV.pps);
+    const d=x<x0?x0-x:x>x0+dw?x-(x0+dw):0;if(d<=tol&&d<bd){bd=d;let edge=null;if(dw>=(coarse?28:14)&&d===0){const ez=coarse?9:5;if(x-x0<ez)edge='L';else if(x0+dw-x<ez)edge='R'}best={ev,edge};if(d===0)break}}
+  return best}
 const snapT=(t,free)=>(!S.snap||free)?t:Math.round(t/S.snap)*S.snap;
 let drag=null,box=null;
 const ty=(e)=>e.clientY-cTl.getBoundingClientRect().top;
@@ -644,7 +682,7 @@ cTl.addEventListener('pointerdown',e=>{
   if(y<RH){drag={k:'seek'};seekTo(xToT(x));return}
   const lane=yToLane(y);
   if(x<LW){pushUndo();S.laneMute[lane]=!S.laneMute[lane];save();inv();drag=null;return}
-  const hit=hitTest(x,y),t=xToT(x);
+  const hit=hitTest(x,y,e.pointerType==='touch'||e.pointerType==='pen'),t=xToT(x);
   if(hit){const ev=hit.ev;
     if(e.shiftKey&&!e.altKey){selIds.has(ev.id)?selIds.delete(ev.id):selIds.add(ev.id);if(S.touch)audition(ev);renderInsp();inv();drag=null;return}
     if(!selIds.has(ev.id))selIds=new Set([ev.id]);
@@ -701,6 +739,20 @@ function renderBin(){
 function drawChip(cv,b){const s=sources.get(b.src);const w=cv.clientWidth||104,hh=34,d=dpr();cv.width=w*d;cv.height=hh*d;const g=cv.getContext('2d');g.setTransform(d,0,0,d,0,0);
   if(!s)return;const col=colOf(b.src),mid=hh/2,span=b.len*s.sr,base=b.start*s.sr;g.fillStyle=col;
   for(let x=0;x<w;x++){const[lo,hi]=mm(s,base+x/w*span,base+(x+1)/w*span);g.fillRect(x,mid-hi*mid*0.95,1,Math.max(1,(hi-lo)*mid*0.95))}}
+function renderSelBar(){const el=$('selBar'),sel=S.events.filter(e=>selIds.has(e.id));
+  if(!sel.length){el.replaceChildren(h('span',{class:'what'},S.events.length?`台紙に ${S.events.length} 粒。粒を押すと選べます（指なら近くを押せば拾います）。`:'台紙は空です。小箱の粒を持って、空いた所を押して置きます。'));$('demoBar').hidden=!S.isDemo;return}
+  const nudge=(fn)=>{pushUndo();for(const e of sel)fn(e);save();inv();renderInsp()};
+  el.replaceChildren(h('span',{class:'what'},h('b',null,`${sel.length} 粒`),' を選択中'),
+    h('button',{class:'btn',onclick:()=>sel.forEach(e=>audition(e))},'試聴'),
+    h('button',{class:'btn',onclick:()=>nudge(e=>{e.t=Math.max(0,e.t-(S.snap||0.001))})},'← 早く'),
+    h('button',{class:'btn',onclick:()=>nudge(e=>{e.t+=(S.snap||0.001)})},'遅く →'),
+    h('button',{class:'btn',onclick:()=>nudge(e=>{e.semi=clamp(e.semi-1,-24,24)})},'音程 −1'),
+    h('button',{class:'btn',onclick:()=>nudge(e=>{e.semi=clamp(e.semi+1,-24,24)})},'音程 ＋1'),
+    h('button',{class:'btn',onclick:()=>nudge(e=>{e.rev=!e.rev})},'逆再生'),
+    h('button',{class:'btn',onclick:dup},'複製'),
+    h('button',{class:'btn danger',onclick:del},'削除'),
+    h('button',{class:'btn ghost',onclick:()=>{selIds.clear();renderInsp();inv()}},'選択をやめる'));
+  $('demoBar').hidden=!S.isDemo}
 function updateLede(){const b=S.bin.find(q=>q.id===armed),el=$('tlLede');
   el.textContent=b?`「${b.name||'粒'} ${ms(b.len)} ms」を手に持っています。空いた所を押すと置けます（Esc で手放す）。`:'粒を押して選び、ドラッグで動かす。端をつまむと長さを詰められます。左端の列番号を押すと列を消音。'}
 
@@ -717,7 +769,7 @@ const POS=[
   {k:'len',l:'素材の長さ',get:e=>e.len*1000,set:(e,v)=>{const s=sources.get(e.src);e.len=clamp(v/1000,0.0005,(s?s.dur:1)-e.start)}}];
 let editPushed=false;
 function renderInsp(){
-  repInfo();const el=$('insp'),sel=S.events.filter(e=>selIds.has(e.id));
+  repInfo();renderSelBar();syncDiceLede();const el=$('insp'),sel=S.events.filter(e=>selIds.has(e.id));
   if(!sel.length){el.replaceChildren(h('p',{class:'note'},`台紙の粒を押すと、ここで音量・音程・定位・逆再生・フェードを調整できます。いま台紙には ${S.events.length} 粒あります。`));return}
   const f=sel[0],many=sel.length>1;
   const apply=(fn)=>{if(!editPushed){pushUndo();editPushed=true}for(const e of sel)fn(e);save();inv();facts()};
@@ -759,7 +811,8 @@ function del(){if(!selIds.size)return;pushUndo();S.events=S.events.filter(e=>!se
 $('bDup').onclick=dup;$('bDel').onclick=del;$('bUndo').onclick=undo;$('bRedo').onclick=redo;
 let clrArm=0;
 $('bClear').onclick=()=>{const b=$('bClear');if(Date.now()-clrArm>4000){clrArm=Date.now();b.textContent=`台紙の ${S.events.length} 粒を消します。もう一度押す`;setTimeout(()=>{b.textContent='白紙に戻す'},4000);return}
-  clrArm=0;b.textContent='白紙に戻す';pushUndo();S.events=[];selIds.clear();save();renderInsp();fitTl()};
+  clrArm=0;b.textContent='白紙に戻す';pushUndo();S.events=[];S.isDemo=false;selIds.clear();save();renderInsp();fitTl()};
+$('bDemoClr').onclick=()=>{pushUndo();stop(false);S.events=[];S.isDemo=false;selIds.clear();save();renderInsp();fitTl()};
 $('bDemo').onclick=()=>{pushUndo();stop(false);demoArrangement();$('iLen').value=Math.round(S.L*1000);selectSource('demo',false);save();renderBin();renderInsp();fitTl()};
 
 /* ───────── keyboard ───────── */
@@ -834,6 +887,71 @@ $('bExp').onclick=async()=>{
   catch(e){m.className='msg err';m.textContent=`書き出せませんでした：${e.message||e}`}
   finally{btn.disabled=false}};
 $('pExp').querySelector('.note').textContent+=inViewer?' claude.ai 上では WAV が ZIP に入った形で保存されます（展開するとそのまま使えます）。':'';
+
+/* ───────── dice (サイコロ) ───────── */
+const DICE=[
+  {k:'all',l:'全部',f:'⚅',d:'切り口・長さ・音程・並び・向きをまとめて'},
+  {k:'cut',l:'切り口',f:'⚀',d:'粒を素材の別の場所から切り直す'},
+  {k:'len',l:'長さ',f:'⚁',d:'粒の長さを伸び縮みさせる'},
+  {k:'pitch',l:'音程',f:'⚂',d:'粒ごとに音程をずらす'},
+  {k:'time',l:'並び',f:'⚃',d:'同じ列の中で置き場所を入れ替え、少し揺らす'},
+  {k:'dens',l:'密度',f:'⚄',d:'粒を間引いたり、写して増やしたりする'},
+  {k:'dir',l:'向き・定位',f:'⚁',d:'逆再生と左右の位置を振る'},
+  {k:'src',l:'素材を混ぜる',f:'⚂',d:'開いた素材どうしで、粒の出どころを入れ替える'}];
+const AUTO={on:false,every:1,kind:'all'};
+const R=()=>Math.random(),R2=()=>Math.random()*2-1;
+const famKey=e=>e.src+'|'+e.start.toFixed(5)+'|'+e.len.toFixed(5);
+// grains cut from the same spot stay one family, so a repeated grain keeps sounding like one sound after a roll
+function families(evs){const m=new Map();for(const e of evs){const k=famKey(e);if(!m.has(k))m.set(k,[]);m.get(k).push(e)}return[...m.values()]}
+// a few random tries, keep the loudest, so a re-cut rarely lands in silence
+function loudStart(s,len){let best=0,bv=-1;for(let i=0;i<8;i++){const st=R()*Math.max(0,s.dur-len),[lo,hi]=mm(s,st*s.sr,(st+len)*s.sr);if(hi-lo>bv){bv=hi-lo;best=st}}return best}
+function pickSome(arr,p){const out=arr.filter(()=>R()<p);if(!out.length&&arr.length)out.push(arr[Math.floor(R()*arr.length)]);return out}
+const DO={
+  cut(evs,p){const f=pickSome(families(evs),p);for(const fam of f){const s=sources.get(fam[0].src);if(!s)continue;const len=Math.min(fam[0].len,s.dur);const st=loudStart(s,len);for(const e of fam){e.start=st;e.len=len}}return`${f.length} 種の粒を別の場所から切り直しました`},
+  len(evs,p){const f=pickSome(families(evs),p);for(const fam of f){const s=sources.get(fam[0].src);if(!s)continue;const nl=clamp(fam[0].len*Math.pow(2,R2()*1.6*p+0.0001),0.001,Math.min(0.6,s.dur));
+    for(const e of fam){e.len=nl;e.start=clamp(e.start,0,s.dur-nl)}}return`${f.length} 種の粒の長さを変えました`},
+  pitch(evs,p){const f=pickSome(families(evs),Math.max(p,0.3));for(const fam of f){const d=Math.round(R2()*12*p*10)/10;for(const e of fam)e.semi=clamp(Math.round((e.semi*(1-0.35*p)+d)*10)/10,-24,24)}return`${f.length} 種の粒の音程をずらしました`},
+  time(evs,p){let n=0;const by=new Map();for(const e of evs){if(!by.has(e.lane))by.set(e.lane,[]);by.get(e.lane).push(e)}
+    for(const arr of by.values()){for(const e of arr){if(arr.length>1&&R()<p*0.5){const o=arr[Math.floor(R()*arr.length)];const t=e.t;e.t=o.t;o.t=t;n++}}
+      for(const e of arr)e.t=clamp(snapT(e.t+R2()*0.03*p),0,Math.max(0,S.L-0.001))}
+    return`置き場所を ${n} 組入れ替えて、少し揺らしました`},
+  dens(evs,p){const ids=new Set(evs.map(e=>e.id));let rm=0,add=0;
+    const kill=new Set(evs.filter(()=>R()<p*0.25).map(e=>e.id));if(kill.size>=evs.length)kill.delete(evs[0].id);
+    S.events=S.events.filter(e=>{if(kill.has(e.id)){rm++;selIds.delete(e.id);return false}return true});
+    const left=S.events.filter(e=>ids.has(e.id)),n=Math.round(evs.length*p*0.25);
+    for(let i=0;i<n&&S.events.length<900&&left.length;i++){const o=left[Math.floor(R()*left.length)];const c={...o,id:nid(),t:snapT(R()*Math.max(0.001,S.L-durOf(o)))};S.events.push(c);add++;if(selIds.size)selIds.add(c.id)}
+    return`${rm} 粒を間引き、${add} 粒を増やしました`},
+  dir(evs,p){let r=0;for(const e of evs){if(R()<p*0.4){e.rev=!e.rev;r++}e.pan=clamp(Math.round((e.pan*(1-p)+R2()*p)*100)/100,-1,1)}return`${r} 粒の向きを返し、定位を散らしました`},
+  src(evs,p){const ids=[...sources.keys()];if(ids.length<2)return'素材が 1 つしかありません。音声ファイルを開くと、素材どうしを混ぜられます';
+    const f=pickSome(families(evs),p);for(const fam of f){const others=ids.filter(i=>i!==fam[0].src);const s=sources.get(others[Math.floor(R()*others.length)]);const len=Math.min(fam[0].len,s.dur),st=loudStart(s,len);for(const e of fam){e.src=s.id;e.start=st;e.len=len}}
+    return`${f.length} 種の粒の出どころを入れ替えました`}};
+function rollTargets(){const sel=S.events.filter(e=>selIds.has(e.id));return sel.length?sel:S.events}
+let rollCount=0;
+function roll(kind,auto){
+  const m=$('diceMsg');const evs=rollTargets();
+  if(!evs.length){m.className='msg err';m.textContent='台紙に粒がありません。先に粒を置くか、「見本の配置を読む」を押してください。';return}
+  pushUndo();const p=S.dstr/100;const kinds=kind==='all'?['cut','len','pitch','time','dir']:[kind];const said=[];
+  for(const k of kinds){const cur=rollTargets();if(cur.length)said.push(DO[k](cur,p))}
+  rollCount++;save();renderInsp();inv();
+  m.className='msg';m.textContent=`${auto?'自動 ':''}${rollCount} 回目：${said.join('。')}。`;
+  const b=document.querySelector(`#dice [data-k="${kind}"]`);if(b){b.classList.add('flash');setTimeout(()=>b.classList.remove('flash'),350)}}
+// swap every grain over to one source and cut each family afresh from it
+function recutFrom(id){const s=sources.get(id);if(!s)return;pushUndo();
+  for(const fam of families(S.events)){const len=Math.min(fam[0].len,s.dur),st=loudStart(s,len);for(const e of fam){e.src=id;e.start=st;e.len=len}}
+  S.bin.forEach(b=>{if(b.src==='demo'){b.src=id;b.len=Math.min(b.len,s.dur);b.start=loudStart(s,b.len)}});
+  S.isDemo=false;save();renderBin();renderInsp();inv()}
+function syncDiceLede(){const n=selIds.size,el=$('diceLede');if(!el)return;
+  el.textContent=n?`いまは選んだ ${n} 粒だけが変わります（選択をやめると台紙全体）。気に入らなければ「取り消し」で一つ前へ。`:'台紙の粒をまとめて振り直します。いまは台紙全体が変わります（粒を選ぶとその粒だけ）。気に入らなければ「取り消し」で一つ前へ。'}
+{const el=$('dice');
+ el.append(...DICE.map(d=>h('button',{class:'btn'+(d.k==='all'?' big':''),'data-k':d.k,title:d.d,onclick:()=>roll(d.k,false)},h('span',{class:'face','aria-hidden':'true'},d.f),d.l)),
+   h('button',{class:'btn',title:'台紙のすべての粒を、いま素材欄で選んでいる音から切り直す',onclick:()=>{const s=curSrc();recutFrom(s.id);const m=$('diceMsg');m.className='msg';m.textContent=`台紙の粒をすべて「${s.name}」から切り直しました。`}},'いまの素材で切り直す'));
+ $('dKind').replaceChildren(...DICE.map(d=>h('option',{value:d.k},d.l)));
+ if(S.dstr==null)S.dstr=40;$('dStr').value=S.dstr;$('dStrO').textContent=S.dstr+'%';
+ $('dStr').oninput=e=>{S.dstr=+e.target.value;$('dStrO').textContent=S.dstr+'%';save()};
+ $('dEvery').onchange=e=>{AUTO.every=+e.target.value};$('dKind').onchange=e=>{AUTO.kind=e.target.value};
+ $('bAuto').onclick=()=>{AUTO.on=!AUTO.on;const b=$('bAuto');b.classList.toggle('autoOn',AUTO.on);b.textContent=AUTO.on?'自動で振っています（押すと止める）':'ループごとに自動で振る';
+   if(AUTO.on){if(!S.loop){S.loop=true;syncTransport();save()}if(!P.on)play();else{P.wrap=Math.floor((P.pos0+(ctx.currentTime-P.ctx0)+0.3)/S.L);P.wraps=0}}};
+ $('bDiceUndo').onclick=undo}
 
 /* ───────── live recording of the master out ───────── */
 const REC={on:false,sp:null,z:null,L:[],R:[],n:0,t0:0,timer:0},takes=[];
