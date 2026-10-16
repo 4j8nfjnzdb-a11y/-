@@ -154,7 +154,12 @@ tr.act td{background:#2a2737}
 .guide .tag.ok{border-color:#4a7a5c;color:#8fd1a6}
 .guide a{color:var(--bone)}
 .hint{font-size:12px;color:var(--faint);margin-top:6px}
-.file{font-size:11px;color:var(--dim);max-width:160px}
+.vh{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none}
+.smptools{display:flex;flex-wrap:wrap;gap:6px;align-items:center;position:relative}
+.loadbtn{border-color:var(--cc);color:var(--cc)}
+.smpname{display:block;font-size:12px;color:var(--dim);margin:-2px 0 8px;overflow-wrap:anywhere}
+.smpname.ok{color:var(--cc)}.smpname.err{color:var(--hot)}
+.chan.drop{outline:2px dashed var(--cc);outline-offset:2px}
 @media (max-width:520px){.ringbox{max-width:300px}.steps,.hist{grid-template-columns:repeat(8,minmax(0,1fr))}.legend{font-size:9px}.knob{width:50px}.brand small{display:none}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -355,7 +360,59 @@ function applyMorph(){
 
 /* ───────── audio ───────── */
 let ctx=null,master,comp,dly,dlyFb,dlyFilt,dlySend,rev,revSend,noiseBuf;
-const samples=Array(8).fill(null);
+const samples=Array(8).fill(null),sampleNames=Array(8).fill('');
+const DEFAULT_ENG=['kick','snare','hat','conga','clap','bell','rim','bass'];
+// explicit extensions: on iPhone/iPad a bare "audio/*" only offers the Music library, not the Files app
+const AUDIO_ACCEPT='.wav,.wave,.mp3,.m4a,.aac,.aif,.aiff,.caf,.ogg,.oga,.opus,.flac,audio/*';
+function readAB(f){return f.arrayBuffer?f.arrayBuffer():new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(r.error);r.readAsArrayBuffer(f)})}
+function decodeNative(ab){return new Promise((res,rej)=>{try{const p=ctx.decodeAudioData(ab,res,e=>rej(e||new Error('decode')));if(p&&p.then)p.then(res,rej)}catch(e){rej(e)}})}
+// fallback for WAV variants a browser's decoder refuses (8/16/24/32-bit int, 32/64-bit float, WAVE_FORMAT_EXTENSIBLE)
+function parseWav(ab){
+  const dv=new DataView(ab),tag=o=>String.fromCharCode(dv.getUint8(o),dv.getUint8(o+1),dv.getUint8(o+2),dv.getUint8(o+3));
+  if(ab.byteLength<44||tag(0)!=='RIFF'||tag(8)!=='WAVE')return null;
+  let o=12,fmt=null,data=null;
+  while(o+8<=ab.byteLength){const id=tag(o),sz=dv.getUint32(o+4,true);
+    if(id==='fmt '){let f=dv.getUint16(o+8,true);if(f===0xFFFE&&sz>=26)f=dv.getUint16(o+32,true);fmt={f,ch:dv.getUint16(o+10,true),sr:dv.getUint32(o+12,true),bits:dv.getUint16(o+22,true)}}
+    else if(id==='data'){data={o:o+8,sz:Math.min(sz,ab.byteLength-o-8)}}
+    o+=8+sz+(sz&1);}
+  if(!fmt||!data||!fmt.ch||!fmt.sr)return null;
+  const bps=fmt.bits/8,frames=Math.floor(data.sz/(bps*fmt.ch));if(!frames)return null;
+  const buf=ctx.createBuffer(fmt.ch,frames,clamp(fmt.sr,3000,384000));
+  for(let c=0;c<fmt.ch;c++){const out=buf.getChannelData(c);
+    for(let i=0;i<frames;i++){const p=data.o+(i*fmt.ch+c)*bps;let v;
+      if(fmt.f===3)v=bps===8?dv.getFloat64(p,true):dv.getFloat32(p,true);
+      else if(bps===1)v=(dv.getUint8(p)-128)/128;
+      else if(bps===2)v=dv.getInt16(p,true)/32768;
+      else if(bps===3){const x=dv.getUint8(p)|(dv.getUint8(p+1)<<8)|(dv.getInt8(p+2)<<16);v=x/8388608}
+      else if(bps===4)v=dv.getInt32(p,true)/2147483648;
+      else return null;
+      out[i]=v;}}
+  return buf;
+}
+async function decodeAny(ab){
+  try{return await decodeNative(ab.slice(0))}catch(e){const w=parseWav(ab);if(w)return w;throw new Error('対応していない形式です')}
+}
+async function loadSample(i,f){
+  initAudio();
+  const ab=await readAB(f);
+  if(!ab||!ab.byteLength)throw new Error('ファイルが空です');
+  const buf=await decodeAny(ab);
+  samples[i]=buf;sampleNames[i]=f.name||'sample';M.voices[i].engine='sample';
+  idbPut(i,{name:sampleNames[i],data:ab});save();
+}
+function audition(i){initAudio();ctx.resume();playVoice(i,ctx.currentTime+.02,1,0,{pitch:0,vel:0,tone:0,decay:0,pan:0,fx:0})}
+// keep loaded samples in this browser (IndexedDB) so they survive a reload; failures are silent
+let idbP=null;
+function idb(){if(!idbP)idbP=new Promise((res,rej)=>{try{const r=indexedDB.open('tataki-grids',1);r.onupgradeneeded=()=>r.result.createObjectStore('samples');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}catch(e){rej(e)}});return idbP}
+function idbPut(k,v){idb().then(db=>db.transaction('samples','readwrite').objectStore('samples').put(v,k)).catch(()=>{})}
+function idbDel(k){idb().then(db=>db.transaction('samples','readwrite').objectStore('samples').delete(k)).catch(()=>{})}
+function restoreSamples(){
+  idb().then(db=>new Promise(res=>{const out=[];const tx=db.transaction('samples','readonly'),st=tx.objectStore('samples'),rq=st.openCursor();
+    rq.onsuccess=()=>{const c=rq.result;if(c){out.push([c.key,c.value]);c.continue()}else res(out)};rq.onerror=()=>res(out)}))
+  .then(async rows=>{if(!rows.length)return;initAudio();
+    for(const [k,v] of rows){try{samples[k]=await decodeAny(v.data);sampleNames[k]=v.name}catch(e){}}
+    if(S.tab==='voices')renderPanel()}).catch(()=>{});
+}
 function initAudio(){
   if(ctx)return;
   ctx=new (window.AudioContext||window.webkitAudioContext)();
@@ -700,13 +757,23 @@ const PANELS={
     W.sends.forEach((row,i)=>{t.append(h('tr',{},h('td',{style:`color:${COL[i]};font-family:var(--f-disp);font-size:11px`},chName(i)),...row.map((v,w)=>h('td',{style:`--cc:${COL[i]}`},knob({label:'',small:true,min:-1,max:1,step:.05,def:0,fmt:v=>v.toFixed(2),get:()=>row[w],set:v=>row[w]=v})))))});
     sc.append(t);sm.append(sc);wrap.append(g,sm);return wrap},
   voices(){
-    const wrap=h('div',{},intro('<strong>Voices</strong> はチャンネルごとの内蔵音源。ドラム系9種+サンプル読み込み。音程は NOTES の度数と Tune で決まります。'));
+    const wrap=h('div',{},intro('<strong>Voices</strong> はチャンネルごとの内蔵音源。ドラム系9種+サンプル。<strong>WAV / MP3</strong>(ほか m4a・aiff・flac・ogg)を各チャンネルの「読み込む」ボタンか、カードへのドラッグ&ドロップで入れられます。読み込んだサンプルはこのブラウザに保存され、次回も残ります。音程は NOTES の度数と Tune で決まります。'));
     const st=h('div',{class:'stack'});
     M.voices.forEach((v,i)=>{const card=h('div',{class:'chan',style:`--cc:${COL[i]}`});
-      const file=h('input',{type:'file',accept:'audio/*',class:'file','aria-label':`${chName(i)} にサンプルを読み込む`});
-      file.onchange=async()=>{const f=file.files[0];if(!f)return;initAudio();try{samples[i]=await ctx.decodeAudioData(await f.arrayBuffer());v.engine='sample';save();renderPanel()}catch(e){file.value='';fileMsg.textContent='この形式は読み込めませんでした(wav / mp3 / m4a を試してください)'}};
-      const fileMsg=h('span',{class:'hint'},v.engine==='sample'&&!samples[i]?'サンプルは保存されません。再読み込みしてください。':'');
-      card.append(h('div',{class:'chead'},h('span',{class:'cname'},chName(i)),sel('Engine',ENGINES,()=>v.engine,x=>{v.engine=x}),file,fileMsg),
+      const file=h('input',{type:'file',accept:AUDIO_ACCEPT,class:'vh',id:'smp'+i,'aria-label':`${chName(i)} に WAV / MP3 を読み込む`});
+      const fileMsg=h('span',{class:'smpname'+(samples[i]?' ok':'')},samples[i]?`♪ ${sampleNames[i]||'サンプル'} · ${samples[i].duration.toFixed(2)}s`:(v.engine==='sample'?'サンプル未読込：右のボタンから WAV / MP3 を選んでください':''));
+      const load=async f=>{if(!f)return;fileMsg.className='smpname';fileMsg.textContent='読み込み中…';
+        try{await loadSample(i,f);renderPanel()}catch(e){fileMsg.className='smpname err';fileMsg.textContent=`「${f.name}」を読み込めませんでした（${e.message||e}）`}finally{file.value=''}};
+      file.onchange=()=>load(file.files&&file.files[0]);
+      card.addEventListener('dragover',e=>{e.preventDefault();card.classList.add('drop')});
+      card.addEventListener('dragleave',()=>card.classList.remove('drop'));
+      card.addEventListener('drop',e=>{e.preventDefault();card.classList.remove('drop');load(e.dataTransfer.files&&e.dataTransfer.files[0])});
+      const engSel=sel('Engine',ENGINES,()=>v.engine,x=>{v.engine=x;if(x==='sample'&&!samples[i])file.click()});
+      const tools=h('div',{class:'smptools'},
+        h('label',{class:'btn sm loadbtn',for:'smp'+i},samples[i]?'差し替え':'WAV / MP3 を読み込む'),file,
+        samples[i]?h('button',{class:'btn sm',onclick:()=>audition(i)},'▶ 試聴'):null,
+        samples[i]?h('button',{class:'btn sm',onclick:()=>{samples[i]=null;sampleNames[i]='';idbDel(i);if(v.engine==='sample')v.engine=DEFAULT_ENG[i];save();renderPanel()}},'外す'):null);
+      card.append(h('div',{class:'chead'},h('span',{class:'cname'},chName(i)),engSel,tools),fileMsg,
         h('div',{class:'knobs'},
           knob({label:'Tune',min:-24,max:24,step:1,def:0,get:()=>v.tune,set:x=>v.tune=x}),
           knob({label:'Decay',min:0,max:1,step:.01,def:.4,fmt:pct,get:()=>v.decay,set:x=>v.decay=x}),
@@ -784,7 +851,7 @@ let storing=false;
 function renderSlots(){const w=$('#slots');w.innerHTML='';w.classList.toggle('arming',storing);
   S.slots.forEach((s,n)=>w.append(h('button',{class:'slot'+(s?' full':'')+(n===S.cur?' cur':''),'aria-label':`パターン ${'ABCDE'[n]}`,onclick:()=>{
     if(storing){S.slots[n]=clone(M);storing=false;$('#store').classList.remove('arm')}
-    else if(s){S.music=M=clone(s);M.voices.forEach((v,i)=>{if(v.engine==='sample'&&!samples[i])v.engine=ENGINES[i]?.[0]||'kick'})}
+    else if(s){S.music=M=clone(s);M.voices.forEach((v,i)=>{if(v.engine==='sample'&&!samples[i])v.engine=DEFAULT_ENG[i]})}
     S.cur=n;save();renderSlots();renderPanel()}},'ABCDE'[n])))}
 $('#store').onclick=()=>{storing=!storing;$('#store').classList.toggle('arm',storing);renderSlots()};
 $('#vary').onclick=()=>{S.music=M=mutate(clone(M),.45);save();renderPanel()};
@@ -840,7 +907,7 @@ function draw(){
   requestAnimationFrame(draw);
 }
 
-renderTabs();renderSlots();renderPanel();requestAnimationFrame(draw);
+renderTabs();renderSlots();renderPanel();requestAnimationFrame(draw);restoreSamples();
 })();
 </script>
 
