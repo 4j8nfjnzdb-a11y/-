@@ -84,7 +84,7 @@ button,select,input{font:inherit;color:inherit}
 .fxRow .sweep input{flex:1;min-width:60px;accent-color:var(--accent)}
 .fxRow .sweep span{font-family:var(--f-mono);font-size:11px;white-space:nowrap}
 
-.sl{display:grid;grid-template-columns:6.6em minmax(0,1fr) 3.6em;align-items:center;gap:8px;font-size:12.5px;color:var(--dim)}
+.sl{display:grid;grid-template-columns:6.6em minmax(0,1fr) 3.6em 18px;align-items:center;gap:8px;font-size:12.5px;color:var(--dim)}
 .sl input{width:100%;accent-color:var(--accent);margin:0}
 .sl output{font-family:var(--f-mono);font-size:11.5px;text-align:right;color:var(--ink);font-variant-numeric:tabular-nums}
 .sls{display:flex;flex-direction:column;gap:6px}
@@ -132,7 +132,7 @@ button,select,input{font:inherit;color:inherit}
 .btn.mute.on{background:var(--hot);border-color:var(--hot);color:var(--bg)}
 .btn.throw{font-weight:700;color:var(--cc);border-color:color-mix(in srgb,var(--cc) 55%,var(--line))}
 .btn.throw.on{background:var(--cc);color:var(--bg)}
-.strip .sl{grid-template-columns:3.2em minmax(0,1fr) 2.8em;gap:6px;font-size:12px}
+.strip .sl{grid-template-columns:3.2em minmax(0,1fr) 2.8em 16px;gap:6px;font-size:12px}
 .strip .sl input{accent-color:var(--cc)}
 
 .benches{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:14px;align-items:start}
@@ -143,7 +143,14 @@ button,select,input{font:inherit;color:inherit}
 .part{border-top:1px dashed var(--line);margin-top:12px;padding-top:10px;display:flex;flex-direction:column;gap:8px}
 .part>.lab{font-size:11.5px;letter-spacing:.08em;color:var(--dim);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .part>.lab b{font-weight:700;color:var(--ink)}
-.part .sl{grid-template-columns:5.2em minmax(0,1fr) 3.4em}
+.part .sl{grid-template-columns:5.2em minmax(0,1fr) 4.6em 18px}
+.part .sl output{white-space:nowrap}
+.dk{width:15px;height:15px;margin:0;accent-color:var(--accent);cursor:pointer;justify-self:center}
+.sl.rolling input[type=range]{filter:drop-shadow(0 0 3px var(--accent))}
+.diceBtn{font-size:16px;font-weight:700;padding:9px 16px;background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.diceBtn .face{font-size:22px;line-height:0;vertical-align:-3px;margin-right:6px}
+.diceRow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px}
+.diceCount{font-family:var(--f-mono);font-size:12px;color:var(--dim)}
 .part .sl input{accent-color:var(--cc)}
 .part .sl select{font-family:var(--f-mono);font-size:12px;background:var(--well);border:1px solid var(--line);border-radius:4px;padding:3px 4px;min-width:0}
 .btn.sm{padding:4px 8px;font-size:12px}
@@ -224,6 +231,26 @@ button,select,input{font:inherit;color:inherit}
     </div>
 
     <aside class="side">
+      <section class="card" id="diceCard">
+        <div class="head"><h2>サイコロ</h2><span class="note">各スライダー横のチェックを入れたものだけが、振るたびに動きます。</span></div>
+        <div class="diceRow">
+          <button id="dice" class="btn diceBtn"><span class="face" id="diceFace">⚄</span>振る</button>
+          <span class="diceCount" id="diceCount"></span>
+          <button id="diceAuto" class="btn sm auto" style="--cc:var(--accent)">自動で振る</button>
+          <select id="diceEvery" aria-label="自動で振る間隔" style="font-family:var(--f-mono);font-size:12px;background:var(--well);border:1px solid var(--line);border-radius:4px;padding:3px 4px"><option value="1">毎小節</option><option value="2">2小節ごと</option><option value="4">4小節ごと</option><option value="8">8小節ごと</option></select>
+        </div>
+        <div class="sls" style="margin-top:10px">
+          <label class="sl">振れ幅<input id="diceAmt" type="range" min="0.05" max="1" step="0.05"><output id="diceAmtO"></output><span></span></label>
+          <label class="sl">動く時間<input id="diceTime" type="range" min="0" max="4" step="0.25"><output id="diceTimeO"></output><span></span></label>
+        </div>
+        <div class="diceRow" style="margin-top:8px">
+          <button id="diceAll" class="btn sm">全部にチェック</button>
+          <button id="diceNone" class="btn sm">チェックを外す</button>
+          <button id="diceMix" class="btn sm">ミキサーだけ</button>
+          <button id="diceFx" class="btn sm">エフェクトだけ</button>
+        </div>
+      </section>
+
       <section class="card">
         <div class="head"><h2>変化</h2><span class="note" id="driftNote"></span></div>
         <div class="sls">
@@ -297,7 +324,7 @@ button,select,input{font:inherit;color:inherit}
     <p class="msg" id="takeMsg"></p>
   </section>
 
-  <p class="keys">キー：<kbd>Space</kbd> 再生／停止　<kbd>1</kbd>–<kbd>5</kbd> 押している間エコーへ投げる　<kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>R</kbd> <kbd>T</kbd> ミュート　<kbd>H</kbd> エコーだけ残す　<kbd>K</kbd> スプリングを揺らす　<kbd>S</kbd> 押している間減速。各チャンネルの欄にオーディオファイルをドロップすると、そのチャンネルがサンプルに切り替わります。</p>
+  <p class="keys">キー：<kbd>Space</kbd> 再生／停止　<kbd>1</kbd>–<kbd>5</kbd> 押している間エコーへ投げる　<kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>R</kbd> <kbd>T</kbd> ミュート　<kbd>H</kbd> エコーだけ残す　<kbd>K</kbd> スプリングを揺らす　<kbd>S</kbd> 押している間減速　<kbd>D</kbd> サイコロを振る。各チャンネルの欄にオーディオファイルをドロップすると、そのチャンネルがサンプルに切り替わります。</p>
 </div>
 
 <script>
@@ -350,6 +377,7 @@ const DEF=()=>{
     fx:Object.fromEntries(IDS.map(id=>[id,fx({})])),
     echo:{div:.75,fb:.58,tone:.42},spring:{decay:2.6,ret:.75},sweep:0,slow:{target:.5,time:1.2},
     drift:{rate:.4,amount:.5,glide:1},
+    dice:{amount:.5,time:1,auto:false,every:4,on:{'chord-dist':1,'chord-pan':1,'chord-echo':1,'sample-dist':1,'sample-pan':1,'sample-echo':1,'voice-dist':1,'voice-echo':1,'sample-fx-filt':1,'voice-fx-filt':1,'chord-fx-filt':1}},
     scenes:[
       snap({}),
       snap({chord:{mute:true},sample:{mute:true},drum:{dist:.32},voice:{dist:.7,echo:.62}}),
@@ -362,7 +390,7 @@ const DEF=()=>{
 };
 let S=DEF();
 try{const raw=localStorage.getItem('hanare.v2');if(raw){const o=JSON.parse(raw);const d=DEF();
-  S={...d,...o,ch:{},smp:{},fx:{},echo:{...d.echo,...o.echo},spring:{...d.spring,...o.spring},slow:{...d.slow,...o.slow},drift:{...d.drift,...o.drift}};
+  S={...d,...o,ch:{},smp:{},fx:{},echo:{...d.echo,...o.echo},spring:{...d.spring,...o.spring},slow:{...d.slow,...o.slow},drift:{...d.drift,...o.drift},dice:{...d.dice,...o.dice}};
   for(const id of IDS){S.ch[id]={...d.ch[id],...(o.ch&&o.ch[id])};S.smp[id]={...d.smp[id],...(o.smp&&o.smp[id])};S.fx[id]={...d.fx[id],...(o.fx&&o.fx[id])}}
   if(!Array.isArray(S.scenes)||S.scenes.length!==4)S.scenes=d.scenes;
   if(!Array.isArray(S.chain))S.chain=d.chain;
@@ -669,6 +697,7 @@ function onBar(bar,t){
   for(const id of IDS){const v=N.smpVoice[id];if(v&&v.loop&&S.smp[id].follow&&bar%S.smp[id].every!==0)v.s.playbackRate.setValueAtTime(speedOf(id)*followRatio(id,bar),t)}
   for(const id of IDS){const p=S.smp[id];if(isS(id)&&p.mode==='slice'&&p.auto&&bar>0&&bar%p.autoEvery===0){const txt=nudgeRow(id);addLog(bar,CH[id],txt);uiAt(t,()=>renderSteps(id));save()}}
   if(bar>0)drift(bar,t);
+  if(S.dice.auto&&bar>0&&bar%S.dice.every===0)uiAt(t,()=>rollDice(bar));
   return true;
 }
 function endAt(t){ending=true;releasePads(t);const ms=(t-ctx.currentTime)*1000;
@@ -945,7 +974,10 @@ function frame(now){const dt=Math.min(.1,(now-lastF)/1000);lastF=now;
       for(const id of IDS){const el=$(`steps-${id}`),on=playing&&isS(id)&&S.smp[id].mode==='slice'&&q.bar%S.smp[id].every===0;[...el.children].forEach((b,i)=>b.classList.toggle('now',on&&i===q.s))}}
     for(const c of CHS){const v=rms(N.ch[c.id].an);lvl[c.id]+=(v-lvl[c.id])*(v>lvl[c.id]?.5:.08)}
     echoLvl+=(rms(N.echo.an)-echoLvl)*.1;
-    for(const id of IDS){const f=flash[id];if(f&&BUF[id]&&(f.loop?N.smpVoice[id]&&N.smpVoice[id].loop:ct-f.t<f.real+.3))drawWave(id)}
+  }
+  stepTweens(now);
+  if(ctx){
+    for(const id of IDS){const f=flash[id];if(f&&BUF[id]&&(f.loop?N.smpVoice[id]&&N.smpVoice[id].loop:ctx.currentTime-f.t<f.real+.3))drawWave(id)}
   }
   drawSpace(dt);
   if(playing)drawEro();
@@ -989,6 +1021,46 @@ async function offerFile(filename,bytes){
   try{await dl.save({filename:zipName,data:zipStore(filename,bytes)});return`${zipName} を保存しました（中に ${filename} が入っています）。`}
   catch(e){const c=e&&e.code;if(c==='declined')return'保存をやめました。';if(c==='rate_limited')throw new Error('保存の確認がまだ開いています。閉じてからもう一度押してください');throw new Error('この表示ではファイルを保存できません。上のプレーヤーで聴くことはできます')}}
 if(inViewer)$('takesNote').textContent+=' claude.ai 上では WAV が ZIP に入った形で保存されます。';
+
+
+/* ───────── dice: every checked fader rolls to a new value and travels there ───────── */
+const SKIP_DICE=new Set(['diceAmt','diceTime']);
+let diceTargets=[];
+function initDice(){
+  diceTargets=[...document.querySelectorAll('.wrap input[type=range], #eDiv, select[id$="-fx-stack"]')].filter(el=>el.id&&!SKIP_DICE.has(el.id));
+  for(const el of diceTargets){const cb=h('input',{type:'checkbox',class:'dk',id:`dk-${el.id}`,title:'サイコロで動かす','aria-label':'サイコロで動かす'});cb.checked=!!S.dice.on[el.id];
+    cb.onchange=()=>{if(cb.checked)S.dice.on[el.id]=1;else delete S.dice.on[el.id];diceCount();save()};
+    const host=el.closest('.sl, .sweep');if(host){const spare=host.querySelector(':scope > span:last-child');if(spare&&!spare.textContent)spare.remove();host.append(cb)}else el.after(cb)}
+  bindRange('diceAmt',()=>S.dice.amount,v=>S.dice.amount=v,v=>v>=1?'全域':Math.round(v*100));
+  bindRange('diceTime',()=>S.dice.time,v=>S.dice.time=v,v=>v===0?'即座':`${v}拍`);
+  $('diceEvery').value=S.dice.every;$('diceEvery').onchange=()=>{S.dice.every=+$('diceEvery').value;save()};
+  const syncAuto=()=>{$('diceAuto').classList.toggle('on',S.dice.auto);$('diceAuto').textContent=S.dice.auto?'自動で振っている':'自動で振る'};syncAuto();
+  $('diceAuto').onclick=()=>{S.dice.auto=!S.dice.auto;syncAuto();save()};
+  $('dice').onclick=()=>rollDice();
+  const setAll=pred=>{for(const el of diceTargets){const on=pred(el.id);$(`dk-${el.id}`).checked=on;if(on)S.dice.on[el.id]=1;else delete S.dice.on[el.id]}diceCount();save()};
+  $('diceAll').onclick=()=>setAll(()=>true);$('diceNone').onclick=()=>setAll(()=>false);
+  $('diceMix').onclick=()=>setAll(id=>/^(drum|bass|chord|sample|voice)-(level|dist|pan|echo)$/.test(id));
+  $('diceFx').onclick=()=>setAll(id=>/-fx-|^(eDiv|eFb|eTone|rDecay|rRet|sweep)$/.test(id));
+  diceCount()}
+function diceCount(){const n=diceTargets.filter(el=>S.dice.on[el.id]).length;$('diceCount').textContent=`${n} / ${diceTargets.length} 本にチェック`}
+const tweens=new Map();
+const FACES='⚀⚁⚂⚃⚄⚅';
+function rollDice(bar){
+  const els=diceTargets.filter(el=>S.dice.on[el.id]&&!el.disabled&&!el.closest('[hidden]'));
+  $('diceFace').textContent=FACES[Math.floor(Math.random()*6)];
+  if(!els.length){addLogNow(bar,'サイコロ：チェックが入っていません');return}
+  const A=S.dice.amount,dur=S.dice.time*beat()*1000;
+  for(const el of els){
+    if(el.tagName==='SELECT'){const opts=[...el.options].map(o=>o.value);el.value=A>=1||Math.random()<A?pick(opts):el.value;el.dispatchEvent(new Event('change'));continue}
+    const min=+el.min,max=+el.max,step=+el.step||.01,cur=+el.value;
+    let v=A>=1?min+Math.random()*(max-min):cur+(Math.random()*2-1)*A*(max-min);
+    v=clamp(Math.round((v-min)/step)*step+min,min,max);
+    if(dur<=0){el.value=v;el.dispatchEvent(new Event('input'))}
+    else{tweens.set(el,{from:cur,to:v,t0:performance.now(),dur,step,min});el.closest('.sl')?.classList.add('rolling')}}
+  addLogNow(bar,`サイコロ：${els.length}本を動かす`)}
+function stepTweens(now){for(const[el,tw]of tweens){const k=clamp((now-tw.t0)/tw.dur,0,1),e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+  const v=tw.from+(tw.to-tw.from)*e;el.value=k>=1?tw.to:v;el.dispatchEvent(new Event('input'));if(k>=1){tweens.delete(el);el.closest('.sl')?.classList.remove('rolling')}}}
+function addLogNow(bar,txt){logItems.unshift({bar:bar??Math.max(0,curBar),c:null,txt});logItems.length=Math.min(logItems.length,7);renderLog()}
 
 /* ───────── wiring ───────── */
 function bindRange(id,get,set,show){const i=$(id),o=$(id+'O');i.value=get();const upd=()=>{if(o)o.textContent=show(+i.value)};upd();i.oninput=()=>{set(+i.value);upd();save()}}
@@ -1034,11 +1106,11 @@ addEventListener('keydown',e=>{const tg=e.target;if(tg.closest&&tg.closest('inpu
   if(e.repeat)return;
   const tc=CHS.find(c=>c.tk===k);if(tc){ensureAudio();setThrow(tc.id,true);return}
   const mc=CHS.find(c=>c.mk===k);if(mc){toggleMute(mc.id);return}
-  if(k==='h')hold(true);if(k==='k')springKick();if(k==='s')setSlow(true)});
+  if(k==='h')hold(true);if(k==='k')springKick();if(k==='s')setSlow(true);if(k==='d')rollDice()});
 addEventListener('keyup',e=>{const k=e.key.toLowerCase();const tc=CHS.find(c=>c.tk===k);if(tc)setThrow(tc.id,false);if(k==='h')hold(false);if(k==='s')setSlow(false)});
 addEventListener('blur',()=>{for(const c of CHS)setThrow(c.id,false);if(echoHeld)hold(false);if(slowOn)setSlow(false)});
 
-buildStrips();syncChordUI();renderScenes();renderAdds();renderChain();renderLog();
+buildStrips();syncChordUI();renderScenes();renderAdds();renderChain();renderLog();initDice();
 for(const id of IDS)benchMeta(id);
 Promise.all(IDS.map(id=>loadExample(id))).then(()=>{for(const id of IDS)syncBench(id)}).catch(()=>{for(const id of IDS){const m=$(`meta-${id}`);if(m&&!BUF[id])m.textContent='例の音を作れませんでした。ファイルを開いてください。'}});
 addEventListener('resize',()=>{redrawAll()});
