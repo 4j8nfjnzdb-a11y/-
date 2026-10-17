@@ -150,6 +150,10 @@ button,select,input{font:inherit;color:inherit}
 .diceBtn{font-size:16px;font-weight:700;padding:9px 16px;background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .diceBtn .face{font-size:22px;line-height:0;vertical-align:-3px;margin-right:6px}
 .diceRow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px}
+.seqTargets{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.seqTargets label{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:5px;padding:4px 8px;font-size:12.5px;cursor:pointer;background:var(--well)}
+.seqTargets label:has(input:checked){border-color:var(--tc,var(--accent));background:color-mix(in srgb,var(--tc,var(--accent)) 14%,var(--panel))}
+.seqTargets input{accent-color:var(--tc,var(--accent));margin:0}
 .diceCount{font-family:var(--f-mono);font-size:12px;color:var(--dim)}
 .part .sl input{accent-color:var(--cc)}
 .part .sl select{font-family:var(--f-mono);font-size:12px;background:var(--well);border:1px solid var(--line);border-radius:4px;padding:3px 4px;min-width:0}
@@ -251,6 +255,28 @@ button,select,input{font:inherit;color:inherit}
         </div>
       </section>
 
+      <section class="card" id="seqCard">
+        <div class="head"><h2>並びのサイコロ</h2><span class="note">チェックした並びが、振るたびに入れ替わります。</span></div>
+        <div class="diceRow">
+          <button id="seqDice" class="btn diceBtn"><span class="face" id="seqFace">⚂</span>入れ替える</button>
+          <label class="fld">入れ替え方 <select id="seqHow">
+            <option value="mix">おまかせ</option>
+            <option value="blocks">拍のかたまりを並べ替え</option>
+            <option value="swap">チャンネル同士で交換</option>
+            <option value="slices">スライス番号を入れ替え</option>
+            <option value="rotate">ずらす</option>
+            <option value="deal">組み替える</option>
+          </select></label>
+        </div>
+        <div class="seqTargets" id="seqTargets"></div>
+        <div class="diceRow" style="margin-top:10px">
+          <button id="seqAuto" class="btn sm auto" style="--cc:var(--accent)">自動で入れ替える</button>
+          <select id="seqEvery" aria-label="自動で入れ替える間隔" style="font-family:var(--f-mono);font-size:12px;background:var(--well);border:1px solid var(--line);border-radius:4px;padding:3px 4px"><option value="1">毎小節</option><option value="2">2小節ごと</option><option value="4">4小節ごと</option><option value="8">8小節ごと</option></select>
+          <button id="seqUndo" class="btn sm" disabled>ひとつ前に戻す</button>
+        </div>
+        <p class="hint">チャンネルの並びは、そのチャンネルが「サンプル」の「スライス並び」のときに鳴ります。</p>
+      </section>
+
       <section class="card">
         <div class="head"><h2>変化</h2><span class="note" id="driftNote"></span></div>
         <div class="sls">
@@ -324,7 +350,7 @@ button,select,input{font:inherit;color:inherit}
     <p class="msg" id="takeMsg"></p>
   </section>
 
-  <p class="keys">キー：<kbd>Space</kbd> 再生／停止　<kbd>1</kbd>–<kbd>5</kbd> 押している間エコーへ投げる　<kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>R</kbd> <kbd>T</kbd> ミュート　<kbd>H</kbd> エコーだけ残す　<kbd>K</kbd> スプリングを揺らす　<kbd>S</kbd> 押している間減速　<kbd>D</kbd> サイコロを振る。各チャンネルの欄にオーディオファイルをドロップすると、そのチャンネルがサンプルに切り替わります。</p>
+  <p class="keys">キー：<kbd>Space</kbd> 再生／停止　<kbd>1</kbd>–<kbd>5</kbd> 押している間エコーへ投げる　<kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>R</kbd> <kbd>T</kbd> ミュート　<kbd>H</kbd> エコーだけ残す　<kbd>K</kbd> スプリングを揺らす　<kbd>S</kbd> 押している間減速　<kbd>D</kbd> サイコロを振る　<kbd>F</kbd> 並びのサイコロ。各チャンネルの欄にオーディオファイルをドロップすると、そのチャンネルがサンプルに切り替わります。</p>
 </div>
 
 <script>
@@ -377,6 +403,7 @@ const DEF=()=>{
     fx:Object.fromEntries(IDS.map(id=>[id,fx({})])),
     echo:{div:.75,fb:.58,tone:.42},spring:{decay:2.6,ret:.75},sweep:0,slow:{target:.5,time:1.2},
     drift:{rate:.4,amount:.5,glide:1},
+    seqDice:{how:'mix',auto:false,every:4,on:{sample:1,voice:1}},
     dice:{amount:.5,time:1,auto:false,every:4,on:{'chord-dist':1,'chord-pan':1,'chord-echo':1,'sample-dist':1,'sample-pan':1,'sample-echo':1,'voice-dist':1,'voice-echo':1,'sample-fx-filt':1,'voice-fx-filt':1,'chord-fx-filt':1}},
     scenes:[
       snap({}),
@@ -390,7 +417,7 @@ const DEF=()=>{
 };
 let S=DEF();
 try{const raw=localStorage.getItem('hanare.v2');if(raw){const o=JSON.parse(raw);const d=DEF();
-  S={...d,...o,ch:{},smp:{},fx:{},echo:{...d.echo,...o.echo},spring:{...d.spring,...o.spring},slow:{...d.slow,...o.slow},drift:{...d.drift,...o.drift},dice:{...d.dice,...o.dice}};
+  S={...d,...o,ch:{},smp:{},fx:{},echo:{...d.echo,...o.echo},spring:{...d.spring,...o.spring},slow:{...d.slow,...o.slow},drift:{...d.drift,...o.drift},dice:{...d.dice,...o.dice},seqDice:{...d.seqDice,...o.seqDice}};
   for(const id of IDS){S.ch[id]={...d.ch[id],...(o.ch&&o.ch[id])};S.smp[id]={...d.smp[id],...(o.smp&&o.smp[id])};S.fx[id]={...d.fx[id],...(o.fx&&o.fx[id])}}
   if(!Array.isArray(S.scenes)||S.scenes.length!==4)S.scenes=d.scenes;
   if(!Array.isArray(S.chain))S.chain=d.chain;
@@ -698,6 +725,7 @@ function onBar(bar,t){
   for(const id of IDS){const p=S.smp[id];if(isS(id)&&p.mode==='slice'&&p.auto&&bar>0&&bar%p.autoEvery===0){const txt=nudgeRow(id);addLog(bar,CH[id],txt);uiAt(t,()=>renderSteps(id));save()}}
   if(bar>0)drift(bar,t);
   if(S.dice.auto&&bar>0&&bar%S.dice.every===0)uiAt(t,()=>rollDice(bar));
+  if(S.seqDice.auto&&bar>0&&bar%S.seqDice.every===0)uiAt(t,()=>rollSeq(bar));
   return true;
 }
 function endAt(t){ending=true;releasePads(t);const ms=(t-ctx.currentTime)*1000;
@@ -1062,6 +1090,43 @@ function stepTweens(now){for(const[el,tw]of tweens){const k=clamp((now-tw.t0)/tw
   const v=tw.from+(tw.to-tw.from)*e;el.value=k>=1?tw.to:v;el.dispatchEvent(new Event('input'));if(k>=1){tweens.delete(el);el.closest('.sl')?.classList.remove('rolling')}}}
 function addLogNow(bar,txt){logItems.unshift({bar:bar??Math.max(0,curBar),c:null,txt});logItems.length=Math.min(logItems.length,7);renderLog()}
 
+/* ───────── sequence dice: the orders themselves trade places ───────── */
+const SEQ_EXTRA=[['rhythm','合成リズム','--c1'],['prog','和音の進行','--c3'],['chain','曲順','--accent']];
+let seqUndo=null;
+function initSeqDice(){const box=$('seqTargets'),D=S.seqDice;
+  const add=(key,lab,col)=>{const cb=h('input',{type:'checkbox',id:`seq-${key}`});cb.checked=!!D.on[key];cb.onchange=()=>{if(cb.checked)D.on[key]=1;else delete D.on[key];save()};box.append(h('label',{style:`--tc:var(${col})`},cb,lab))};
+  for(const c of CHS)add(c.id,`${c.ja}の並び`,c.col);for(const[k,l,c]of SEQ_EXTRA)add(k,l,c);
+  $('seqHow').value=D.how;$('seqHow').onchange=()=>{D.how=$('seqHow').value;save()};
+  $('seqEvery').value=D.every;$('seqEvery').onchange=()=>{D.every=+$('seqEvery').value;save()};
+  const syncAuto=()=>{$('seqAuto').classList.toggle('on',D.auto);$('seqAuto').textContent=D.auto?'自動で入れ替え中':'自動で入れ替える'};syncAuto();
+  $('seqAuto').onclick=()=>{D.auto=!D.auto;syncAuto();save()};
+  $('seqDice').onclick=()=>rollSeq();
+  $('seqUndo').onclick=()=>{if(!seqUndo)return;const u=JSON.parse(seqUndo);IDS.forEach((id,i)=>S.smp[id].row=u.rows[i]);S.rhythm=u.rhythm;S.prog=u.prog;S.chain=u.chain;seqUndo=null;$('seqUndo').disabled=true;afterSeq();addLogNow(undefined,'並び：ひとつ前に戻した')}}
+function shuffled(a){const b=a.slice();for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]]}return b}
+function shuffledChanged(a){if(a.length<2)return a.slice();const key=JSON.stringify(a);for(let k=0;k<8;k++){const b=shuffled(a);if(JSON.stringify(b)!==key)return b}return a.slice(1).concat(a[0])}
+function seqOne(id,how){const p=S.smp[id],r=p.row,hasSlices=r.some(v=>v>=0&&v<8);
+  if(how==='slices'&&!hasSlices)how='blocks';
+  if(how==='blocks'){const bl=[0,1,2,3].map(k=>r.slice(k*4,k*4+4));const nb=shuffledChanged(bl);if(JSON.stringify(nb)===JSON.stringify(bl))how='rotate';else{p.row=nb.flat();return'拍のかたまりを並べ替え'}}
+  if(how==='slices'){const perm=shuffledChanged([0,1,2,3,4,5,6,7]);p.row=r.map(v=>v>=0&&v<8?perm[v]:v);return'スライス番号を入れ替え'}
+  if(how==='rotate'){const d=pick([1,2,3,4,-1,-2,-4]);p.row=r.map((_,i)=>r[((i-d)%16+16)%16]);return`${Math.abs(d)}つ${d>0?'後ろ':'前'}へずらす`}
+  return dealRow(id)}
+function rollSeq(bar){const D=S.seqDice;
+  $('seqFace').textContent=FACES[Math.floor(Math.random()*6)];
+  seqUndo=JSON.stringify({rows:IDS.map(id=>S.smp[id].row.slice()),rhythm:S.rhythm,prog:S.prog,chain:S.chain.map(x=>({...x}))});
+  const rowIds=IDS.filter(id=>D.on[id]),msgs=[];
+  const how=()=>D.how==='mix'?pick(['blocks','blocks','swap','slices','rotate','deal']):D.how;
+  let h0=how();
+  if(h0==='swap'&&rowIds.length>=2){const rows=rowIds.map(id=>S.smp[id].row.slice()),order=shuffledChanged(rowIds.map((_,i)=>i));rowIds.forEach((id,i)=>S.smp[id].row=rows[order[i]]);
+    msgs.push(`${rowIds.map(id=>CH[id].ja).join('・')} の並びを交換`)}
+  else for(const id of rowIds){const hw=h0==='swap'?'blocks':(D.how==='mix'?how():h0);msgs.push(`${CH[id].ja}：${seqOne(id,hw==='swap'?'blocks':hw)}`)}
+  if(D.on.rhythm){const o=S.rhythm,n=pick(Object.keys(RHY).filter(k=>k!==o));S.rhythm=n;msgs.push(`リズム → ${$('rhythm').querySelector(`option[value="${n}"]`).textContent}`)}
+  if(D.on.prog){const o=S.prog,n=pick(Object.keys(PROGS).filter(k=>k!==o&&k!=='i'));S.prog=n;msgs.push(`進行 → ${n.replace(/-/g,' – ')}`)}
+  if(D.on.chain&&S.chain.length>1){S.chain=shuffledChanged(S.chain);if(cpos)cpos.i=Math.min(cpos.i,S.chain.length-1);msgs.push('曲順を入れ替え')}
+  $('seqUndo').disabled=false;
+  if(!msgs.length){addLogNow(bar,'並び：チェックが入っていません');return}
+  afterSeq();for(const m of msgs.reverse())addLogNow(bar,'並び '+m)}
+function afterSeq(){for(const id of IDS)renderSteps(id);$('rhythm').value=S.rhythm;syncChordUI();renderChain();save()}
+
 /* ───────── wiring ───────── */
 function bindRange(id,get,set,show){const i=$(id),o=$(id+'O');i.value=get();const upd=()=>{if(o)o.textContent=show(+i.value)};upd();i.oninput=()=>{set(+i.value);upd();save()}}
 function syncDriftNote(){const r=S.drift.rate;$('driftNote').textContent=r<=0?'止めています':`だいたい ${r>=1?'毎':Math.max(1,Math.round(1/r))}小節に1回動きます`}
@@ -1106,11 +1171,11 @@ addEventListener('keydown',e=>{const tg=e.target;if(tg.closest&&tg.closest('inpu
   if(e.repeat)return;
   const tc=CHS.find(c=>c.tk===k);if(tc){ensureAudio();setThrow(tc.id,true);return}
   const mc=CHS.find(c=>c.mk===k);if(mc){toggleMute(mc.id);return}
-  if(k==='h')hold(true);if(k==='k')springKick();if(k==='s')setSlow(true);if(k==='d')rollDice()});
+  if(k==='h')hold(true);if(k==='k')springKick();if(k==='s')setSlow(true);if(k==='d')rollDice();if(k==='f')rollSeq()});
 addEventListener('keyup',e=>{const k=e.key.toLowerCase();const tc=CHS.find(c=>c.tk===k);if(tc)setThrow(tc.id,false);if(k==='h')hold(false);if(k==='s')setSlow(false)});
 addEventListener('blur',()=>{for(const c of CHS)setThrow(c.id,false);if(echoHeld)hold(false);if(slowOn)setSlow(false)});
 
-buildStrips();syncChordUI();renderScenes();renderAdds();renderChain();renderLog();initDice();
+buildStrips();syncChordUI();renderScenes();renderAdds();renderChain();renderLog();initDice();initSeqDice();
 for(const id of IDS)benchMeta(id);
 Promise.all(IDS.map(id=>loadExample(id))).then(()=>{for(const id of IDS)syncBench(id)}).catch(()=>{for(const id of IDS){const m=$(`meta-${id}`);if(m&&!BUF[id])m.textContent='例の音を作れませんでした。ファイルを開いてください。'}});
 addEventListener('resize',()=>{redrawAll()});
