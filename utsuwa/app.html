@@ -1,0 +1,589 @@
+<title>Utsuwa</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@500;700&family=BIZ+UDPGothic:wght@400;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: the nested structure of empty boxes is the hero, drawn full width like a proportion chart on graph paper;
+   below it the controls run in the order the piece is made — structure → gamut (folder) → layers → transport → keep.
+   Cool grey paper, blue-black ink for stored sounds, one cobalt for what is sounding now. */
+:root{
+  --paper:#eceeea; --sheet:#f6f7f4; --ink:#1c2230; --dim:#545b66; --faint:#8d939b; --rule:#cfd3cd; --grid:#e1e4df; --well:#e4e7e2;
+  --now:#2e55cf; --err:#b3261e; --rec:#c42b1c;
+  --f-disp:"Shippori Mincho B1","Hiragino Mincho ProN","Yu Mincho",serif;
+  --f-body:"BIZ UDPGothic","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#10131a; --sheet:#161a22; --ink:#dfe3ea; --dim:#a3a9b3; --faint:#6d737d; --rule:#2c313b; --grid:#1d2129; --well:#1f242d;
+  --now:#86a2ff; --err:#ff8a7f; --rec:#ff6b5e; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#10131a; --sheet:#161a22; --ink:#dfe3ea; --dim:#a3a9b3; --faint:#6d737d; --rule:#2c313b; --grid:#1d2129; --well:#1f242d;
+  --now:#86a2ff; --err:#ff8a7f; --rec:#ff6b5e; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:13px;line-height:1.6;-webkit-tap-highlight-color:transparent}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--now);outline-offset:2px}
+.wrap{max-width:900px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:22px 60px;display:flex;flex-direction:column;gap:22px}
+
+header{display:flex;flex-direction:column;gap:6px}
+.title{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+h1{margin:0;font-family:var(--f-disp);font-weight:700;font-size:30px;letter-spacing:.02em;line-height:1.1}
+h1 small{font-size:15px;font-weight:500;color:var(--dim);margin-left:10px;letter-spacing:.2em}
+.lede{margin:0;max-width:62ch;color:var(--dim);font-size:13px;text-wrap:pretty}
+
+.stage{background:var(--sheet);border:1px solid var(--rule);padding:14px 14px 12px;display:flex;flex-direction:column;gap:10px}
+.stage canvas{display:block;width:100%;touch-action:manipulation;cursor:pointer}
+.status{display:flex;gap:6px 18px;flex-wrap:wrap;font-family:var(--f-mono);font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
+.status b{color:var(--ink);font-weight:500}
+.status .msg{flex-basis:100%;font-family:var(--f-body);color:var(--faint);min-height:1.6em}
+.transport{display:flex;gap:6px;flex-wrap:wrap}
+
+section{display:flex;flex-direction:column;gap:10px}
+h2{margin:0;font-family:var(--f-disp);font-weight:500;font-size:16px;display:flex;gap:10px;align-items:baseline;border-bottom:1px solid var(--ink);padding-bottom:4px}
+h2 i{font-style:normal;font-family:var(--f-mono);font-size:9.5px;letter-spacing:.24em;color:var(--faint);text-transform:uppercase}
+h2 .aside{margin-left:auto;font-family:var(--f-mono);font-size:11px;color:var(--dim);font-weight:400}
+.note{font-size:11.5px;color:var(--faint);margin:0;max-width:70ch}
+.note.err{color:var(--err)}
+
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:stretch}
+.field{display:flex;align-items:center;gap:8px;border:1px solid var(--rule);background:var(--sheet);padding:5px 9px;min-width:0}
+.field>span{font-size:10.5px;color:var(--faint);white-space:nowrap}
+.field input,.field select{border:0;background:transparent;padding:0;min-width:0;font-family:var(--f-mono);font-size:13px;font-variant-numeric:tabular-nums}
+.field input:focus,.field select:focus{outline:none}
+.field:focus-within{border-color:var(--ink)}
+.field.grow{flex:1 1 220px}.field.grow input{width:100%}
+.field input[type=number]{width:4.2em}
+.check{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--dim);cursor:pointer}
+
+.btn{border:1px solid var(--ink);background:var(--sheet);padding:6px 14px;cursor:pointer;font-size:12px;line-height:1.3;white-space:nowrap;border-radius:0}
+.btn:hover{background:var(--well)}
+.btn:disabled{opacity:.4;cursor:default}
+.btn.sm{padding:3px 10px;font-size:11px}
+.btn.on{background:var(--ink);color:var(--sheet)}
+.btn.main{min-width:8em;font-weight:700}
+.btn.rec.on{background:var(--rec);border-color:var(--rec);color:#fff}
+.segs{display:inline-grid;grid-auto-flow:column;border:1px solid var(--rule)}
+.segs button{border:0;border-left:1px solid var(--rule);background:transparent;font-size:11px;padding:4px 10px;cursor:pointer;color:var(--dim);font-family:var(--f-mono)}
+.segs button:first-child{border-left:0}
+.segs button.on{background:var(--ink);color:var(--sheet)}
+
+.src{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.src .path{flex:1 1 220px;min-width:0;font-family:var(--f-mono);font-size:11px;color:var(--dim);border-bottom:1px solid var(--rule);padding:5px 2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.drop{outline:1px dashed var(--ink);outline-offset:6px}
+.gamut{display:grid;grid-template-columns:repeat(auto-fill,minmax(13px,1fr));gap:2px}
+.gamut span{aspect-ratio:1;max-width:100%;border:1px solid var(--rule);background:var(--sheet);position:relative}
+.gamut span.hit{outline:2px solid var(--now);outline-offset:-1px}
+.gamut .more{grid-column:span 4;aspect-ratio:auto;border:0;background:none;font-family:var(--f-mono);font-size:10px;color:var(--faint);align-self:center}
+
+.layers{display:flex;flex-direction:column;border-top:1px solid var(--rule)}
+.layer{display:grid;grid-template-columns:44px minmax(0,1fr) minmax(0,1fr);gap:4px 20px;padding:8px 0;border-bottom:1px solid var(--rule);align-items:center}
+.layer.muted>*:not(.lname){opacity:.38}
+.lname{grid-row:span 2;align-self:start;display:flex;flex-direction:column;gap:5px;align-items:flex-start}
+.lname b{font-family:var(--f-disp);font-size:18px;line-height:1}
+.lname button{border:1px solid var(--rule);background:transparent;font-size:9.5px;padding:0 5px;cursor:pointer;font-family:var(--f-mono)}
+.lname button.on{background:var(--ink);color:var(--sheet);border-color:var(--ink)}
+.linfo{grid-column:2/4;font-family:var(--f-mono);font-size:10.5px;color:var(--faint)}
+.knob{display:grid;grid-template-columns:3em minmax(0,1fr) 3.4em;align-items:center;gap:8px;min-width:0}
+.knob span{font-size:10.5px;color:var(--faint);white-space:nowrap}
+.knob input{width:100%;min-width:0;accent-color:var(--ink)}
+.knob output{font-family:var(--f-mono);font-size:10.5px;text-align:right;font-variant-numeric:tabular-nums}
+.kgrid{grid-column:2/4;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px 20px}
+@media (max-width:640px){.kgrid{grid-template-columns:minmax(0,1fr)}.layer{grid-template-columns:36px minmax(0,1fr)}.linfo,.kgrid{grid-column:2/3}}
+
+.takes{display:flex;flex-direction:column;gap:6px}
+.take{border:1px solid var(--rule);background:var(--sheet);padding:8px 10px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 10px;align-items:center}
+.take .tl{font-size:11.5px;color:var(--dim);min-width:0}.take .tl b{color:var(--ink)}
+.take .tb{display:flex;gap:4px;flex-wrap:wrap}
+.take canvas{grid-column:1/-1;width:100%;height:26px;display:block}
+.take .msg{grid-column:1/-1;margin:0;font-size:11px;color:var(--faint)}.take .msg:empty{display:none}
+.take .msg.err{color:var(--err)}
+@media (max-width:520px){.take{grid-template-columns:minmax(0,1fr)}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="title"><h1>Utsuwa<small>空の器</small></h1></div>
+  <p class="lede">ひとつの比率で1周の時間を分け、その区間をまた同じ比率で分けていきます。できた箱は最初どれも空です。鳴らし続けると、フォルダの音が1周ごとに少しずつ箱にしまわれ、しまわれた音は箱の長さのぶんだけ、毎周同じ場所で鳴ります。</p>
+</header>
+
+<div class="stage">
+  <canvas id="cv" height="200" aria-label="入れ子になった空の箱。塗られた箱は音がしまわれた箱、青い箱はいま鳴っている箱"></canvas>
+  <div class="status" id="status"></div>
+  <div class="transport">
+    <button type="button" class="btn main" id="playBtn">▶ 鳴らす</button>
+    <button type="button" class="btn" id="fillBtn" title="各層の収納の確率で、いますぐ1周ぶんしまいます">1周ぶん収納</button>
+    <button type="button" class="btn" id="clearBtn">すべて空にする</button>
+  </div>
+</div>
+
+<section>
+  <h2>構造 <i>proportion</i><span class="aside" id="lenAside"></span></h2>
+  <div class="row">
+    <label class="field grow"><span>比率</span><input id="series" type="text" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+    <label class="field"><span>例</span><select id="preset" aria-label="比率の例">
+      <option value="">選ぶ…</option>
+      <option value="4 3 2 3 4">4 3 2 3 4（Cage, First Construction）</option>
+      <option value="3 2 3">3 2 3</option>
+      <option value="1 1 2 3 5">1 1 2 3 5</option>
+      <option value="7 5 3">7 5 3</option>
+      <option value="2 1 1 2 1 1">2 1 1 2 1 1</option>
+      <option value="5 4 3 2 1">5 4 3 2 1</option>
+    </select></label>
+    <label class="field"><span>1周</span><input id="cycle" type="number" min="2" max="600" step="1"><span>秒</span></label>
+  </div>
+  <div class="row" style="align-items:center">
+    <span class="note" style="margin-right:2px">層の数</span><div class="segs" id="depthSeg" role="group" aria-label="層の数"></div>
+    <label class="check"><input type="checkbox" id="rot"> 層ごとに比率を回転</label>
+  </div>
+  <p class="note" id="structNote">比率を変えると箱の形が変わるので、しまわれた音はすべて空に戻ります。1周の長さを変えても中身はそのままです。</p>
+</section>
+
+<section id="srcSec">
+  <h2>素材 <i>gamut</i><span class="aside" id="fileCount"></span></h2>
+  <div class="src">
+    <span class="path" id="srcPath"></span>
+    <button type="button" class="btn sm" id="dirBtn">フォルダを選ぶ</button>
+    <button type="button" class="btn sm" id="filesBtn">ファイルを選ぶ</button>
+    <button type="button" class="btn sm" id="demoBtn">内蔵の例</button>
+    <input type="file" id="dirIn" class="vh" webkitdirectory multiple tabindex="-1" aria-hidden="true">
+    <input type="file" id="filesIn" class="vh" multiple accept="audio/*,.wav,.aif,.aiff,.mp3,.m4a,.flac,.ogg" tabindex="-1" aria-hidden="true">
+  </div>
+  <p class="note" id="srcNote">フォルダの中の音声ファイルが、箱にしまわれる候補（ガマット）になります。ここにドロップしても読み込めます。</p>
+  <div class="gamut" id="gamut" aria-label="素材ごとの収納数。濃いほど多くの箱にしまわれています"></div>
+  <div class="row" style="align-items:center">
+    <label class="field"><span>切り出し</span><select id="pos"><option value="rand">ファイル内のランダムな位置</option><option value="head">先頭から</option></select></label>
+    <label class="field"><span>箱より短い音</span><select id="short"><option value="cut">鳴り終わったら空のまま</option><option value="loop">繰り返して箱を満たす</option></select></label>
+    <label class="field"><span>フェード</span><input id="fade" type="number" min="0" max="200" step="1"><span>ms</span></label>
+    <label class="field"><span>左右の広がり</span><input id="spread" type="number" min="0" max="100" step="5"><span>%</span></label>
+  </div>
+</section>
+
+<section>
+  <h2>層 <i>layers</i><span class="aside">上ほど長い箱、下ほど短い箱</span></h2>
+  <div class="layers" id="layers"></div>
+  <p class="note">収納：空の箱に再生が来たとき、音がしまわれる確率。忘却：音の入った箱が、その周で空に戻る確率。箱をタップすると、その場で入れたり空にしたりできます。</p>
+</section>
+
+<section>
+  <h2>残す <i>keep</i></h2>
+  <div class="row" style="align-items:center">
+    <button type="button" class="btn rec" id="recBtn" aria-pressed="false">● 録音</button>
+    <span class="note" id="recTime" style="font-family:var(--f-mono)">0:00.00</span>
+    <span class="note">鳴っている音をそのまま録ります。周をまたいで箱が埋まっていく過程も入ります。</span>
+  </div>
+  <div class="takes" id="takes"></div>
+  <div class="row" style="align-items:center">
+    <button type="button" class="btn" id="xMaster">いまの器を1周書き出す</button>
+    <button type="button" class="btn" id="xLayers">層別に書き出す</button>
+    <label class="field"><span>形式</span><select id="xFmt"><option value="16">PCM 16</option><option value="24">PCM 24</option><option value="32">Float 32</option></select></label>
+    <label class="field"><span>Hz</span><select id="xSr"><option>44100</option><option>48000</option><option>96000</option></select></label>
+    <label class="check"><input type="checkbox" id="xNorm"> normalize</label>
+  </div>
+  <p class="note" id="xNote"></p>
+</section>
+</div>
+
+<script>
+(()=>{
+const $=id=>document.getElementById(id);
+function h(tag,attrs,...kids){const e=document.createElement(tag);for(const k in attrs||{}){const v=attrs[k];if(v==null||v===false)continue;if(k.startsWith('on'))e[k]=v;else if(k==='class')e.className=v;else e.setAttribute(k,v===true?'':v)}for(const c of kids.flat())if(c!=null)e.append(c);return e}
+const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
+const fmtT=s=>{s=Math.max(0,s);const m=Math.floor(s/60);return m+':'+(s-m*60).toFixed(2).padStart(5,'0')};
+const fmtS=s=>s>=10?s.toFixed(1)+'s':s>=1?s.toFixed(2)+'s':Math.round(s*1000)+'ms';
+const ROMAN=['I','II','III','IV'];
+const MAXBOX=6000;
+const inViewer=!!(window.claude&&typeof window.claude.use==='function');
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+// ---------- settings (kept per viewer) ----------
+const defLayer=k=>({fill:[.3,.22,.16,.1][k],forget:[.02,.03,.04,.05][k],vol:[.5,.6,.7,.7][k],mute:false});
+let S={series:'4 3 2 3 4',cycle:32,depth:3,rot:false,pos:'rand',short:'cut',fade:5,spread:60,fmt:'24',sr:'48000',norm:true,layers:[0,1,2,3].map(defLayer)};
+try{const j=JSON.parse(localStorage.getItem('utsuwa')||'null');if(j&&typeof j==='object')S=Object.assign(S,j)}catch(e){}
+let saveT=0;const save=()=>{clearTimeout(saveT);saveT=setTimeout(()=>{try{localStorage.setItem('utsuwa',JSON.stringify(S))}catch(e){}},200)};
+
+// ---------- the structure: one proportion series nested inside itself ----------
+// each layer k is the series applied k+1 times; box start/len are fractions of one cycle
+let SER=[],LAY=[];
+function parseSeries(t){const a=String(t).split(/[\s,、・·/]+/).filter(Boolean).map(Number);return a.length>=2&&a.length<=12&&a.every(x=>isFinite(x)&&x>0)?a:null}
+function build(){
+  const P=SER.reduce((a,b)=>a+b,0);let parents=[{start:0,len:1}];LAY=[];
+  for(let k=0;k<S.depth;k++){
+    const r=S.rot?k%SER.length:0;const ser=SER.slice(r).concat(SER.slice(0,r));const boxes=[];
+    for(const p of parents){let acc=0;for(const v of ser){boxes.push({start:p.start+acc/P*p.len,len:v/P*p.len,file:-1,off:0,pan:0});acc+=v}}
+    LAY.push({boxes,ser});parents=boxes;
+  }
+  if(playing)resync();
+}
+function maxDepthFor(n){let d=1;while(d<4&&Math.pow(n,d+1)<=MAXBOX)d++;return d}
+
+// ---------- the gamut: files from the chosen folder, or a built-in set ----------
+let POOL={label:'',items:[],demo:true};const bufs=new Map(),bad=new Set();
+const AUD=/\.(wav|wave|aif|aiff|aifc|mp3|m4a|mp4|aac|flac|ogg|oga|opus|webm|caf)$/i;
+function rng32(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const DEMO=[
+  ['click.wav',.05,(t,r)=>Math.exp(-t*900)*(r()*2-1)],
+  ['rim.wav',.12,(t)=>Math.exp(-t*60)*Math.sin(2*Math.PI*1720*t)*.8+Math.exp(-t*400)*Math.sin(2*Math.PI*410*t)],
+  ['hat.wav',.25,(t,r)=>Math.exp(-t*30)*(r()*2-1)*.6],
+  ['thump.wav',.5,(t)=>Math.exp(-t*9)*Math.sin(2*Math.PI*(48+90*Math.exp(-t*30))*t)],
+  ['blip_880.wav',.3,(t)=>Math.exp(-t*14)*Math.sin(2*Math.PI*880*t)*.6],
+  ['bell.wav',2.2,(t)=>Math.exp(-t*2.2)*Math.sin(2*Math.PI*523*t+2.4*Math.exp(-t*3)*Math.sin(2*Math.PI*1471*t))*.5],
+  ['crackle.wav',1.6,(t,r)=>r()<.004?(r()*2-1):0],
+  ['snare.wav',.35,(t,r)=>Math.exp(-t*16)*((r()*2-1)*.7+.4*Math.sin(2*Math.PI*190*t))],
+  ['drone_110.wav',4,(t)=>Math.min(1,t*4,(4-t)*3)*.3*(Math.sin(2*Math.PI*110*t)+.5*Math.sin(2*Math.PI*165.4*t)+.3*Math.sin(2*Math.PI*221*t))],
+  ['metal.wav',1.2,(t)=>Math.exp(-t*4)*.25*[1,1.41,2.33,2.97,3.63].reduce((a,m)=>a+Math.sin(2*Math.PI*612*m*t),0)],
+  ['wood.wav',.18,(t)=>Math.exp(-t*45)*Math.sin(2*Math.PI*820*t)*.9],
+  ['air.wav',3,(t,r,st)=>{st.v=st.v*.97+(r()*2-1)*.03;return st.v*Math.sin(Math.PI*t/3)*4}],
+  ['radio.wav',3,(t,r,st)=>{if(r()<.0004)st.f=200+r()*1800;st.f=st.f||600;return .3*Math.sin(2*Math.PI*st.f*t)*(.6+.4*Math.sin(2*Math.PI*5*t))+(r()*2-1)*.06}],
+  ['chirp.wav',.45,(t)=>Math.sin(Math.PI*t/.45)*.5*Math.sin(2*Math.PI*(300*t+2600*t*t))],
+  ['voiceish.wav',2,(t)=>{const f=180+20*Math.sin(2*Math.PI*3*t);let s=0;for(let n=1;n<12;n++)s+=Math.sin(2*Math.PI*f*n*t)/n*Math.exp(-Math.pow((f*n-700)/500,2));return .5*s*Math.min(1,t*8,(2-t)*4)}],
+  ['sub.wav',1.5,(t)=>Math.exp(-t*2)*Math.sin(2*Math.PI*55*t)*.8]
+];
+function setPool(files,label){
+  const list=[...files].filter(f=>AUD.test(f.name)||(f.type||'').startsWith('audio/'));
+  list.sort((a,b)=>(a.webkitRelativePath||a.name).localeCompare(b.webkitRelativePath||b.name,'ja'));
+  if(!list.length)return 0;
+  POOL={label:label||'',items:list.map(f=>({name:f.webkitRelativePath||f.name,file:f})),demo:false};
+  bufs.clear();bad.clear();emptyAll();showPool();return list.length;
+}
+function useDemo(){POOL={label:'内蔵の例',items:DEMO.map((d,i)=>({name:d[0],gen:i})),demo:true};bufs.clear();bad.clear();emptyAll();showPool()}
+function demoBuffer(i){
+  const [,dur,fn]=DEMO[i],sr=ctx.sampleRate,n=Math.round(dur*sr),b=ctx.createBuffer(2,n,sr),L=b.getChannelData(0),R=b.getChannelData(1),r=rng32(1000+i),st={v:0};
+  for(let k=0;k<n;k++)L[k]=fn(k/sr,r,st);const w=.1+(i%5)*.06;for(let k=0;k<n;k++)R[k]=L[k]*(1-w)+(k>40?L[k-40]:0)*w;return b;
+}
+// decodes lazily, the first time a file is stored in a box; resolves null when the file cannot be read
+function ensureBuf(i){
+  if(bufs.has(i))return bufs.get(i);
+  const it=POOL.items[i],items=POOL.items;let p;
+  if(it.gen!=null)p=Promise.resolve(demoBuffer(it.gen));
+  else p=it.file.arrayBuffer().then(ab=>new Promise((res,rej)=>{const q=ctx.decodeAudioData(ab,res,rej);if(q&&q.then)q.then(res,rej)}));
+  p=p.then(b=>{if(POOL.items===items)bufs.set(i,b);return b},()=>{if(POOL.items!==items)return null;bad.add(i);bufs.set(i,null);
+    for(const L of LAY)for(const b of L.boxes)if(b.file===i)b.file=-1;showPool();changed();return null});
+  bufs.set(i,p);return p;
+}
+const ready=i=>{const b=bufs.get(i);return b instanceof AudioBuffer?b:null};
+const pool=()=>POOL.items.map((_,i)=>i).filter(i=>!bad.has(i));
+
+// ---------- storing and forgetting ----------
+let stored=0,cycles=0;
+function store(b,f){b.file=f;b.off=Math.random();b.pan=(Math.random()*2-1)*S.spread/100;if(ctx)ensureBuf(f)}
+// one visit of the playhead to a box: an empty box may receive a sound, a full one may let it go
+function visit(k,b){
+  const lp=S.layers[k];
+  if(b.file<0){const pl=pool();if(pl.length&&Math.random()<lp.fill){store(b,pl[Math.floor(Math.random()*pl.length)]);changed();return 'in'}}
+  else if(Math.random()<lp.forget){b.file=-1;changed();return 'out'}
+  return null;
+}
+function emptyAll(){for(const L of LAY)for(const b of L.boxes)b.file=-1;cycles=0;changed()}
+function fillOnce(){LAY.forEach((L,k)=>L.boxes.forEach(b=>visit(k,b)))}
+
+// ---------- audio ----------
+let ctx=null,bus=null,lg=[],playing=false,cs=0,ptr=[],timer=0,raf=0;const live=new Set();
+function ensureCtx(){
+  if(!ctx){const AC=window.AudioContext||window.webkitAudioContext;ctx=new AC();bus=ctx.createGain();bus.connect(ctx.destination);
+    lg=[0,1,2,3].map(()=>{const g=ctx.createGain();g.connect(bus);return g});setLayerGains();
+    for(const L of LAY)for(const b of L.boxes)if(b.file>=0)ensureBuf(b.file)}
+  if(ctx.state==='suspended')ctx.resume();
+}
+function setLayerGains(){if(!ctx)return;lg.forEach((g,k)=>g.gain.setTargetAtTime(S.layers[k].mute?0:S.layers[k].vol,ctx.currentTime,.02))}
+// places one stored sound into an audio graph, cut to exactly the length of its box
+function place(ac,dest,b,t,len,buf){
+  const src=ac.createBufferSource();src.buffer=buf;const g=ac.createGain();
+  const f=Math.min(S.fade/1000,len/2);const short=buf.duration<len;
+  const off=S.pos==='rand'?b.off*Math.max(0,buf.duration-len):0;
+  if(short&&S.short==='loop'){src.loop=true;src.loopStart=0;src.loopEnd=buf.duration}
+  const end=short&&S.short!=='loop'?t+buf.duration:t+len;
+  g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(1,t+Math.max(f,.001));
+  g.gain.setValueAtTime(1,Math.max(t+f,end-f));g.gain.linearRampToValueAtTime(0,end);
+  let out=g;if(ac.createStereoPanner&&b.pan){const p=ac.createStereoPanner();p.pan.value=b.pan;g.connect(p);out=p}
+  src.connect(g);out.connect(dest);src.start(t,off);src.stop(end+.01);return src;
+}
+const LOOK=.25;
+function sched(){
+  const now=ctx.currentTime,until=now+LOOK,D=S.cycle;
+  LAY.forEach((L,k)=>{const p=ptr[k];if(!p)return;
+    for(let guard=0;guard<20000;guard++){
+      const b=L.boxes[p.i];const t=cs+(p.c+b.start)*D;if(t>=until)break;
+      visit(k,b);
+      if(b.file>=0&&t>=now-.01&&!S.layers[k].mute){const buf=ready(b.file);
+        if(buf){const s=place(ctx,lg[k],b,t,b.len*D,buf);live.add(s);s.onended=()=>live.delete(s);flash(b.file,t)}}
+      if(++p.i>=L.boxes.length){p.i=0;p.c++;if(k===0)cycles++}
+    }});
+}
+// points every layer at the first box after the current position, e.g. after the structure or the cycle length changed
+function resync(){
+  const ph=Math.max(0,(ctx.currentTime-cs)/S.cycle),c=Math.floor(ph),fr=ph-c;
+  ptr=LAY.map(L=>{let i=L.boxes.findIndex(b=>b.start>=fr-1e-9);return i<0?{c:c+1,i:0}:{c,i}});
+}
+function start(){
+  ensureCtx();if(playing)return;playing=true;cs=ctx.currentTime+.08;ptr=LAY.map(()=>({c:0,i:0}));
+  timer=setInterval(sched,30);sched();$('playBtn').classList.add('on');$('playBtn').textContent='■ 止める';loop();
+}
+function stop(){
+  playing=false;clearInterval(timer);cancelAnimationFrame(raf);
+  for(const s of live){try{s.stop()}catch(e){}}live.clear();
+  $('playBtn').classList.remove('on');$('playBtn').textContent='▶ 鳴らす';draw();status();
+}
+function phase(){if(!playing)return null;const p=(ctx.currentTime-cs)/S.cycle;return p<0?0:p-Math.floor(p)}
+let lastSt=0;
+function loop(t){draw();if(!(t-lastSt<200)){lastSt=t;status()}raf=requestAnimationFrame(loop)}
+
+// ---------- drawing ----------
+const cv=$('cv');let geo=null;
+const tone=f=>.42+((f*0.6180339)%1)*.5; // each file gets its own ink density
+function size(){
+  const d=window.devicePixelRatio||1,w=cv.clientWidth||600;const rh=w<500?34:44,top=22;
+  const hgt=top+LAY.length*(rh+8)+4;cv.style.height=hgt+'px';cv.width=Math.round(w*d);cv.height=Math.round(hgt*d);
+  geo={w,d,rh,top,left:w<500?24:30};draw();
+}
+function draw(){
+  if(!geo)return;const {w,d,rh,top,left}=geo,c=cv.getContext('2d');c.setTransform(d,0,0,d,0,0);c.clearRect(0,0,w,cv.height/d);
+  const span=w-left-2,X=x=>left+x*span,ph=phase();
+  const ink=css('--ink'),rule=css('--rule'),grid=css('--grid'),faint=css('--faint'),now=css('--now'),dim=css('--dim');
+  // ruler: seconds of one cycle, and the series written over the largest sections
+  c.font='10px "IBM Plex Mono",monospace';c.textBaseline='alphabetic';c.fillStyle=faint;c.strokeStyle=grid;c.lineWidth=1;
+  const D=S.cycle,stepS=[1,2,4,5,10,15,30,60,120].find(s=>span/(D/s)>=34)||240;
+  for(let s=0;s<=D+1e-9;s+=stepS){const x=Math.round(X(s/D))+.5;c.beginPath();c.moveTo(x,top-5);c.lineTo(x,top-1);c.stroke();
+    c.textAlign=s===0?'left':(s+stepS>D+1e-9?'right':'center');c.fillText(s+'s',x,top-8)}
+  LAY.forEach((L,k)=>{
+    const y=top+k*(rh+8),m=S.layers[k].mute;c.globalAlpha=m?.35:1;
+    c.textAlign='left';c.fillStyle=dim;c.font='600 13px "Shippori Mincho B1",serif';c.fillText(ROMAN[k],2,y+rh/2+5);
+    c.fillStyle=css('--sheet');c.fillRect(left,y,span,rh);
+    const bw=L.boxes.length?span/L.boxes.length:span;
+    for(const b of L.boxes){
+      const x0=X(b.start),x1=X(b.start+b.len),gap=x1-x0>4?1:0;
+      if(b.file>=0){const on=ph!=null&&!m&&ph>=b.start&&ph<b.start+b.len&&ready(b.file);
+        c.globalAlpha=(m?.35:1)*(on?1:tone(b.file));c.fillStyle=on?now:ink;c.fillRect(x0+gap,y+1,Math.max(.6,x1-x0-gap*2),rh-2);c.globalAlpha=m?.35:1}
+      if(x1-x0>2.5){c.fillStyle=rule;c.fillRect(Math.round(x0),y,1,rh)}
+    }
+    c.strokeStyle=rule;c.strokeRect(left+.5,y+.5,span-1,rh-1);
+    if(k===0&&span/L.boxes.length>14){c.font='10px "IBM Plex Mono",monospace';c.textAlign='left';
+      L.boxes.forEach((b,i)=>{if(b.file<0){c.fillStyle=faint;c.fillText(L.ser[i],X(b.start)+4,y+12)}})}
+    c.globalAlpha=1;
+  });
+  if(ph!=null){const x=Math.round(X(ph))+.5;c.strokeStyle=now;c.lineWidth=1.5;c.beginPath();c.moveTo(x,top-2);c.lineTo(x,top+LAY.length*(rh+8)-6);c.stroke();c.lineWidth=1}
+}
+cv.addEventListener('click',e=>{
+  if(!geo)return;const r=cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;const {rh,top,left,w}=geo;
+  const k=Math.floor((y-top)/(rh+8));if(k<0||k>=LAY.length||y-top-k*(rh+8)>rh)return;
+  const fr=(x-left)/(w-left-2);if(fr<0||fr>=1)return;const L=LAY[k];const i=L.boxes.findIndex(b=>fr>=b.start&&fr<b.start+b.len);if(i<0)return;const b=L.boxes[i];
+  if(b.file>=0){const nm=POOL.items[b.file].name.split('/').pop();b.file=-1;say(`層 ${ROMAN[k]} の箱 ${i+1} を空にしました（${nm}）。`)}
+  else{const pl=pool();if(!pl.length)return;store(b,pl[Math.floor(Math.random()*pl.length)]);
+    say(`層 ${ROMAN[k]} の箱 ${i+1}（${fmtS(b.len*S.cycle)}）に ${POOL.items[b.file].name.split('/').pop()} をしまいました。`)}
+  changed();
+});
+
+// ---------- status and gamut chart ----------
+let msg='',dirty=false;
+function say(t){msg=t;status()}
+function changed(){if(dirty)return;dirty=true;requestAnimationFrame(()=>{dirty=false;stored=0;const cnt=new Map();
+  for(const L of LAY)for(const b of L.boxes)if(b.file>=0){stored++;cnt.set(b.file,(cnt.get(b.file)||0)+1)}
+  paintGamut(cnt);if(!playing){draw();status()}})}
+function status(){
+  const total=LAY.reduce((a,L)=>a+L.boxes.length,0);const kinds=new Set();for(const L of LAY)for(const b of L.boxes)if(b.file>=0)kinds.add(b.file);
+  const ph=phase();
+  $('status').textContent='';$('status').append(
+    h('span',{},'第 ',h('b',{},String(playing?cycles+1:cycles||'—')),' 周'),
+    h('span',{},ph!=null?fmtT(ph*S.cycle)+' / '+fmtT(S.cycle):'停止中'),
+    h('span',{},'収納 ',h('b',{},String(stored)),' / '+total+' 箱'),
+    h('span',{},'素材 ',h('b',{},String(kinds.size)),' / '+POOL.items.length+' 種'),
+    h('span',{class:'msg'},msg));
+}
+const GMAX=600;let gEls=[];
+function showPool(){
+  const n=POOL.items.length;$('fileCount').textContent=n+' files';
+  $('srcPath').textContent=POOL.demo?`内蔵の例（合成した短い音 ${n} 個）`:(POOL.label||'選んだファイル')+(bad.size?`（読めないファイル ${bad.size}）`:'');
+  const g=$('gamut');g.textContent='';gEls=POOL.items.slice(0,GMAX).map(it=>{const s=h('span',{title:it.name});g.append(s);return s});
+  if(n>GMAX)g.append(h('span',{class:'more'},`+${n-GMAX}`));changed();
+}
+function paintGamut(cnt){const ink=css('--ink');let mx=1;for(const v of cnt.values())mx=Math.max(mx,v);
+  gEls.forEach((s,i)=>{const v=cnt.get(i)||0;s.style.background=v?`color-mix(in srgb, ${ink} ${Math.round(25+70*v/mx)}%, transparent)`:'';
+    s.title=POOL.items[i].name+(v?`（${v} 箱）`:'')+(bad.has(i)?'（読めません）':'')})}
+function flash(i,t){const s=gEls[i];if(!s)return;setTimeout(()=>{s.classList.add('hit');setTimeout(()=>s.classList.remove('hit'),110)},Math.max(0,(t-ctx.currentTime)*1000))}
+
+// ---------- controls ----------
+function renderDepth(){
+  const seg=$('depthSeg');seg.textContent='';const mx=maxDepthFor(SER.length);
+  for(let d=1;d<=4;d++)seg.append(h('button',{type:'button',class:d===S.depth?'on':'',disabled:d>mx,'aria-pressed':String(d===S.depth),
+    onclick:()=>{if(d===S.depth)return;S.depth=d;save();rebuild()}},ROMAN[d-1]));
+}
+function renderLayers(){
+  const el=$('layers');el.textContent='';
+  LAY.forEach((L,k)=>{const v=S.layers[k];const lens=L.boxes.map(b=>b.len*S.cycle);
+    const knob=(lab,key,fmt)=>{const out=h('output',{},fmt(v[key]));const inp=h('input',{type:'range',min:0,max:1,step:.01,value:v[key],id:`l${k}${key}`,'aria-label':`層 ${ROMAN[k]} ${lab}`});
+      inp.oninput=()=>{v[key]=+inp.value;out.textContent=fmt(v[key]);if(key==='vol')setLayerGains();save()};return h('label',{class:'knob'},h('span',{},lab),inp,out)};
+    const pct=x=>Math.round(x*100)+'%';
+    const mb=h('button',{type:'button',class:v.mute?'on':'','aria-pressed':String(v.mute),'aria-label':`層 ${ROMAN[k]} をミュート`},'M');
+    const row=h('div',{class:'layer'+(v.mute?' muted':'')},
+      h('div',{class:'lname'},h('b',{},ROMAN[k]),mb),
+      h('div',{class:'linfo',id:`li${k}`},`箱 ${L.boxes.length} · ${fmtS(Math.min(...lens))}–${fmtS(Math.max(...lens))}`),
+      h('div',{class:'kgrid'},knob('収納','fill',pct),knob('忘却','forget',pct),knob('音量','vol',x=>x.toFixed(2))));
+    mb.onclick=()=>{v.mute=!v.mute;mb.classList.toggle('on',v.mute);mb.setAttribute('aria-pressed',String(v.mute));row.classList.toggle('muted',v.mute);setLayerGains();save();if(!playing)draw()};
+    el.append(row)});
+}
+function updLens(){LAY.forEach((L,k)=>{const e=$('li'+k);if(!e)return;const lens=L.boxes.map(b=>b.len*S.cycle);e.textContent=`箱 ${L.boxes.length} · ${fmtS(Math.min(...lens))}–${fmtS(Math.max(...lens))}`});
+  $('lenAside').textContent=`1周 ${fmtT(S.cycle)} · 箱 ${LAY.reduce((a,L)=>a+L.boxes.length,0)}`}
+function rebuild(){S.depth=Math.min(S.depth,maxDepthFor(SER.length));build();renderDepth();renderLayers();updLens();size();changed()}
+
+const sIn=$('series');sIn.value=S.series;
+const applySeries=t=>{const a=parseSeries(t);const n=$('structNote');
+  if(!a){n.className='note err';n.textContent='比率は 2〜12 個の正の数を空白で区切って書いてください（例：4 3 2 3 4）。';return false}
+  n.className='note';n.textContent='比率を変えると箱の形が変わるので、しまわれた音はすべて空に戻ります。1周の長さを変えても中身はそのままです。';
+  if(a.join(' ')===SER.join(' '))return true;SER=a;S.series=a.join(' ');sIn.value=S.series;save();rebuild();return true};
+sIn.onchange=()=>applySeries(sIn.value);
+$('preset').onchange=()=>{const v=$('preset').value;if(v)applySeries(v);$('preset').value=''};
+$('cycle').value=S.cycle;$('cycle').onchange=()=>{let x=+$('cycle').value;if(!isFinite(x)||x<=0)x=S.cycle;x=clamp(x,2,600);$('cycle').value=x;
+  if(playing){const p=Math.max(0,(ctx.currentTime-cs)/S.cycle);cs=ctx.currentTime-p*x}S.cycle=x;if(playing)resync();save();updLens();draw()};
+$('rot').checked=S.rot;$('rot').onchange=()=>{S.rot=$('rot').checked;save();rebuild()};
+const bindSel=(id,key)=>{$(id).value=S[key];$(id).onchange=()=>{S[key]=$(id).value;save()}};
+bindSel('pos','pos');bindSel('short','short');bindSel('xFmt','fmt');bindSel('xSr','sr');
+const bindNum=(id,key,a,b)=>{$(id).value=S[key];$(id).onchange=()=>{let x=+$(id).value;if(!isFinite(x))x=S[key];S[key]=clamp(x,a,b);$(id).value=S[key];save()}};
+bindNum('fade','fade',0,200);bindNum('spread','spread',0,100);
+$('xNorm').checked=S.norm;$('xNorm').onchange=()=>{S.norm=$('xNorm').checked;save()};
+$('playBtn').onclick=()=>playing?stop():start();
+$('fillBtn').onclick=()=>{fillOnce();say('各層の収納の確率で、1周ぶんしまいました。')};
+$('clearBtn').onclick=()=>{emptyAll();say('すべての箱を空にしました。')};
+document.addEventListener('keydown',e=>{if(e.target.closest('input,select,textarea,button'))return;if(e.code==='Space'){e.preventDefault();playing?stop():start()}});
+new ResizeObserver(()=>size()).observe(cv);
+
+// ---------- source inputs ----------
+const isIOS=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+if(!('webkitdirectory' in $('dirIn'))||isIOS)$('dirBtn').hidden=true;
+$('dirBtn').onclick=()=>$('dirIn').click();$('filesBtn').onclick=()=>$('filesIn').click();
+const take=(files,label)=>{const n=setPool(files,label);const nt=$('srcNote');
+  if(n){nt.className='note';nt.textContent=`${n} 個の音声ファイルを読み込みました。箱はいったん空に戻りました。鳴らすと少しずつしまわれていきます。`}
+  else{nt.className='note err';nt.textContent='音声ファイルが見つかりませんでした（wav / aiff / mp3 / m4a / flac / ogg）。'}};
+$('dirIn').onchange=()=>{const f=[...$('dirIn').files];take(f,(f[0]?.webkitRelativePath||'').split('/')[0]);$('dirIn').value=''};
+$('filesIn').onchange=()=>{take($('filesIn').files,'選んだファイル');$('filesIn').value=''};
+$('demoBtn').onclick=()=>{useDemo();$('srcNote').className='note';$('srcNote').textContent='内蔵の例に戻しました。箱は空に戻りました。'};
+async function filesFromDrop(dt){
+  const items=[...(dt.items||[])].map(it=>it.webkitGetAsEntry&&it.webkitGetAsEntry()).filter(Boolean);
+  if(!items.length)return{files:[...(dt.files||[])],label:''};
+  const out=[];const walk=async(e,path)=>{if(e.isFile){const f=await new Promise((r,j)=>e.file(r,j));try{Object.defineProperty(f,'webkitRelativePath',{value:path+f.name})}catch(x){}out.push(f)}
+    else if(e.isDirectory){const rd=e.createReader();let b;do{b=await new Promise((r,j)=>rd.readEntries(r,j));for(const x of b)await walk(x,path+e.name+'/')}while(b.length)}};
+  for(const e of items)await walk(e,'');
+  return{files:out,label:items.length===1&&items[0].isDirectory?items[0].name:''};
+}
+const ss=$('srcSec');
+ss.addEventListener('dragover',e=>{e.preventDefault();ss.classList.add('drop')});
+ss.addEventListener('dragleave',()=>ss.classList.remove('drop'));
+ss.addEventListener('drop',async e=>{e.preventDefault();ss.classList.remove('drop');const r=await filesFromDrop(e.dataTransfer);take(r.files,r.label||'ドロップしたファイル')});
+
+// ---------- WAV, ZIP, saving ----------
+function wav(L,R,sr,bits,g){
+  const n=L.length,bps=bits/8,ab=new ArrayBuffer(44+n*2*bps),dv=new DataView(ab);
+  const w4=(o,s)=>{for(let i=0;i<4;i++)dv.setUint8(o+i,s.charCodeAt(i))};
+  w4(0,'RIFF');dv.setUint32(4,36+n*2*bps,true);w4(8,'WAVE');w4(12,'fmt ');dv.setUint32(16,16,true);dv.setUint16(20,bits===32?3:1,true);dv.setUint16(22,2,true);
+  dv.setUint32(24,sr,true);dv.setUint32(28,sr*2*bps,true);dv.setUint16(32,2*bps,true);dv.setUint16(34,bits,true);w4(36,'data');dv.setUint32(40,n*2*bps,true);
+  let o=44;for(let i=0;i<n;i++)for(const c of[L,R]){let v=c[i]*g;
+    if(bits===32){dv.setFloat32(o,v,true);o+=4;continue}v=clamp(v,-1,1);
+    if(bits===16){dv.setInt16(o,v<0?v*32768:v*32767,true);o+=2}
+    else{const x=Math.round(v<0?v*8388608:v*8388607);dv.setUint8(o,x&255);dv.setUint8(o+1,(x>>8)&255);dv.setUint8(o+2,(x>>16)&255);o+=3}}
+  return new Uint8Array(ab);
+}
+const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+function crc32(u){let c=0xFFFFFFFF;for(let i=0;i<u.length;i++)c=CRC[(c^u[i])&255]^(c>>>8);return(c^0xFFFFFFFF)>>>0}
+// uncompressed ZIP: the claude.ai viewer saves .zip but not .wav
+function zip(entries){
+  const parts=[],cen=[];let off=0;const d=new Date();
+  const dt=((d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1))&0xFFFF,dd=(((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate())&0xFFFF;
+  for(const{name,data}of entries){const nm=new TextEncoder().encode(name),crc=crc32(data);
+    const L=new DataView(new ArrayBuffer(30));L.setUint32(0,0x04034b50,true);L.setUint16(4,20,true);L.setUint16(6,0x0800,true);L.setUint16(10,dt,true);L.setUint16(12,dd,true);L.setUint32(14,crc,true);L.setUint32(18,data.length,true);L.setUint32(22,data.length,true);L.setUint16(26,nm.length,true);
+    const C=new DataView(new ArrayBuffer(46));C.setUint32(0,0x02014b50,true);C.setUint16(4,20,true);C.setUint16(6,20,true);C.setUint16(8,0x0800,true);C.setUint16(12,dt,true);C.setUint16(14,dd,true);C.setUint32(16,crc,true);C.setUint32(20,data.length,true);C.setUint32(24,data.length,true);C.setUint16(28,nm.length,true);C.setUint32(42,off,true);
+    parts.push(L.buffer,nm,data);cen.push(C.buffer,nm);off+=30+nm.length+data.length}
+  const cl=cen.reduce((a,b)=>a+b.byteLength,0);const E=new DataView(new ArrayBuffer(22));E.setUint32(0,0x06054b50,true);E.setUint16(8,entries.length,true);E.setUint16(10,entries.length,true);E.setUint32(12,cl,true);E.setUint32(16,off,true);
+  return new Blob([...parts,...cen,E.buffer]);
+}
+async function deliver(entries,zipName){
+  if(inViewer){const dl=await window.claude.use('downloads');if(!dl)throw new Error('この表示ではファイルを保存できません');
+    try{await dl.save({filename:zipName,data:zip(entries)});return`${zipName} を保存しました（WAV ${entries.length} 個入り）。`}
+    catch(e){const c=e&&e.code;if(c==='declined')return'保存をやめました。';if(c==='rate_limited')throw new Error('保存の確認がまだ開いています。閉じてからもう一度押してください');throw new Error('この表示ではファイルを保存できません')}}
+  const one=entries.length===1;const blob=one?new Blob([entries[0].data],{type:'audio/wav'}):zip(entries);
+  const url=URL.createObjectURL(blob);const a=h('a',{href:url,download:one?entries[0].name:zipName});document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+  return one?`${entries[0].name} を書き出しました。`:`${zipName}（WAV ${entries.length} 個入り）を書き出しました。`;
+}
+const stamp=d=>`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}-${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}${String(d.getSeconds()).padStart(2,'0')}`;
+const gainFor=(pk,bits)=>S.norm?(pk>0?Math.pow(10,-.3/20)/pk:1):(bits===32?1:(pk>1?1/pk:1));
+
+// renders one cycle of the vessel as it is now, offline
+const OAC=window.OfflineAudioContext||window.webkitOfflineAudioContext;
+async function renderCycle(sr,only){
+  const n=Math.ceil(S.cycle*sr),oc=new OAC(2,n,sr);
+  LAY.forEach((L,k)=>{if(S.layers[k].mute||(only!=null&&only!==k))return;const g=oc.createGain();g.gain.value=S.layers[k].vol;g.connect(oc.destination);
+    for(const b of L.boxes){if(b.file<0)continue;const buf=ready(b.file);if(buf)place(oc,g,b,b.start*S.cycle,b.len*S.cycle,buf)}});
+  const r=await oc.startRendering();return{L:r.getChannelData(0),R:r.getChannelData(1)};
+}
+async function exportAs(kind){
+  const note=$('xNote');note.className='note';const btns=[$('xMaster'),$('xLayers')];
+  if(!stored){note.className='note err';note.textContent='まだどの箱にも音がしまわれていません。鳴らすか「1周ぶん収納」を押してください。';return}
+  btns.forEach(b=>b.disabled=true);
+  try{ensureCtx();note.textContent='素材を読み込み中…';
+    const files=new Set();for(const L of LAY)for(const b of L.boxes)if(b.file>=0)files.add(b.file);await Promise.all([...files].map(ensureBuf));
+    const sr=+S.sr,bits=+S.fmt;note.textContent='書き出し中…';
+    const master=await renderCycle(sr,null);let pk=0;for(const c of[master.L,master.R])for(let i=0;i<c.length;i++){const a=Math.abs(c[i]);if(a>pk)pk=a}
+    if(!pk)throw new Error('書き出す音がありません（音の入った層がすべてミュートです）。');
+    const g=gainFor(pk,bits),base=`utsuwa_${SER.join('-')}_${stamp(new Date())}`,entries=[];
+    if(kind==='master')entries.push({name:base+'.wav',data:wav(master.L,master.R,sr,bits,g)});
+    else for(let k=0;k<LAY.length;k++){if(S.layers[k].mute)continue;note.textContent=`書き出し中… 層 ${ROMAN[k]}`;const m=await renderCycle(sr,k);entries.push({name:`${base}_${ROMAN[k]}.wav`,data:wav(m.L,m.R,sr,bits,g)})}
+    note.textContent=await deliver(entries,`${base}_${kind==='master'?'cycle':'layers'}.zip`);
+  }catch(e){note.className='note err';note.textContent=e.message||String(e)}
+  finally{btns.forEach(b=>b.disabled=false)}
+}
+$('xMaster').onclick=()=>exportAs('master');$('xLayers').onclick=()=>exportAs('layers');
+
+// ---------- recording: taps the output bus, so a take holds exactly what was heard ----------
+const REC={on:false,sp:null,z:null,L:[],R:[],n:0,timer:0},takes=[];let takeNo=0,preview=null;
+function recStart(){
+  ensureCtx();if(REC.on)return;
+  const sp=ctx.createScriptProcessor(4096,2,2);sp.channelCount=2;sp.channelCountMode='explicit';const z=ctx.createGain();z.gain.value=0;
+  Object.assign(REC,{on:true,sp,z,L:[],R:[],n:0});
+  sp.onaudioprocess=e=>{if(!REC.on)return;const ib=e.inputBuffer;const l=new Float32Array(ib.getChannelData(0));REC.L.push(l);REC.R.push(new Float32Array(ib.numberOfChannels>1?ib.getChannelData(1):l));REC.n+=l.length};
+  bus.connect(sp);sp.connect(z);z.connect(ctx.destination);
+  $('recBtn').classList.add('on');$('recBtn').setAttribute('aria-pressed','true');$('recBtn').textContent='■ 録音を止める';
+  REC.timer=setInterval(()=>{$('recTime').textContent=fmtT(REC.n/ctx.sampleRate)},100);
+  if(!playing)start();
+}
+function recStop(){
+  if(!REC.on)return;REC.on=false;clearInterval(REC.timer);
+  try{bus.disconnect(REC.sp)}catch(e){}REC.sp.disconnect();REC.z.disconnect();REC.sp.onaudioprocess=null;
+  $('recBtn').classList.remove('on');$('recBtn').setAttribute('aria-pressed','false');$('recBtn').textContent='● 録音';$('recTime').textContent='0:00.00';
+  const join=a=>{const o=new Float32Array(REC.n);let k=0;for(const c of a){o.set(c,k);k+=c.length}return o};
+  let l=join(REC.L),r=join(REC.R);REC.L=REC.R=[];
+  const th=1e-4;let a=0,b=l.length;while(a<b&&Math.abs(l[a])<th&&Math.abs(r[a])<th)a++;while(b>a&&Math.abs(l[b-1])<th&&Math.abs(r[b-1])<th)b--;
+  if(b-a<ctx.sampleRate*.05){$('xNote').className='note err';$('xNote').textContent='音が録れていませんでした。箱に音がしまわれてから録音してください。';return}
+  takes.unshift({no:++takeNo,L:l.slice(a,b),R:r.slice(a,b),sr:ctx.sampleRate,at:new Date()});renderTakes();
+}
+$('recBtn').onclick=()=>REC.on?recStop():recStart();
+function stopPreview(){if(preview){try{preview.n.stop()}catch(e){}preview=null;renderTakes()}}
+function renderTakes(){
+  const el=$('takes');el.textContent='';
+  for(const t of takes){
+    const cvs=h('canvas',{'aria-hidden':'true'});const msg=h('p',{class:'msg'});const pl=preview&&preview.t===t;
+    const pv=h('button',{type:'button',class:'btn sm'+(pl?' on':'')},pl?'■ 止める':'▶ 試聴');
+    pv.onclick=()=>{if(pl){stopPreview();return}stopPreview();ensureCtx();const buf=ctx.createBuffer(2,t.L.length,t.sr);buf.copyToChannel(t.L,0);buf.copyToChannel(t.R,1);
+      const n=ctx.createBufferSource();n.buffer=buf;n.connect(ctx.destination);n.onended=()=>{if(preview&&preview.n===n){preview=null;renderTakes()}};n.start();preview={t,n};renderTakes()};
+    const sv=h('button',{type:'button',class:'btn sm'},'WAV で保存');
+    sv.onclick=async()=>{sv.disabled=true;msg.className='msg';msg.textContent='書き出し中…';
+      try{const bits=+S.fmt;let pk=0;for(const c of[t.L,t.R])for(let i=0;i<c.length;i++){const a=Math.abs(c[i]);if(a>pk)pk=a}
+        const name=`utsuwa_rec_take${t.no}_${stamp(t.at)}.wav`;msg.textContent=await deliver([{name,data:wav(t.L,t.R,t.sr,bits,gainFor(pk,bits))}],name.replace(/\.wav$/,'_wav.zip'))}
+      catch(e){msg.className='msg err';msg.textContent=e.message||String(e)}finally{sv.disabled=false}};
+    const del=h('button',{type:'button',class:'btn sm'},'消す');
+    del.onclick=()=>{if(preview&&preview.t===t)stopPreview();takes.splice(takes.indexOf(t),1);renderTakes()};
+    el.append(h('div',{class:'take'},h('div',{class:'tl'},h('b',{},`テイク ${t.no}`),`　${fmtT(t.L.length/t.sr)} · ${t.sr} Hz · ${t.at.toLocaleTimeString('ja-JP')}`),h('div',{class:'tb'},pv,sv,del),cvs,msg));
+    requestAnimationFrame(()=>{const w=cvs.clientWidth,hh=26,d=window.devicePixelRatio||1;if(!w)return;cvs.width=w*d;cvs.height=hh*d;const c=cvs.getContext('2d');c.scale(d,d);c.fillStyle=css('--ink');
+      const step=t.L.length/w;for(let x=0;x<w;x++){let m=0;const i0=Math.floor(x*step),i1=Math.min(t.L.length,Math.floor((x+1)*step));for(let i=i0;i<i1;i+=4){const a=Math.max(Math.abs(t.L[i]),Math.abs(t.R[i]));if(a>m)m=a}const y=Math.max(.5,m*hh/2);c.fillRect(x,hh/2-y,1,y*2)}});
+  }
+}
+
+// ---------- boot: the built-in gamut, three cycles already stored, so the first view shows a vessel part-way full ----------
+SER=parseSeries(S.series)||[4,3,2,3,4];S.series=SER.join(' ');sIn.value=S.series;
+while(S.layers.length<4)S.layers.push(defLayer(S.layers.length));
+useDemo();rebuild();for(let i=0;i<3;i++)fillOnce();cycles=0;
+msg='例：内蔵の音を3周ぶんしまった状態です。「鳴らす」で続きから箱が埋まっていきます。';changed();status();
+matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',()=>{draw();changed()});
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{if(!playing)draw()});
+})();
+</script>
