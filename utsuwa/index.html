@@ -92,7 +92,8 @@ h2 .aside{margin-left:auto;font-family:var(--f-mono);font-size:11px;color:var(--
 .knob span{font-size:10.5px;color:var(--faint);white-space:nowrap}
 .knob input{width:100%;min-width:0;accent-color:var(--ink)}
 .knob output{font-family:var(--f-mono);font-size:10.5px;text-align:right;font-variant-numeric:tabular-nums}
-.kgrid{grid-column:2/4;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px 20px}
+.kgrid{grid-column:2/4;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px 18px}
+@media (max-width:860px){.kgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:640px){.kgrid{grid-template-columns:minmax(0,1fr)}.layer{grid-template-columns:36px minmax(0,1fr)}.linfo,.kgrid{grid-column:2/3}}
 
 .takes{display:flex;flex-direction:column;gap:6px}
@@ -109,7 +110,7 @@ h2 .aside{margin-left:auto;font-family:var(--f-mono);font-size:11px;color:var(--
 <div class="wrap">
 <header>
   <div class="title"><h1>Utsuwa<small>空の器</small></h1></div>
-  <p class="lede">ひとつの比率で1周の時間を分け、その区間をまた同じ比率で分けていきます。できた箱は最初どれも空です。鳴らし続けると、フォルダの音が1周ごとに少しずつ箱にしまわれ、しまわれた音は箱の長さのぶんだけ、毎周同じ場所で鳴ります。</p>
+  <p class="lede">ひとつの比率で1周の時間を分け、その区間をまた同じ比率で分けていきます。できた箱は最初どれも空です。鳴らし続けると、フォルダの音が少しずつ箱にしまわれ、箱の長さのぶんだけ鳴ります。出てくるたびにファイルの続きが流れ、中身はときどき別の音に入れ替わっていきます。</p>
 </header>
 
 <div class="stage">
@@ -157,7 +158,7 @@ h2 .aside{margin-left:auto;font-family:var(--f-mono);font-size:11px;color:var(--
   <p class="note" id="srcNote">フォルダの中の音声ファイルが、箱にしまわれる候補（ガマット）になります。ここにドロップしても読み込めます。</p>
   <div class="gamut" id="gamut" aria-label="素材ごとの収納数。濃いほど多くの箱にしまわれています"></div>
   <div class="row" style="align-items:center">
-    <label class="field"><span>切り出し</span><select id="pos"><option value="rand">ファイル内のランダムな位置</option><option value="head">先頭から</option></select></label>
+    <label class="field"><span>切り出し</span><select id="pos"><option value="flow">続きから流れる（出るたびに前回の続き）</option><option value="rand">出るたびにランダムな位置</option><option value="fixed">箱ごとに同じ位置</option><option value="head">いつも先頭から</option></select></label>
     <label class="field"><span>箱より短い音</span><select id="short"><option value="cut">鳴り終わったら空のまま</option><option value="loop">繰り返して箱を満たす</option></select></label>
     <label class="field"><span>フェード</span><input id="fade" type="number" min="0" max="200" step="1"><span>ms</span></label>
     <label class="field"><span>左右の広がり</span><input id="spread" type="number" min="0" max="100" step="5"><span>%</span></label>
@@ -167,7 +168,7 @@ h2 .aside{margin-left:auto;font-family:var(--f-mono);font-size:11px;color:var(--
 <section>
   <h2>層 <i>layers</i><span class="aside">上ほど長い箱、下ほど短い箱</span></h2>
   <div class="layers" id="layers"></div>
-  <p class="note">収納：空の箱に再生が来たとき、音がしまわれる確率。忘却：音の入った箱が、その周で空に戻る確率。箱をタップすると、その場で入れたり空にしたりできます。</p>
+  <p class="note">収納：空の箱に再生が来たとき、音がしまわれる確率。入替：音の入った箱の中身が、別の音に入れ替わる確率。忘却：音の入った箱が、空に戻る確率。箱をタップすると、その場で入れたり空にしたりできます。</p>
 </section>
 
 <section>
@@ -202,9 +203,10 @@ const inViewer=!!(window.claude&&typeof window.claude.use==='function');
 const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
 // ---------- settings (kept per viewer) ----------
-const defLayer=k=>({fill:[.3,.22,.16,.1][k],forget:[.02,.03,.04,.05][k],vol:[.5,.6,.7,.7][k],mute:false});
-let S={series:'4 3 2 3 4',cycle:32,depth:3,rot:false,pos:'rand',short:'cut',fade:5,spread:60,fmt:'24',sr:'48000',norm:true,layers:[0,1,2,3].map(defLayer)};
-try{const j=JSON.parse(localStorage.getItem('utsuwa')||'null');if(j&&typeof j==='object')S=Object.assign(S,j)}catch(e){}
+const defLayer=k=>({fill:[.3,.22,.16,.1][k],swap:[.15,.2,.25,.3][k],forget:[.02,.03,.04,.05][k],vol:[.5,.6,.7,.7][k],mute:false});
+let S={series:'4 3 2 3 4',v:2,cycle:32,depth:3,rot:false,pos:'flow',short:'cut',fade:5,spread:60,fmt:'24',sr:'48000',norm:true,layers:[0,1,2,3].map(defLayer)};
+try{const j=JSON.parse(localStorage.getItem('utsuwa')||'null');if(j&&typeof j==='object'){if(!j.v){j.v=2;j.pos='flow'}S=Object.assign(S,j)}}catch(e){}
+S.layers.forEach((l,k)=>{if(l.swap==null)l.swap=defLayer(k).swap});
 let saveT=0;const save=()=>{clearTimeout(saveT);saveT=setTimeout(()=>{try{localStorage.setItem('utsuwa',JSON.stringify(S))}catch(e){}},200)};
 
 // ---------- the structure: one proportion series nested inside itself ----------
@@ -259,8 +261,8 @@ function demoBuffer(i){
 // Loading: files decode in the background as soon as the gamut is chosen (3 at a time, in random order),
 // each kept as at most SEG seconds, and only up to BUDGET seconds in memory; a box only ever stores a sound that is ready.
 const SEG=15,BUDGET=480;
-let gen=0,usedSec=0,preQ=[];const lastUse=new Map();
-function resetBufs(){gen++;bufs.clear();bad.clear();lastUse.clear();usedSec=0;
+let gen=0,usedSec=0,preQ=[];const lastUse=new Map(),HEAD=new Map();
+function resetBufs(){gen++;bufs.clear();bad.clear();lastUse.clear();HEAD.clear();usedSec=0;
   preQ=POOL.items.map((_,i)=>i);for(let i=preQ.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[preQ[i],preQ[j]]=[preQ[j],preQ[i]]}}
 // a long WAV is cut to a random SEG-second window before decoding, so only that part is read from disk
 async function wavExcerpt(file){
@@ -301,7 +303,16 @@ function evict(){
   const cand=[...bufs].filter(([i,b])=>b instanceof AudioBuffer&&!held.has(i)).sort((a,b)=>(lastUse.get(a[0])||0)-(lastUse.get(b[0])||0));
   for(const[i,b]of cand){if(usedSec<=BUDGET*.9)break;bufs.delete(i);usedSec-=b.duration}
 }
-function preload(){const g=gen;const run=async()=>{while(g===gen&&preQ.length&&usedSec<BUDGET*.95){const i=preQ.pop();if(!bufs.has(i))await ensureBuf(i)}};for(let k=0;k<3;k++)run()}
+// three loaders fill memory quickly; once it is full one keeps going slowly, so new files keep arriving
+// and the oldest sounds no box holds make way: the whole folder flows through over time
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function preload(){const g=gen;
+  const run=async w=>{while(g===gen){
+    if(usedSec>=BUDGET*.95){if(w>0)return;await sleep(700);if(g!==gen)return}
+    if(!preQ.length){preQ=pool().filter(i=>!bufs.has(i));for(let i=preQ.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[preQ[i],preQ[j]]=[preQ[j],preQ[i]]}
+      if(!preQ.length){if(w>0)return;await sleep(2000);continue}}
+    const i=preQ.pop();if(!bufs.has(i))await ensureBuf(i)}};
+  for(let k=0;k<3;k++)run(k)}
 const ready=i=>{const b=bufs.get(i);return b instanceof AudioBuffer?b:null};
 const readyList=()=>{const r=[];for(const[i,b]of bufs)if(b instanceof AudioBuffer)r.push(i);return r};
 const pool=()=>POOL.items.map((_,i)=>i).filter(i=>!bad.has(i));
@@ -309,19 +320,26 @@ const pool=()=>POOL.items.map((_,i)=>i).filter(i=>!bad.has(i));
 // ---------- storing and forgetting ----------
 let stored=0,cycles=0;
 // draws a file at random from the whole gamut; if it is not loaded yet it starts loading and a loaded one sounds in its place
-function pick(){
-  const pl=pool();if(!pl.length)return -1;const f=pl[Math.floor(Math.random()*pl.length)];
-  if(!ctx||ready(f))return f;ensureBuf(f);const r=readyList();return r.length?r[Math.floor(Math.random()*r.length)]:f;
+// the stand-in favours sounds that few boxes hold, so the first files loaded do not take over
+let HELD=new Map();
+function pick(ex){
+  const pl=pool().filter(i=>i!==ex);if(!pl.length)return -1;const f=pl[Math.floor(Math.random()*pl.length)];
+  if(!ctx||ready(f))return f;ensureBuf(f);const r=readyList().filter(i=>i!==ex);if(!r.length)return f;
+  let tot=0;const w=r.map(i=>{const x=1/(1+3*(HELD.get(i)||0));tot+=x;return x});let u=Math.random()*tot;
+  for(let j=0;j<r.length;j++){u-=w[j];if(u<=0)return r[j]}return r[r.length-1];
 }
-function store(b,f){b.file=f;b.off=Math.random();b.pan=(Math.random()*2-1)*S.spread/100;if(ctx)ensureBuf(f)}
+const ST={in:0,sw:0,out:0};
+function store(b,f){HELD.set(f,(HELD.get(f)||0)+1);b.file=f;b.off=Math.random();b.pan=(Math.random()*2-1)*S.spread/100;if(ctx)ensureBuf(f)}
 // one visit of the playhead to a box: an empty box may receive a sound, a full one may let it go
 function visit(k,b){
   const lp=S.layers[k];
-  if(b.file<0){if(Math.random()<lp.fill){const f=pick();if(f<0)return null;store(b,f);changed();return 'in'}}
-  else if(Math.random()<lp.forget){b.file=-1;changed();return 'out'}
+  if(b.file<0){if(Math.random()<lp.fill){const f=pick();if(f<0)return null;store(b,f);ST.in++;changed();return 'in'}}
+  else{const r=Math.random();
+    if(r<lp.forget){b.file=-1;ST.out++;changed();return 'out'}
+    if(r<lp.forget+lp.swap){const f=pick(b.file);if(f>=0){store(b,f);ST.sw++;changed();return 'swap'}}}
   return null;
 }
-function emptyAll(){for(const L of LAY)for(const b of L.boxes)b.file=-1;cycles=0;changed()}
+function emptyAll(){for(const L of LAY)for(const b of L.boxes)b.file=-1;cycles=0;ST.in=ST.sw=ST.out=0;changed()}
 function fillOnce(){LAY.forEach((L,k)=>L.boxes.forEach(b=>visit(k,b)))}
 
 // ---------- audio ----------
@@ -333,11 +351,17 @@ function ensureCtx(){
   if(ctx.state==='suspended')ctx.resume();
 }
 function setLayerGains(){if(!ctx)return;lg.forEach((g,k)=>g.gain.setTargetAtTime(S.layers[k].mute?0:S.layers[k].vol,ctx.currentTime,.02))}
+// where in the file this playback starts: 'flow' carries on from where this file last stopped, in any box
+function offFor(b,buf,len){
+  const room=Math.max(0,buf.duration-len);
+  if(S.pos==='head'||!room)return 0;if(S.pos==='fixed')return b.off*room;if(S.pos==='rand')return Math.random()*room;
+  let h=HEAD.has(b.file)?HEAD.get(b.file):Math.random()*room;if(h>room)h=0;HEAD.set(b.file,h+len);return h;
+}
 // places one stored sound into an audio graph, cut to exactly the length of its box
 function place(ac,dest,b,t,len,buf){
   const src=ac.createBufferSource();src.buffer=buf;const g=ac.createGain();
   const f=Math.min(S.fade/1000,len/2);const short=buf.duration<len;
-  const off=S.pos==='rand'?b.off*Math.max(0,buf.duration-len):0;
+  const off=offFor(b,buf,len);
   if(short&&S.short==='loop'){src.loop=true;src.loopStart=0;src.loopEnd=buf.duration}
   const end=short&&S.short!=='loop'?t+buf.duration:t+len;
   g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(1,t+Math.max(f,.001));
@@ -353,8 +377,8 @@ function sched(){
       const b=L.boxes[p.i];const t=cs+(p.c+b.start)*D;if(t>=until)break;
       visit(k,b);
       if(b.file>=0&&t>=now-.01&&!S.layers[k].mute){const buf=ready(b.file);
-        if(buf){const s=place(ctx,lg[k],b,t,b.len*D,buf);live.add(s);s.onended=()=>live.delete(s);flash(b.file,t)}}
-      if(++p.i>=L.boxes.length){p.i=0;p.c++;if(k===0)cycles++}
+        if(buf){lastUse.set(b.file,performance.now());const s=place(ctx,lg[k],b,t,b.len*D,buf);live.add(s);s.onended=()=>live.delete(s);flash(b.file,t)}}
+      if(++p.i>=L.boxes.length){p.i=0;p.c++;if(k===0){cycles++;ST.in=ST.sw=ST.out=0}}
     }});
 }
 // points every layer at the first box after the current position, e.g. after the structure or the cycle length changed
@@ -363,7 +387,7 @@ function resync(){
   ptr=LAY.map(L=>{let i=L.boxes.findIndex(b=>b.start>=fr-1e-9);return i<0?{c:c+1,i:0}:{c,i}});
 }
 function start(){
-  ensureCtx();if(playing)return;playing=true;cs=ctx.currentTime+.08;ptr=LAY.map(()=>({c:0,i:0}));
+  ensureCtx();if(playing)return;playing=true;ST.in=ST.sw=ST.out=0;cs=ctx.currentTime+.08;ptr=LAY.map(()=>({c:0,i:0}));
   timer=setInterval(sched,30);sched();$('playBtn').classList.add('on');$('playBtn').textContent='■ 止める';loop();
 }
 function stop(){
@@ -425,7 +449,7 @@ let msg='',dirty=false;
 function say(t){msg=t;status()}
 function changed(){if(dirty)return;dirty=true;requestAnimationFrame(()=>{dirty=false;stored=0;const cnt=new Map();
   for(const L of LAY)for(const b of L.boxes)if(b.file>=0){stored++;cnt.set(b.file,(cnt.get(b.file)||0)+1)}
-  paintGamut(cnt);if(!playing){draw();status()}})}
+  HELD=cnt;paintGamut(cnt);if(!playing){draw();status()}})}
 function status(){
   const total=LAY.reduce((a,L)=>a+L.boxes.length,0);const kinds=new Set();for(const L of LAY)for(const b of L.boxes)if(b.file>=0)kinds.add(b.file);
   const ph=phase();
@@ -433,6 +457,7 @@ function status(){
     h('span',{},'第 ',h('b',{},String(playing?cycles+1:cycles||'—')),' 周'),
     h('span',{},ph!=null?fmtT(ph*S.cycle)+' / '+fmtT(S.cycle):'停止中'),
     h('span',{},'収納 ',h('b',{},String(stored)),' / '+total+' 箱'),
+    playing?h('span',{title:'この周に、しまわれた・入れ替わった・空に戻った箱の数'},`この周 +${ST.in} ⇄${ST.sw} −${ST.out}`):null,
     h('span',{},'素材 ',h('b',{},String(kinds.size)),' / '+POOL.items.length+' 種'),
     h('span',{class:'msg'},msg));
 }
@@ -466,7 +491,7 @@ function renderLayers(){
     const row=h('div',{class:'layer'+(v.mute?' muted':'')},
       h('div',{class:'lname'},h('b',{},ROMAN[k]),mb),
       h('div',{class:'linfo',id:`li${k}`},`箱 ${L.boxes.length} · ${fmtS(Math.min(...lens))}–${fmtS(Math.max(...lens))}`),
-      h('div',{class:'kgrid'},knob('収納','fill',pct),knob('忘却','forget',pct),knob('音量','vol',x=>x.toFixed(2))));
+      h('div',{class:'kgrid'},knob('収納','fill',pct),knob('入替','swap',pct),knob('忘却','forget',pct),knob('音量','vol',x=>x.toFixed(2))));
     mb.onclick=()=>{v.mute=!v.mute;mb.classList.toggle('on',v.mute);mb.setAttribute('aria-pressed',String(v.mute));row.classList.toggle('muted',v.mute);setLayerGains();save();if(!playing)draw()};
     el.append(row)});
 }
