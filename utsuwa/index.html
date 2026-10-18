@@ -75,7 +75,8 @@ h2 .aside{margin-left:auto;font-family:var(--f-mono);font-size:11px;color:var(--
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .drop{outline:1px dashed var(--ink);outline-offset:6px}
 .gamut{display:grid;grid-template-columns:repeat(auto-fill,minmax(13px,1fr));gap:2px}
-.gamut span{aspect-ratio:1;max-width:100%;border:1px solid var(--rule);background:var(--sheet);position:relative}
+.gamut span{aspect-ratio:1;max-width:100%;border:1px dashed var(--rule);background:var(--sheet);position:relative}
+.gamut span.ok{border-style:solid;border-color:var(--faint)}
 .gamut span.hit{outline:2px solid var(--now);outline-offset:-1px}
 .gamut .more{grid-column:span 4;aspect-ratio:auto;border:0;background:none;font-family:var(--f-mono);font-size:10px;color:var(--faint);align-self:center}
 
@@ -248,33 +249,75 @@ function setPool(files,label){
   list.sort((a,b)=>(a.webkitRelativePath||a.name).localeCompare(b.webkitRelativePath||b.name,'ja'));
   if(!list.length)return 0;
   POOL={label:label||'',items:list.map(f=>({name:f.webkitRelativePath||f.name,file:f})),demo:false};
-  bufs.clear();bad.clear();emptyAll();showPool();return list.length;
+  resetBufs();emptyAll();showPool();if(ctx)preload();return list.length;
 }
-function useDemo(){POOL={label:'内蔵の例',items:DEMO.map((d,i)=>({name:d[0],gen:i})),demo:true};bufs.clear();bad.clear();emptyAll();showPool()}
+function useDemo(){POOL={label:'内蔵の例',items:DEMO.map((d,i)=>({name:d[0],gen:i})),demo:true};resetBufs();emptyAll();showPool();if(ctx)preload()}
 function demoBuffer(i){
   const [,dur,fn]=DEMO[i],sr=ctx.sampleRate,n=Math.round(dur*sr),b=ctx.createBuffer(2,n,sr),L=b.getChannelData(0),R=b.getChannelData(1),r=rng32(1000+i),st={v:0};
   for(let k=0;k<n;k++)L[k]=fn(k/sr,r,st);const w=.1+(i%5)*.06;for(let k=0;k<n;k++)R[k]=L[k]*(1-w)+(k>40?L[k-40]:0)*w;return b;
 }
-// decodes lazily, the first time a file is stored in a box; resolves null when the file cannot be read
+// Loading: files decode in the background as soon as the gamut is chosen (3 at a time, in random order),
+// each kept as at most SEG seconds, and only up to BUDGET seconds in memory; a box only ever stores a sound that is ready.
+const SEG=15,BUDGET=480;
+let gen=0,usedSec=0,preQ=[];const lastUse=new Map();
+function resetBufs(){gen++;bufs.clear();bad.clear();lastUse.clear();usedSec=0;
+  preQ=POOL.items.map((_,i)=>i);for(let i=preQ.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[preQ[i],preQ[j]]=[preQ[j],preQ[i]]}}
+// a long WAV is cut to a random SEG-second window before decoding, so only that part is read from disk
+async function wavExcerpt(file){
+  const head=new DataView(await file.slice(0,Math.min(file.size,1<<16)).arrayBuffer());
+  const tag=o=>String.fromCharCode(head.getUint8(o),head.getUint8(o+1),head.getUint8(o+2),head.getUint8(o+3));
+  if(head.byteLength<44||tag(0)!=='RIFF'||tag(8)!=='WAVE')return null;
+  let o=12,fmt=null;
+  while(o+8<=head.byteLength){const id=tag(o),sz=head.getUint32(o+4,true);
+    if(id==='fmt '){if(o+8+sz>head.byteLength||sz<16)return null;fmt={o,sz,sr:head.getUint32(o+12,true),ba:head.getUint16(o+20,true)}}
+    else if(id==='data'){if(!fmt||!fmt.ba||!fmt.sr)return null;const ds=o+8,dl=Math.min(sz,file.size-ds),max=Math.floor(SEG*fmt.sr)*fmt.ba;
+      if(dl<=max)return null;
+      const st=Math.floor(Math.random()*Math.floor((dl-max)/fmt.ba))*fmt.ba;const fl=8+fmt.sz+(fmt.sz&1);
+      const hdr=new Uint8Array(12+fl+8),dv=new DataView(hdr.buffer),w4=(p,s)=>{for(let k=0;k<4;k++)hdr[p+k]=s.charCodeAt(k)};
+      w4(0,'RIFF');dv.setUint32(4,4+fl+8+max,true);w4(8,'WAVE');hdr.set(new Uint8Array(head.buffer,fmt.o,8+fmt.sz),12);w4(12+fl,'data');dv.setUint32(16+fl,max,true);
+      return new Blob([hdr,file.slice(ds+st,ds+st+max)]).arrayBuffer()}
+    o+=8+sz+(sz&1)}
+  return null;
+}
+function trim(buf){
+  if(buf.duration<=SEG+.5)return buf;const n=Math.floor(SEG*buf.sampleRate),s=Math.floor(Math.random()*(buf.length-n));
+  const out=ctx.createBuffer(buf.numberOfChannels,n,buf.sampleRate);for(let c=0;c<buf.numberOfChannels;c++)out.copyToChannel(buf.getChannelData(c).subarray(s,s+n),c);return out;
+}
+const decode=ab=>new Promise((res,rej)=>{const q=ctx.decodeAudioData(ab,res,rej);if(q&&q.then)q.then(res,rej)});
+// resolves null when the file cannot be read
 function ensureBuf(i){
-  if(bufs.has(i))return bufs.get(i);
-  const it=POOL.items[i],items=POOL.items;let p;
+  if(bufs.has(i)){lastUse.set(i,performance.now());return bufs.get(i)}
+  const it=POOL.items[i],g=gen;let p;
   if(it.gen!=null)p=Promise.resolve(demoBuffer(it.gen));
-  else p=it.file.arrayBuffer().then(ab=>new Promise((res,rej)=>{const q=ctx.decodeAudioData(ab,res,rej);if(q&&q.then)q.then(res,rej)}));
-  p=p.then(b=>{if(POOL.items===items)bufs.set(i,b);return b},()=>{if(POOL.items!==items)return null;bad.add(i);bufs.set(i,null);
+  else p=wavExcerpt(it.file).catch(()=>null).then(ab=>ab||it.file.arrayBuffer()).then(decode).then(trim);
+  p=p.then(b=>{if(g!==gen)return null;bufs.set(i,b);usedSec+=b.duration;lastUse.set(i,performance.now());evict();changed();return b},
+    ()=>{if(g!==gen)return null;bad.add(i);bufs.set(i,null);
     for(const L of LAY)for(const b of L.boxes)if(b.file===i)b.file=-1;showPool();changed();return null});
   bufs.set(i,p);return p;
 }
+// over budget: drop the least recently used sounds that no box holds
+function evict(){
+  if(usedSec<=BUDGET)return;const held=new Set();for(const L of LAY)for(const b of L.boxes)if(b.file>=0)held.add(b.file);
+  const cand=[...bufs].filter(([i,b])=>b instanceof AudioBuffer&&!held.has(i)).sort((a,b)=>(lastUse.get(a[0])||0)-(lastUse.get(b[0])||0));
+  for(const[i,b]of cand){if(usedSec<=BUDGET*.9)break;bufs.delete(i);usedSec-=b.duration}
+}
+function preload(){const g=gen;const run=async()=>{while(g===gen&&preQ.length&&usedSec<BUDGET*.95){const i=preQ.pop();if(!bufs.has(i))await ensureBuf(i)}};for(let k=0;k<3;k++)run()}
 const ready=i=>{const b=bufs.get(i);return b instanceof AudioBuffer?b:null};
+const readyList=()=>{const r=[];for(const[i,b]of bufs)if(b instanceof AudioBuffer)r.push(i);return r};
 const pool=()=>POOL.items.map((_,i)=>i).filter(i=>!bad.has(i));
 
 // ---------- storing and forgetting ----------
 let stored=0,cycles=0;
+// draws a file at random from the whole gamut; if it is not loaded yet it starts loading and a loaded one sounds in its place
+function pick(){
+  const pl=pool();if(!pl.length)return -1;const f=pl[Math.floor(Math.random()*pl.length)];
+  if(!ctx||ready(f))return f;ensureBuf(f);const r=readyList();return r.length?r[Math.floor(Math.random()*r.length)]:f;
+}
 function store(b,f){b.file=f;b.off=Math.random();b.pan=(Math.random()*2-1)*S.spread/100;if(ctx)ensureBuf(f)}
 // one visit of the playhead to a box: an empty box may receive a sound, a full one may let it go
 function visit(k,b){
   const lp=S.layers[k];
-  if(b.file<0){const pl=pool();if(pl.length&&Math.random()<lp.fill){store(b,pl[Math.floor(Math.random()*pl.length)]);changed();return 'in'}}
+  if(b.file<0){if(Math.random()<lp.fill){const f=pick();if(f<0)return null;store(b,f);changed();return 'in'}}
   else if(Math.random()<lp.forget){b.file=-1;changed();return 'out'}
   return null;
 }
@@ -286,7 +329,7 @@ let ctx=null,bus=null,lg=[],playing=false,cs=0,ptr=[],timer=0,raf=0;const live=n
 function ensureCtx(){
   if(!ctx){const AC=window.AudioContext||window.webkitAudioContext;ctx=new AC();bus=ctx.createGain();bus.connect(ctx.destination);
     lg=[0,1,2,3].map(()=>{const g=ctx.createGain();g.connect(bus);return g});setLayerGains();
-    for(const L of LAY)for(const b of L.boxes)if(b.file>=0)ensureBuf(b.file)}
+    for(const L of LAY)for(const b of L.boxes)if(b.file>=0)ensureBuf(b.file);preload()}
   if(ctx.state==='suspended')ctx.resume();
 }
 function setLayerGains(){if(!ctx)return;lg.forEach((g,k)=>g.gain.setTargetAtTime(S.layers[k].mute?0:S.layers[k].vol,ctx.currentTime,.02))}
@@ -372,7 +415,7 @@ cv.addEventListener('click',e=>{
   const k=Math.floor((y-top)/(rh+8));if(k<0||k>=LAY.length||y-top-k*(rh+8)>rh)return;
   const fr=(x-left)/(w-left-2);if(fr<0||fr>=1)return;const L=LAY[k];const i=L.boxes.findIndex(b=>fr>=b.start&&fr<b.start+b.len);if(i<0)return;const b=L.boxes[i];
   if(b.file>=0){const nm=POOL.items[b.file].name.split('/').pop();b.file=-1;say(`層 ${ROMAN[k]} の箱 ${i+1} を空にしました（${nm}）。`)}
-  else{const pl=pool();if(!pl.length)return;store(b,pl[Math.floor(Math.random()*pl.length)]);
+  else{const f=pick();if(f<0)return;store(b,f);
     say(`層 ${ROMAN[k]} の箱 ${i+1}（${fmtS(b.len*S.cycle)}）に ${POOL.items[b.file].name.split('/').pop()} をしまいました。`)}
   changed();
 });
@@ -395,14 +438,16 @@ function status(){
 }
 const GMAX=600;let gEls=[];
 function showPool(){
-  const n=POOL.items.length;$('fileCount').textContent=n+' files';
+  const n=POOL.items.length;loadInfo();
   $('srcPath').textContent=POOL.demo?`内蔵の例（合成した短い音 ${n} 個）`:(POOL.label||'選んだファイル')+(bad.size?`（読めないファイル ${bad.size}）`:'');
   const g=$('gamut');g.textContent='';gEls=POOL.items.slice(0,GMAX).map(it=>{const s=h('span',{title:it.name});g.append(s);return s});
   if(n>GMAX)g.append(h('span',{class:'more'},`+${n-GMAX}`));changed();
 }
-function paintGamut(cnt){const ink=css('--ink');let mx=1;for(const v of cnt.values())mx=Math.max(mx,v);
+function loadInfo(){const n=POOL.items.length,r=readyList().length,busy=POOL.items.length&&ctx&&preQ.length&&usedSec<BUDGET*.95;
+  $('fileCount').textContent=n+' files'+(ctx&&!POOL.demo?` · 読み込み済み ${r}${busy?'…':''}`:'')}
+function paintGamut(cnt){loadInfo();const ink=css('--ink');let mx=1;for(const v of cnt.values())mx=Math.max(mx,v);
   gEls.forEach((s,i)=>{const v=cnt.get(i)||0;s.style.background=v?`color-mix(in srgb, ${ink} ${Math.round(25+70*v/mx)}%, transparent)`:'';
-    s.title=POOL.items[i].name+(v?`（${v} 箱）`:'')+(bad.has(i)?'（読めません）':'')})}
+    s.classList.toggle('ok',!!ready(i));s.title=POOL.items[i].name+(v?`（${v} 箱）`:'')+(bad.has(i)?'（読めません）':'')})}
 function flash(i,t){const s=gEls[i];if(!s)return;setTimeout(()=>{s.classList.add('hit');setTimeout(()=>s.classList.remove('hit'),110)},Math.max(0,(t-ctx.currentTime)*1000))}
 
 // ---------- controls ----------
@@ -454,8 +499,8 @@ new ResizeObserver(()=>size()).observe(cv);
 const isIOS=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 if(!('webkitdirectory' in $('dirIn'))||isIOS)$('dirBtn').hidden=true;
 $('dirBtn').onclick=()=>$('dirIn').click();$('filesBtn').onclick=()=>$('filesIn').click();
-const take=(files,label)=>{const n=setPool(files,label);const nt=$('srcNote');
-  if(n){nt.className='note';nt.textContent=`${n} 個の音声ファイルを読み込みました。箱はいったん空に戻りました。鳴らすと少しずつしまわれていきます。`}
+const take=(files,label)=>{ensureCtx();const n=setPool(files,label);if(n)say('');const nt=$('srcNote');
+  if(n){nt.className='note';nt.textContent=`${n} 個の音声ファイルを選びました。裏で読み込みながら、読み込めた音から箱にしまわれていきます（長いファイルは15秒ぶんだけ使います）。`}
   else{nt.className='note err';nt.textContent='音声ファイルが見つかりませんでした（wav / aiff / mp3 / m4a / flac / ogg）。'}};
 $('dirIn').onchange=()=>{const f=[...$('dirIn').files];take(f,(f[0]?.webkitRelativePath||'').split('/')[0]);$('dirIn').value=''};
 $('filesIn').onchange=()=>{take($('filesIn').files,'選んだファイル');$('filesIn').value=''};
