@@ -296,9 +296,19 @@ a.ghostBtn { display: inline-block; text-decoration: none; }
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 3.6rem;
+  width: 4rem;
   gap: 0.3rem;
 }
+
+.fader__check {
+  width: 14px;
+  height: 14px;
+  margin: 0 0.45rem 0 0;
+  flex: none;
+  cursor: pointer;
+  accent-color: hsl(var(--accent), 65%, 60%);
+}
+.fader--locked .fader__label { opacity: 0.45; }
 
 .fader__label {
   font-size: 0.58rem;

@@ -44,6 +44,8 @@
   }
   function qFromKnob(v) { return 0.25 + v * 14; }
   function delayTimeFromKnob(v) { return 0.03 + v * 0.9; }
+  // -1..1 -> -0.5..+0.5 s, cubic so the area around 0 is very fine
+  function loopFineSec(v) { return Math.sign(v) * 0.5 * Math.abs(v) ** 3; }
 
   const AUDIO_EXT = /\.(wav|mp3|ogg|oga|flac|m4a|aac|webm|aif|aiff|opus)$/i;
   function isAudioFile(file) {
@@ -585,7 +587,7 @@
   function createKnob(opts) {
     const {
       label, min, max, value, unit = "", decimals,
-      format, onChange, dice, disabled, noDice,
+      format, onChange, dice, disabled, noDice, noCheck,
     } = opts;
 
     const dp = decimals ?? (max - min <= 2 ? 2 : (max - min <= 20 ? 1 : 0));
@@ -598,6 +600,23 @@
     const labelEl = document.createElement("div");
     labelEl.className = "fader__label";
     labelEl.textContent = label;
+
+    // checked = this fader takes part in bulk randomizing (track ⚄,
+    // RANDOMIZE ALL, AUTO); its own 🎲 always works regardless
+    let randomOn = !noDice;
+    let checkEl = null;
+    if (!noCheck) {
+      checkEl = document.createElement("input");
+      checkEl.type = "checkbox";
+      checkEl.className = "fader__check";
+      checkEl.checked = randomOn;
+      checkEl.title = "チェック ON = ⚄ / RANDOMIZE ALL / AUTO でランダムに変わる";
+      checkEl.addEventListener("change", () => {
+        randomOn = checkEl.checked;
+        el.classList.toggle("fader--locked", !randomOn);
+      });
+      el.classList.toggle("fader--locked", !randomOn);
+    }
 
     const body = document.createElement("div");
     body.className = "fader__body";
@@ -620,6 +639,7 @@
       dice_btn.textContent = "🎲";
     }
 
+    if (checkEl) body.appendChild(checkEl);
     body.appendChild(track);
     if (dice_btn) body.appendChild(dice_btn);
 
@@ -678,22 +698,19 @@
       setValue(v + (e.deltaY < 0 ? 1 : -1) * range * 0.02);
     }, { passive: false });
 
-    if (dice_btn) {
-      dice_btn.addEventListener("click", () => {
-        const nv = dice ? dice() : rand(min, max);
-        setValue(nv);
-      });
-    }
+    const rollValue = () => setValue(dice ? dice() : rand(min, max));
+    if (dice_btn) dice_btn.addEventListener("click", rollValue);
 
     render();
 
     return {
       el,
-      hasDice: !!dice_btn,
+      get randomOn() { return randomOn; },
       get value() { return v; },
       set value(nv) { setValue(nv, { silent: true }); },
       setValue,
-      roll() { if (dice_btn) dice_btn.click(); },
+      // bulk randomizers call this; unchecked faders stay put
+      roll() { if (randomOn) rollValue(); },
     };
   }
 
@@ -713,6 +730,7 @@
   // ---------------------------------------------------------------- track
 
   const TRACK_HUES = [352, 32, 168, 258];
+  const MIN_LOOP = 0.005;
 
   class Track {
     constructor(index) {
@@ -740,6 +758,7 @@
         mode: "loop",
         position: 0,
         spread: 0.55,
+        loopFine: 0,
         density: 0.3,
         pitch: 0,
         flux: 0.15,
@@ -1021,7 +1040,7 @@
       const p = this.params;
       const buf = p.reverse ? this.getReversedBuffer() : this.buffer;
       const dur = buf.duration;
-      const loopLen = clamp(0.02 * dur + p.spread * 0.95 * dur, 0.03, dur);
+      const loopLen = this.loopLength(dur);
       const start = clamp(p.position * dur, 0, Math.max(0, dur - 0.02));
       const end = Math.min(dur, start + loopLen);
 
@@ -1045,6 +1064,13 @@
       this._visLoop = { start, end, dur };
     }
 
+    // spread sets the coarse length (a share of the sample); l.fine adds
+    // up to ±0.5 s on top in absolute time
+    loopLength(dur) {
+      const coarse = clamp(0.02 * dur + this.params.spread * 0.95 * dur, 0.03, dur);
+      return clamp(coarse + loopFineSec(this.params.loopFine), MIN_LOOP, dur);
+    }
+
     applyLoopBounds(now) {
       if (!this.loopSource) return;
       const p = this.params;
@@ -1052,10 +1078,10 @@
       const dur = buf.duration;
       const wanderOff = this.wander.value * p.flux * (0.1 + p.spread * 0.4);
       const center = clamp(p.position + wanderOff, 0, 1);
-      const loopLen = clamp(0.02 * dur + p.spread * 0.95 * dur, 0.03, dur);
+      const loopLen = this.loopLength(dur);
       let start = clamp(center * dur, 0, Math.max(0, dur - 0.02));
       let end = Math.min(dur, start + loopLen);
-      if (end - start < 0.02) start = Math.max(0, end - 0.02);
+      if (end - start < MIN_LOOP) start = Math.max(0, end - MIN_LOOP);
       this.loopSource.loopStart = start;
       this.loopSource.loopEnd = end;
       this._visLoop = { start, end, dur };
@@ -1106,7 +1132,7 @@
       const p = this.params;
 
       if (this.autoDice && now >= this.nextAutoDiceTime) {
-        const keys = Object.keys(this.knobs).filter((k) => this.knobs[k].hasDice);
+        const keys = Object.keys(this.knobs).filter((k) => this.knobs[k].randomOn);
         if (keys.length) {
           const k = keys[Math.floor(Math.random() * keys.length)];
           this.knobs[k].roll();
@@ -1368,6 +1394,16 @@
       format: (v) => Math.round(v * 100) + "%",
       onChange: (v) => { track.params.spread = v; },
       dice: () => rand(0.03, 1),
+    });
+    addKnob(source, {
+      key: "loopFine", label: "l.fine", min: -1, max: 1, value: track.params.loopFine,
+      format: (v) => {
+        const ms = loopFineSec(v) * 1000;
+        const txt = Math.abs(ms) < 10 ? ms.toFixed(1) : String(Math.round(ms));
+        return (ms > 0 ? "+" : "") + txt + "ms";
+      },
+      onChange: (v) => { track.params.loopFine = v; },
+      dice: () => rand(-0.6, 0.6),
     });
     addKnob(source, {
       key: "density", label: "density", min: 0, max: 1, value: track.params.density,
@@ -1819,6 +1855,7 @@
       format: (v) => Math.round(v * 100) + "%",
       onChange: (v) => { if (masterGain) masterGain.gain.setTargetAtTime(v, ctx.currentTime, 0.02); },
       dice: () => rand(0.5, 1),
+      noCheck: true,
     });
     masterSlot.appendChild(masterKnob.el);
 
