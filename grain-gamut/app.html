@@ -9,16 +9,16 @@
    Paper and ink only; a filled box is a sound, an outlined box is an empty note value. */
 :root{
   --paper:#f7f7f2; --sheet:#fdfdfa; --ink:#1a1b1a; --dim:#5d605b; --faint:#9a9c96; --rule:#d6d7d0; --well:#ecede6;
-  --hot:#b8461f; --err:#b3261e;
+  --hot:#b8461f; --err:#b3261e; --rec:#c42b1c;
   --f-body:"Zen Kaku Gothic Antique","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
   --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --paper:#121311; --sheet:#181917; --ink:#e7e8e2; --dim:#a2a59d; --faint:#6a6d66; --rule:#2e302c; --well:#20221f;
-  --hot:#f08a5d; --err:#ff8a7f; color-scheme:dark}}
+  --hot:#f08a5d; --err:#ff8a7f; --rec:#ff6b5e; color-scheme:dark}}
 :root[data-theme="dark"]{
   --paper:#121311; --sheet:#181917; --ink:#e7e8e2; --dim:#a2a59d; --faint:#6a6d66; --rule:#2e302c; --well:#20221f;
-  --hot:#f08a5d; --err:#ff8a7f; color-scheme:dark}
+  --hot:#f08a5d; --err:#ff8a7f; --rec:#ff6b5e; color-scheme:dark}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:13px;line-height:1.5;-webkit-tap-highlight-color:transparent}
@@ -109,6 +109,24 @@ input[type=range]::-moz-range-thumb{width:7px;height:9px;background:var(--ink);b
 .xrow{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .xrow .field{width:auto}
 .xrow label.ck{display:flex;gap:5px;align-items:center;font-size:11px;color:var(--dim);cursor:pointer}
+.recrow{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.recbtn{border:1px solid var(--rec);color:var(--rec);background:var(--sheet);padding:6px 16px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:7px}
+.recbtn::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
+.recbtn.on{background:var(--rec);color:var(--sheet)}
+.recbtn.on::before{animation:blink 1s steps(2,start) infinite}
+@keyframes blink{to{visibility:hidden}}
+@media (prefers-reduced-motion:reduce){.recbtn.on::before{animation:none}}
+.rectime{font-family:var(--f-mono);font-size:13px;color:var(--rec);font-variant-numeric:tabular-nums;min-width:5.5em}
+.recrow label.ck{display:flex;gap:5px;align-items:center;font-size:11px;color:var(--dim);cursor:pointer}
+.takes{display:flex;flex-direction:column;border-top:1px solid var(--rule)}
+.takes:empty{border-top:0}
+.take{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;align-items:center;padding:7px 0;border-bottom:1px solid var(--rule)}
+.take canvas{grid-column:1/-1;width:100%;height:26px;display:block}
+.take .tl{font-family:var(--f-mono);font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums;min-width:0;overflow-wrap:anywhere}
+.take .tl b{color:var(--ink);font-weight:500}
+.take .tb{display:flex;gap:6px;flex-wrap:wrap}
+.take .msg{grid-column:1/-1;font-size:11px;color:var(--faint);margin:0}
+.take .msg.err{color:var(--err)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
@@ -167,6 +185,17 @@ input[type=range]::-moz-range-thumb{width:7px;height:9px;background:var(--ink);b
     <p class="note" id="genNote"></p>
   </section>
 
+  <section aria-labelledby="sRec">
+    <div class="lab" id="sRec">録音 <i>REC</i><span class="aside">聴こえている音をそのまま録ります</span></div>
+    <div class="recrow">
+      <button class="recbtn" id="recBtn" type="button" aria-pressed="false">録音</button>
+      <span class="rectime" id="recTime">0:00.00</span>
+      <label class="ck"><input type="checkbox" id="recHead">録音開始で頭から再生</label>
+    </div>
+    <p class="note" id="recNote">録音中に「生成」し直したり声部を変えたりしても、止めるまで一続きのテイクになります。止めるとテイクが下に並び、WAV で保存できます。</p>
+    <div class="takes" id="takes"></div>
+  </section>
+
   <section aria-labelledby="sScore">
     <div class="lab" id="sScore">譜面 <i>SCORE</i><span class="aside">黒い箱＝音が入った音価／白い箱＝空の音価</span></div>
     <div class="score" id="scoreBox"><canvas id="score" height="200" aria-label="生成されたリズムの箱"></canvas></div>
@@ -209,7 +238,7 @@ const inViewer=!!(window.claude&&typeof window.claude.use==='function');
 const PRESET=[[[1,0,0,0,0,0],[1,0,0,0]],[[1,1,0,0,0,0],[1,0,0,0]],[[0,1,1,1,0,0],[1,1,0,0]],[[0,0,1,1,1,0],[1,1,1,1]],
   [[0,0,0,1,1,0],[1,1,0,0]],[[0,0,1,0,1,1],[1,0,1,0]],[[0,1,0,1,0,1],[1,0,0,1]],[[0,0,0,0,1,1],[1,1,0,0]]];
 function defVoice(i){const p=PRESET[i%PRESET.length];return{fine:.5,dens:.85,nv:p[0].map(Boolean),tl:p[1].map(Boolean),vol:.7,pan:i%2?(.15+(i%4)*.1):-(.15+(i%4)*.1),mute:false}}
-let S={bpm:120,bars:16,beats:4,den:4,nVoices:8,seed:1,rand:true,loop:true,fade:4,pos:'rand',fmt:'24',sr:'48000',norm:true,voices:[]};
+let S={recHead:true,bpm:120,bars:16,beats:4,den:4,nVoices:8,seed:1,rand:true,loop:true,fade:4,pos:'rand',fmt:'24',sr:'48000',norm:true,voices:[]};
 try{const j=JSON.parse(localStorage.getItem('grain-gamut')||'null');if(j&&typeof j==='object')S=Object.assign(S,j)}catch(e){}
 const fixVoices=()=>{S.nVoices=clamp(Math.round(+S.nVoices||1),1,16);while(S.voices.length<S.nVoices)S.voices.push(defVoice(S.voices.length))};
 fixVoices();
@@ -331,11 +360,12 @@ const peakOf=m=>{let p=0;for(const c of[m.L,m.R])for(let i=0;i<c.length;i++){con
 
 // ---------- playback ----------
 let ctx=null,SC=null,playBuf=null,src=null,t0=0,raf=0,stale=false;
-function ensureCtx(){if(!ctx){const AC=window.AudioContext||window.webkitAudioContext;ctx=new AC()}if(ctx.state==='suspended')ctx.resume();return ctx}
+let bus=null;
+function ensureCtx(){if(!ctx){const AC=window.AudioContext||window.webkitAudioContext;ctx=new AC();bus=ctx.createGain();bus.connect(ctx.destination)}if(ctx.state==='suspended')ctx.resume();return ctx}
 function stop(){if(src){try{src.stop()}catch(e){}src.disconnect();src=null}cancelAnimationFrame(raf);$('playBtn').classList.remove('on');setPos(0);draw()}
 function play(){
   if(!playBuf)return;ensureCtx();stop();
-  src=ctx.createBufferSource();src.buffer=playBuf;src.loop=S.loop;src.connect(ctx.destination);
+  src=ctx.createBufferSource();src.buffer=playBuf;src.loop=S.loop;src.connect(bus);
   src.onended=()=>{if(src&&!src.loop){src=null;$('playBtn').classList.remove('on');cancelAnimationFrame(raf);setPos(0);draw()}};
   t0=ctx.currentTime+.03;src.start(t0);$('playBtn').classList.add('on');tick();
 }
@@ -360,7 +390,7 @@ async function generate(){
     note.textContent='ミックス中…';await new Promise(r=>setTimeout(r,0));
     const want=l=>!sc.vparams[l.v].mute;const m=mix(sc,sr,want);const pk=peakOf(m);const g=pk>.98?.98/pk:1;
     const buf=ctx.createBuffer(2,m.L.length,sr);for(let i=0;i<m.L.length;i++){m.L[i]*=g;m.R[i]*=g}buf.copyToChannel(m.L,0);buf.copyToChannel(m.R,1);
-    const was=!!src;SC=sc;playBuf=buf;stale=false;btn.classList.remove('stale');
+    const was=!!src;SC=sc;if(REC.on&&!REC.seeds.includes(sc.seed))REC.seeds.push(sc.seed);playBuf=buf;stale=false;btn.classList.remove('stale');
     const nLeaves=sc.voices.reduce((a,v)=>a+v.leaves.length,0),nSnd=sc.voices.reduce((a,v)=>a+v.leaves.filter(l=>l.file>=0).length,0);
     const used=usedFiles(sc);
     note.textContent=`Seed ${sc.seed}：音価 ${nLeaves} 個のうち ${nSnd} 個に音が入りました（使用ファイル ${used.length} / ${POOL.items.length}）。`;
@@ -537,6 +567,60 @@ async function exportAs(kind){
     note.textContent=await deliver(entries,`${base}_${kind==='voices'?'voices':kind==='files'?'files':'master'}.zip`);
   }catch(e){note.className='note err';note.textContent=e.message||String(e)}
   finally{btns.forEach(b=>b.disabled=false)}
+}
+// ---------- recording: taps the playback bus, so a take holds exactly what was heard ----------
+const REC={on:false,sp:null,z:null,L:[],R:[],n:0,seeds:[],timer:0},takes=[];let takeNo=0,preview=null;
+function recStart(){
+  ensureCtx();if(REC.on)return;
+  const sp=ctx.createScriptProcessor(4096,2,2);sp.channelCount=2;sp.channelCountMode='explicit';sp.channelInterpretation='speakers';
+  const z=ctx.createGain();z.gain.value=0;
+  Object.assign(REC,{on:true,sp,z,L:[],R:[],n:0,seeds:SC&&playBuf?[SC.seed]:[]});
+  sp.onaudioprocess=e=>{if(!REC.on)return;const ib=e.inputBuffer;const l=new Float32Array(ib.getChannelData(0));const r=new Float32Array(ib.numberOfChannels>1?ib.getChannelData(1):l);REC.L.push(l);REC.R.push(r);REC.n+=l.length};
+  bus.connect(sp);sp.connect(z);z.connect(ctx.destination);
+  $('recBtn').classList.add('on');$('recBtn').setAttribute('aria-pressed','true');$('recBtn').textContent='録音を止める';
+  REC.timer=setInterval(()=>{$('recTime').textContent=fmtT(REC.n/ctx.sampleRate)},100);
+  if(playBuf&&(S.recHead||!src))play();
+  $('recNote').className='note';$('recNote').textContent=playBuf?'録音中…':'録音中…「生成」して再生すると音が入ります。';
+}
+function recStop(){
+  if(!REC.on)return;REC.on=false;clearInterval(REC.timer);
+  try{bus.disconnect(REC.sp)}catch(e){}REC.sp.disconnect();REC.z.disconnect();REC.sp.onaudioprocess=null;
+  $('recBtn').classList.remove('on');$('recBtn').setAttribute('aria-pressed','false');$('recBtn').textContent='録音';$('recTime').textContent='0:00.00';
+  const join=a=>{const o=new Float32Array(REC.n);let k=0;for(const c of a){o.set(c,k);k+=c.length}return o};
+  let l=join(REC.L),r=join(REC.R);REC.L=REC.R=[];
+  // trim the silence before the first sound and after the last
+  const th=1e-4;let a=0,b=l.length;while(a<b&&Math.abs(l[a])<th&&Math.abs(r[a])<th)a++;while(b>a&&Math.abs(l[b-1])<th&&Math.abs(r[b-1])<th)b--;
+  if(b-a<ctx.sampleRate*.05){$('recNote').className='note err';$('recNote').textContent='音が録れていませんでした。「生成」して再生しながら録音してください。';return}
+  l=l.slice(a,b);r=r.slice(a,b);
+  takes.unshift({no:++takeNo,L:l,R:r,sr:ctx.sampleRate,at:new Date(),seeds:REC.seeds});
+  $('recNote').className='note';$('recNote').textContent=`テイク ${takeNo} を録りました（${fmtT(l.length/ctx.sampleRate)}）。`;renderTakes();
+}
+$('recBtn').onclick=()=>REC.on?recStop():recStart();
+$('recHead').checked=S.recHead;$('recHead').onchange=()=>{S.recHead=$('recHead').checked;save()};
+function stopPreview(){if(preview){try{preview.n.stop()}catch(e){}preview=null;renderTakes()}}
+const stamp=d=>`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}-${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}${String(d.getSeconds()).padStart(2,'0')}`;
+function renderTakes(){
+  const el=$('takes');el.textContent='';
+  for(const t of takes){
+    const cvs=h('canvas',{'aria-hidden':'true'});const msg=h('p',{class:'msg'});const playing=preview&&preview.t===t;
+    const pv=h('button',{type:'button',class:'btn sm'+(playing?' on':'')},playing?'■ 止める':'▶ 試聴');
+    pv.onclick=()=>{if(playing){stopPreview();return}stopPreview();ensureCtx();const buf=ctx.createBuffer(2,t.L.length,t.sr);buf.copyToChannel(t.L,0);buf.copyToChannel(t.R,1);
+      const n=ctx.createBufferSource();n.buffer=buf;n.connect(ctx.destination);n.onended=()=>{if(preview&&preview.n===n){preview=null;renderTakes()}};n.start();preview={t,n};renderTakes()};
+    const sv=h('button',{type:'button',class:'btn sm'},'WAV で保存');
+    sv.onclick=async()=>{sv.disabled=true;msg.className='msg';msg.textContent='書き出し中…';
+      try{const bits=+S.fmt;let pk=0;for(const c of[t.L,t.R])for(let i=0;i<c.length;i++){const a=Math.abs(c[i]);if(a>pk)pk=a}
+        const g=S.norm&&pk>0?Math.pow(10,-.3/20)/pk:(bits!==32&&pk>1?1/pk:1);
+        const name=`grain_gamut_rec_take${t.no}_${stamp(t.at)}.wav`;
+        msg.textContent=await deliver([{name,data:wav({L:t.L,R:t.R},t.sr,bits,g)}],name.replace(/\.wav$/,'_wav.zip'))}
+      catch(e){msg.className='msg err';msg.textContent=e.message||String(e)}finally{sv.disabled=false}};
+    const del=h('button',{type:'button',class:'btn sm'},'消す');
+    del.onclick=()=>{if(preview&&preview.t===t)stopPreview();takes.splice(takes.indexOf(t),1);renderTakes()};
+    el.append(h('div',{class:'take'},
+      h('div',{class:'tl'},h('b',{},`テイク ${t.no}`),`　${fmtT(t.L.length/t.sr)} · ${t.sr} Hz · ${t.at.toLocaleTimeString('ja-JP')}`+(t.seeds.length?` · Seed ${t.seeds.join(', ')}`:'')),
+      h('div',{class:'tb'},pv,sv,del),cvs,msg));
+    requestAnimationFrame(()=>{const w=cvs.clientWidth,hh=26,d=window.devicePixelRatio||1;if(!w)return;cvs.width=w*d;cvs.height=hh*d;const c=cvs.getContext('2d');c.scale(d,d);c.fillStyle=css('--ink');
+      const step=t.L.length/w;for(let x=0;x<w;x++){let m=0;const i0=Math.floor(x*step),i1=Math.min(t.L.length,Math.floor((x+1)*step));for(let i=i0;i<i1;i+=4){const a=Math.max(Math.abs(t.L[i]),Math.abs(t.R[i]));if(a>m)m=a}const y=Math.max(.5,m*hh/2);c.fillRect(x,hh/2-y,1,y*2)}});
+  }
 }
 $('xMaster').onclick=()=>exportAs('master');$('xVoices').onclick=()=>exportAs('voices');$('xFiles').onclick=()=>exportAs('files');
 
