@@ -4,8 +4,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: a small mixing desk. Six sound slots on the left, the console (transport, voice fader,
-   fragment switch) on the right; on a phone the console comes first, then lanes, then slots. */
+/* Layout: a small mixing desk. An open-ended pool of sounds on the left, the console (transport,
+   voice fader, fragment switch) on the right; on a phone the console comes first, then lanes, then the pool. */
 :root{
   --bg:#e4e8ee; --panel:#f3f5f8; --well:#d7dce4; --ink:#1a2130; --dim:#5b6577; --faint:#8a93a3;
   --line:rgba(26,33,48,.13); --lamp:#e39a12; --lamp-ink:#3a2500; --cap:#fbfcfd;
@@ -86,27 +86,33 @@ input[type=range]{width:100%;accent-color:var(--lamp);min-width:0}
 .lane .bar{height:4px;border-radius:2px;background:var(--well);overflow:hidden}
 .lane .bar i{display:block;height:100%;width:0;background:var(--c,var(--faint))}
 
-/* slots */
-.slots-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+/* pool */
+.pool-head{display:flex;align-items:center;justify-content:space-between;gap:8px 10px;flex-wrap:wrap}
+.pool-btns{display:flex;gap:6px;flex-wrap:wrap}
 .btn{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:8px;border:1px solid var(--line);background:var(--panel);font-size:13px;cursor:pointer}
 .btn:hover{border-color:var(--faint)}
-.slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
-.slot{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px;min-width:0}
-.slot.drop{border-color:var(--lamp);border-style:dashed}
-.slot.playing{border-color:var(--c)}
-.slot .sh{display:flex;align-items:center;gap:8px;min-width:0}
-.slot .tag{flex:none;display:grid;place-items:center;width:24px;height:24px;border-radius:6px;background:var(--c);color:#fff;font-family:var(--f-mono);font-weight:500;font-size:12px}
-.slot .nm{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
-.slot .nm em{font-style:normal;font-size:11px;color:var(--faint);margin-left:6px}
-.slot .du{font-family:var(--f-mono);font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
-.slot canvas{display:block;width:100%;height:64px;border-radius:6px;background:var(--well)}
-.slot .sf{display:flex;align-items:center;gap:8px}
-.slot .sf input[type=range]{flex:1}
+.btn.warn{border-color:var(--h0);color:var(--h0)}
+.dropzone{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:18px 16px;border:1.5px dashed var(--faint);border-radius:12px;color:var(--dim);text-align:center;cursor:pointer;font-size:14px}
+.dropzone b{font-weight:500;color:var(--ink)}
+.dropzone small{font-size:12px;color:var(--faint)}
+body.dragging .dropzone{border-color:var(--lamp);background:color-mix(in srgb,var(--lamp) 12%,transparent)}
+.load{font-family:var(--f-mono);font-size:12px;color:var(--dim);min-height:1.4em;margin:0}
+.pool{display:flex;flex-direction:column;gap:6px}
+.snd{display:grid;grid-template-columns:30px minmax(0,1fr) minmax(0,1.6fr) auto;align-items:center;gap:10px;padding:7px 10px;background:var(--panel);border:1px solid var(--line);border-radius:10px;min-width:0}
+.snd.playing{border-color:var(--c)}
+.snd .tag{display:grid;place-items:center;height:22px;border-radius:5px;background:var(--c);color:#fff;font-family:var(--f-mono);font-weight:500;font-size:11px;font-variant-numeric:tabular-nums}
+.snd .meta{display:flex;flex-direction:column;min-width:0;line-height:1.3}
+.snd .nm{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.snd .nm em{font-style:normal;font-size:11px;color:var(--faint);margin-left:6px}
+.snd .du{font-family:var(--f-mono);font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
+.snd canvas{display:block;width:100%;height:36px;border-radius:5px;background:var(--well)}
+.snd .ctl{display:flex;align-items:center;gap:6px}
+.snd .ctl input{width:76px}
+.snd.muted canvas,.snd.muted .meta{opacity:.4}
+.snd.loading canvas{opacity:.3}
+@media (max-width:620px){.snd{grid-template-columns:30px minmax(0,1fr) auto}.snd canvas{grid-column:1 / -1;grid-row:2}}
 .ib{flex:none;display:grid;place-items:center;min-width:30px;height:30px;padding:0 8px;border-radius:7px;border:1px solid var(--line);background:var(--bg);font-size:12px;cursor:pointer}
 .ib[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
-.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;height:64px;border-radius:6px;border:1px dashed var(--faint);color:var(--dim);font-size:13px;cursor:pointer;text-align:center}
-.empty small{font-size:11px;color:var(--faint)}
-.slot.muted canvas{opacity:.35}
 .foot{color:var(--faint);font-size:12px;margin:0}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 @media (prefers-reduced-motion:reduce){.fader .capk{transition:none}}
@@ -115,7 +121,7 @@ input[type=range]{width:100%;accent-color:var(--lamp);min-width:0}
 <div class="app">
   <header class="top">
     <h1>順不同<small>junfudo</small></h1>
-    <p>入れた音を、順番を決めずに鳴らし続けます。同時に鳴る数はフェーダーで 1〜3。ランダム断片をオンにすると、各ファイルの好きな位置から好きな長さだけを切り取って鳴らします。</p>
+    <p>入れた音を（何個でも）、順番を決めずに鳴らし続けます。同時に鳴る数はフェーダーで 1〜3。ランダム断片をオンにすると、各ファイルの好きな位置から好きな長さだけを切り取って鳴らします。</p>
   </header>
 
   <div class="main">
@@ -165,28 +171,34 @@ input[type=range]{width:100%;accent-color:var(--lamp);min-width:0}
         <div id="lanes" class="lanes"></div>
       </div>
 
-      <div>
-        <div class="slots-head">
-          <div class="label">音の枠 · 6</div>
-          <label class="btn" for="bulk">まとめて入れる<input id="bulk" class="vh" type="file" multiple></label>
+      <div class="group" style="gap:8px">
+        <div class="pool-head">
+          <div class="label" id="poolCount">音のプール</div>
+          <div class="pool-btns">
+            <label class="btn" for="addFiles">ファイルを追加<input id="addFiles" class="vh" type="file" multiple></label>
+            <label class="btn" for="addDir" id="addDirBtn">フォルダごと追加<input id="addDir" class="vh" type="file" multiple webkitdirectory></label>
+            <button class="btn" id="clearAll">全部消す</button>
+          </div>
         </div>
-        <div id="slots" class="slots" style="margin-top:8px"></div>
+        <label class="dropzone" for="addFiles"><b>ここにファイルをドロップ、またはタップして選ぶ</b><small>何個でも入れられます · 複数選択・フォルダのドロップも可 · WAV・MP3・M4A など</small></label>
+        <p class="load" id="loadInfo" aria-live="polite"></p>
+        <div id="pool" class="pool"></div>
       </div>
-      <p class="foot" id="foot">最初は例の音（その場で合成したもの）が入っています。枠にファイルをドラッグするか「差し替え」で自分の音に替えてください。WAV・MP3・M4A・OGG など、ブラウザが読める形式なら使えます。</p>
+      <p class="foot" id="foot">最初は例の音（その場で合成したもの）が入っています。自分の音を追加すると例の音は外れます。長いファイルをたくさん入れたときは、鳴らす直前に読み込み直すので、鳴り始めが少し遅れることがあります。</p>
     </section>
   </div>
 </div>
 
 <script>
 (() => {
-const SLOTS = 6, MAX_VOICES = 3, LETTERS = 'ABCDEF', SR = 44100;
+const MAX_VOICES = 3, SR = 44100, HUES = 6, CACHE_BYTES = 260e6;
 const $ = id => document.getElementById(id);
 const rand = (a, b) => a + Math.random() * (b - a);
 const fmt = s => s < 10 ? s.toFixed(1) : s.toFixed(0);
 
-const slots = Array.from({length: SLOTS}, (_, i) => ({i, name: '', sample: false, buffer: null, peaks: null, vol: 0.9, muted: false, gain: null}));
-const voices = Array.from({length: MAX_VOICES}, (_, i) => ({i, active: false, cur: null, timer: 0}));
-let ctx = null, master = null, running = false, target = 1, fragMode = false, bag = [], lastDrawn = -1;
+const sounds = [];
+const voices = Array.from({length: MAX_VOICES}, (_, i) => ({i, active: false, cur: null, waiting: null, timer: 0, gen: 0}));
+let ctx = null, master = null, running = false, target = 1, fragMode = false, bag = [], lastDrawn = -1, nextId = 0;
 const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
 
 /* ---------- audio graph ---------- */
@@ -197,36 +209,71 @@ function ensureCtx() {
   comp.threshold.value = -14; comp.ratio.value = 4; comp.attack.value = 0.005; comp.release.value = 0.2;
   master = ctx.createGain(); master.gain.value = +$('vol').value;
   master.connect(comp).connect(ctx.destination);
-  for (const s of slots) { s.gain = ctx.createGain(); s.gain.gain.value = s.muted ? 0 : s.vol; s.gain.connect(master); }
+}
+function gainOf(s) {
+  if (!s.gain) { s.gain = ctx.createGain(); s.gain.gain.value = s.muted ? 0 : s.vol; s.gain.connect(master); }
+  return s.gain;
 }
 
-function playable() { return slots.filter(s => s.buffer && !s.muted); }
-function busy() { return new Set(voices.filter(v => v.cur).map(v => v.cur.slot)); }
+const byId = id => sounds.find(s => s.id === id);
+function playable() { return sounds.filter(s => s.peaks && !s.muted); }
+function busy() {
+  const b = new Set();
+  voices.forEach(v => { if (v.cur) b.add(v.cur.s.id); if (v.waiting) b.add(v.waiting.id); });
+  return b;
+}
 
 // Shuffle-bag: every playable sound comes up once per round, in a new order each round.
 function draw() {
   const ok = playable(); if (!ok.length) return null;
-  const okIds = new Set(ok.map(s => s.i)), b = busy();
+  const okIds = new Set(ok.map(s => s.id)), b = busy();
   bag = bag.filter(i => okIds.has(i));
   if (!bag.some(i => !b.has(i))) {
-    const fresh = ok.map(s => s.i).filter(i => !bag.includes(i));
+    const fresh = ok.map(s => s.id).filter(i => !bag.includes(i));
     for (let k = fresh.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [fresh[k], fresh[j]] = [fresh[j], fresh[k]]; }
     if (fresh.length > 1 && fresh[0] === lastDrawn) fresh.push(fresh.shift());
     bag.push(...fresh);
   }
-  let idx = bag.findIndex(i => !b.has(i));
+  const idx = bag.findIndex(i => !b.has(i));
   if (idx < 0) return ok[Math.floor(Math.random() * ok.length)];
   const id = bag.splice(idx, 1)[0];
   lastDrawn = id;
-  return slots[id];
+  warm(byId(bag.find(i => !b.has(i) && i !== id)));
+  return byId(id);
 }
 
-function next(v) {
+/* ---------- decoded-audio cache ---------- */
+// Decoded audio is large (a 3-minute stereo file is ~70 MB), so only recently used files stay
+// decoded; the rest keep their File and are decoded again just before they play.
+const bytesOf = b => b.length * b.numberOfChannels * 4;
+function evict(keep) {
+  const b = busy();
+  let total = sounds.reduce((n, s) => n + (s.buffer && s.file ? s.bytes : 0), 0);
+  const cands = sounds.filter(s => s.buffer && s.file && s !== keep && !b.has(s.id)).sort((a, z) => a.used - z.used);
+  while (total > CACHE_BYTES && cands.length) { const s = cands.shift(); total -= s.bytes; s.buffer = null; }
+}
+function getBuffer(s) {
+  s.used = performance.now();
+  if (s.buffer) return Promise.resolve(s.buffer);
+  if (!s.pending) s.pending = decodeFile(s.file).then(buf => { s.buffer = buf; s.bytes = bytesOf(buf); evict(s); return buf; }).finally(() => { s.pending = null; });
+  return s.pending;
+}
+function warm(s) { if (s && !s.buffer && s.file) getBuffer(s).catch(() => {}); }
+
+async function next(v) {
   v.timer = 0;
   if (!running || !v.active) return;
   const s = draw();
   if (!s) { v.timer = setTimeout(() => next(v), 400); return; }
-  const buf = s.buffer, D = buf.duration;
+  const gen = ++v.gen;
+  v.waiting = s;
+  let buf = null;
+  try { buf = await getBuffer(s); } catch (e) {}
+  if (gen !== v.gen) return;
+  v.waiting = null;
+  if (!running || !v.active) return;
+  if (!buf || !sounds.includes(s)) { v.timer = setTimeout(() => next(v), 50); return; }
+  const D = buf.duration;
   let off = 0, len = D;
   if (fragMode) {
     const lo = +$('segMin').value, hi = Math.max(lo, +$('segMax').value);
@@ -241,9 +288,9 @@ function next(v) {
   env.gain.linearRampToValueAtTime(1, t + fade);
   env.gain.setValueAtTime(1, t + len - fade);
   env.gain.linearRampToValueAtTime(0, t + len);
-  src.connect(env).connect(s.gain);
+  src.connect(env).connect(gainOf(s));
   src.start(t, off, len);
-  const cur = {slot: s.i, src, env, start: t, offset: off, dur: len};
+  const cur = {s, src, env, start: t, offset: off, dur: len};
   v.cur = cur;
   src.onended = () => {
     if (v.cur !== cur) return;
@@ -253,7 +300,7 @@ function next(v) {
 }
 
 function cut(v, t = 0.3) {
-  clearTimeout(v.timer); v.timer = 0;
+  clearTimeout(v.timer); v.timer = 0; v.gen++; v.waiting = null;
   const cur = v.cur; if (!cur) return;
   v.cur = null;
   const now = ctx.currentTime, g = cur.env.gain;
@@ -272,12 +319,12 @@ function applyVoices() {
   updateStatus();
 }
 
-// Restart whatever is sounding now (used when the mode changes or a slot goes away).
+// Restart whatever is sounding now (used when the mode changes or a sound goes away).
 function reshuffle(filter = () => true) {
   if (!running) return;
   voices.forEach(v => {
     if (!v.active || !filter(v)) return;
-    const had = !!v.cur || !!v.timer;
+    const had = !!v.cur || !!v.timer || !!v.waiting;
     cut(v, 0.12);
     if (had) v.timer = setTimeout(() => next(v), 140);
   });
@@ -346,77 +393,77 @@ bindRange('segMax', 'segMaxO', v => { if (+$('segMin').value > v) { $('segMin').
 bindRange('gap', 'gapO', v => v ? '≤' + v.toFixed(1) + ' s' : '0 s');
 bindRange('vol', 'volO', v => { if (master) master.gain.setTargetAtTime(v, ctx.currentTime, 0.03); return Math.round(v * 100); });
 
-/* ---------- slots UI ---------- */
-const slotsEl = $('slots');
-slots.forEach(s => {
-  const el = document.createElement('article');
-  el.className = 'slot'; el.style.setProperty('--c', `var(--h${s.i})`);
-  el.innerHTML = `
-    <div class="sh"><span class="tag">${LETTERS[s.i]}</span><span class="nm"></span><span class="du"></span></div>
-    <canvas></canvas>
-    <label class="empty" for="f${s.i}">音を入れる<small>タップして選ぶ / ドラッグ</small></label>
-    <div class="sf">
-      <label class="ib" for="f${s.i}">差し替え</label>
-      <input type="range" min="0" max="1" step="0.01" value="${s.vol}" aria-label="${LETTERS[s.i]} の音量" id="v${s.i}">
-      <button class="ib mute" aria-pressed="false" title="この音を休ませる">休</button>
-      <button class="ib clr" title="枠を空にする" aria-label="${LETTERS[s.i]} を空にする">×</button>
-    </div>
-    <input type="file" class="vh" id="f${s.i}">`;
-  s.el = el; s.canvas = el.querySelector('canvas');
-  el.querySelector('input[type=file]').addEventListener('change', e => { const f = e.target.files[0]; if (f) loadFile(s, f); e.target.value = ''; });
-  el.querySelector('input[type=range]').addEventListener('input', e => { s.vol = +e.target.value; if (s.gain && !s.muted) s.gain.gain.setTargetAtTime(s.vol, ctx.currentTime, 0.03); });
+/* ---------- pool ---------- */
+const poolEl = $('pool');
+const strip = n => n.replace(/\.[^.]+$/, '');
+const AUDIO_EXT = /\.(wav|wave|mp3|m4a|mp4|aac|ogg|oga|opus|flac|aif|aiff|aifc|caf|webm)$/i;
+const looksAudio = f => !f.name.startsWith('.') && (AUDIO_EXT.test(f.name) || !f.type || /^(audio|video)\//.test(f.type));
+const playsSound = s => v => (v.cur && v.cur.s === s) || v.waiting === s;
+
+function addSound({name, file = null, buffer = null}) {
+  const s = {id: nextId++, name, file, buffer: null, peaks: null, duration: 0, bytes: 0, vol: 0.9, muted: false, gain: null, used: 0, pending: null};
+  sounds.push(s); buildRow(s);
+  if (buffer) ingest(s, buffer);
+  return s;
+}
+function ingest(s, buf) {
+  s.buffer = buf; s.bytes = bytesOf(buf); s.duration = buf.duration; s.peaks = computePeaks(buf); s.used = performance.now();
+  renderRow(s);
+}
+function removeSound(s) {
+  reshuffle(playsSound(s));
+  voices.forEach(v => { if (v.cur && v.cur.s === s) cut(v, 0.1); });
+  if (s.gain) setTimeout(() => s.gain.disconnect(), 400);
+  s.el.remove();
+  sounds.splice(sounds.indexOf(s), 1);
+  renumber(); updateStatus();
+}
+function renumber() {
+  sounds.forEach((s, k) => { s.num = k + 1; s.tagEl.textContent = k + 1; });
+  const mine = sounds.filter(s => s.file).length;
+  $('poolCount').textContent = `音のプール · ${sounds.length}個${mine ? '' : sounds.length ? '（例）' : ''}`;
+}
+
+function buildRow(s) {
+  const el = document.createElement('div');
+  el.className = 'snd loading'; el.style.setProperty('--c', `var(--h${s.id % HUES})`);
+  el.innerHTML = `<span class="tag"></span><div class="meta"><span class="nm"></span><span class="du"></span></div><canvas></canvas>
+    <div class="ctl"><input type="range" min="0" max="1" step="0.01" value="${s.vol}" aria-label="音量">
+    <button class="ib mute" aria-pressed="false" title="この音を休ませる">休</button>
+    <button class="ib clr" title="プールから外す" aria-label="外す">×</button></div>`;
+  s.el = el; s.canvas = el.querySelector('canvas'); s.tagEl = el.querySelector('.tag');
+  el.querySelector('input').addEventListener('input', e => { s.vol = +e.target.value; if (s.gain && !s.muted) s.gain.gain.setTargetAtTime(s.vol, ctx.currentTime, 0.03); });
   el.querySelector('.mute').onclick = e => {
     s.muted = !s.muted; e.currentTarget.setAttribute('aria-pressed', s.muted);
     if (s.gain) s.gain.gain.setTargetAtTime(s.muted ? 0 : s.vol, ctx.currentTime, 0.05);
-    if (s.muted) reshuffle(v => v.cur && v.cur.slot === s.i);
-    renderSlot(s); updateStatus();
+    if (s.muted) reshuffle(playsSound(s));
+    renderRow(s); updateStatus();
   };
-  el.querySelector('.clr').onclick = () => { clearSlot(s); };
-  el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('drop'); });
-  el.addEventListener('dragleave', () => el.classList.remove('drop'));
-  el.addEventListener('drop', e => {
-    e.preventDefault(); el.classList.remove('drop');
-    const files = [...e.dataTransfer.files].filter(f => f.type.startsWith('audio') || /\.(wav|mp3|m4a|aac|ogg|oga|flac|aif|aiff|webm|opus)$/i.test(f.name));
-    if (files.length === 1) loadFile(s, files[0]); else if (files.length) bulkLoad(files, s.i);
-  });
-  slotsEl.appendChild(el);
-});
-
-function renderSlot(s) {
-  const has = !!s.buffer;
-  s.el.querySelector('.nm').innerHTML = has ? '' : '<span style="color:var(--faint)">空き</span>';
-  if (has) { const nm = s.el.querySelector('.nm'); nm.textContent = s.name; if (s.sample) nm.insertAdjacentHTML('beforeend', '<em>例</em>'); nm.title = s.name; }
-  s.el.querySelector('.du').textContent = has ? fmt(s.buffer.duration) + ' s' : '';
-  s.canvas.hidden = !has;
-  s.el.querySelector('.empty').hidden = has;
-  s.el.querySelector('.sf').hidden = !has;
+  el.querySelector('.clr').onclick = () => removeSound(s);
+  poolEl.appendChild(el);
+  renderRow(s); renumber();
+}
+function renderRow(s) {
+  const nm = s.el.querySelector('.nm');
+  nm.textContent = s.name; nm.title = s.name;
+  if (!s.file) nm.insertAdjacentHTML('beforeend', '<em>例</em>');
+  s.el.querySelector('.du').textContent = s.peaks ? fmt(s.duration) + ' s' : '読み込み中…';
+  s.el.classList.toggle('loading', !s.peaks);
   s.el.classList.toggle('muted', s.muted);
-  if (has) drawSlot(s);
+  if (s.peaks) drawRow(s);
 }
 
-function clearSlot(s) {
-  reshuffle(v => v.cur && v.cur.slot === s.i);
-  s.buffer = null; s.peaks = null; s.name = ''; s.sample = false;
-  renderSlot(s); updateStatus();
-}
-
-function computePeaks(buf, bins = 260) {
+function computePeaks(buf, bins = 300) {
   const chs = [...Array(buf.numberOfChannels)].map((_, c) => buf.getChannelData(c));
-  const n = buf.length, step = n / bins, out = new Float32Array(bins);
+  const n = buf.length, step = n / bins, out = new Float32Array(bins), hop = Math.max(1, Math.floor(step / 400));
   for (let b = 0; b < bins; b++) {
     let m = 0; const a = Math.floor(b * step), z = Math.min(n, Math.floor((b + 1) * step));
-    for (const d of chs) for (let k = a; k < z; k += 4) { const x = Math.abs(d[k]); if (x > m) m = x; }
+    for (const d of chs) for (let k = a; k < z; k += hop) { const x = Math.abs(d[k]); if (x > m) m = x; }
     out[b] = m;
   }
   let mx = 0; for (const x of out) mx = Math.max(mx, x);
   if (mx > 0) for (let b = 0; b < bins; b++) out[b] /= mx;
   return out;
-}
-
-function setBuffer(s, buf, name, sample = false) {
-  reshuffle(v => v.cur && v.cur.slot === s.i);
-  s.buffer = buf; s.name = name; s.sample = sample; s.peaks = computePeaks(buf);
-  renderSlot(s); updateStatus();
 }
 
 // Decode on the real playback context (Safari is unreliable with tiny offline contexts);
@@ -431,19 +478,77 @@ async function decodeFile(f) {
   try { return await decodeWith(ctx, ab); }
   catch (e) { if (!OAC) throw e; return await decodeWith(new OAC(2, SR, SR), copy); }
 }
-async function loadFile(s, f) {
-  const nm = s.el.querySelector('.nm'); nm.textContent = '読み込み中…';
-  try { setBuffer(s, await decodeFile(f), f.name.replace(/\.[^.]+$/, '')); }
-  catch (e) { renderSlot(s); $('foot').textContent = $('status').textContent = `「${f.name}」を読み込めませんでした。音声ファイルでないか、このブラウザが読めない形式です。`; }
+
+// Files decode two at a time so a big batch doesn't spike memory.
+const queue = [];
+let loading = 0, loadTotal = 0, loadDone = 0, loadFailed = [];
+function addFiles(files) {
+  files = files.filter(looksAudio).sort((a, b) => (a.webkitRelativePath || a.name).localeCompare(b.webkitRelativePath || b.name, 'ja', {numeric: true}));
+  if (!files.length) { $('loadInfo').textContent = '音声ファイルが見つかりませんでした。'; return; }
+  if (!sounds.some(s => s.file)) sounds.filter(s => !s.file).forEach(removeSound);
+  files.forEach(f => queue.push(addSound({name: strip(f.name), file: f})));
+  loadTotal += files.length;
+  updateLoad(); pump();
 }
-// Fill empty slots first, then ones still holding example sounds, then the rest from the first.
-function bulkLoad(files, startAt = 0) {
-  const order = [...slots.slice(startAt), ...slots.slice(0, startAt)];
-  const ranked = [...order.filter(s => !s.buffer), ...order.filter(s => s.buffer && s.sample), ...order.filter(s => s.buffer && !s.sample)];
-  files.slice(0, SLOTS).forEach((f, k) => loadFile(ranked[k], f));
-  if (files.length > SLOTS) $('foot').textContent = `枠は6つなので、最初の6ファイルだけ入れました（${files.length}個中）。`;
+function pump() {
+  while (loading < 2 && queue.length) {
+    const s = queue.shift();
+    if (!sounds.includes(s)) { loadDone++; continue; }
+    loading++;
+    decodeFile(s.file)
+      .then(buf => { if (sounds.includes(s)) { ingest(s, buf); evict(s); } })
+      .catch(() => { loadFailed.push(s.name); if (sounds.includes(s)) removeSound(s); })
+      .finally(() => { loading--; loadDone++; updateLoad(); updateStatus(); pump(); });
+  }
+  updateLoad();
 }
-$('bulk').addEventListener('change', e => { const fs = [...e.target.files]; if (fs.length) bulkLoad(fs); e.target.value = ''; });
+function updateLoad() {
+  const el = $('loadInfo');
+  if (loadDone < loadTotal) { el.textContent = `読み込み中 ${loadDone} / ${loadTotal}`; return; }
+  el.textContent = loadFailed.length ? `${loadFailed.length}個は読み込めませんでした（音声でないか、このブラウザが読めない形式）：${loadFailed.slice(0, 3).join('、')}${loadFailed.length > 3 ? ' ほか' : ''}` : '';
+  loadTotal = loadDone = 0; loadFailed = [];
+}
+
+$('addFiles').addEventListener('change', e => { addFiles([...e.target.files]); e.target.value = ''; });
+$('addDir').addEventListener('change', e => { addFiles([...e.target.files]); e.target.value = ''; });
+if (!('webkitdirectory' in $('addDir')) || /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.userAgent))) $('addDirBtn').hidden = true;
+
+let clearArmed = 0;
+$('clearAll').onclick = e => {
+  const b = e.currentTarget;
+  if (!sounds.length) return;
+  if (!clearArmed) {
+    b.textContent = 'もう一度押すと全部消えます'; b.classList.add('warn');
+    clearArmed = setTimeout(() => { clearArmed = 0; b.textContent = '全部消す'; b.classList.remove('warn'); }, 3000);
+    return;
+  }
+  clearTimeout(clearArmed); clearArmed = 0; b.textContent = '全部消す'; b.classList.remove('warn');
+  queue.length = 0;
+  [...sounds].forEach(removeSound);
+};
+
+// Drop files or whole folders anywhere on the page.
+let dragDepth = 0;
+const hasFiles = e => e.dataTransfer && [...e.dataTransfer.types].includes('Files');
+addEventListener('dragenter', e => { if (hasFiles(e)) { dragDepth++; document.body.classList.add('dragging'); } });
+addEventListener('dragleave', e => { if (hasFiles(e) && --dragDepth <= 0) { dragDepth = 0; document.body.classList.remove('dragging'); } });
+addEventListener('dragover', e => { if (hasFiles(e)) e.preventDefault(); });
+addEventListener('drop', async e => {
+  if (!hasFiles(e)) return;
+  e.preventDefault(); dragDepth = 0; document.body.classList.remove('dragging');
+  const entries = [...(e.dataTransfer.items || [])].map(i => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+  if (!entries.length) { addFiles([...e.dataTransfer.files]); return; }
+  const out = [];
+  const walk = async en => {
+    if (en.isFile) out.push(await new Promise((r, j) => en.file(r, j)));
+    else if (en.isDirectory) {
+      const rd = en.createReader(); let batch;
+      do { batch = await new Promise((r, j) => rd.readEntries(r, j)); for (const c of batch) await walk(c); } while (batch.length);
+    }
+  };
+  for (const en of entries) await walk(en).catch(() => {});
+  addFiles(out);
+});
 
 /* ---------- lanes ---------- */
 const lanesEl = $('lanes');
@@ -459,18 +564,18 @@ voices.forEach(v => {
 let colors = {};
 function readColors() {
   const cs = getComputedStyle(document.documentElement);
-  colors = {dim: cs.getPropertyValue('--faint').trim(), h: [...Array(SLOTS)].map((_, i) => cs.getPropertyValue('--h' + i).trim())};
-  slots.forEach(s => s.buffer && drawSlot(s));
+  colors = {dim: cs.getPropertyValue('--faint').trim(), h: [...Array(HUES)].map((_, i) => cs.getPropertyValue('--h' + i).trim())};
+  sounds.forEach(s => s.peaks && drawRow(s));
 }
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors);
 new MutationObserver(readColors).observe(document.documentElement, {attributes: true, attributeFilter: ['data-theme']});
 
-function drawSlot(s, plays = []) {
+function drawRow(s, plays = []) {
   const cv = s.canvas, dpr = Math.min(2, devicePixelRatio || 1);
   const w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
   if (!w || !h) return;
   if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
-  const g = cv.getContext('2d'), P = s.peaks, n = P.length, D = s.buffer.duration, col = colors.h[s.i];
+  const g = cv.getContext('2d'), P = s.peaks, n = P.length, D = s.duration, col = colors.h[s.id % HUES];
   g.clearRect(0, 0, w, h);
   const bw = w / n, mid = h / 2;
   const regions = plays.map(p => [p.offset / D * w, (p.offset + p.dur) / D * w]);
@@ -490,32 +595,32 @@ function drawSlot(s, plays = []) {
 
 let wasPlaying = new Set();
 function frame() {
-  const bySlot = new Map();
+  const bySound = new Map();
   voices.forEach(v => {
     const c = v.cur, inUse = running && v.i < target;
     v.el.classList.toggle('idle', !inUse);
     if (c && ctx) {
-      const s = slots[c.slot], el = Math.max(0, Math.min(c.dur, ctx.currentTime - c.start));
-      v.nameEl.textContent = `${LETTERS[c.slot]} · ${s.name || '—'}`;
+      const s = c.s, el = Math.max(0, Math.min(c.dur, ctx.currentTime - c.start));
+      v.nameEl.textContent = `${s.num || '–'} · ${s.name}`;
       v.timeEl.textContent = `${fmt(el)} / ${fmt(c.dur)} s${fragMode || c.offset > 0 ? ` @ ${fmt(c.offset)} s` : ''}`;
       v.barEl.style.width = (el / c.dur * 100) + '%';
-      v.barEl.style.setProperty('--c', colors.h[c.slot]);
-      if (!bySlot.has(c.slot)) bySlot.set(c.slot, []);
-      bySlot.get(c.slot).push(c);
+      v.barEl.style.setProperty('--c', colors.h[s.id % HUES]);
+      if (!bySound.has(s.id)) bySound.set(s.id, []);
+      bySound.get(s.id).push(c);
     } else {
-      v.nameEl.textContent = inUse ? '間' : (running ? '休止中' : '—');
+      v.nameEl.textContent = v.waiting ? `${v.waiting.num || '–'} · ${v.waiting.name}（読み込み中）` : inUse ? '間' : (running ? '休止中' : '—');
       v.timeEl.textContent = ''; v.barEl.style.width = '0';
     }
   });
-  slots.forEach(s => {
-    const plays = bySlot.get(s.i);
+  sounds.forEach(s => {
+    const plays = bySound.get(s.id);
     s.el.classList.toggle('playing', !!plays);
-    if (s.buffer && (plays || wasPlaying.has(s.i))) drawSlot(s, plays || []);
+    if (s.peaks && (plays || wasPlaying.has(s.id))) drawRow(s, plays || []);
   });
-  wasPlaying = new Set(bySlot.keys());
+  wasPlaying = new Set(bySound.keys());
   requestAnimationFrame(frame);
 }
-addEventListener('resize', () => slots.forEach(s => s.buffer && drawSlot(s)));
+addEventListener('resize', () => sounds.forEach(s => s.peaks && drawRow(s)));
 
 /* ---------- example sounds, synthesised offline ---------- */
 function render(dur, build) {
@@ -579,11 +684,13 @@ const examples = [
   }],
 ];
 readColors();
-slots.forEach(renderSlot);
+renumber();
 updateStatus();
 requestAnimationFrame(frame);
 Promise.resolve().then(() => Promise.all(examples.map(([n, d, b]) => render(d, b)))).then(bufs => {
-  bufs.forEach((b, k) => { if (!slots[k].buffer) setBuffer(slots[k], b, examples[k][0], true); });
-}).catch(() => { $('foot').textContent = 'このブラウザでは例の音を作れませんでした。「まとめて入れる」から自分の音を入れてください。'; });
+  if (sounds.some(s => s.file)) return;
+  bufs.forEach((b, k) => addSound({name: examples[k][0], buffer: b}));
+  updateStatus();
+}).catch(() => { $('foot').textContent = 'このブラウザでは例の音を作れませんでした。「ファイルを追加」から自分の音を入れてください。'; });
 })();
 </script>
