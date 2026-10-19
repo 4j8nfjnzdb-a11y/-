@@ -168,7 +168,7 @@ input[type=range]{width:100%;accent-color:var(--lamp);min-width:0}
       <div>
         <div class="slots-head">
           <div class="label">音の枠 · 6</div>
-          <label class="btn" for="bulk">まとめて入れる<input id="bulk" class="vh" type="file" accept="audio/*" multiple></label>
+          <label class="btn" for="bulk">まとめて入れる<input id="bulk" class="vh" type="file" multiple></label>
         </div>
         <div id="slots" class="slots" style="margin-top:8px"></div>
       </div>
@@ -187,7 +187,7 @@ const fmt = s => s < 10 ? s.toFixed(1) : s.toFixed(0);
 const slots = Array.from({length: SLOTS}, (_, i) => ({i, name: '', sample: false, buffer: null, peaks: null, vol: 0.9, muted: false, gain: null}));
 const voices = Array.from({length: MAX_VOICES}, (_, i) => ({i, active: false, cur: null, timer: 0}));
 let ctx = null, master = null, running = false, target = 1, fragMode = false, bag = [], lastDrawn = -1;
-const decoder = new OfflineAudioContext(2, 1, SR);
+const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
 
 /* ---------- audio graph ---------- */
 function ensureCtx() {
@@ -361,7 +361,7 @@ slots.forEach(s => {
       <button class="ib mute" aria-pressed="false" title="この音を休ませる">休</button>
       <button class="ib clr" title="枠を空にする" aria-label="${LETTERS[s.i]} を空にする">×</button>
     </div>
-    <input type="file" accept="audio/*" class="vh" id="f${s.i}">`;
+    <input type="file" class="vh" id="f${s.i}">`;
   s.el = el; s.canvas = el.querySelector('canvas');
   el.querySelector('input[type=file]').addEventListener('change', e => { const f = e.target.files[0]; if (f) loadFile(s, f); e.target.value = ''; });
   el.querySelector('input[type=range]').addEventListener('input', e => { s.vol = +e.target.value; if (s.gain && !s.muted) s.gain.gain.setTargetAtTime(s.vol, ctx.currentTime, 0.03); });
@@ -419,14 +419,22 @@ function setBuffer(s, buf, name, sample = false) {
   renderSlot(s); updateStatus();
 }
 
+// Decode on the real playback context (Safari is unreliable with tiny offline contexts);
+// fall back to an offline one with a fresh copy, since decoding detaches the buffer.
+function decodeWith(c, ab) {
+  return new Promise((res, rej) => { const p = c.decodeAudioData(ab, res, rej); if (p && p.catch) p.catch(rej); });
+}
 async function decodeFile(f) {
-  const ab = await f.arrayBuffer();
-  return await new Promise((res, rej) => { const p = decoder.decodeAudioData(ab, res, rej); if (p && p.catch) p.catch(rej); });
+  const ab = await (f.arrayBuffer ? f.arrayBuffer() : new Response(f).arrayBuffer());
+  const copy = ab.slice(0);
+  ensureCtx();
+  try { return await decodeWith(ctx, ab); }
+  catch (e) { if (!OAC) throw e; return await decodeWith(new OAC(2, SR, SR), copy); }
 }
 async function loadFile(s, f) {
   const nm = s.el.querySelector('.nm'); nm.textContent = '読み込み中…';
   try { setBuffer(s, await decodeFile(f), f.name.replace(/\.[^.]+$/, '')); }
-  catch (e) { renderSlot(s); $('foot').textContent = `「${f.name}」を読み込めませんでした。ブラウザが対応していない形式かもしれません。WAV か MP3 で試してください。`; }
+  catch (e) { renderSlot(s); $('foot').textContent = $('status').textContent = `「${f.name}」を読み込めませんでした。音声ファイルでないか、このブラウザが読めない形式です。`; }
 }
 // Fill empty slots first, then ones still holding example sounds, then the rest from the first.
 function bulkLoad(files, startAt = 0) {
@@ -511,7 +519,7 @@ addEventListener('resize', () => slots.forEach(s => s.buffer && drawSlot(s)));
 
 /* ---------- example sounds, synthesised offline ---------- */
 function render(dur, build) {
-  const oc = new OfflineAudioContext(1, Math.ceil(dur * SR), SR);
+  const oc = new OAC(1, Math.ceil(dur * SR), SR);
   build(oc, oc.destination);
   return oc.startRendering();
 }
@@ -574,7 +582,7 @@ readColors();
 slots.forEach(renderSlot);
 updateStatus();
 requestAnimationFrame(frame);
-Promise.all(examples.map(([n, d, b]) => render(d, b))).then(bufs => {
+Promise.resolve().then(() => Promise.all(examples.map(([n, d, b]) => render(d, b)))).then(bufs => {
   bufs.forEach((b, k) => { if (!slots[k].buffer) setBuffer(slots[k], b, examples[k][0], true); });
 }).catch(() => { $('foot').textContent = 'このブラウザでは例の音を作れませんでした。「まとめて入れる」から自分の音を入れてください。'; });
 })();
