@@ -1,0 +1,774 @@
+<title>竪琴 Tategoto</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: the Audio menu of the original, kept as a dark menu column on the left; on the right the
+   sound itself (waveform with a selectable range), the transport, and the chosen algorithm's knobs. */
+:root{
+  --bg:#e5e8e2; --panel:#f1f3ee; --well:#d4d9d0; --ink:#1b201c; --dim:#525c50; --faint:#848d80;
+  --line:rgba(27,32,28,.14); --honey:#b06d0c; --honey-ink:#fffaf0; --wave:#2c4a3a; --sel:rgba(176,109,12,.15);
+  --menu:#202621; --menu-ink:#eef1ea; --menu-dim:#98a294; --menu-hover:rgba(238,241,234,.08); --err:#b3362b;
+  --f-disp:"EB Garamond","Zen Kaku Gothic New",Georgia,"Hiragino Mincho ProN",serif;
+  --f-body:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#101311; --panel:#181c19; --well:#0a0c0b; --ink:#e5e9e2; --dim:#9aa395; --faint:#646d60;
+  --line:rgba(229,233,226,.11); --honey:#e2a23a; --honey-ink:#221400; --wave:#8db9a0; --sel:rgba(226,162,58,.17);
+  --menu:#1c211d; --menu-ink:#eef1ea; --menu-dim:#8f998b; --menu-hover:rgba(238,241,234,.07); --err:#ee7b6f;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#101311; --panel:#181c19; --well:#0a0c0b; --ink:#e5e9e2; --dim:#9aa395; --faint:#646d60;
+  --line:rgba(229,233,226,.11); --honey:#e2a23a; --honey-ink:#221400; --wave:#8db9a0; --sel:rgba(226,162,58,.17);
+  --menu:#1c211d; --menu-ink:#eef1ea; --menu-dim:#8f998b; --menu-hover:rgba(238,241,234,.07); --err:#ee7b6f;
+  color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.55;-webkit-tap-highlight-color:transparent}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+button:disabled{cursor:default;opacity:.45}
+:focus-visible{outline:2px solid var(--honey);outline-offset:2px}
+.app{max-width:1240px;margin:0 auto;padding-left:max(16px, env(safe-area-inset-left,0px));padding-right:max(16px, env(safe-area-inset-right,0px));padding-block:22px 48px;display:flex;flex-direction:column;gap:18px}
+.top{display:flex;flex-direction:column;gap:4px}
+.top h1{margin:0;font-family:var(--f-disp);font-weight:500;font-size:clamp(30px,4.4vw,42px);line-height:1.1;letter-spacing:.01em;text-wrap:balance}
+.top h1 small{font-size:.5em;font-style:italic;color:var(--dim);margin-left:12px;letter-spacing:.02em}
+.top p{margin:0;color:var(--dim);max-width:68ch;text-wrap:pretty}
+.main{display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
+@media (min-width:920px){.main{grid-template-columns:330px minmax(0,1fr);align-items:start}.menu{position:sticky;top:calc(12px + env(safe-area-inset-top,0px))}}
+
+/* menu */
+.menu{background:var(--menu);color:var(--menu-ink);border-radius:12px;padding:8px;box-shadow:0 10px 30px rgba(0,0,0,.18);min-width:0}
+.menu-h{display:flex;justify-content:space-between;align-items:baseline;padding:6px 12px 8px;font-family:var(--f-mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--menu-dim)}
+.menu ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1px;max-height:none;overflow:auto}
+@media (max-width:919px){.menu ul{max-height:300px}}
+.mi{display:block;width:100%;text-align:left;border:0;background:none;padding:6px 12px 7px;border-radius:7px;color:inherit}
+.mi:hover{background:var(--menu-hover)}
+.mi b{display:block;font-family:var(--f-disp);font-weight:500;font-size:17px;line-height:1.25;letter-spacing:.005em}
+.mi span{display:block;font-size:11.5px;color:var(--menu-dim);line-height:1.35}
+.mi[aria-pressed="true"]{background:var(--honey);color:var(--honey-ink)}
+.mi[aria-pressed="true"] span{color:inherit;opacity:.8}
+
+/* work area */
+.work{display:flex;flex-direction:column;gap:16px;min-width:0}
+.file{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap}
+.file .nm{font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.mono{font-family:var(--f-mono);font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:var(--panel);font-size:13.5px}
+.btn:hover:not(:disabled){border-color:var(--faint)}
+.btn.primary{background:var(--honey);color:var(--honey-ink);border-color:transparent;font-weight:700}
+.wavebox{position:relative;border-radius:10px;background:var(--well);border:1px solid var(--line);overflow:hidden;touch-action:none}
+#wave{display:block;width:100%;height:150px;cursor:crosshair}
+.drop{position:absolute;inset:0;display:grid;place-items:center;background:var(--sel);border:2px dashed var(--honey);border-radius:10px;font-weight:700;color:var(--ink);pointer-events:none}
+.wavebar{display:flex;justify-content:space-between;align-items:center;gap:6px 12px;flex-wrap:wrap}
+.transport{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,1fr) minmax(90px,170px);align-items:center;gap:12px 18px;padding:14px;border-radius:12px;background:var(--panel);border:1px solid var(--line)}
+@media (max-width:700px){.transport{grid-template-columns:auto minmax(0,1fr)}.transport .scope{grid-column:1 / -1}}
+.play{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:112px;padding:12px 18px;border-radius:9px;border:0;background:var(--ink);color:var(--bg);font-weight:700;font-size:15px;letter-spacing:.06em}
+.play svg{width:15px;height:15px;fill:currentColor}
+.play[aria-pressed="true"]{background:var(--honey);color:var(--honey-ink)}
+#scope{display:block;width:100%;height:44px;border-radius:6px;background:var(--well)}
+.knob{display:flex;flex-direction:column;gap:2px;min-width:0}
+.knob .kl{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.knob .kl span{font-size:13px}
+.knob .kl span em{font-style:normal;font-family:var(--f-mono);font-size:10.5px;color:var(--faint);margin-left:6px;letter-spacing:.04em}
+.knob output{font-family:var(--f-mono);font-size:12px;color:var(--honey);font-variant-numeric:tabular-nums;white-space:nowrap}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;min-width:0;height:26px;background:transparent;margin:0;--v:50%}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(to right,var(--honey) var(--v),var(--well) var(--v))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;margin-top:-6px;border-radius:50%;background:var(--honey);border:2px solid var(--panel);box-shadow:0 1px 3px rgba(0,0,0,.3)}
+input[type=range]::-moz-range-track{height:4px;border-radius:2px;background:var(--well)}
+input[type=range]::-moz-range-progress{height:4px;border-radius:2px;background:var(--honey)}
+input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;background:var(--honey);border:2px solid var(--panel)}
+.algo{display:flex;flex-direction:column;gap:14px;padding:18px;border-radius:12px;background:var(--panel);border:1px solid var(--line)}
+.algo-h{display:flex;justify-content:space-between;align-items:flex-start;gap:10px 16px;flex-wrap:wrap}
+.algo-h div{min-width:0;flex:1 1 300px}
+.algo h2{margin:0;font-family:var(--f-disp);font-weight:500;font-size:clamp(22px,2.6vw,28px);line-height:1.2;text-wrap:balance}
+.algo .ja{margin:2px 0 0;font-weight:700;font-size:13px;color:var(--honey)}
+.algo .desc{margin:6px 0 0;color:var(--dim);max-width:64ch;text-wrap:pretty}
+.algo-btns{display:flex;gap:6px;flex-wrap:wrap}
+.params{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px 26px}
+.actions{display:flex;flex-direction:column;gap:10px}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.row .label{font-family:var(--f-mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-right:4px}
+select{padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--panel);font-size:13.5px}
+.note{margin:0;min-height:1.5em;font-size:13px;color:var(--dim)}
+.note.err{color:var(--err)}
+.foot{color:var(--faint);font-size:12px;margin:0;max-width:72ch}
+</style>
+
+<div class="app" id="app">
+  <header class="top">
+    <h1>竪琴 <small>after Argeïphontes Lyre</small></h1>
+    <p>Lyre の Audio メニューにある19のアルゴリズムを、リアルタイムで聴きながら調整できるように作り直しました。WAV・AIFF・MP3 などをそのまま開けます。範囲を選んで「焼き込む」と結果が音に定着し、続けて別のアルゴリズムを重ねられます。</p>
+  </header>
+
+  <div class="main">
+    <nav class="menu" aria-label="アルゴリズム">
+      <div class="menu-h"><span>Audio</span><span id="algoCount"></span></div>
+      <ul id="algoList"></ul>
+    </nav>
+
+    <section class="work">
+      <div class="file">
+        <button class="btn primary" id="openBtn" type="button">音を開く</button>
+        <input type="file" id="fileIn" hidden>
+        <span class="nm" id="fileName">読み込み中…</span>
+        <span class="mono" id="fileMeta"></span>
+      </div>
+
+      <div class="wavebox" id="wavebox">
+        <canvas id="wave" aria-label="波形。ドラッグで範囲を選び、クリックで再生位置を移します"></canvas>
+        <div class="drop" id="drop" hidden>ここに音のファイルを落とす</div>
+      </div>
+      <div class="wavebar">
+        <span class="mono" id="regionTxt"></span>
+        <span class="row"><span class="mono" id="timeTxt">0:00.000</span><button class="btn" id="allBtn" type="button">全体を選ぶ</button></span>
+      </div>
+
+      <div class="transport">
+        <button class="play" id="playBtn" type="button" aria-pressed="false"><svg viewBox="0 0 16 16" id="playIco"><path d="M3 1.5v13l11-6.5z"/></svg><span id="playTxt">再生</span></button>
+        <label class="knob"><span class="kl"><span>原音 ↔ 効果<em>mix</em></span><output id="mixOut"></output></span><input type="range" id="mix" min="0" max="1" step="0.01" value="1"></label>
+        <label class="knob"><span class="kl"><span>音量<em>vol</em></span><output id="volOut"></output></span><input type="range" id="vol" min="0" max="1.5" step="0.01" value="0.8"></label>
+        <div class="scope"><canvas id="scope" aria-hidden="true"></canvas></div>
+      </div>
+
+      <div class="algo">
+        <div class="algo-h">
+          <div><h2 id="algoName"></h2><p class="ja" id="algoJa"></p><p class="desc" id="algoDesc"></p></div>
+          <div class="algo-btns"><button class="btn" id="diceBtn" type="button">サイコロ</button><button class="btn" id="resetBtn" type="button">初期値</button></div>
+        </div>
+        <div class="params" id="params"></div>
+      </div>
+
+      <div class="actions">
+        <div class="row">
+          <span class="label">焼き込み</span>
+          <button class="btn primary" id="applyBtn" type="button">選んだ範囲に焼き込む</button>
+          <button class="btn" id="undoBtn" type="button" disabled>元に戻す</button>
+        </div>
+        <div class="row">
+          <span class="label">書き出し</span>
+          <select id="fmt" aria-label="形式"><option value="wav">WAV 24bit</option><option value="aiff">AIFF 24bit</option></select>
+          <button class="btn" id="exFx" type="button">効果込みで書き出す</button>
+          <button class="btn" id="exRaw" type="button">今の音を書き出す</button>
+        </div>
+        <p class="note" id="note" role="status"></p>
+      </div>
+
+      <p class="foot">Lyre のアルゴリズムの中身は公開されていないので、それぞれの名前と、元のアプリで聞こえる方向性から作り直したものです。同じ名前でも元とまったく同じ音にはなりません。スペースキーで再生と停止を切り替えられます。</p>
+    </section>
+  </div>
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// DSP library. Self-contained so it can be stringified into the AudioWorklet
+// and also run on the main thread for rendering ("焼き込む" / export).
+function DSPLIB(){
+'use strict';
+const TAU=Math.PI*2,rnd=Math.random,SQ2=Math.SQRT2;
+const clamp=(x,a,b)=>x<a?a:x>b?b:x;
+const db=x=>Math.pow(10,x/20);
+const randn=()=>{let u=0;while(!u)u=rnd();return Math.sqrt(-2*Math.log(u))*Math.cos(TAU*rnd())};
+const HW=new Float32Array(1026);for(let i=0;i<=1025;i++)HW[i]=.5-.5*Math.cos(TAU*Math.min(i,1024)/1024);
+function win(x){if(x<=0||x>=1)return 0;const f=x*1024,i=f|0;return HW[i]+(HW[i+1]-HW[i])*(f-i)}
+function wrap(S,p){const len=S.b-S.a;p-=S.a;p-=Math.floor(p/len)*len;return p+S.a}
+function rd(S,ch,p){p=wrap(S,p);let i=p|0;if(i>=S.b)i=S.a;const f=p-i;let j=i+1;if(j>=S.b)j=S.a;return ch[i]+(ch[j]-ch[i])*f}
+function ring(b,m,p){const i=Math.floor(p),f=p-i;return b[i&m]+(b[(i+1)&m]-b[i&m])*f}
+
+class BQ{
+  constructor(){this.b0=1;this.b1=this.b2=this.a1=this.a2=0;this.x1=this.x2=this.y1=this.y2=0}
+  set(t,f,q,sr){const w=TAU*clamp(f,10,sr*.48)/sr,c=Math.cos(w),al=Math.sin(w)/(2*q),a0=1+al;
+    if(t==='bp'){this.b0=al/a0;this.b1=0;this.b2=-al/a0}
+    else if(t==='lp'){this.b0=(1-c)/2/a0;this.b1=(1-c)/a0;this.b2=this.b0}
+    else{this.b0=(1+c)/2/a0;this.b1=-(1+c)/a0;this.b2=this.b0}
+    this.a1=-2*c/a0;this.a2=(1-al)/a0;return this}
+  run(x){const y=this.b0*x+this.b1*this.x1+this.b2*this.x2-this.a1*this.y1-this.a2*this.y2+1e-20;
+    this.x2=this.x1;this.x1=x;this.y2=this.y1;this.y1=y;return y}
+}
+
+function makeFFT(N){
+  const lv=Math.round(Math.log2(N)),rev=new Uint32Array(N),cs=new Float64Array(N/2),sn=new Float64Array(N/2);
+  for(let i=0;i<N;i++){let r=0;for(let b=0;b<lv;b++)r=(r<<1)|((i>>b)&1);rev[i]=r}
+  for(let i=0;i<N/2;i++){cs[i]=Math.cos(TAU*i/N);sn[i]=Math.sin(TAU*i/N)}
+  return function(re,im,inv){
+    for(let i=0;i<N;i++){const j=rev[i];if(j>i){let t=re[i];re[i]=re[j];re[j]=t;t=im[i];im[i]=im[j];im[j]=t}}
+    for(let size=2;size<=N;size<<=1){const h=size>>1,step=N/size;
+      for(let i=0;i<N;i+=size)for(let j=0,k=0;j<h;j++,k+=step){
+        const l=i+j+h,c=cs[k],s=inv?sn[k]:-sn[k],tr=re[l]*c-im[l]*s,ti=re[l]*s+im[l]*c;
+        re[l]=re[i+j]-tr;im[l]=im[i+j]-ti;re[i+j]+=tr;im[i+j]+=ti}}
+    if(inv)for(let i=0;i<N;i++){re[i]/=N;im[i]/=N}
+  };
+}
+
+// Streaming STFT, hop N/4, latency N. fn(re[2],im[2]) edits both channels' spectra in place.
+class STFT{
+  constructor(N,fn){this.N=N;this.m=N-1;this.H=N>>2;this.fft=makeFFT(N);this.fn=fn;this.wp=0;this.cnt=0;this.yl=0;this.yr=0;
+    this.w=new Float32Array(N);for(let i=0;i<N;i++)this.w[i]=.5-.5*Math.cos(TAU*i/N);
+    this.ib=[new Float32Array(N),new Float32Array(N)];this.ob=[new Float32Array(N),new Float32Array(N)];
+    this.re=[new Float64Array(N),new Float64Array(N)];this.im=[new Float64Array(N),new Float64Array(N)]}
+  push(l,r){const wp=this.wp;this.ib[0][wp]=l;this.ib[1][wp]=r;
+    this.yl=this.ob[0][wp];this.yr=this.ob[1][wp];this.ob[0][wp]=0;this.ob[1][wp]=0;
+    this.wp=(wp+1)&this.m;if(++this.cnt>=this.H){this.cnt=0;this.frame()}}
+  frame(){const N=this.N,m=this.m,w=this.w,s=this.wp;
+    for(let c=0;c<2;c++){const re=this.re[c],im=this.im[c],ib=this.ib[c];
+      for(let i=0;i<N;i++){re[i]=ib[(s+i)&m]*w[i];im[i]=0}this.fft(re,im,false)}
+    this.fn(this.re,this.im);
+    for(let c=0;c<2;c++){const re=this.re[c],im=this.im[c],ob=this.ob[c];this.fft(re,im,true);
+      for(let i=0;i<N;i++)ob[(s+i)&m]+=re[i]*w[i]*(2/3)}}
+}
+function toPolar(re,im,mag,ph,H){for(let k=0;k<=H;k++){const a=re[k],b=im[k];mag[k]=Math.sqrt(a*a+b*b);ph[k]=Math.atan2(b,a)}}
+function fromPolar(re,im,mag,ph,N){const H=N>>1;
+  for(let k=0;k<=H;k++){re[k]=mag[k]*Math.cos(ph[k]);im[k]=mag[k]*Math.sin(ph[k])}
+  im[0]=0;im[H]=0;for(let k=1;k<H;k++){re[N-k]=re[k];im[N-k]=-im[k]}}
+
+class Grains{
+  constructor(max){this.g=[];this.max=max}
+  add(p,r,len,amp,pan){if(this.g.length>=this.max||len<2)return;
+    this.g.push({p,r,len,age:0,amp,gl:Math.cos(pan*Math.PI/2)*SQ2,gr:Math.sin(pan*Math.PI/2)*SQ2})}
+  run(S,oL,oR,i){const g=this.g;let l=0,r=0;
+    for(let k=g.length-1;k>=0;k--){const q=g[k],e=win(q.age/q.len)*q.amp;
+      l+=rd(S,S.L,q.p)*e*q.gl;r+=rd(S,S.R,q.p)*e*q.gr;q.p+=q.r;
+      if(++q.age>=q.len){g[k]=g[g.length-1];g.pop()}}
+    oL[i]+=l;oR[i]+=r}
+}
+
+// A read head that can jump anywhere with an equal-power crossfade.
+class Splicer{
+  constructor(S,p){this.S=S;this.h0={p:p==null?S.pos:p,r:1};this.h1={p:this.h0.p,r:1};this.f=1;this.fl=1;this.l=0;this.r=0}
+  jump(p,r,fl){this.h1=this.h0;this.h0={p:wrap(this.S,p),r};this.fl=Math.max(1,fl|0);this.f=0}
+  tick(){const S=this.S,a=this.h0;let l=rd(S,S.L,a.p),r=rd(S,S.R,a.p);a.p+=a.r;
+    if(a.p>=S.b||a.p<S.a)a.p=wrap(S,a.p);
+    if(this.f<this.fl){const b=this.h1,x=this.f/this.fl,ga=Math.sin(x*Math.PI/2),gb=Math.cos(x*Math.PI/2);
+      l=l*ga+rd(S,S.L,b.p)*gb;r=r*ga+rd(S,S.R,b.p)*gb;b.p+=b.r;this.f++}
+    this.l=l;this.r=r}
+}
+
+// Two-tap delay-line pitch shifter.
+class PShift{
+  constructor(sr){this.M=8192;this.b=new Float32Array(this.M);this.w=0;this.ph=0;this.W=Math.min(sr*.07,this.M-8)}
+  run(x,ratio){const b=this.b,m=this.M-1,W=this.W;b[this.w]=x;this.ph+=(1-ratio)/W;this.ph-=Math.floor(this.ph);
+    let y=0;for(let t=0;t<2;t++){const p=(this.ph+t*.5)%1,s=Math.sin(Math.PI*p);y+=s*s*ring(b,m,this.w-1-p*W)}
+    this.w=(this.w+1)&m;return y}
+}
+
+// Hilbert pair (Niemitalo's allpass coefficients) for single-sideband frequency shifting.
+class Hilbert{
+  constructor(){this.a1=[.6923878,.9360654322959,.9882295226860,.9987488452737].map(x=>x*x);
+    this.a2=[.4021921162426,.8561710882420,.9722909545651,.9952884791278].map(x=>x*x);
+    this.s1=new Float64Array(16);this.s2=new Float64Array(16);this.d=0;this.i=0;this.q=0}
+  chain(x,a,s){for(let k=0;k<4;k++){const o=k*4,y=a[k]*(x+s[o+3])-s[o+1];s[o+1]=s[o];s[o]=x;s[o+3]=s[o+2];s[o+2]=y;x=y}return x}
+  run(x){const p1=this.chain(x,this.a1,this.s1);this.i=this.d;this.d=p1;this.q=this.chain(x,this.a2,this.s2)}
+}
+
+const mtof=m=>440*Math.pow(2,(m-69)/12);
+
+// params: [key, label, min, max, default, step, unit]
+const ALG=[
+{id:'noise',name:'Noise ⟴ varietà infinita dei suoni-rumori',ja:'雑音の無限の多様性',
+ desc:'原音の輪郭を12の帯域ごとに取り出し、その形どおりにノイズを鳴らします（ノイズ・ヴォコーダー）。帯域をずらすと輪郭だけが別の高さへ移ります。',
+ params:[['q','帯域の鋭さ',1,16,4,.1,''],['shift','帯域のずれ',-24,24,0,1,'st'],['grit','ざらつき',0,1,.15,.01,'%'],['env','追従の速さ',2,200,25,1,'ms']],
+ make(S,sr){const NB=12,fc=[];for(let b=0;b<NB;b++)fc.push(90*Math.pow(11000/90,b/(NB-1)));
+  const an=fc.map(()=>new BQ()),sy=fc.map(()=>[new BQ(),new BQ()]),eI=new Float64Array(NB),eN=[new Float64Array(NB),new Float64Array(NB)];let key='';
+  return(dL,dR,oL,oR,n,p)=>{const k=p.q+'|'+p.shift;
+   if(k!==key){key=k;for(let b=0;b<NB;b++){an[b].set('bp',fc[b],p.q,sr);const f2=fc[b]*Math.pow(2,p.shift/12);sy[b][0].set('bp',f2,p.q,sr);sy[b][1].set('bp',f2,p.q,sr)}}
+   const at=Math.exp(-1/(sr*p.env/1000)),gr=p.grit;
+   for(let i=0;i<n;i++){const x=(dL[i]+dR[i])*.5;let l=0,r=0;
+    for(let b=0;b<NB;b++){const y=an[b].run(x);eI[b]=at*eI[b]+(1-at)*Math.abs(y);
+     for(let c=0;c<2;c++){let w=rnd()*2-1;if(gr>0)w=w*(1-gr)+(rnd()<.004?(rnd()<.5?-12:12):0)*gr;
+      const z=sy[b][c].run(w),e=eN[c];e[b]=at*e[b]+(1-at)*Math.abs(z);const g=Math.min(60,eI[b]/(e[b]+1e-7))*z;
+      if(c)r+=g;else l+=g}}
+    oL[i]=l;oR[i]=r}}}},
+
+{id:'perturb',name:'Perturbation, ma soeur, la femme 100 têtes',ja:'撹乱',
+ desc:'短い断片ごとに、選んだ範囲の別の場所へ跳びます。跳ぶたびに音程と向きも乱れ、コラージュのように切り貼りされます。',
+ params:[['seg','断片の長さ',20,1000,160,1,'ms'],['jump','跳ぶ確率',0,1,.55,.01,'%'],['range','跳ぶ距離',0,1,.35,.01,'%'],['pitch','音程の乱れ',0,24,3,.1,'st±'],['rev','逆向き',0,1,.2,.01,'%']],
+ make(S,sr){const sp=new Splicer(S);let t=0;
+  return(dL,dR,oL,oR,n,p)=>{
+   for(let i=0;i<n;i++){
+    if(--t<=0){const seg=Math.max(16,p.seg*sr/1000*(.5+rnd()));t=seg;let pos=sp.h0.p,r=Math.abs(sp.h0.r)||1,moved=false;
+     if(rnd()<p.jump){pos=S.pos+i+(rnd()*2-1)*p.range*(S.b-S.a);r=Math.pow(2,(rnd()*2-1)*p.pitch/12);moved=true}
+     const back=rnd()<p.rev;if(back!==(sp.h0.r<0))moved=true;if(back)r=-r;
+     if(moved)sp.jump(pos,r,Math.min(seg/2,sr*.012))}
+    sp.tick();oL[i]=sp.l;oR[i]=sp.r}
+   S.view=sp.h0.p}}},
+
+{id:'bind',name:'緊縛美 die Schönheit des engen Bindens',ja:'きつく縛ることの美',
+ desc:'極端に強いコンプレッサーで音を締め上げ、波形を折り返し、サンプルを間引きます。小さな息づかいまで前に出てきます。',
+ params:[['drive','締め付け',0,48,22,.5,'dB'],['rel','緩み',5,600,90,1,'ms'],['fold','折り返し',0,1,.35,.01,'%'],['knots','間引き',1,40,1,1,'×']],
+ make(S,sr){let env=0,hc=0,hl=0,hr=0;
+  return(dL,dR,oL,oR,n,p)=>{const g=db(p.drive),rel=Math.exp(-1/(sr*p.rel/1000)),dec=Math.round(p.knots),fo=p.fold,k=1+fo*5;
+   for(let i=0;i<n;i++){let l=dL[i]*g,r=dR[i]*g;const m=Math.max(Math.abs(l),Math.abs(r));env=Math.max(m,env*rel);
+    const gr=env>.25?.25/env:1;l*=gr*3.2;r*=gr*3.2;
+    if(fo>0){l=(1-fo)*l+fo*.85*Math.sin(l*k*Math.PI/2);r=(1-fo)*r+fo*.85*Math.sin(r*k*Math.PI/2)}
+    if(++hc>=dec){hc=0;hl=l;hr=r}oL[i]=hl;oR[i]=hr}}}},
+
+{id:'ouro',name:'Ouroboros τὸν ἥλιον καταβροχθίζων',ja:'太陽を呑み込む蛇',
+ desc:'逆向きに読むディレイが、自分の出力を呑み込みながら回り続けます。音程を下げると、逆再生のまま沈んでいきます。',
+ params:[['cycle','周期',40,2000,520,1,'ms'],['pitch','逆行の音程',-24,12,0,1,'st'],['fb','呑み込み',0,.97,.55,.01,'%']],
+ make(S,sr){const M=1<<20,m=M-1,bL=new Float32Array(M),bR=new Float32Array(M);let w=0,ph=0;
+  return(dL,dR,oL,oR,n,p)=>{const cyc=Math.max(32,p.cycle*sr/1000),ratio=Math.pow(2,p.pitch/12),D=Math.min(cyc*(1+ratio),M-8);
+   for(let i=0;i<n;i++){ph+=1/cyc;if(ph>=1)ph-=1;let yl=0,yr=0;
+    for(let t=0;t<2;t++){const q=(ph+t*.5)%1,s=Math.sin(Math.PI*q),g=s*s,rp=w-1-q*D;yl+=g*ring(bL,m,rp);yr+=g*ring(bR,m,rp)}
+    bL[w]=dL[i]+Math.tanh(yl*p.fb);bR[w]=dR[i]+Math.tanh(yr*p.fb);w=(w+1)&m;oL[i]=yl;oR[i]=yr}}}},
+
+{id:'mutation',name:'Mutation 神の糸 遠き夢語る 肉の中',ja:'変異',
+ desc:'音を周波数の成分に分け、ところどころを離れた成分と入れ替えます。記憶を上げると前の瞬間の響きが尾を引きます。',
+ params:[['rate','変異率',0,1,.35,.01,'%'],['reach','変異の幅',1,300,40,1,'bin'],['hold','記憶',0,.98,.5,.01,'%'],['phase','位相の乱れ',0,1,.15,.01,'%']],
+ make(S,sr){const N=2048,H=N/2,map=new Int32Array(H+1),jit=new Float64Array(H+1);
+  const mag=[new Float64Array(H+1),new Float64Array(H+1)],ph=[new Float64Array(H+1),new Float64Array(H+1)],sm=[new Float64Array(H+1),new Float64Array(H+1)],nm=new Float64Array(H+1),np=new Float64Array(H+1);let P=null;
+  const st=new STFT(N,(re,im)=>{for(let k=0;k<=H;k++){map[k]=(k>0&&k<H&&rnd()<P.rate)?clamp(k+Math.round((rnd()*2-1)*P.reach),1,H-1):k;jit[k]=(rnd()*2-1)*Math.PI*P.phase}
+   for(let c=0;c<2;c++){toPolar(re[c],im[c],mag[c],ph[c],H);const s=sm[c];
+    for(let k=0;k<=H;k++){s[k]=P.hold*s[k]+(1-P.hold)*mag[c][map[k]];nm[k]=s[k];np[k]=ph[c][map[k]]+jit[k]}
+    fromPolar(re[c],im[c],nm,np,N)}});
+  return(dL,dR,oL,oR,n,p)=>{P=p;for(let i=0;i<n;i++){st.push(dL[i],dR[i]);oL[i]=st.yl;oR[i]=st.yr}}}},
+
+{id:'gfluid',name:'Granular complex of fluid atoms',ja:'流体の粒子',
+ desc:'選んだ範囲から無数の小さな粒を取り出して雲のように散らします。流れる速さを0にすると一点に留まり、マイナスにすると逆へ流れます。',
+ params:[['density','密度',1,250,45,1,'/s'],['size','粒の長さ',8,600,110,1,'ms'],['spray','位置の散らばり',0,4,.35,.01,'s'],['pitch','音程の散らばり',0,24,2,.1,'st±'],['drift','流れる速さ',-2,2,1,.01,'×']],
+ make(S,sr){const G=new Grains(200);let c=S.pos,next=0;
+  return(dL,dR,oL,oR,n,p)=>{const len=p.size*sr/1000,amp=1.4/Math.sqrt(Math.max(1,p.density*p.size/1000));
+   for(let i=0;i<n;i++){
+    if(--next<=0){next=-Math.log(1-rnd())*sr/p.density;const l=len*(.6+.8*rnd());
+     G.add(c+(rnd()*2-1)*p.spray*sr-l/2,Math.pow(2,(rnd()*2-1)*p.pitch/12),l,amp,rnd())}
+    G.run(S,oL,oR,i);c+=p.drift}
+   c=wrap(S,c);S.view=c}}},
+
+{id:'gnewton',name:'Granular Newtonian-Euclidean',ja:'ニュートン＝ユークリッドの粒',
+ desc:'等間隔に並んだ粒の格子で、再生の速さと音程を別々に動かします。速さ0で時間が止まり、音程はそのまま保たれます。',
+ params:[['speed','速さ',-2,2,.5,.01,'×'],['pitch','音程',-24,24,0,.1,'st'],['size','粒の長さ',15,400,90,1,'ms'],['overlap','重なり',1,8,4,1,'×']],
+ make(S,sr){const G=new Grains(64);let c=S.pos,t=0;
+  return(dL,dR,oL,oR,n,p)=>{const len=p.size*sr/1000,hop=len/p.overlap,r=Math.pow(2,p.pitch/12),amp=2/p.overlap;
+   for(let i=0;i<n;i++){if(--t<=0){t+=hop;G.add(c-len*r/2+rnd()*hop*.6,r,len,amp,.5)}G.run(S,oL,oR,i);c+=p.speed}
+   c=wrap(S,c);S.view=c}}},
+
+{id:'gsimple',name:'Granular symple as dowues',ja:'鳩のように素朴な粒',
+ desc:'ひと粒を切り出して何度か繰り返し、ときどき逆さにしてから先へ進みます。間を広げると、つまずくような歩みになります。',
+ params:[['size','粒の長さ',20,1000,240,1,'ms'],['repeats','繰り返し',1,8,2,1,'回'],['rev','逆さ',0,1,.4,.01,'%'],['gap','間',0,2,.15,.01,'×']],
+ make(S,sr){let cur=null,rep=0,base=S.pos,gapT=0;
+  return(dL,dR,oL,oR,n,p)=>{
+   for(let i=0;i<n;i++){
+    if(!cur){if(gapT>0){gapT--;continue}
+     if(rep<=0){rep=Math.round(p.repeats);base=S.pos+i}
+     const len=Math.max(32,p.size*sr/1000),rev=rnd()<p.rev;cur={p:rev?base+len:base,r:rev?-1:1,len,age:0};rep--}
+    const f=Math.min(cur.len/2,sr*.006),a=cur.age,e=Math.min(1,a/f,(cur.len-a)/f);
+    oL[i]=rd(S,S.L,cur.p)*e;oR[i]=rd(S,S.R,cur.p)*e;cur.p+=cur.r;
+    if(++cur.age>=cur.len){cur=null;gapT=Math.round(p.size*sr/1000*p.gap)}}
+   S.view=cur?cur.p:base}}},
+
+{id:'evisc',name:'Eviscerator Reanimator',ja:'解体と蘇生',
+ desc:'選んだ範囲を等分に切り分け、順番を入れ替え、逆さにし、同じ切片を繰り返して組み直します。短い範囲を選ぶとリズムが生まれます。',
+ params:[['slices','切片の数',2,128,16,1,''],['chaos','撹拌',0,1,.7,.01,'%'],['rev','逆さ',0,1,.25,.01,'%'],['stutter','反復',0,1,.2,.01,'%']],
+ make(S,sr){const sp=new Splicer(S);let t=0,last=-1;
+  return(dL,dR,oL,oR,n,p)=>{const ns=Math.round(p.slices),sl=(S.b-S.a)/ns;
+   for(let i=0;i<n;i++){
+    if(--t<=0){t=sl;let k;
+     if(last<0)k=Math.floor((S.pos+i-S.a)/sl)%ns;else if(rnd()<p.stutter)k=last;else if(rnd()<p.chaos)k=(rnd()*ns)|0;else k=(last+1)%ns;
+     last=k;const rev=rnd()<p.rev,s0=S.a+k*sl;sp.jump(rev?s0+sl-1:s0,rev?-1:1,Math.min(sl/4,sr*.005))}
+    sp.tick();oL[i]=sp.l;oR[i]=sp.r}
+   S.view=sp.h0.p}}},
+
+{id:'lobster',name:'The Lobster Quadrille',ja:'ロブスターのカドリール',
+ desc:'4人の踊り手が、ユニゾン・5度上・4度下・オクターブ上の速さで同じ音をなぞり、ステップごとに隣の位置へ入れ替わります。後ずさりする踊り手は逆再生になります。',
+ params:[['spread','隊形の広がり',0,1,.5,.01,'%'],['step','ステップ',80,3000,700,1,'ms'],['back','後ずさり',0,4,1,1,'人'],['swirl','回転',0,3,.2,.01,'Hz']],
+ make(S,sr){const IV=[0,7,-5,12];const D=IV.map((_,k)=>new Splicer(S,S.pos+k*.7*sr*.25));let t=0,ph=0;
+  return(dL,dR,oL,oR,n,p)=>{
+   for(let i=0;i<n;i++){
+    if(--t<=0){t=p.step*sr/1000;const ps=D.map(d=>d.h0.p),nb=Math.round(p.back);
+     D.forEach((d,k)=>{const r=Math.pow(2,p.spread*IV[k]/12)*(k>=4-nb?-1:1);d.jump(ps[(k+1)%4],r,sr*.012)})}
+    ph+=p.swirl/sr;let l=0,r=0;
+    for(let k=0;k<4;k++){const d=D[k];d.tick();const pan=.5+.45*Math.sin(TAU*ph+k*Math.PI/2);l+=d.l*Math.cos(pan*Math.PI/2);r+=d.r*Math.sin(pan*Math.PI/2)}
+    oL[i]=l*.75;oR[i]=r*.75}
+   ph-=Math.floor(ph);S.view=D[0].h0.p}}},
+
+{id:'erode',name:'Erosive Deformation',ja:'浸食による変形',
+ desc:'弱い周波数成分から順に削り取り、虫食いのように穴をあけ、残った成分の強さを段々に風化させます。変形を動かすと周波数の並びそのものが歪みます。',
+ params:[['amount','侵食',0,1,.5,.01,'%'],['ragged','虫食い',0,1,.25,.01,'%'],['weather','風化',0,1,.2,.01,'%'],['warp','変形',-1.5,1.5,0,.01,'']],
+ make(S,sr){const N=2048,H=N/2,src=new Int32Array(H+1),hole=new Uint8Array(H+1);let wk=null,P=null;
+  const mag=[new Float64Array(H+1),new Float64Array(H+1)],ph=[new Float64Array(H+1),new Float64Array(H+1)],nm=new Float64Array(H+1),np=new Float64Array(H+1);
+  const st=new STFT(N,(re,im)=>{if(wk!==P.warp){wk=P.warp;const e=Math.pow(2,wk);for(let k=0;k<=H;k++)src[k]=clamp(Math.round(H*Math.pow(k/H,e)),0,H)}
+   let mx=0;for(let c=0;c<2;c++){toPolar(re[c],im[c],mag[c],ph[c],H);for(let k=0;k<=H;k++)if(mag[c][k]>mx)mx=mag[c][k]}
+   const thr=mx*db(-80*(1-P.amount)),stp=P.weather*14;for(let k=0;k<=H;k++)hole[k]=rnd()<P.ragged*.6?1:0;
+   for(let c=0;c<2;c++){for(let k=0;k<=H;k++){let m=mag[c][src[k]];
+     if(m<thr||hole[k])m=0;else if(stp>.05){const d=20*Math.log10(m);m=db(Math.round(d/stp)*stp)}
+     nm[k]=m;np[k]=ph[c][src[k]]}
+    fromPolar(re[c],im[c],nm,np,N)}});
+  return(dL,dR,oL,oR,n,p)=>{P=p;for(let i=0;i<n;i++){st.push(dL[i],dR[i]);oL[i]=st.yl;oR[i]=st.yr}}}},
+
+{id:'trich',name:'Trichomes & Spicules',ja:'毛状突起と骨片',
+ desc:'数ミリ秒しかない極小の粒を大量に撒き、高い方だけを残します。原音が細かな棘やきらめきの集まりに変わります。',
+ params:[['density','密度',10,3000,400,1,'/s'],['len','長さ',.3,25,3,.1,'ms'],['bright','明るさ',100,9000,1800,1,'Hz'],['pitch','音程の上ずり',0,36,12,.1,'st'],['spray','散布',0,3,.25,.01,'s']],
+ make(S,sr){const G=new Grains(500),hp=[new BQ(),new BQ()];let next=0,key=-1;
+  return(dL,dR,oL,oR,n,p)=>{if(key!==p.bright){key=p.bright;hp[0].set('hp',key,.7,sr);hp[1].set('hp',key,.7,sr)}
+   const amp=2.4/Math.sqrt(Math.max(.25,p.density*p.len/1000));
+   for(let i=0;i<n;i++){
+    if(--next<=0){next=-Math.log(1-rnd())*sr/p.density;G.add(S.pos+i+(rnd()*2-1)*p.spray*sr,Math.pow(2,rnd()*p.pitch/12),p.len*sr/1000*(.5+rnd()),amp,rnd())}
+    G.run(S,oL,oR,i);oL[i]=hp[0].run(oL[i]);oR[i]=hp[1].run(oR[i])}}}},
+
+{id:'kedju',name:'Keðju fyr skugga daga',ja:'影の日々のための鎖',
+ desc:'和音に調律した共鳴器を鎖のようにつなぎ、その中に音を通します。どんな音も、その和音の響きを帯びて鳴り続けます。',
+ params:[['root','根音',24,72,50,1,'note'],['links','鎖の数',1,7,4,1,''],['decay','余韻',.1,12,2.5,.01,'s'],['damp','曇り',0,.95,.35,.01,'%'],['shadow','影のずれ',0,40,7,.1,'¢']],
+ make(S,sr){const IV=[0,7,12,15,19,22,24],SZ=Math.ceil(sr/25)+8;
+  const C=[0,1].map(()=>IV.map(()=>({b:new Float32Array(SZ),w:0,lp:0})));
+  return(dL,dR,oL,oR,n,p)=>{const nl=Math.round(p.links),a=p.damp,per=[[],[]],g=[[],[]];
+   for(let c=0;c<2;c++)for(let k=0;k<nl;k++){const f=mtof(p.root+IV[k])*(c?Math.pow(2,p.shadow/1200*(k%2?1:-1)):1);
+    per[c][k]=Math.min(sr/f,SZ-4);g[c][k]=Math.exp(Math.log(.001)*per[c][k]/(sr*p.decay))}
+   for(let i=0;i<n;i++)for(let c=0;c<2;c++){const x=(c?dR:dL)[i];let s=0;
+    for(let k=0;k<nl;k++){const cm=C[c][k],gg=g[c][k],rp=cm.w-per[c][k];let ri=Math.floor(rp);const f=rp-ri;ri=(ri%SZ+SZ)%SZ;
+     const y=cm.b[ri]+(cm.b[(ri+1)%SZ]-cm.b[ri])*f;cm.lp=y*(1-a)+cm.lp*a;
+     cm.b[cm.w]=x*Math.sqrt(1-gg*gg)*1.5+cm.lp*gg;cm.w=(cm.w+1)%SZ;s+=y}
+    (c?oR:oL)[i]=s*.5/Math.sqrt(nl)}}}},
+
+{id:'despond',name:'A Subtle Despondence',ja:'かすかな憂鬱',
+ desc:'伸びたテープのように少しずつ遅れて沈み、ゆっくり揺れ、高い音が曇っていきます。うっすらヒスノイズも乗ります。',
+ params:[['sink','沈み',0,24,2,.1,'st'],['wow','揺らぎ',0,1,.35,.01,'%'],['dark','翳り',200,18000,3200,1,'Hz'],['hiss','ヒス',0,1,.15,.01,'%']],
+ make(S,sr){let c=S.pos,p1=0,p2=0,key=-1;const F=[0,1,2,3].map(()=>new BQ());
+  return(dL,dR,oL,oR,n,p)=>{if(key!==p.dark){key=p.dark;F.forEach((f,k)=>f.set('lp',key,k%2?.54:1.31,sr))}
+   const base=Math.pow(2,-p.sink/12);
+   for(let i=0;i<n;i++){p1+=.55/sr;p2+=6.3/sr;const wob=p.wow*(.025*Math.sin(TAU*p1)+.004*Math.sin(TAU*p2));
+    const h=(rnd()*2-1)*p.hiss*.04;let l=rd(S,S.L,c)+h,r=rd(S,S.R,c)+h*.8;c+=base*(1+wob);
+    oL[i]=F[1].run(F[0].run(l));oR[i]=F[3].run(F[2].run(r))}
+   p1-=Math.floor(p1);p2-=Math.floor(p2);c=wrap(S,c);S.view=c}}},
+
+{id:'scry',name:'Scrythylle Distorquere',ja:'ねじり、歪める',
+ desc:'すべての周波数を同じ幅だけずらす周波数シフトで、倍音の関係をねじります。螺旋を上げると、ずれた音がまたずれて昇り降りし続けます。',
+ params:[['shift','ねじれ',-1200,1200,140,1,'Hz'],['drive','歪み',0,1,.35,.01,'%'],['fb','螺旋',0,.92,.35,.01,'%'],['mirror','鏡像',0,1,.5,.01,'%']],
+ make(S,sr){const hb=[new Hilbert(),new Hilbert()],prev=[0,0];let ph=0;
+  return(dL,dR,oL,oR,n,p)=>{const k=1+p.drive*8,nk=1/Math.tanh(k);
+   for(let i=0;i<n;i++){ph+=p.shift/sr;ph-=Math.floor(ph);const cs=Math.cos(TAU*ph),sn=Math.sin(TAU*ph);
+    for(let c=0;c<2;c++){const h=hb[c];h.run((c?dR:dL)[i]+p.fb*prev[c]);const up=h.i*cs-h.q*sn,dn=h.i*cs+h.q*sn;
+     const y=c?up*(1-p.mirror)+dn*p.mirror:up;const o=Math.tanh(y*k)*nk;prev[c]=o;(c?oR:oL)[i]=o*.55}}}}},
+
+{id:'utas',name:'Utas és holdvilág',ja:'旅人と月光',
+ desc:'響きを凍らせ、位相を霧のように溶かして、持続する光のような音にします。月光を上げると1オクターブ上の像が重なります。',
+ params:[['freeze','凍結',0,.995,.92,.001,'%'],['shimmer','月光',0,1,.3,.01,'%'],['fog','霧',0,1,.8,.01,'%']],
+ make(S,sr){const N=4096,H=N/2,mag=[new Float64Array(H+1),new Float64Array(H+1)],ph=[new Float64Array(H+1),new Float64Array(H+1)],sm=[new Float64Array(H+1),new Float64Array(H+1)],np=new Float64Array(H+1);let P=null;
+  const st=new STFT(N,(re,im)=>{for(let c=0;c<2;c++){toPolar(re[c],im[c],mag[c],ph[c],H);const m=mag[c],s=sm[c];
+    for(let k=0;k<=H;k++){const v=m[k]+P.shimmer*.8*m[k>>1];s[k]=P.freeze*s[k]+(1-P.freeze)*v;np[k]=rnd()<P.fog?rnd()*TAU:ph[c][k]}
+    fromPolar(re[c],im[c],s,np,N)}});
+  return(dL,dR,oL,oR,n,p)=>{P=p;for(let i=0;i<n;i++){st.push(dL[i],dR[i]);oL[i]=st.yl;oR[i]=st.yr}}}},
+
+{id:'faltung',name:'Faltung in Zeit',ja:'時間の中の畳み込み',
+ desc:'範囲の別の場所の音を「響き」として、いま鳴っている音に畳み込みます。響きの場所を動かすと、自分自身の別の瞬間が反響のように混ざります。',
+ params:[['offset','響きの場所',0,1,.33,.001,'%'],['irSpeed','響きの移動',-2,2,.25,.01,'×'],['whiten','白色化',0,1,.5,.01,'%'],['smear','にじみ',0,.97,.6,.01,'%']],
+ make(S,sr){const N=2048,H=N/2,hre=new Float64Array(N),him=new Float64Array(N),hm=new Float64Array(H+1),sm=[new Float64Array(H+1),new Float64Array(H+1)],mag=new Float64Array(H+1),ph=new Float64Array(H+1);
+  let P=null,drift=0,irP=0,st=null;
+  st=new STFT(N,(re,im)=>{const w=st.w;for(let j=0;j<N;j++){hre[j]=(rd(S,S.L,irP+j)+rd(S,S.R,irP+j))*.5*w[j];him[j]=0}st.fft(hre,him,false);
+   let pw=0;for(let k=0;k<=H;k++){const a=Math.sqrt(hre[k]*hre[k]+him[k]*him[k]),g=Math.pow(a+1e-9,-P.whiten);hre[k]*=g;him[k]*=g;hm[k]=a*g;pw+=hm[k]*hm[k]}
+   const nrm=1/Math.sqrt(pw/(H+1)+1e-12);
+   for(let c=0;c<2;c++){const R=re[c],I=im[c],s=sm[c];
+    for(let k=0;k<=H;k++){const a=R[k],b=I[k],x=(a*hre[k]-b*him[k])*nrm,y=(a*him[k]+b*hre[k])*nrm;const m=Math.sqrt(x*x+y*y);
+     s[k]=Math.max(m,P.smear*s[k]+(1-P.smear)*m);mag[k]=s[k];ph[k]=Math.atan2(y,x)}
+    fromPolar(R,I,mag,ph,N)}});
+  return(dL,dR,oL,oR,n,p)=>{P=p;
+   for(let i=0;i<n;i++){if((i&127)===0)irP=S.pos+i+p.offset*(S.b-S.a)+drift;st.push(dL[i],dR[i]);oL[i]=st.yl*.45;oR[i]=st.yr*.45}
+   drift+=p.irSpeed*n;drift=wrap({a:0,b:S.b-S.a},drift)}}},
+
+{id:'ygg',name:'Yggdrasil',ja:'世界樹',
+ desc:'音を遅延の枝に分け、それぞれ別の音程（オクターブ上下・5度など）に変えて左右に広げ、また幹へ戻します。枝が多いほど茂ります。',
+ params:[['branches','枝の数',1,8,5,1,''],['spread','枝ぶり',30,1500,330,1,'ms'],['height','枝の高低',0,1,.6,.01,'%'],['fb','樹液',0,.9,.45,.01,'%']],
+ make(S,sr){const M=1<<20,m=M-1,bL=new Float32Array(M),bR=new Float32Array(M),DK=[1,1.618,2.414,3.3,4.2,5.4,6.7,8.1],RT=[1,2,.5,1.5,.75,3,1.25,.25];
+  const PS=DK.map(()=>[new PShift(sr),new PShift(sr)]);let w=0;
+  return(dL,dR,oL,oR,n,p)=>{const nb=Math.round(p.branches),g=1/Math.sqrt(nb);
+   for(let i=0;i<n;i++){let l=0,r=0;
+    for(let k=0;k<nb;k++){const d=Math.min(p.spread*sr/1000*DK[k],M-4),ratio=Math.pow(RT[k],p.height),pan=k%2?.8:.2;
+     const a=PS[k][0].run(ring(bL,m,w-d),ratio),b=PS[k][1].run(ring(bR,m,w-d),ratio);
+     l+=(a*(1-pan)+b*.2)*g;r+=(b*pan+a*.2)*g}
+    bL[w]=dL[i]+Math.tanh(l*p.fb);bR[w]=dR[i]+Math.tanh(r*p.fb);w=(w+1)&m;oL[i]=l;oR[i]=r}}}},
+
+{id:'qyr',name:'Qyr',ja:'Qyr（さまよう再生）',
+ desc:'再生の速さそのものがさまよいます。急に速まり、止まり、逆走し、また走り出す、手で回すレコードのような動きです。',
+ params:[['speed','速さ',-4,4,1,.01,'×'],['wander','さまよい',0,1,.5,.01,'%'],['inertia','慣性',0,1,.6,.01,'%'],['brake','止まる確率',0,1,.1,.01,'%']],
+ make(S,sr){let c=S.pos,rate=1,tgt=1,t=0;
+  return(dL,dR,oL,oR,n,p)=>{const k=1-Math.exp(-1/(sr*(.004+p.inertia*.8)));
+   for(let i=0;i<n;i++){if(--t<=0){t=sr*(.05+rnd()*.4);tgt=rnd()<p.brake?0:p.speed+randn()*p.wander*2}
+    rate+=(tgt-rate)*k;oL[i]=rd(S,S.L,c);oR[i]=rd(S,S.R,c);c+=rate}
+   c=wrap(S,c);S.view=c}}},
+];
+
+function soft(x){const a=Math.abs(x);return a<=.8?x:Math.sign(x)*(.8+.2*Math.tanh((a-.8)/.2))}
+
+class Engine{
+  constructor(sr){this.sr=sr;this.S={L:null,R:null,a:0,b:0,pos:0,view:0};this.id=null;this.fn=null;this.p={};this.mix=1;this.vol=.8;this.playing=false;this.cap=0}
+  setSource(L,R){const S=this.S;S.L=L;S.R=R||L;S.a=0;S.b=L.length;S.pos=0;this.build()}
+  setRegion(a,b){const S=this.S;if(!S.L)return;const N=S.L.length;a=clamp(Math.floor(a),0,N-1);b=clamp(Math.floor(b),a+1,N);
+    if(b-a<64){a=0;b=N}S.a=a;S.b=b;if(S.pos<a||S.pos>=b)S.pos=a;this.build()}
+  seek(x){const S=this.S;if(!S.L)return;S.pos=wrap(S,x);this.build()}
+  setAlgo(id,p){this.id=id;if(p)this.p=Object.assign({},p);this.build()}
+  build(){const S=this.S;S.view=S.pos;const A=ALG.find(x=>x.id===this.id);this.fn=null;if(!A||!S.L)return;
+    for(const q of A.params)if(this.p[q[0]]==null)this.p[q[0]]=q[4];this.fn=A.make(S,this.sr)}
+  render(oL,oR,n){oL.fill(0,0,n);oR.fill(0,0,n);const S=this.S;if(!this.playing||!this.fn)return;
+    if(this.cap<n){this.cap=n;this.dL=new Float32Array(n);this.dR=new Float32Array(n);this.wL=new Float32Array(n);this.wR=new Float32Array(n)}
+    const dL=this.dL,dR=this.dR,wL=this.wL,wR=this.wR;
+    for(let i=0;i<n;i++){dL[i]=rd(S,S.L,S.pos+i);dR[i]=rd(S,S.R,S.pos+i)}
+    wL.fill(0,0,n);wR.fill(0,0,n);S.view=S.pos;this.fn(dL,dR,wL,wR,n,this.p);
+    const m=this.mix,v=this.vol;let bad=false;
+    for(let i=0;i<n;i++){let l=(dL[i]*(1-m)+wL[i]*m)*v,r=(dR[i]*(1-m)+wR[i]*m)*v;if(!(Math.abs(l)<1e4&&Math.abs(r)<1e4)){bad=true;l=r=0}oL[i]=soft(l);oR[i]=soft(r)}
+    S.pos=wrap(S,S.pos+n);if(bad)this.build()}
+}
+function handle(E,m){switch(m.t){
+  case'src':E.setSource(m.L,m.R);break;case'algo':E.setAlgo(m.id,m.p);break;case'p':Object.assign(E.p,m.p);break;
+  case'mix':E.mix=m.v;break;case'vol':E.vol=m.v;break;case'region':E.setRegion(m.a,m.b);break;
+  case'seek':E.seek(m.pos);break;case'play':E.playing=m.v;break}}
+return{ALG,Engine,handle,wrap};
+}
+
+// ---------------------------------------------------------------------------
+const LIB=DSPLIB();
+const WSRC=`const LIB=(${DSPLIB.toString()})();
+class LyreProc extends AudioWorkletProcessor{
+  constructor(){super();this.e=new LIB.Engine(sampleRate);this.k=0;this.port.onmessage=ev=>LIB.handle(this.e,ev.data)}
+  process(ins,outs){const o=outs[0],L=o[0],R=o[1]||o[0];this.e.render(L,R,L.length);
+    if(++this.k%6===0)this.port.postMessage(this.e.S.view);return true}
+}
+registerProcessor('lyre',LyreProc);`;
+
+const $=id=>document.getElementById(id);
+const inViewer=!!(window.claude&&typeof window.claude.use==='function');
+const ALG=LIB.ALG;
+const st={buf:null,name:'',algo:'gfluid',vals:{},mix:1,vol:.8,a:0,b:0,playing:false,view:0,undo:[],busy:false};
+for(const A of ALG){st.vals[A.id]={};for(const q of A.params)st.vals[A.id][q[0]]=q[4]}
+try{const s=localStorage.getItem('tategoto.algo');if(s&&ALG.some(a=>a.id===s))st.algo=s}catch(e){}
+
+let ctx=null,node=null,eng=null,analyser=null;
+function send(m,tr){if(node)node.port.postMessage(m,tr||[]);else if(eng)LIB.handle(eng,m)}
+
+async function initAudio(){
+  const AC=window.AudioContext||window.webkitAudioContext;ctx=new AC();
+  analyser=ctx.createAnalyser();analyser.fftSize=2048;analyser.connect(ctx.destination);
+  try{
+    if(!ctx.audioWorklet||!window.AudioWorkletNode)throw new Error('no worklet');
+    const url=URL.createObjectURL(new Blob([WSRC],{type:'application/javascript'}));
+    await Promise.race([ctx.audioWorklet.addModule(url),new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),5000))]);
+    node=new AudioWorkletNode(ctx,'lyre',{numberOfInputs:0,numberOfOutputs:1,outputChannelCount:[2]});
+    node.port.onmessage=e=>{st.view=e.data};node.connect(analyser);
+  }catch(err){
+    node=null;eng=new LIB.Engine(ctx.sampleRate);
+    const sp=ctx.createScriptProcessor(2048,1,2);
+    sp.onaudioprocess=e=>{const ob=e.outputBuffer;eng.render(ob.getChannelData(0),ob.getChannelData(1),ob.length);st.view=eng.S.view};
+    sp.connect(analyser);
+  }
+  send({t:'mix',v:st.mix});send({t:'vol',v:st.vol});
+}
+
+// ---------- decoding ----------
+function resample(a,from,to){if(from===to)return a;const n=Math.max(1,Math.round(a.length*to/from)),o=new Float32Array(n),k=from/to;
+  for(let i=0;i<n;i++){const p=i*k,j=Math.floor(p),f=p-j;const x=a[Math.min(j,a.length-1)],y=a[Math.min(j+1,a.length-1)];o[i]=x+(y-x)*f}return o}
+function f80(dv,o){const e=((dv.getUint8(o)&0x7f)<<8)|dv.getUint8(o+1),hi=dv.getUint32(o+2),lo=dv.getUint32(o+6);if(!e&&!hi&&!lo)return 0;
+  return(hi*Math.pow(2,e-16383-31)+lo*Math.pow(2,e-16383-63))*((dv.getUint8(o)&0x80)?-1:1)}
+const tag=(dv,o)=>String.fromCharCode(dv.getUint8(o),dv.getUint8(o+1),dv.getUint8(o+2),dv.getUint8(o+3));
+function pcm(dv,start,frames,ch,bytes,kind,le){
+  const out=[];for(let c=0;c<ch;c++)out.push(new Float32Array(frames));const fs=bytes*ch,sc=1/Math.pow(2,bytes*8-1);
+  for(let i=0;i<frames;i++)for(let c=0;c<ch;c++){const o=start+i*fs+c*bytes;let v;
+    if(kind==='f'){v=bytes===4?dv.getFloat32(o,le):dv.getFloat64(o,le)}
+    else if(kind==='u8'){v=(dv.getUint8(o)-128)/128}
+    else if(bytes===1)v=dv.getInt8(o)/128;
+    else if(bytes===2)v=dv.getInt16(o,le)*sc;
+    else if(bytes===3)v=(le?(dv.getInt8(o+2)<<16)|(dv.getUint8(o+1)<<8)|dv.getUint8(o):(dv.getInt8(o)<<16)|(dv.getUint8(o+1)<<8)|dv.getUint8(o+2))*sc;
+    else v=dv.getInt32(o,le)*sc;
+    out[c][i]=v}
+  return out}
+function parseAIFF(ab){const dv=new DataView(ab);if(ab.byteLength<12||tag(dv,0)!=='FORM')return null;const aifc=tag(dv,8)==='AIFC';
+  let o=12,ch=0,frames=0,bits=0,sr=0,comp='NONE',data=-1,dlen=0;
+  while(o+8<=dv.byteLength){const id=tag(dv,o),sz=dv.getUint32(o+4),b=o+8;
+    if(id==='COMM'){ch=dv.getInt16(b);frames=dv.getUint32(b+2);bits=dv.getInt16(b+6);sr=f80(dv,b+8);if(aifc&&sz>=22)comp=tag(dv,b+18)}
+    else if(id==='SSND'){const off=dv.getUint32(b);data=b+8+off;dlen=Math.min(sz-8-off,dv.byteLength-data);if(dlen<=0)dlen=dv.byteLength-data}
+    o=b+sz+(sz&1);if(sz===0&&id!=='SSND')break}
+  if(data<0||!ch||!sr)throw new Error('AIFF の中に音のデータが見つかりませんでした');
+  let kind='i',le=false,bytes=Math.ceil(bits/8);const cc=comp.toLowerCase();
+  if(cc==='sowt')le=true;else if(cc==='fl32'){kind='f';bytes=4}else if(cc==='fl64'){kind='f';bytes=8}
+  else if(cc==='raw ')kind='u8';else if(cc!=='none'&&cc!=='twos')throw new Error(`この AIFF-C の圧縮形式（${comp}）には対応していません`);
+  frames=Math.min(frames,Math.floor(dlen/(bytes*ch)));return{ch:pcm(dv,data,frames,ch,bytes,kind,le),sr}}
+function parseWAV(ab){const dv=new DataView(ab);if(ab.byteLength<12||tag(dv,0)!=='RIFF'||tag(dv,8)!=='WAVE')return null;
+  let o=12,fmt=0,ch=0,sr=0,bits=0,data=-1,dlen=0;
+  while(o+8<=dv.byteLength){const id=tag(dv,o),sz=dv.getUint32(o+4,true),b=o+8;
+    if(id==='fmt '){fmt=dv.getUint16(b,true);ch=dv.getUint16(b+2,true);sr=dv.getUint32(b+4,true);bits=dv.getUint16(b+14,true);if(fmt===0xFFFE&&sz>=26)fmt=dv.getUint16(b+24,true)}
+    else if(id==='data'){data=b;dlen=Math.min(sz,dv.byteLength-b);break}
+    o=b+sz+(sz&1)}
+  if(data<0||!ch||!sr)return null;if(fmt!==1&&fmt!==3)return null;
+  const bytes=bits/8;if(!Number.isInteger(bytes))return null;
+  return{ch:pcm(dv,data,Math.floor(dlen/(bytes*ch)),ch,bytes,fmt===3?'f':(bytes===1?'u8':'i'),true),sr}}
+async function decodeFile(ab){const sr=ctx.sampleRate;let r=null;
+  const head=new DataView(ab,0,Math.min(12,ab.byteLength));
+  if(ab.byteLength>=4&&tag(head,0)==='FORM')r=parseAIFF(ab);
+  else if(ab.byteLength>=4&&tag(head,0)==='RIFF'){try{r=parseWAV(ab)}catch(e){r=null}}
+  if(!r){const b=await new Promise((res,rej)=>{const p=ctx.decodeAudioData(ab.slice(0),res,rej);if(p&&p.catch)p.catch(rej)})
+      .catch(()=>{throw new Error('このファイルは音として読めませんでした。WAV・AIFF・MP3・M4A・FLAC・OGG などを試してください')});
+    const ch=[];for(let c=0;c<Math.min(2,b.numberOfChannels);c++)ch.push(b.getChannelData(c).slice());return{L:ch[0],R:ch[1]||null,fileSr:b.sampleRate}}
+  const L=resample(r.ch[0],r.sr,sr),R=r.ch.length>1?resample(r.ch[1],r.sr,sr):null;return{L,R,fileSr:r.sr}}
+
+// ---------- the sound ----------
+function setBuffer(L,R,name,meta){
+  st.buf={L,R:R||L};st.name=name;st.a=0;st.b=L.length;st.view=0;
+  $('fileName').textContent=name;$('fileMeta').textContent=meta||'';
+  send({t:'src',L:L.slice(),R:R?R.slice():null});send({t:'algo',id:st.algo,p:st.vals[st.algo]});
+  peaks=null;drawWave();updateRegionTxt();
+}
+function makeSample(sr){
+  // A short arpeggio of plucked strings (Karplus–Strong) over a soft drone: a stand-in until a file is opened.
+  const dur=7,n=Math.round(sr*dur),L=new Float32Array(n),R=new Float32Array(n);
+  const notes=[62,69,72,74,77,74,72,69,65,67,69,72,74,81,79,77];
+  notes.forEach((m,k)=>{const f=440*Math.pow(2,(m-69)/12),per=Math.round(sr/f),buf=new Float32Array(per);for(let i=0;i<per;i++)buf[i]=Math.random()*2-1;
+    const t0=Math.round(sr*(.15+k*.38)),len=Math.min(n-t0,Math.round(sr*2.6)),pan=.25+.5*((k*5)%7)/6;let j=0,prev=0;
+    for(let i=0;i<len;i++){const x=buf[j];const y=.4985*(x+prev)*1.0;prev=x;buf[j]=y;j=(j+1)%per;const v=x*.32*(1-i/len);L[t0+i]+=v*(1-pan);R[t0+i]+=v*pan}});
+  for(let i=0;i<n;i++){const t=i/sr,e=Math.min(1,t/1.5,(dur-t)/1.2)*.07;const d=Math.sin(TAU0*73.42*t)+.4*Math.sin(TAU0*110.0*t+.3)+.2*Math.sin(TAU0*146.83*t);L[i]+=d*e;R[i]+=d*e*.9}
+  return{L,R}}
+const TAU0=Math.PI*2;
+
+// ---------- waveform ----------
+let peaks=null,waveImg=null;
+const wave=$('wave'),wctx=wave.getContext('2d'),scope=$('scope'),sctx=scope.getContext('2d');
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function fit(c){const d=window.devicePixelRatio||1,w=Math.max(1,Math.round(c.clientWidth*d)),h=Math.max(1,Math.round(c.clientHeight*d));if(c.width!==w||c.height!==h){c.width=w;c.height=h;return true}return false}
+function drawWave(){if(!st.buf)return;fit(wave);const W=wave.width,H=wave.height,L=st.buf.L,R=st.buf.R,N=L.length;
+  if(!peaks||peaks.w!==W||peaks.n!==N){const mn=new Float32Array(W),mx=new Float32Array(W);
+    for(let x=0;x<W;x++){const a=Math.floor(x*N/W),b=Math.max(a+1,Math.floor((x+1)*N/W));let lo=1,hi=-1;const st2=Math.max(1,Math.floor((b-a)/400));
+      for(let i=a;i<b;i+=st2){const v=(L[i]+R[i])*.5;if(v<lo)lo=v;if(v>hi)hi=v}mn[x]=lo;mx[x]=hi}
+    peaks={w:W,n:N,mn,mx}}
+  const off=document.createElement('canvas');off.width=W;off.height=H;const o=off.getContext('2d');
+  o.fillStyle=css('--wave');for(let x=0;x<W;x++){const y1=H/2-peaks.mx[x]*H*.46,y2=H/2-peaks.mn[x]*H*.46;o.fillRect(x,y1,1,Math.max(1,y2-y1))}
+  waveImg=off}
+function frame(){
+  if(st.buf&&waveImg){if(fit(wave))drawWave();const W=wave.width,H=wave.height,N=st.buf.L.length,d=window.devicePixelRatio||1;
+    wctx.clearRect(0,0,W,H);
+    const full=st.a===0&&st.b===N;
+    if(!full){wctx.fillStyle=css('--sel');wctx.fillRect(st.a/N*W,0,(st.b-st.a)/N*W,H);wctx.fillStyle=css('--honey');wctx.fillRect(st.a/N*W,0,d,H);wctx.fillRect(st.b/N*W-d,0,d,H)}
+    wctx.drawImage(waveImg,0,0);
+    if(drag&&drag.moved){const a=Math.min(drag.x0,drag.x1),b=Math.max(drag.x0,drag.x1);wctx.fillStyle=css('--sel');wctx.fillRect(a*d,0,(b-a)*d,H)}
+    let v=st.view;v=((v%N)+N)%N;const x=v/N*W;wctx.fillStyle=css('--honey');wctx.fillRect(x-d,0,2*d,H);
+    $('timeTxt').textContent=fmtT(v/ctx.sampleRate)}
+  if(analyser){fit(scope);const W=scope.width,H=scope.height,a=new Float32Array(analyser.fftSize);analyser.getFloatTimeDomainData(a);
+    sctx.clearRect(0,0,W,H);sctx.strokeStyle=css('--honey');sctx.lineWidth=1.5*(window.devicePixelRatio||1);sctx.beginPath();
+    for(let x=0;x<W;x++){const s=a[Math.floor(x/W*a.length)],y=H/2-s*H*.45;x?sctx.lineTo(x,y):sctx.moveTo(x,y)}sctx.stroke()}
+  requestAnimationFrame(frame)}
+const fmtT=s=>{const m=Math.floor(s/60),r=s-m*60;return m+':'+r.toFixed(3).padStart(6,'0')};
+function updateRegionTxt(){if(!st.buf)return;const sr=ctx.sampleRate,N=st.buf.L.length;
+  $('regionTxt').textContent=(st.a===0&&st.b===N)?`全体 ${fmtT(N/sr)}（波形をドラッグすると範囲を選べます）`:`範囲 ${fmtT(st.a/sr)} – ${fmtT(st.b/sr)}（${((st.b-st.a)/sr).toFixed(3)} 秒）`}
+let drag=null;
+wave.addEventListener('pointerdown',e=>{if(!st.buf)return;wave.setPointerCapture(e.pointerId);const x=e.offsetX;drag={x0:x,x1:x,moved:false}});
+wave.addEventListener('pointermove',e=>{if(!drag)return;drag.x1=e.offsetX;if(Math.abs(drag.x1-drag.x0)>4)drag.moved=true});
+wave.addEventListener('pointerup',e=>{if(!drag)return;const N=st.buf.L.length,w=wave.clientWidth,toS=x=>Math.round(Math.max(0,Math.min(1,x/w))*N);
+  if(drag.moved){const a=toS(Math.min(drag.x0,drag.x1)),b=toS(Math.max(drag.x0,drag.x1));if(b-a>64){st.a=a;st.b=b;send({t:'region',a,b})}}
+  else{const p=toS(drag.x0);if(p<st.a||p>=st.b){st.a=0;st.b=N;send({t:'region',a:0,b:N})}send({t:'seek',pos:p});st.view=p}
+  drag=null;updateRegionTxt()});
+wave.addEventListener('pointercancel',()=>{drag=null});
+$('allBtn').onclick=()=>{if(!st.buf)return;st.a=0;st.b=st.buf.L.length;send({t:'region',a:0,b:st.b});updateRegionTxt()};
+
+// ---------- menu & params ----------
+function renderMenu(){const ul=$('algoList');ul.textContent='';$('algoCount').textContent=ALG.length+' algorithms';
+  for(const A of ALG){const li=document.createElement('li'),b=document.createElement('button');b.className='mi';b.type='button';b.dataset.id=A.id;
+    const t=document.createElement('b');t.textContent=A.name;const s=document.createElement('span');s.textContent=A.ja;b.append(t,s);
+    b.onclick=()=>selectAlgo(A.id);li.append(b);ul.append(li)}}
+function fmtV(v,q){const u=q[6],step=q[5];
+  if(u==='%')return(v*100).toFixed(step<.01?1:0)+'%';
+  if(u==='note'){const nn=['C','C♯','D','E♭','E','F','F♯','G','A♭','A','B♭','B'];return nn[v%12]+(Math.floor(v/12)-1)}
+  if(u==='st'||u==='st±'){const s=(step<1?v.toFixed(1):String(v));return(u==='st±'?'±'+s:(v>0?'+'+s:s))+' 半音'}
+  const d=step>=1?0:step>=.1?1:2;return(+v).toFixed(d)+(u?' '+u:'')}
+function setFill(inp){const mn=+inp.min,mx=+inp.max;inp.style.setProperty('--v',((+inp.value-mn)/(mx-mn)*100)+'%')}
+function renderParams(){const A=ALG.find(a=>a.id===st.algo),box=$('params');box.textContent='';
+  $('algoName').textContent=A.name;$('algoJa').textContent=A.ja;$('algoDesc').textContent=A.desc;
+  for(const q of A.params){const lab=document.createElement('label');lab.className='knob';
+    const kl=document.createElement('span');kl.className='kl';const nm=document.createElement('span');nm.textContent=q[1];const em=document.createElement('em');em.textContent=q[0];nm.append(em);
+    const out=document.createElement('output');const inp=document.createElement('input');inp.type='range';inp.id='p_'+A.id+'_'+q[0];
+    inp.min=q[2];inp.max=q[3];inp.step=q[5];inp.value=st.vals[A.id][q[0]];out.textContent=fmtV(+inp.value,q);setFill(inp);
+    inp.oninput=()=>{const v=+inp.value;st.vals[A.id][q[0]]=v;out.textContent=fmtV(v,q);setFill(inp);send({t:'p',p:{[q[0]]:v}})};
+    kl.append(nm,out);lab.append(kl,inp);box.append(lab)}
+  document.querySelectorAll('.mi').forEach(b=>b.setAttribute('aria-pressed',b.dataset.id===st.algo?'true':'false'))}
+function selectAlgo(id){st.algo=id;try{localStorage.setItem('tategoto.algo',id)}catch(e){}renderParams();send({t:'algo',id,p:st.vals[id]})}
+$('diceBtn').onclick=()=>{const A=ALG.find(a=>a.id===st.algo);for(const q of A.params){const steps=Math.round((q[3]-q[2])/q[5]);
+  // lean toward the middle so a roll rarely lands on a silent or runaway corner
+  const u=(Math.random()+Math.random()+Math.random())/3;st.vals[A.id][q[0]]=+(q[2]+Math.round(u*steps)*q[5]).toFixed(4)}
+  renderParams();send({t:'p',p:st.vals[A.id]})};
+$('resetBtn').onclick=()=>{const A=ALG.find(a=>a.id===st.algo);for(const q of A.params)st.vals[A.id][q[0]]=q[4];renderParams();send({t:'p',p:st.vals[A.id]})};
+for(const k of['mix','vol']){const inp=$(k);setFill(inp);const show=()=>{$(k+'Out').textContent=k==='mix'?Math.round(inp.value*100)+'% 効果':Math.round(inp.value*100)+'%'};show();
+  inp.oninput=()=>{st[k]=+inp.value;setFill(inp);show();send({t:k,v:st[k]})}}
+
+// ---------- transport ----------
+function setPlaying(on){st.playing=on;send({t:'play',v:on});$('playBtn').setAttribute('aria-pressed',on?'true':'false');$('playTxt').textContent=on?'停止':'再生';
+  $('playIco').innerHTML=on?'<path d="M3 2h4v12H3zM9 2h4v12H9z"/>':'<path d="M3 1.5v13l11-6.5z"/>'}
+$('playBtn').onclick=async()=>{if(!st.buf)return;if(ctx.state!=='running')try{await ctx.resume()}catch(e){}setPlaying(!st.playing)};
+document.addEventListener('keydown',e=>{if(e.code==='Space'&&(e.target===document.body||e.target===wave)){e.preventDefault();$('playBtn').click()}});
+
+// ---------- open files ----------
+$('openBtn').onclick=()=>$('fileIn').click();
+$('fileIn').onchange=e=>{const f=e.target.files[0];if(f)openFile(f);e.target.value=''};
+let dragDepth=0;
+document.addEventListener('dragenter',e=>{if(e.dataTransfer&&[...e.dataTransfer.types].includes('Files')){dragDepth++;$('drop').hidden=false}});
+document.addEventListener('dragleave',()=>{if(--dragDepth<=0){dragDepth=0;$('drop').hidden=true}});
+document.addEventListener('dragover',e=>e.preventDefault());
+document.addEventListener('drop',e=>{e.preventDefault();dragDepth=0;$('drop').hidden=true;const f=e.dataTransfer&&e.dataTransfer.files[0];if(f)openFile(f)});
+function note(t,err){const n=$('note');n.textContent=t;n.className='note'+(err?' err':'')}
+async function openFile(f){note(`${f.name} を読み込んでいます…`);
+  try{const ab=await f.arrayBuffer();const r=await decodeFile(ab);const sr=ctx.sampleRate,dur=r.L.length/sr;
+    const was=st.playing;if(was)setPlaying(false);st.undo=[];$('undoBtn').disabled=true;
+    setBuffer(r.L,r.R,f.name,`${fmtT(dur)} · ${r.R?'ステレオ':'モノ'} · ${r.fileSr} Hz`+(r.fileSr!==sr?` → ${sr} Hz で再生`:''));
+    note(dur>600?'長いファイルです。焼き込みと書き出しには時間がかかります。':'');if(was)setPlaying(true)}
+  catch(e){note(e.message||String(e),true)}}
+
+// ---------- rendering, apply, export ----------
+async function renderFx(onProg){const sr=ctx.sampleRate,{L,R}=st.buf,E=new LIB.Engine(sr);
+  E.setSource(L,R===L?null:R);E.setRegion(st.a,st.b);E.mix=st.mix;E.vol=1;E.playing=true;
+  const len=E.S.b-E.S.a,pre=Math.min(8192,len);E.S.pos=LIB.wrap(E.S,E.S.a-pre);E.setAlgo(st.algo,st.vals[st.algo]);
+  const oL=new Float32Array(len),oR=new Float32Array(len),B=1024,bl=new Float32Array(B),br=new Float32Array(B);let done=-pre,t0=performance.now();
+  while(done<len){const n=Math.min(B,len-done);E.render(bl,br,n);
+    for(let i=0;i<n;i++){const j=done+i;if(j>=0){oL[j]=bl[i];oR[j]=br[i]}}done+=n;
+    if(performance.now()-t0>60){onProg&&onProg(Math.max(0,done)/len);await new Promise(r=>setTimeout(r,0));t0=performance.now()}}
+  return{L:oL,R:oR}}
+function lock(on){st.busy=on;for(const id of['applyBtn','exFx','exRaw','openBtn'])$(id).disabled=on;$('undoBtn').disabled=on||!st.undo.length}
+$('applyBtn').onclick=async()=>{if(!st.buf||st.busy)return;lock(true);
+  try{const A=ALG.find(a=>a.id===st.algo);const r=await renderFx(p=>note(`${A.name} を焼き込んでいます… ${Math.round(p*100)}%`));
+    const {L,R}=st.buf,nL=L.slice(),nR=R.slice();nL.set(r.L,st.a);nR.set(r.R,st.a);
+    st.undo.push({L,R,name:st.name,meta:$('fileMeta').textContent});if(st.undo.length>6)st.undo.shift();
+    const a=st.a,b=st.b,was=st.playing;setBuffer(nL,nR,st.name,$('fileMeta').textContent);
+    if(b-a<nL.length){st.a=a;st.b=b;send({t:'region',a,b});updateRegionTxt()}
+    note(`${A.name} を焼き込みました。別のアルゴリズムを重ねられます。`);if(was)send({t:'play',v:true})}
+  catch(e){note('焼き込めませんでした: '+(e.message||e),true)}
+  lock(false)};
+$('undoBtn').onclick=()=>{const u=st.undo.pop();if(!u)return;setBuffer(u.L,u.R===u.L?null:u.R,u.name,u.meta);$('undoBtn').disabled=!st.undo.length;note('ひとつ前の音に戻しました。');if(st.playing)send({t:'play',v:true})};
+
+function ext80(v){const b=new Uint8Array(10);let e=16383+31,m=Math.round(v)>>>0;if(!m)return b;while(!(m&0x80000000)){m=(m<<1)>>>0;e--}
+  b[0]=(e>>8)&0x7f;b[1]=e&255;b[2]=m>>>24;b[3]=(m>>>16)&255;b[4]=(m>>>8)&255;b[5]=m&255;return b}
+function encode(L,R,sr,fmt){const n=L.length,da=n*6,aiff=fmt==='aiff',hdr=aiff?54:44,ab=new ArrayBuffer(hdr+da),dv=new DataView(ab),u8=new Uint8Array(ab);
+  const ws=(o,s)=>{for(let i=0;i<4;i++)dv.setUint8(o+i,s.charCodeAt(i))};
+  if(aiff){ws(0,'FORM');dv.setUint32(4,46+da);ws(8,'AIFF');ws(12,'COMM');dv.setUint32(16,18);dv.setUint16(20,2);dv.setUint32(22,n);dv.setUint16(26,24);u8.set(ext80(sr),28);
+    ws(38,'SSND');dv.setUint32(42,8+da);dv.setUint32(46,0);dv.setUint32(50,0)}
+  else{ws(0,'RIFF');dv.setUint32(4,36+da,true);ws(8,'WAVE');ws(12,'fmt ');dv.setUint32(16,16,true);dv.setUint16(20,1,true);dv.setUint16(22,2,true);dv.setUint32(24,sr,true);
+    dv.setUint32(28,sr*6,true);dv.setUint16(32,6,true);dv.setUint16(34,24,true);ws(36,'data');dv.setUint32(40,da,true)}
+  let o=hdr;for(let i=0;i<n;i++)for(const c of[L,R]){let v=c[i];v=v>1?1:v<-1?-1:v;const x=Math.round(v<0?v*8388608:v*8388607);
+    if(aiff){u8[o]=(x>>16)&255;u8[o+1]=(x>>8)&255;u8[o+2]=x&255}else{u8[o]=x&255;u8[o+1]=(x>>8)&255;u8[o+2]=(x>>16)&255}o+=3}
+  return u8}
+const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+function crc32(u){let c=0xFFFFFFFF;for(let i=0;i<u.length;i++)c=CRC[(c^u[i])&255]^(c>>>8);return(c^0xFFFFFFFF)>>>0}
+// uncompressed ZIP: the claude.ai viewer saves .zip but not .wav or .aiff
+function zip(name,data){const nm=new TextEncoder().encode(name),crc=crc32(data),d=new Date();
+  const dt=((d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1))&0xFFFF,dd=(((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate())&0xFFFF;
+  const L=new DataView(new ArrayBuffer(30));L.setUint32(0,0x04034b50,true);L.setUint16(4,20,true);L.setUint16(6,0x0800,true);L.setUint16(10,dt,true);L.setUint16(12,dd,true);L.setUint32(14,crc,true);L.setUint32(18,data.length,true);L.setUint32(22,data.length,true);L.setUint16(26,nm.length,true);
+  const C=new DataView(new ArrayBuffer(46));C.setUint32(0,0x02014b50,true);C.setUint16(4,20,true);C.setUint16(6,20,true);C.setUint16(8,0x0800,true);C.setUint16(12,dt,true);C.setUint16(14,dd,true);C.setUint32(16,crc,true);C.setUint32(20,data.length,true);C.setUint32(24,data.length,true);C.setUint16(28,nm.length,true);
+  const E=new DataView(new ArrayBuffer(22));E.setUint32(0,0x06054b50,true);E.setUint16(8,1,true);E.setUint16(10,1,true);E.setUint32(12,46+nm.length,true);E.setUint32(16,30+nm.length+data.length,true);
+  return new Blob([L.buffer,nm,data,C.buffer,nm,E.buffer])}
+const safe=s=>s.replace(/\.[^.\/]+$/,'').replace(/[\\\/:*?"<>|\s]+/g,'_').slice(0,60)||'tategoto';
+async function deliver(name,data){
+  if(inViewer){const dl=await window.claude.use('downloads');if(!dl)throw new Error('この表示ではファイルを保存できません');
+    const zn=name.replace(/\.[^.]+$/,'')+'.zip';
+    try{await dl.save({filename:zn,data:zip(name,data)});return`${zn} を保存しました（中に ${name} が入っています）。`}
+    catch(e){const c=e&&e.code;if(c==='declined')return'保存をやめました。';if(c==='rate_limited')throw new Error('保存の確認がまだ開いています。閉じてからもう一度押してください');throw new Error('この表示ではファイルを保存できません')}}
+  const url=URL.createObjectURL(new Blob([data],{type:name.endsWith('.wav')?'audio/wav':'audio/aiff'}));const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+  return`${name} を書き出しました。`}
+async function exportAs(withFx){if(!st.buf||st.busy)return;lock(true);
+  try{const fmt=$('fmt').value,sr=ctx.sampleRate;let L,R,tagName;
+    if(withFx){const A=ALG.find(a=>a.id===st.algo);const r=await renderFx(p=>note(`${A.name} をかけて書き出しています… ${Math.round(p*100)}%`));L=r.L;R=r.R;tagName='_'+A.id}
+    else{L=st.buf.L.subarray(st.a,st.b);R=st.buf.R.subarray(st.a,st.b);tagName=''}
+    note('ファイルを作っています…');await new Promise(r=>setTimeout(r,0));
+    note(await deliver(safe(st.name)+tagName+(fmt==='aiff'?'.aif':'.wav'),encode(L,R,sr,fmt)))}
+  catch(e){note(e.message||String(e),true)}
+  lock(false)}
+$('exFx').onclick=()=>exportAs(true);$('exRaw').onclick=()=>exportAs(false);
+window.addEventListener('resize',()=>{if(st.buf)drawWave()});
+if(window.matchMedia)matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',()=>drawWave());
+new MutationObserver(()=>drawWave()).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+
+(async()=>{renderMenu();renderParams();await initAudio();
+  const s=makeSample(ctx.sampleRate);setBuffer(s.L,s.R,'サンプル音（例）',`合成した竪琴のアルペジオ · 7 秒 · ${ctx.sampleRate} Hz`);
+  requestAnimationFrame(frame)})();
+</script>
