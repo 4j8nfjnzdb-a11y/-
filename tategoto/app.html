@@ -63,16 +63,23 @@ button:disabled{cursor:default;opacity:.45}
 #wave{display:block;width:100%;height:150px;cursor:crosshair}
 .drop{position:absolute;inset:0;display:grid;place-items:center;background:var(--sel);border:2px dashed var(--honey);border-radius:10px;font-weight:700;color:var(--ink);pointer-events:none}
 .wavebar{display:flex;justify-content:space-between;align-items:center;gap:6px 12px;flex-wrap:wrap}
-.transport{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,1fr) minmax(90px,170px);align-items:center;gap:12px 18px;padding:14px;border-radius:12px;background:var(--panel);border:1px solid var(--line)}
-@media (max-width:700px){.transport{grid-template-columns:auto minmax(0,1fr)}.transport .scope{grid-column:1 / -1}}
+.transport{display:grid;grid-template-columns:auto auto repeat(3,minmax(0,1fr));align-items:center;gap:12px 18px;padding:14px;border-radius:12px;background:var(--panel);border:1px solid var(--line)}
+.transport .scope{grid-column:1 / -1}
+@media (max-width:700px){.transport{grid-template-columns:auto auto minmax(0,1fr)}.transport .knob{grid-column:1 / -1}}
+.loopb{padding:12px 14px;font-weight:700}
+.loopb svg{width:15px;height:15px;fill:currentColor}
+.loopb[aria-pressed="true"]{border-color:var(--honey);color:var(--honey);background:var(--sel)}
+.mini{padding:1px 7px;border-radius:6px;border:1px solid var(--line);background:none;font-family:var(--f-mono);font-size:11px;color:var(--dim)}
+.kl .row{gap:6px}
 .play{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:112px;padding:12px 18px;border-radius:9px;border:0;background:var(--ink);color:var(--bg);font-weight:700;font-size:15px;letter-spacing:.06em}
 .play svg{width:15px;height:15px;fill:currentColor}
 .play[aria-pressed="true"]{background:var(--honey);color:var(--honey-ink)}
-#scope{display:block;width:100%;height:44px;border-radius:6px;background:var(--well)}
+#scope{display:block;width:100%;height:36px;border-radius:6px;background:var(--well)}
 .knob{display:flex;flex-direction:column;gap:2px;min-width:0}
 .knob .kl{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .knob .kl span{font-size:13px}
-.knob .kl span em{font-style:normal;font-family:var(--f-mono);font-size:10.5px;color:var(--faint);margin-left:6px;letter-spacing:.04em}
+.knob .kl > :first-child{white-space:nowrap}
+.knob .kl em{font-style:normal;font-family:var(--f-mono);font-size:10.5px;color:var(--faint);margin-left:6px;letter-spacing:.04em}
 .knob output{font-family:var(--f-mono);font-size:12px;color:var(--honey);font-variant-numeric:tabular-nums;white-space:nowrap}
 input[type=range]{-webkit-appearance:none;appearance:none;width:100%;min-width:0;height:26px;background:transparent;margin:0;--v:50%}
 input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(to right,var(--honey) var(--v),var(--well) var(--v))}
@@ -128,6 +135,8 @@ select{padding:7px 10px;border-radius:8px;border:1px solid var(--line);backgroun
 
       <div class="transport">
         <button class="play" id="playBtn" type="button" aria-pressed="false"><svg viewBox="0 0 16 16" id="playIco"><path d="M3 1.5v13l11-6.5z"/></svg><span id="playTxt">再生</span></button>
+        <button class="btn loopb" id="loopBtn" type="button" aria-pressed="true" title="オフにすると範囲の終わりで止まります"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 5h7V3l3 3-3 3V7H4a1 1 0 0 0-1 1v1H1V8a3 3 0 0 1 3-3zm8 6H5v2l-3-3 3-3v2h7a1 1 0 0 0 1-1V7h2v1a3 3 0 0 1-3 3z"/></svg>ループ</button>
+        <div class="knob"><span class="kl"><label for="speed">速さ<em>speed</em></label><span class="row"><output id="speedOut"></output><button class="mini" id="speed1" type="button">1×</button></span></span><input type="range" id="speed" min="-2" max="2" step="0.01" value="0"></div>
         <label class="knob"><span class="kl"><span>原音 ↔ 効果<em>mix</em></span><output id="mixOut"></output></span><input type="range" id="mix" min="0" max="1" step="0.01" value="1"></label>
         <label class="knob"><span class="kl"><span>音量<em>vol</em></span><output id="volOut"></output></span><input type="range" id="vol" min="0" max="1.5" step="0.01" value="0.8"></label>
         <div class="scope"><canvas id="scope" aria-hidden="true"></canvas></div>
@@ -156,7 +165,7 @@ select{padding:7px 10px;border-radius:8px;border:1px solid var(--line);backgroun
         <p class="note" id="note" role="status"></p>
       </div>
 
-      <p class="foot">Lyre のアルゴリズムの中身は公開されていないので、それぞれの名前と、元のアプリで聞こえる方向性から作り直したものです。同じ名前でも元とまったく同じ音にはなりません。スペースキーで再生と停止を切り替えられます。</p>
+      <p class="foot">Lyre のアルゴリズムの中身は公開されていないので、それぞれの名前と、元のアプリで聞こえる方向性から作り直したものです。同じ名前でも元とまったく同じ音にはなりません。スペースキーで再生と停止を切り替えられます。速さはテープのように音程ごと変わり、「効果込みで書き出す」と「焼き込む」にも反映されます。</p>
     </section>
   </div>
 </div>
@@ -490,27 +499,37 @@ const ALG=[
 function soft(x){const a=Math.abs(x);return a<=.8?x:Math.sign(x)*(.8+.2*Math.tanh((a-.8)/.2))}
 
 class Engine{
-  constructor(sr){this.sr=sr;this.S={L:null,R:null,a:0,b:0,pos:0,view:0};this.id=null;this.fn=null;this.p={};this.mix=1;this.vol=.8;this.playing=false;this.cap=0}
+  constructor(sr){this.sr=sr;this.S={L:null,R:null,a:0,b:0,pos:0,view:0};this.id=null;this.fn=null;this.p={};this.mix=1;this.vol=.8;this.playing=false;this.cap=0;
+    this.speed=1;this.loop=true;this.ended=false;this.qc=0;this.qn=0;this.rp=0;this.tL=new Float32Array(128);this.tR=new Float32Array(128)}
   setSource(L,R){const S=this.S;S.L=L;S.R=R||L;S.a=0;S.b=L.length;S.pos=0;this.build()}
   setRegion(a,b){const S=this.S;if(!S.L)return;const N=S.L.length;a=clamp(Math.floor(a),0,N-1);b=clamp(Math.floor(b),a+1,N);
     if(b-a<64){a=0;b=N}S.a=a;S.b=b;if(S.pos<a||S.pos>=b)S.pos=a;this.build()}
   seek(x){const S=this.S;if(!S.L)return;S.pos=wrap(S,x);this.build()}
   setAlgo(id,p){this.id=id;if(p)this.p=Object.assign({},p);this.build()}
-  build(){const S=this.S;S.view=S.pos;const A=ALG.find(x=>x.id===this.id);this.fn=null;if(!A||!S.L)return;
+  build(){const S=this.S;S.view=S.pos;this.qn=0;this.rp=0;const A=ALG.find(x=>x.id===this.id);this.fn=null;if(!A||!S.L)return;
     for(const q of A.params)if(this.p[q[0]]==null)this.p[q[0]]=q[4];this.fn=A.make(S,this.sr)}
-  render(oL,oR,n){oL.fill(0,0,n);oR.fill(0,0,n);const S=this.S;if(!this.playing||!this.fn)return;
+  // Speed is tape varispeed: the whole chain runs n*speed samples and is read back at that rate.
+  render(oL,oR,n){const sp=this.speed;if(sp===1||!this.playing||!this.fn){this.qn=0;this.rp=0;this.raw(oL,oR,n);return}
+    const need=Math.floor(this.rp+(n-1)*sp)+2;
+    if(this.qc<need+128){const c=need+256,a=new Float32Array(c),b=new Float32Array(c);if(this.qL){a.set(this.qL.subarray(0,this.qn));b.set(this.qR.subarray(0,this.qn))}this.qL=a;this.qR=b;this.qc=c}
+    const qL=this.qL,qR=this.qR;
+    while(this.qn<need){if(this.playing){this.raw(this.tL,this.tR,128);qL.set(this.tL,this.qn);qR.set(this.tR,this.qn)}else{qL.fill(0,this.qn,this.qn+128);qR.fill(0,this.qn,this.qn+128)}this.qn+=128}
+    for(let i=0;i<n;i++){const p=this.rp+i*sp,j=p|0,f=p-j;oL[i]=qL[j]+(qL[j+1]-qL[j])*f;oR[i]=qR[j]+(qR[j+1]-qR[j])*f}
+    this.rp+=n*sp;const d=Math.floor(this.rp);qL.copyWithin(0,d,this.qn);qR.copyWithin(0,d,this.qn);this.qn-=d;this.rp-=d}
+  raw(oL,oR,n){oL.fill(0,0,n);oR.fill(0,0,n);const S=this.S;if(!this.playing||!this.fn)return;
     if(this.cap<n){this.cap=n;this.dL=new Float32Array(n);this.dR=new Float32Array(n);this.wL=new Float32Array(n);this.wR=new Float32Array(n)}
     const dL=this.dL,dR=this.dR,wL=this.wL,wR=this.wR;
     for(let i=0;i<n;i++){dL[i]=rd(S,S.L,S.pos+i);dR[i]=rd(S,S.R,S.pos+i)}
     wL.fill(0,0,n);wR.fill(0,0,n);S.view=S.pos;this.fn(dL,dR,wL,wR,n,this.p);
     const m=this.mix,v=this.vol;let bad=false;
     for(let i=0;i<n;i++){let l=(dL[i]*(1-m)+wL[i]*m)*v,r=(dR[i]*(1-m)+wR[i]*m)*v;if(!(Math.abs(l)<1e4&&Math.abs(r)<1e4)){bad=true;l=r=0}oL[i]=soft(l);oR[i]=soft(r)}
+    if(!this.loop&&S.pos+n>=S.b){this.playing=false;this.ended=true;S.pos=S.a;S.view=S.a;this.build();return}
     S.pos=wrap(S,S.pos+n);if(bad)this.build()}
 }
 function handle(E,m){switch(m.t){
   case'src':E.setSource(m.L,m.R);break;case'algo':E.setAlgo(m.id,m.p);break;case'p':Object.assign(E.p,m.p);break;
   case'mix':E.mix=m.v;break;case'vol':E.vol=m.v;break;case'region':E.setRegion(m.a,m.b);break;
-  case'seek':E.seek(m.pos);break;case'play':E.playing=m.v;break}}
+  case'seek':E.seek(m.pos);break;case'play':E.playing=m.v;break;case'speed':E.speed=m.v;break;case'loop':E.loop=m.v;break}}
 return{ALG,Engine,handle,wrap};
 }
 
@@ -520,14 +539,14 @@ const WSRC=`const LIB=(${DSPLIB.toString()})();
 class LyreProc extends AudioWorkletProcessor{
   constructor(){super();this.e=new LIB.Engine(sampleRate);this.k=0;this.port.onmessage=ev=>LIB.handle(this.e,ev.data)}
   process(ins,outs){const o=outs[0],L=o[0],R=o[1]||o[0];this.e.render(L,R,L.length);
-    if(++this.k%6===0)this.port.postMessage(this.e.S.view);return true}
+    if(this.e.ended||++this.k%6===0){this.port.postMessage({v:this.e.S.view,e:this.e.ended});this.e.ended=false}return true}
 }
 registerProcessor('lyre',LyreProc);`;
 
 const $=id=>document.getElementById(id);
 const inViewer=!!(window.claude&&typeof window.claude.use==='function');
 const ALG=LIB.ALG;
-const st={buf:null,name:'',algo:'gfluid',vals:{},mix:1,vol:.8,a:0,b:0,playing:false,view:0,undo:[],busy:false};
+const st={buf:null,name:'',algo:'gfluid',vals:{},mix:1,vol:.8,a:0,b:0,playing:false,view:0,undo:[],busy:false,speed:1,loop:true};
 for(const A of ALG){st.vals[A.id]={};for(const q of A.params)st.vals[A.id][q[0]]=q[4]}
 try{const s=localStorage.getItem('tategoto.algo');if(s&&ALG.some(a=>a.id===s))st.algo=s}catch(e){}
 
@@ -542,14 +561,14 @@ async function initAudio(){
     const url=URL.createObjectURL(new Blob([WSRC],{type:'application/javascript'}));
     await Promise.race([ctx.audioWorklet.addModule(url),new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),5000))]);
     node=new AudioWorkletNode(ctx,'lyre',{numberOfInputs:0,numberOfOutputs:1,outputChannelCount:[2]});
-    node.port.onmessage=e=>{st.view=e.data};node.connect(analyser);
+    node.port.onmessage=e=>{st.view=e.data.v;if(e.data.e)setPlaying(false)};node.connect(analyser);
   }catch(err){
     node=null;eng=new LIB.Engine(ctx.sampleRate);
     const sp=ctx.createScriptProcessor(2048,1,2);
-    sp.onaudioprocess=e=>{const ob=e.outputBuffer;eng.render(ob.getChannelData(0),ob.getChannelData(1),ob.length);st.view=eng.S.view};
+    sp.onaudioprocess=e=>{const ob=e.outputBuffer;eng.render(ob.getChannelData(0),ob.getChannelData(1),ob.length);st.view=eng.S.view;if(eng.ended){eng.ended=false;setTimeout(()=>setPlaying(false))}};
     sp.connect(analyser);
   }
-  send({t:'mix',v:st.mix});send({t:'vol',v:st.vol});
+  send({t:'mix',v:st.mix});send({t:'vol',v:st.vol});send({t:'speed',v:st.speed});send({t:'loop',v:st.loop});
 }
 
 // ---------- decoding ----------
@@ -685,6 +704,10 @@ for(const k of['mix','vol']){const inp=$(k);setFill(inp);const show=()=>{$(k+'Ou
   inp.oninput=()=>{st[k]=+inp.value;setFill(inp);show();send({t:k,v:st[k]})}}
 
 // ---------- transport ----------
+function setSpeed(x){const inp=$('speed');inp.value=x;st.speed=+Math.pow(2,+inp.value).toFixed(4);if(Math.abs(+inp.value)<.015)st.speed=1;setFill(inp);
+  $('speedOut').textContent=st.speed.toFixed(2)+'×';send({t:'speed',v:st.speed})}
+$('speed').oninput=()=>setSpeed(+$('speed').value);$('speed').ondblclick=()=>setSpeed(0);$('speed1').onclick=()=>setSpeed(0);
+$('loopBtn').onclick=()=>{st.loop=!st.loop;$('loopBtn').setAttribute('aria-pressed',String(st.loop));send({t:'loop',v:st.loop})};
 function setPlaying(on){st.playing=on;send({t:'play',v:on});$('playBtn').setAttribute('aria-pressed',on?'true':'false');$('playTxt').textContent=on?'停止':'再生';
   $('playIco').innerHTML=on?'<path d="M3 2h4v12H3zM9 2h4v12H9z"/>':'<path d="M3 1.5v13l11-6.5z"/>'}
 $('playBtn').onclick=async()=>{if(!st.buf)return;if(ctx.state!=='running')try{await ctx.resume()}catch(e){}setPlaying(!st.playing)};
@@ -708,9 +731,9 @@ async function openFile(f){note(`${f.name} を読み込んでいます…`);
 
 // ---------- rendering, apply, export ----------
 async function renderFx(onProg){const sr=ctx.sampleRate,{L,R}=st.buf,E=new LIB.Engine(sr);
-  E.setSource(L,R===L?null:R);E.setRegion(st.a,st.b);E.mix=st.mix;E.vol=1;E.playing=true;
-  const len=E.S.b-E.S.a,pre=Math.min(8192,len);E.S.pos=LIB.wrap(E.S,E.S.a-pre);E.setAlgo(st.algo,st.vals[st.algo]);
-  const oL=new Float32Array(len),oR=new Float32Array(len),B=1024,bl=new Float32Array(B),br=new Float32Array(B);let done=-pre,t0=performance.now();
+  E.setSource(L,R===L?null:R);E.setRegion(st.a,st.b);E.mix=st.mix;E.vol=1;E.playing=true;E.speed=st.speed;
+  const sl=E.S.b-E.S.a,len=Math.max(1,Math.round(sl/st.speed)),pre=Math.min(8192,sl);E.S.pos=LIB.wrap(E.S,E.S.a-pre);E.setAlgo(st.algo,st.vals[st.algo]);
+  const oL=new Float32Array(len),oR=new Float32Array(len),B=1024,bl=new Float32Array(B),br=new Float32Array(B);let done=-Math.round(pre/st.speed),t0=performance.now();
   while(done<len){const n=Math.min(B,len-done);E.render(bl,br,n);
     for(let i=0;i<n;i++){const j=done+i;if(j>=0){oL[j]=bl[i];oR[j]=br[i]}}done+=n;
     if(performance.now()-t0>60){onProg&&onProg(Math.max(0,done)/len);await new Promise(r=>setTimeout(r,0));t0=performance.now()}}
@@ -718,11 +741,12 @@ async function renderFx(onProg){const sr=ctx.sampleRate,{L,R}=st.buf,E=new LIB.E
 function lock(on){st.busy=on;for(const id of['applyBtn','exFx','exRaw','openBtn'])$(id).disabled=on;$('undoBtn').disabled=on||!st.undo.length}
 $('applyBtn').onclick=async()=>{if(!st.buf||st.busy)return;lock(true);
   try{const A=ALG.find(a=>a.id===st.algo);const r=await renderFx(p=>note(`${A.name} を焼き込んでいます… ${Math.round(p*100)}%`));
-    const {L,R}=st.buf,nL=L.slice(),nR=R.slice();nL.set(r.L,st.a);nR.set(r.R,st.a);
+    const {L,R}=st.buf,sl=st.b-st.a,ol=r.L.length,N2=L.length-sl+ol,nL=new Float32Array(N2),nR=new Float32Array(N2);
+    nL.set(L.subarray(0,st.a));nR.set(R.subarray(0,st.a));nL.set(r.L,st.a);nR.set(r.R,st.a);nL.set(L.subarray(st.b),st.a+ol);nR.set(R.subarray(st.b),st.a+ol);
     st.undo.push({L,R,name:st.name,meta:$('fileMeta').textContent});if(st.undo.length>6)st.undo.shift();
-    const a=st.a,b=st.b,was=st.playing;setBuffer(nL,nR,st.name,$('fileMeta').textContent);
+    const a=st.a,b=st.a+ol,was=st.playing,sped=st.speed!==1;setBuffer(nL,nR,st.name,$('fileMeta').textContent);if(sped)setSpeed(0);
     if(b-a<nL.length){st.a=a;st.b=b;send({t:'region',a,b});updateRegionTxt()}
-    note(`${A.name} を焼き込みました。別のアルゴリズムを重ねられます。`);if(was)send({t:'play',v:true})}
+    note(`${A.name} を焼き込みました。`+(sped?'速さも音に含めたので、速さは 1× に戻しました。':'別のアルゴリズムを重ねられます。'));if(was)send({t:'play',v:true})}
   catch(e){note('焼き込めませんでした: '+(e.message||e),true)}
   lock(false)};
 $('undoBtn').onclick=()=>{const u=st.undo.pop();if(!u)return;setBuffer(u.L,u.R===u.L?null:u.R,u.name,u.meta);$('undoBtn').disabled=!st.undo.length;note('ひとつ前の音に戻しました。');if(st.playing)send({t:'play',v:true})};
@@ -768,7 +792,7 @@ window.addEventListener('resize',()=>{if(st.buf)drawWave()});
 if(window.matchMedia)matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',()=>drawWave());
 new MutationObserver(()=>drawWave()).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
 
-(async()=>{renderMenu();renderParams();await initAudio();
+(async()=>{renderMenu();renderParams();await initAudio();setSpeed(0);
   const s=makeSample(ctx.sampleRate);setBuffer(s.L,s.R,'サンプル音（例）',`合成した竪琴のアルペジオ · 7 秒 · ${ctx.sampleRate} Hz`);
   requestAnimationFrame(frame)})();
 </script>
