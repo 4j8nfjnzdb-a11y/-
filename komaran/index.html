@@ -1,0 +1,994 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"></head><body style="margin:0">
+<title>齣乱 Komaran</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: an editing bay. The monitor, the clip's filmstrip and the step strip sit in the left column and stay in view;
+   the right column holds the source, the starting points and the control cards.
+   Deliberately single-theme dark: moving pictures are judged against a dark surround. */
+:root{
+  --bg:#0d0f14; --panel:#151821; --well:#090a0e; --ink:#e9e6df; --dim:#a3a7b3; --faint:#666c7a;
+  --line:rgba(220,225,240,.11); --acc:#ece2cf; --acc-ink:#17140f; --rec:#ff4747; --sel:rgba(236,226,207,.16);
+  --e0:#8a909c; --e1:#4f8df5; --e2:#a77bf0; --e3:#ff6a3d; --e4:#f0b23a; --e5:#3fbf8e; --e6:#33c6d6; --e7:#e86bb4; --e8:#c3d648; --e9:#4a505d;
+  --f-disp:"DotGothic16","Zen Kaku Gothic New","Hiragino Sans",system-ui,sans-serif;
+  --f-body:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.55;-webkit-tap-highlight-color:transparent}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+button:disabled{cursor:default;opacity:.4}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.app{max-width:1440px;margin:0 auto;padding-left:max(16px, env(safe-area-inset-left,0px));padding-right:max(16px, env(safe-area-inset-right,0px));padding-block:20px 48px;display:flex;flex-direction:column;gap:16px}
+.top{display:flex;align-items:flex-end;gap:6px 22px;flex-wrap:wrap}
+.top h1{margin:0;font-family:var(--f-disp);font-weight:400;font-size:clamp(42px,7vw,64px);line-height:1;letter-spacing:.06em;display:flex;align-items:baseline;gap:4px}
+.top h1 .g{display:inline-block;text-shadow:-3px 0 rgba(51,198,214,.75),3px 0 rgba(232,107,180,.75)}
+.top h1 .g:nth-child(2){transform:translate(.06em,.07em);clip-path:polygon(0 0,100% 0,100% 46%,92% 46%,92% 58%,100% 58%,100% 100%,0 100%)}
+.top h1 small{font-family:var(--f-mono);font-size:12px;letter-spacing:.24em;color:var(--dim);margin-left:12px}
+.top p{margin:0;color:var(--dim);max-width:64ch;min-width:0;flex:1 1 320px;text-wrap:pretty}
+.mono{font-family:var(--f-mono);font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+.label{font-family:var(--f-mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:7px 13px;border-radius:7px;border:1px solid var(--line);background:var(--panel);font-size:13.5px;line-height:1.25;white-space:nowrap}
+.btn:hover:not(:disabled){border-color:rgba(220,225,240,.32)}
+.btn.primary{background:var(--acc);color:var(--acc-ink);border-color:transparent;font-weight:700}
+.btn.rec{border-color:rgba(255,71,71,.5);color:#ffd2d2}
+.btn.rec[aria-pressed="true"]{background:var(--rec);color:#fff;border-color:transparent}
+.btn .dot{width:9px;height:9px;border-radius:50%;background:var(--rec)}
+.btn.rec[aria-pressed="true"] .dot{background:#fff}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+.main{display:grid;grid-template-columns:minmax(0,1fr) 390px;gap:20px;align-items:start}
+@media (max-width:980px){.main{grid-template-columns:minmax(0,1fr)}}
+.stageCol{display:flex;flex-direction:column;gap:12px;min-width:0}
+@media (min-width:981px) and (min-height:780px){.stageCol{position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px)}}
+.side{display:flex;flex-direction:column;gap:14px;min-width:0}
+.stage{position:relative;display:flex;justify-content:center;align-items:center;background:#000;border-radius:6px;min-height:240px;overflow:hidden}
+#cv{display:block;width:min(100%, calc(max(220px, 100vh - 400px) * var(--asp,1.7778)));height:auto;background:#000;touch-action:manipulation}
+@media (max-width:980px){#cv{width:min(100%, calc(62vh * var(--asp,1.7778)))}}
+.empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center;color:var(--dim);font-size:13px}
+.empty b{font-family:var(--f-disp);font-weight:400;font-size:clamp(22px,3.4vw,30px);letter-spacing:.08em;color:var(--ink)}
+.empty p{margin:0;max-width:42ch;text-wrap:pretty}
+.stage.loaded{min-height:0}
+.stage.on{outline:2px dashed var(--acc);outline-offset:-8px}
+.busy{position:absolute;left:10px;bottom:10px;right:10px;display:flex;align-items:center;gap:10px;font-family:var(--f-mono);font-size:12px;color:#fff;background:rgba(0,0,0,.62);padding:6px 10px;border-radius:5px}
+.busy .bar{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.18);overflow:hidden}
+.busy .bar i{display:block;height:100%;width:0;background:var(--acc)}
+.recBadge{position:absolute;top:10px;left:10px;font-family:var(--f-mono);font-size:12px;letter-spacing:.08em;color:#fff;background:rgba(0,0,0,.6);padding:3px 9px;border-radius:4px;display:flex;align-items:center;gap:7px}
+.recBadge i{width:8px;height:8px;border-radius:50%;background:var(--rec);animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:.2}}
+@media (prefers-reduced-motion:reduce){.recBadge i{animation:none}}
+.filmbox{position:relative;border-radius:6px;background:var(--well);border:1px solid var(--line);overflow:hidden;touch-action:none}
+#film{display:block;width:100%;height:66px;cursor:crosshair}
+.deck{display:flex;flex-direction:column;gap:12px;padding:14px;border-radius:10px;background:var(--panel);border:1px solid var(--line)}
+.transport{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap}
+.play{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:108px;padding:11px 18px;border-radius:8px;border:0;background:var(--ink);color:var(--bg);font-weight:700;font-size:15px;letter-spacing:.06em}
+.play svg{width:14px;height:14px;fill:currentColor}
+.play[aria-pressed="true"]{background:var(--acc);color:var(--acc-ink)}
+.tc{margin-left:auto;display:flex;align-items:baseline;gap:10px;min-width:0}
+.tc b{font-family:var(--f-mono);font-weight:500;font-size:15px;color:var(--ink);letter-spacing:.04em}
+.tc span{font-size:12.5px;color:var(--dim);white-space:nowrap}
+.knobs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px 18px}
+@media (max-width:560px){.knobs{grid-template-columns:minmax(0,1fr)}}
+.seg{display:inline-flex;flex-wrap:wrap;gap:2px;padding:2px;border-radius:7px;background:var(--well)}
+.seg button{border:0;background:none;padding:5px 10px;border-radius:5px;font-size:13px;color:var(--dim)}
+.seg button[aria-pressed="true"]{background:var(--panel);color:var(--ink);font-weight:700;box-shadow:0 0 0 1px var(--line)}
+.knob{display:flex;flex-direction:column;gap:1px;min-width:0}
+.knob .kl{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.knob .kl > :first-child{display:flex;align-items:center;gap:7px;font-size:13px;white-space:nowrap;min-width:0}
+.knob .chip{flex:none;width:10px;height:10px;border-radius:3px;background:var(--c)}
+.knob .chip.hol{background:transparent;box-shadow:inset 0 0 0 1.5px var(--e9)}
+.knob output{font-family:var(--f-mono);font-size:12px;color:var(--acc);font-variant-numeric:tabular-nums;white-space:nowrap}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;min-width:0;height:24px;background:transparent;margin:0;--v:50%;--c:var(--acc)}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(to right,var(--c) var(--v),var(--well) var(--v))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;margin-top:-5.5px;border-radius:50%;background:var(--c);border:2px solid var(--panel);box-shadow:0 1px 3px rgba(0,0,0,.4)}
+input[type=range]::-moz-range-track{height:4px;border-radius:2px;background:var(--well)}
+input[type=range]::-moz-range-progress{height:4px;border-radius:2px;background:var(--c)}
+input[type=range]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--c);border:2px solid var(--panel)}
+.strip-h{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.grid{display:grid;grid-template-columns:repeat(16,minmax(0,1fr));gap:4px}
+@media (max-width:620px){.grid{grid-template-columns:repeat(8,minmax(0,1fr))}}
+.cell{position:relative;aspect-ratio:1.5;max-width:100%;border-radius:4px;border:0;background:var(--well);padding:0}
+.cell.t9{background:transparent;box-shadow:inset 0 0 0 1.5px var(--e9)}
+.cell.now{outline:2px solid var(--ink);outline-offset:1px}
+.cell.lk::after{content:"";position:absolute;left:50%;top:50%;width:34%;height:34%;transform:translate(-50%,-50%);border-radius:50%;background:var(--panel);box-shadow:0 0 0 1.5px var(--ink)}
+.legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--dim)}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--c);margin-right:5px;vertical-align:0}
+.legend i.hol{background:transparent;box-shadow:inset 0 0 0 1.5px var(--e9)}
+.presets{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.presets .btn[aria-pressed="true"]{border-color:var(--acc);color:var(--acc)}
+.card{display:flex;flex-direction:column;gap:10px;padding:16px;border-radius:10px;background:var(--panel);border:1px solid var(--line);min-width:0}
+.card .hd{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.card h2{margin:0;font-family:var(--f-disp);font-weight:400;font-size:19px;letter-spacing:.06em}
+.card .sub{margin:-6px 0 2px;font-size:12px;color:var(--dim);text-wrap:pretty}
+.dk{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--faint);cursor:pointer;white-space:nowrap}
+.dk input{accent-color:var(--acc);margin:0}
+.seed{display:flex;gap:6px;align-items:center}
+.seed input{width:7.5em;padding:6px 8px;border-radius:7px;border:1px solid var(--line);background:var(--well);font-family:var(--f-mono);font-size:13px}
+.tog[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:transparent}
+select{padding:7px 10px;border-radius:7px;border:1px solid var(--line);background:var(--panel);font-size:13.5px}
+.note{margin:0;min-height:1.5em;font-size:13px;color:var(--dim)}
+.note.err{color:#ff9a8a}
+.src .nm{font-weight:700;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cap{font-size:12.5px;color:var(--dim)}
+.win{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border-radius:8px;background:var(--well)}
+.result{display:flex;gap:12px;flex-wrap:wrap;align-items:center;padding:12px;border-radius:8px;background:var(--panel);border:1px solid var(--line)}
+.result video{max-height:180px;max-width:100%;border-radius:3px;background:#000}
+.result .ri{display:flex;flex-direction:column;gap:8px;min-width:0;flex:1 1 180px}
+.foot{color:var(--faint);font-size:12px;margin:0;max-width:80ch}
+#vid{position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:.01;pointer-events:none}
+</style>
+
+<div class="app" id="app">
+  <header class="top">
+    <h1><span class="g">齣</span><span class="g">乱</span><small>KOMARAN</small></h1>
+    <p>動画をひとつ開いて切片に刻み、テンポに乗せて跳ばし、逆さにし、連打し、速さを変え、失速させ、引っかからせ、擦ります。画面のなかでは時間そのものをずらし、色ごとに別の瞬間を重ね、前のコマを溶かします。動画の音も、絵と同じ動きで乱れます。</p>
+  </header>
+
+  <div class="main">
+    <div class="stageCol">
+      <div class="stage" id="stage">
+        <canvas id="cv" width="640" height="360" hidden aria-label="撹乱された映像"></canvas>
+        <div class="empty" id="empty">
+          <b>動画を開く</b>
+          <p id="emptyTxt">MP4・MOV・WebM・m2ts を、ここに落とすか選んでください。数秒から数十秒の一場面がいちばん向いています。</p>
+          <button class="btn primary" id="emptyBtn" type="button">動画を選ぶ</button>
+        </div>
+        <div class="recBadge" id="recBadge" hidden><i></i><span id="recTime">REC</span></div>
+        <div class="busy" id="busy" hidden><span id="busyTxt">取り込んでいます</span><span class="bar"><i id="busyBar"></i></span></div>
+      </div>
+
+      <div class="filmbox" id="filmbox">
+        <canvas id="film" aria-label="取り込んだコマの帯。縦線が切片の境目。ドラッグで使う範囲を選び、クリックで全体に戻します"></canvas>
+      </div>
+      <div class="row" style="justify-content:space-between">
+        <span class="mono" id="regionTxt">まだ動画がありません</span>
+        <button class="btn" id="syncBtn" type="button" disabled>切片を拍に合わせる</button>
+      </div>
+
+      <section class="deck" aria-label="再生">
+        <div class="transport">
+          <button class="play" id="playBtn" type="button" aria-pressed="false" disabled><svg viewBox="0 0 16 16" id="playIco"><path d="M3 1.5v13l11-6.5z"/></svg><span id="playTxt">再生</span></button>
+          <button class="btn rec" id="recBtn" type="button" aria-pressed="false" disabled><span class="dot"></span><span id="recTxt">録画</span></button>
+          <select id="recLen" aria-label="録画の長さ"><option value="0">止めるまで</option><option value="1">1 小節</option><option value="2">2 小節</option><option value="4" selected>4 小節</option><option value="8">8 小節</option><option value="16">16 小節</option></select>
+          <button class="btn" id="pngBtn" type="button" disabled>静止画</button>
+          <span class="tc"><b id="tcTxt">00:00:00</b><span id="nowTxt"></span></span>
+        </div>
+        <div class="knobs" id="knobs"></div>
+        <div class="row" id="divRow"><span class="label">刻み</span></div>
+        <div class="strip-h">
+          <span class="label">ステップ（押すと固定）</span>
+          <span class="row"><button class="btn" id="rerollBtn" type="button">パターンを作り直す</button><button class="btn" id="unlockBtn" type="button">固定をすべて外す</button></span>
+        </div>
+        <div class="grid" id="grid"></div>
+        <div class="legend" id="legend"></div>
+      </section>
+      <p class="note" id="note" role="status"></p>
+
+      <div class="result" id="result" hidden>
+        <video id="resVid" controls playsinline loop></video>
+        <div class="ri">
+          <span class="mono" id="resInfo"></span>
+          <div class="row"><button class="btn primary" id="saveBtn" type="button">動画を保存</button><button class="btn" id="dropRes" type="button">捨てる</button></div>
+          <span class="cap" id="fmtNote"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="side">
+      <section class="card src" id="srcCard">
+        <div class="hd"><h2>素材</h2></div>
+        <div class="row"><button class="btn primary" id="openBtn" type="button">動画を開く</button><input type="file" id="fileIn" accept="video/*,.m2ts,.mts,.m2t,.ts,video/mp2t" hidden><span class="nm" id="srcName">まだありません</span></div>
+        <span class="mono" id="srcMeta"></span>
+        <div class="row" id="qRow"><span class="label">画質</span></div>
+        <div class="row" id="fpsRow"><span class="label">コマ数/秒</span></div>
+        <span class="cap" id="capTxt"></span>
+        <div class="win" id="win" hidden>
+          <span class="cap" id="winTxt"></span>
+          <label class="knob"><span class="kl"><span>取り込み始める位置</span><output id="winOut">0:00.0</output></span><input type="range" id="winStart" min="0" max="10" step="0.1" value="0"></label>
+        </div>
+        <div class="row"><button class="btn" id="recapBtn" type="button" disabled>取り込み直す</button><button class="btn" id="origBtn" type="button" hidden>元の動画に戻す</button></div>
+      </section>
+
+      <div class="presets" id="presets"><span class="label">はじめ方</span></div>
+      <div class="row" id="autoRow"></div>
+
+      <div class="side" id="panels"></div>
+
+      <section class="card">
+        <div class="hd"><h2>結果を素材にする</h2></div>
+        <p class="sub">録画の長さで選んだ小節ぶんを、音ごと新しい素材に焼き込みます。乱れた結果をもう一度刻めます。「止めるまで」のときは 4 小節です。</p>
+        <div class="row"><button class="btn" id="resampleBtn" type="button" disabled>結果を素材にする</button></div>
+      </section>
+    </div>
+  </div>
+
+  <p class="foot">同じ「種」と同じ設定なら、再生するたびに同じ乱れ方が始まります。小節数を選んで録画すると頭から録り直すので、聴いたとおり見たとおりに残ります。「記憶」を入れるとパターンがくり返し、「変異率」の割合で少しずつ崩れていきます。スペースキーで再生と停止。取り込んだコマは画面の解像度を落としてメモリに置くので、長い動画は一部ずつ取り込みます。</p>
+</div>
+<video id="vid" muted playsinline preload="auto"></video>
+
+<script>
+// ---------------------------------------------------------------------------
+// The engine: decides what each step does and plays the clip's sound accordingly. Self-contained so it can be
+// stringified into the AudioWorklet and also run on the main thread for the offline render. Every step event carries
+// what the picture needs (start, length, type and its parameters, the picture dice), and posAt() turns time-in-step into
+// a position in the clip, so the main thread puts the same frame on screen that the worklet is sounding.
+function KOMARAN(){
+'use strict';
+const TAU=Math.PI*2;
+const clamp=(x,a,b)=>x<a?a:x>b?b:x;
+function mulberry(seed){let a=seed>>>0;return()=>{a=(a+0x6D2B79F5)>>>0;let t=a;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return((t^(t>>>14))>>>0)/4294967296}}
+function wrap(S,p){const len=S.b-S.a;p-=S.a;p-=Math.floor(p/len)*len;return p+S.a}
+function rd(S,ch,p){p=wrap(S,p);let i=p|0;if(i>=S.b)i=S.a;const f=p-i;let j=i+1;if(j>=S.b)j=S.a;return ch[i]+(ch[j]-ch[i])*f}
+class BQ{
+  constructor(){this.b0=1;this.b1=this.b2=this.a1=this.a2=0;this.x1=this.x2=this.y1=this.y2=0}
+  set(t,f,q,sr){const w=TAU*clamp(f,20,sr*.45)/sr,c=Math.cos(w),al=Math.sin(w)/(2*q),a0=1+al;
+    if(t==='bp'){this.b0=al/a0;this.b1=0;this.b2=-al/a0}
+    else if(t==='lp'){this.b0=(1-c)/2/a0;this.b1=(1-c)/a0;this.b2=this.b0}
+    else{this.b0=(1+c)/2/a0;this.b1=-(1+c)/a0;this.b2=this.b0}
+    this.a1=-2*c/a0;this.a2=(1-al)/a0}
+  run(x){const y=this.b0*x+this.b1*this.x1+this.b2*this.x2-this.a1*this.y1-this.a2*this.y2+1e-20;
+    this.x2=this.x1;this.x1=x;this.y2=this.y1;this.y1=y;return y}
+}
+const TYPES=['straight','jump','rev','roll','speed','stop','skip','pong','scratch','gap'];
+const SCALES={oct:[-24,-12,0,12,24],fifth:[-12,-5,0,7,12,19],jungle:[-12,-7,-5,0,5,7,12],
+  minor:[-12,-9,-7,-5,-2,0,3,5,7,10,12],chrom:[-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6,7,8,9,10,11,12],slow:[-36,-24,-19,-12,-7,-5,0]};
+const DIVS={'8':2,'12':3,'16':4,'24':6,'32':8};
+const TDM=['rows','cols','rings','blocks','grid','wave'];
+const DEF={bpm:120,div:'8',swing:0,seg:220,patLen:16,vol:.9,
+  w_straight:.6,w_jump:.35,w_rev:.15,w_roll:.25,w_speed:.12,w_stop:.06,w_skip:.12,w_pong:.1,w_scratch:.06,w_gap:.04,
+  rtype:'uniform',slices:32,range:1,chaos:.7,mem:1,mutate:.15,seed:1,
+  scale:'oct',pspread:.6,maxRoll:8,rise:0,skipFr:2,scr:.4,
+  tdProb:.12,rgbProb:.1,zoomProb:.1,flipProb:.05,tearProb:.08,invProb:.03,moshProb:.06,crushProb:.05,
+  tdMode:'any',tdDepth:12,tdBands:16,rgbDepth:3,trail:0,mosh:.6,fpsOut:0,gate:1,
+  fProb:.08,panAmt:.3,drive:.1,cutoff:20000,res:.7,dlySteps:3,dlyFb:.3,dlyMix:.06};
+
+// source position (in samples, before wrapping into the region) at time t samples into a step of length L
+function posAt(e,t,L,start){
+  switch(e.type){
+    case'roll':{const sb=L/e.roll,k=Math.floor(t/sb),tt=t-k*sb;return start+tt*Math.pow(2,e.rise*k/Math.max(1,e.roll-1)/12)}
+    case'stop':return start+(t-t*t/(2*L));
+    case'skip':return start+(t%e.w);
+    case'pong':{const per=L/e.n,ph=(t%per)/per;return start+(ph<.5?ph:1-ph)*per}
+    case'scratch':return start+L*e.A*(1-Math.cos(TAU*e.n*t/L))*.5;
+    case'gap':return start;
+    default:return e.rate>=0?start+t*e.rate:start+(L-t)*(-e.rate)}}
+
+class Engine{
+  constructor(sr){this.sr=sr;this.S={L:null,R:null,a:0,b:0};this.p=Object.assign({fps:30},DEF);this.playing=false;this.out=[];this.pat=[];this.clock=0;
+    this.fL=new BQ();this.fR=new BQ();this.gL=new BQ();this.gR=new BQ();this.gKey='';
+    this.M=1<<18;this.dL=new Float32Array(this.M);this.dR=new Float32Array(this.M);this.dw=0;this.dl0=0;this.dl1=0;this.reset()}
+  reset(){this.rng=mulberry(Math.round(this.p.seed)*2654435761+7);this.step=-1;this.t=0;this.cur=null;this.cx=.4123;this.walk=0;
+    this.hc=0;this.hl=0;this.hr=0;this.pat=this.pat.map(e=>e&&e.lock?e:null)}
+  setSource(L,R){const S=this.S;S.L=L;S.R=R||L;S.a=0;S.b=L.length;this.cur=null;this.t=0}
+  setRegion(a,b){const S=this.S;if(!S.L)return;const N=S.L.length;a=clamp(Math.floor(a),0,N-1);b=clamp(Math.floor(b),a+1,N);if(b-a<256){a=0;b=N}S.a=a;S.b=b}
+  stepBase(){const p=this.p;return p.div==='free'?p.seg*this.sr/1000:60/p.bpm/DIVS[p.div]*this.sr}
+  pickSlice(straight,ns){const p=this.p,r=this.rng;
+    if(p.rtype==='walk'){const k=Math.max(1,Math.round(p.range*ns/2));this.walk=(((this.walk+Math.floor(r()*(2*k+1))-k)%ns)+ns)%ns;return this.walk}
+    if(p.rtype==='chaos'){const rr=3.56+p.chaos*.44;this.cx=rr*this.cx*(1-this.cx);if(!(this.cx>0&&this.cx<1))this.cx=.4123+r()*.1;return Math.min(ns-1,Math.floor(this.cx*ns))}
+    const d=Math.round((r()*2-1)*p.range*ns);return(((straight+d)%ns)+ns)%ns}
+  gen(){const p=this.p,r=this.rng,sr=this.sr,ns=Math.max(1,Math.round(p.slices)),straight=this.step%ns;
+    const W=TYPES.map(k=>Math.max(0,p['w_'+k]||0)),tot=W.reduce((a,b)=>a+b,0);let type='straight';
+    if(tot>0){let x=r()*tot;for(let i=0;i<W.length;i++){x-=W[i];if(x<0){type=TYPES[i];break}}}
+    const e={type,slice:straight,rate:1,roll:1,rise:0,n:1,w:0,A:0,filt:null,crush:0,pan:.5,v:null,lock:false};
+    const sc=SCALES[p.scale]||SCALES.oct,mid=sc.indexOf(0),half=Math.max(0,Math.round((sc.length-1)/2*p.pspread));
+    const pn=()=>{const lo=Math.max(0,mid-half),hi=Math.min(sc.length-1,mid+half);return sc[lo+Math.floor(r()*(hi-lo+1))]};
+    const maybe=q=>{if(r()<q)e.slice=this.pickSlice(straight,ns)};
+    switch(type){
+      case'jump':e.slice=this.pickSlice(straight,ns);break;
+      case'rev':maybe(.5);e.rate=-1;break;
+      case'roll':{maybe(.5);const o=[2,3,4,6,8,12,16].filter(x=>x<=p.maxRoll);e.roll=o.length?o[Math.floor(r()*o.length)]:2;e.rise=p.rise;break}
+      case'speed':{maybe(.5);let s=0;for(let i=0;i<4&&s===0;i++)s=pn();e.rate=s===0?.5:Math.pow(2,s/12);if(r()<.2)e.rate=-e.rate;break}
+      case'skip':maybe(.5);e.n=1+Math.floor(r()*Math.max(1,Math.round(p.skipFr)));e.w=Math.max(64,e.n*sr/(p.fps||30));break;
+      case'pong':maybe(.5);e.n=[1,1,2,2,3,4][Math.floor(r()*6)];break;
+      case'scratch':maybe(.5);e.n=[1,2,2,3,4][Math.floor(r()*5)];e.A=p.scr;break;
+    }
+    if(r()<p.fProb){e.filt={ty:['lp','hp','bp'][Math.floor(r()*3)],f0:150*Math.pow(80,r()),f1:150*Math.pow(80,r()),q:.7+r()*7}}
+    e.pan=.5+(r()*2-1)*.5*p.panAmt;
+    // the picture's dice; crush is shared with the sound
+    const v={td:-1,rgb:0,zoom:null,flip:0,inv:0,tear:0,mosh:0,seed:Math.floor(r()*997)};
+    if(r()<p.tdProb)v.td=p.tdMode==='any'?Math.floor(r()*TDM.length):Math.max(0,TDM.indexOf(p.tdMode));
+    if(r()<p.rgbProb)v.rgb=1;
+    if(r()<p.zoomProb)v.zoom=[r(),r(),1.4+r()*1.8];
+    if(r()<p.flipProb)v.flip=1+Math.floor(r()*3);
+    if(r()<p.tearProb)v.tear=1;
+    if(r()<p.invProb)v.inv=1+Math.floor(r()*2);
+    if(r()<p.moshProb)v.mosh=1;
+    if(r()<p.crushProb)e.crush=2+Math.floor(r()*10);
+    e.v=v;return e}
+  next(i){const p=this.p,S=this.S,sr=this.sr;this.step++;const pl=clamp(Math.round(p.patLen),1,64),s=this.step%pl;
+    if(this.pat.length>pl)this.pat.length=pl;
+    let e=this.pat[s];
+    const keep=e&&(e.lock||(p.mem&&this.rng()>=p.mutate));
+    if(!keep){e=this.gen();this.pat[s]=e}
+    const L=p.div==='free'?p.seg*sr/1000*(.5+this.rng()):this.stepBase()*(this.step%2?1-p.swing:1+p.swing);
+    const ns=Math.max(1,Math.round(p.slices)),sl=(S.b-S.a)/ns;
+    this.cur={e,L:Math.max(32,Math.round(L)),start:S.a+(e.slice%ns)*sl};this.t=0;
+    if(e.filt){this.fL.x1=this.fL.x2=this.fL.y1=this.fL.y2=0;this.fR.x1=this.fR.x2=this.fR.y1=this.fR.y2=0}
+    this.out.push({s,ty:TYPES.indexOf(e.type),lk:!!e.lock,t0:this.clock+i,L:this.cur.L,start:this.cur.start,e})}
+  lock(s,on){const e=this.pat[s];if(e)e.lock=on}
+  render(oL,oR,n){const S=this.S,p=this.p,sr=this.sr;oL.fill(0,0,n);oR.fill(0,0,n);if(!S.L)return;
+    const gk=p.cutoff+'|'+p.res;if(gk!==this.gKey){this.gKey=gk;this.gL.set('lp',p.cutoff,p.res,sr);this.gR.set('lp',p.cutoff,p.res,sr)}
+    const dlen=clamp(Math.round(p.dlySteps*this.stepBase()),1,this.M-2),dm=this.M-1,fb=p.dlyFb,dmix=p.dlyMix;
+    const dk=1+p.drive*9,dn=1/Math.tanh(dk),useG=p.cutoff<19500;
+    for(let i=0;i<n;i++){let l=0,r=0;
+      if(this.playing){
+        if(!this.cur||this.t>=this.cur.L)this.next(i);
+        const c=this.cur,e=c.e,t=this.t,Ls=c.L,gl=Math.max(32,Ls*p.gate),d0=Math.min(sr*.003,gl/2);
+        let env=t>=gl?0:Math.min(1,t/d0,(gl-t)/d0);
+        if(e.type==='gap')env=0;
+        else if(e.type==='roll'){const sb=Ls/e.roll,tt=t-Math.floor(t/sb)*sb,d2=Math.min(sr*.002,sb/4);env*=Math.min(1,tt/d2,(sb-tt)/d2)}
+        else if(e.type==='skip'){const tt=t%e.w,d2=Math.min(sr*.002,e.w/4);env*=Math.min(1,tt/d2,(e.w-tt)/d2)}
+        if(env>0){const pos=posAt(e,t,Ls,c.start);l=rd(S,S.L,pos)*env;r=rd(S,S.R,pos)*env}
+        if(e.filt){if((t&31)===0){const f=e.filt.f0*Math.pow(e.filt.f1/e.filt.f0,t/Ls);this.fL.set(e.filt.ty,f,e.filt.q,sr);this.fR.set(e.filt.ty,f,e.filt.q,sr)}
+          l=this.fL.run(l);r=this.fR.run(r)}
+        if(e.crush){if(++this.hc>=e.crush){this.hc=0;this.hl=Math.round(l*12)/12;this.hr=Math.round(r*12)/12}l=this.hl;r=this.hr}
+        if(e.pan!==.5){const a=e.pan*Math.PI/2;l*=Math.cos(a)*Math.SQRT2;r*=Math.sin(a)*Math.SQRT2}
+        this.t++}
+      if(p.drive>0){l=Math.tanh(l*dk)*dn;r=Math.tanh(r*dk)*dn}
+      if(useG){l=this.gL.run(l);r=this.gR.run(r)}
+      {const w=this.dw,yl=this.dL[(w-dlen)&dm],yr=this.dR[(w-dlen)&dm];this.dl0=yl*.45+this.dl0*.55;this.dl1=yr*.45+this.dl1*.55;
+        this.dL[w]=l+this.dl1*fb;this.dR[w]=r+this.dl0*fb;this.dw=(w+1)&dm;l+=yl*dmix;r+=yr*dmix}
+      l*=p.vol;r*=p.vol;
+      const al=Math.abs(l),ar=Math.abs(r);
+      if(!(al<1e4&&ar<1e4)){this.dL.fill(0);this.dR.fill(0);l=r=0}
+      oL[i]=al<=.8?l:Math.sign(l)*(.8+.2*Math.tanh((al-.8)/.2));oR[i]=ar<=.8?r:Math.sign(r)*(.8+.2*Math.tanh((ar-.8)/.2))}}
+}
+function handle(E,m){switch(m.t){
+  case'src':E.setSource(m.L,m.R);break;case'region':E.setRegion(m.a,m.b);break;
+  case'p':Object.assign(E.p,m.p);if('seed'in m.p&&E.playing)E.rng=mulberry(Math.round(E.p.seed)*2654435761+7);break;
+  case'play':if(m.v&&!E.playing)E.reset();E.playing=m.v;break;
+  case'lock':E.lock(m.s,m.on);break;case'unlock':E.pat.forEach(e=>{if(e)e.lock=false});break;
+  case'reroll':E.pat=E.pat.map(e=>e&&e.lock?e:null);break}}
+return{Engine,handle,DEF,TYPES,DIVS,TDM,posAt,wrap};
+}
+
+// ---------------------------------------------------------------------------
+const K=KOMARAN();
+const WSRC=`const K=(${KOMARAN.toString()})();
+class KProc extends AudioWorkletProcessor{
+  constructor(){super();this.e=new K.Engine(sampleRate);this.port.onmessage=ev=>{if(ev.data.t==='getLocks'){const l=[];this.e.pat.forEach((e,s)=>{if(e&&e.lock)l.push([s,e])});this.port.postMessage({locks:l})}else K.handle(this.e,ev.data)}}
+  process(ins,outs){const o=outs[0],L=o[0],R=o[1]||o[0];this.e.clock=currentFrame;this.e.render(L,R,L.length);
+    if(this.e.out.length){this.port.postMessage({ev:this.e.out});this.e.out=[]}return true}
+}
+registerProcessor('komaran',KProc);`;
+
+const $=id=>document.getElementById(id);
+const inViewer=!!(window.claude&&typeof window.claude.use==='function');
+const MOBILE=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)||(navigator.maxTouchPoints>1&&/Macintosh/.test(navigator.userAgent));
+const BUDGET=MOBILE?200e6:440e6;          // bytes of video memory the captured frames may use
+const QL={S:432,M:640,L:960};             // long edge per quality
+const P=Object.assign({q:'M',capFps:30,autoDice:0,autoBars:4},K.DEF);
+const NOV={td:-1,rgb:0,zoom:null,flip:0,inv:0,tear:0,mosh:0,seed:0};
+const st={N:0,fps:30,W:0,H:0,len:0,a:0,b:0,playing:false,now:-1,gTy:new Int8Array(64).fill(-1),gLk:new Uint8Array(64),evq:[],cur:null,
+  lastF:0,prevF:-1,lastRT:0,dirty:true,busy:false,name:'',file:null,kind:'',vw:0,vh:0,vidDur:0,capStart:0,hasAudio:false,aL:null,aR:null,
+  full:null,audioP:null,lastDice:0,pending:false};
+let ctx=null,node=null,eng=null,outGain=null,mdest=null,muted=false;
+function send(m){if(node)node.port.postMessage(m);else if(eng)K.handle(eng,m)}
+function onEngine(d){if(!d.ev||!st.playing)return;for(const e of d.ev){if(st.firstT0==null)st.firstT0=e.t0;st.evq.push(e)}}
+async function initAudio(){
+  const AC=window.AudioContext||window.webkitAudioContext;ctx=new AC();
+  outGain=ctx.createGain();outGain.connect(ctx.destination);
+  if(ctx.createMediaStreamDestination){try{mdest=ctx.createMediaStreamDestination();outGain.connect(mdest)}catch(e){mdest=null}}
+  try{
+    if(!ctx.audioWorklet||!window.AudioWorkletNode)throw new Error('no worklet');
+    const url=URL.createObjectURL(new Blob([WSRC],{type:'application/javascript'}));
+    await Promise.race([ctx.audioWorklet.addModule(url),new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),5000))]);
+    node=new AudioWorkletNode(ctx,'komaran',{numberOfInputs:0,numberOfOutputs:1,outputChannelCount:[2]});
+    node.port.onmessage=e=>onEngine(e.data);node.connect(outGain);
+  }catch(err){
+    node=null;eng=new K.Engine(ctx.sampleRate);
+    const sp=ctx.createScriptProcessor(2048,1,2);
+    sp.onaudioprocess=e=>{const ob=e.outputBuffer;eng.clock=Math.round(e.playbackTime*ctx.sampleRate);eng.render(ob.getChannelData(0),ob.getChannelData(1),ob.length);const ev=eng.out;eng.out=[];onEngine({ev})};
+    sp.connect(outGain);
+  }
+  send({t:'p',p:P});
+}
+// the time (in samples of the audio clock) that is being heard now; while recording, the time being rendered,
+// since the recorder takes the sound before the speakers' latency
+function clockNow(){const sr=ctx.sampleRate,cur=ctx.currentTime*sr;
+  if(rec)return cur;
+  if(ctx.getOutputTimestamp){try{const ts=ctx.getOutputTimestamp();if(ts&&ts.contextTime>0&&ts.performanceTime>0){const t=(ts.contextTime+(performance.now()-ts.performanceTime)/1000)*sr;if(t<=cur+sr*.05&&t>cur-sr*.5)return t}}catch(e){}}
+  return cur-((ctx.outputLatency||0)+(ctx.baseLatency||0))*sr}
+
+// ---------------------------------------------------------------------------
+// WebGL2: every captured frame lives on the GPU as Y (R8) and half-size UV (RG8) layers of two texture arrays,
+// so any frame, or several frames per pixel, can be read instantly.
+const cv=$('cv');let gl=null,PR={},texY=null,texUV=null,stageTex=null,fbT=[null,null],fbF=[null,null],ping=0,fboW=null,fboR=null,thT=null,thF=null,thW=0,thH=0,maxLayers=256;
+const VS=`#version 300 es
+void main(){vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2));gl_Position=vec4(p*2.-1.,0.,1.);}`;
+const FS_CAPY=`#version 300 es
+precision highp float;uniform sampler2D uSrc;uniform vec2 uRes;out vec4 o;
+void main(){vec3 c=texture(uSrc,gl_FragCoord.xy/uRes).rgb;o=vec4(dot(c,vec3(.299,.587,.114)),0.,0.,1.);}`;
+const FS_CAPUV=`#version 300 es
+precision highp float;uniform sampler2D uSrc;uniform vec2 uRes;out vec4 o;
+void main(){vec3 c=texture(uSrc,gl_FragCoord.xy/uRes).rgb;o=vec4(dot(c,vec3(-.168736,-.331264,.5))+.5,dot(c,vec3(.5,-.418688,-.081312))+.5,0.,1.);}`;
+const YUV=`vec3 yuv(vec2 uv,float l){float y=texture(uY,vec3(uv,l)).r;vec2 c=texture(uUV,vec3(uv,l)).rg-.5;return vec3(y+1.402*c.y,y-.344136*c.x-.714136*c.y,y+1.772*c.x);}`;
+const FS_THUMB=`#version 300 es
+precision highp float;precision highp sampler2DArray;uniform sampler2DArray uY,uUV;uniform vec2 uRes;uniform float uL,uFlipY;out vec4 o;
+${YUV}
+void main(){vec2 uv=gl_FragCoord.xy/uRes;if(uFlipY>.5)uv.y=1.-uv.y;o=vec4(clamp(yuv(uv,uL),0.,1.),1.);}`;
+const FS_SHOW=`#version 300 es
+precision highp float;uniform sampler2D uT;uniform vec2 uRes;out vec4 o;
+void main(){vec2 uv=gl_FragCoord.xy/uRes;o=vec4(texture(uT,vec2(uv.x,1.-uv.y)).rgb,1.);}`;
+const FS_COMP=`#version 300 es
+precision highp float;precision highp sampler2DArray;
+uniform sampler2DArray uY,uUV;uniform sampler2D uPrev;
+uniform vec2 uRes,uReg;uniform float uN,uF,uFP,uAsp,uSeed,uTime;
+uniform int uTd,uFlip,uInv;uniform float uTdDepth,uBands,uRgb,uCrush,uLevels,uTear,uMosh,uMoshRes,uRefresh,uTrail,uBlack;
+uniform vec3 uZoom;
+out vec4 o;
+${YUV}
+float h11(float p){p=fract(p*.1031);p*=p+33.33;p*=p+p;return fract(p);}
+float h21(vec2 p){vec3 q=fract(vec3(p.xyx)*.1031);q+=dot(q,q.yzx+33.33);return fract((q.x+q.y)*q.z);}
+float lay(float f){float L=max(uReg.y-uReg.x,1.);return clamp(floor(uReg.x+mod(f-uReg.x,L)),0.,uN-1.);}
+float lum(vec2 uv,float l){return texture(uY,vec3(uv,l)).r;}
+void main(){
+  vec2 px=gl_FragCoord.xy,raw=px/uRes,uv=raw;
+  if(uTear>0.){float band=floor(uv.y*36.+h11(uSeed)*7.),tk=floor(uTime*12.),r=h21(vec2(band,tk+uSeed));
+    if(r>.62)uv.x+=(h21(vec2(band*1.7,tk*3.1+uSeed))-.5)*.35;uv.x=fract(uv.x);}
+  if(uFlip==1)uv.x=1.-uv.x;else if(uFlip==2)uv.y=1.-uv.y;else if(uFlip==3)uv.x=uv.x>.5?1.-uv.x:uv.x;
+  uv=uZoom.xy+(uv-.5)/uZoom.z;
+  if(uCrush>0.){vec2 cs=vec2(uCrush)/uRes;uv=(floor(uv/cs)+.5)*cs;}
+  float off=0.;vec2 suv=uv;float n=uBands;
+  if(uTd==0)off=floor(uv.y*n)/max(n-1.,1.)*uTdDepth;
+  else if(uTd==1)off=floor(uv.x*n)/max(n-1.,1.)*uTdDepth;
+  else if(uTd==2){vec2 d=(uv-.5)*vec2(uAsp,1.);off=min(floor(length(d)/(.5*length(vec2(uAsp,1.)))*n)/n,1.)*uTdDepth;}
+  else if(uTd==3){vec2 g=vec2(max(2.,floor(n*.5)),max(2.,floor(n*.5/uAsp)));vec2 c=floor(uv*g);off=floor(h21(c+uSeed*.37)*uTdDepth+.5);}
+  else if(uTd==4){float g=clamp(floor(n/8.)+2.,2.,6.);vec2 c=floor(uv*g);suv=fract(uv*g);off=floor((c.y*g+c.x)/(g*g-1.)*uTdDepth+.5);}
+  else if(uTd==5)off=floor((.5+.5*sin(uv.y*n*.8+uTime*4.))*uTdDepth+.5);
+  vec3 col;
+  if(uRgb>0.)col=vec3(yuv(suv,lay(uF-off)).r,yuv(suv,lay(uF-off-uRgb)).g,yuv(suv,lay(uF-off-2.*uRgb)).b);
+  else col=yuv(suv,lay(uF-off));
+  if(uLevels>0.)col=floor(clamp(col,0.,1.)*uLevels+.5)/uLevels;
+  if(uInv==1)col=1.-col;else if(uInv==2)col=mix(col,1.-col,step(.5,col));
+  col*=1.-uBlack;
+  if(uMosh>0.){
+    // datamosh-like: keep the previous picture, push it along the clip's own motion and add the clip's frame-to-frame change
+    float lc=lay(uF),lp=lay(uFP);vec2 e=2./uRes,bc=(floor(px/8.)+.5)*8./uRes;vec2 num=vec2(0.);float den=0.;
+    for(int i=0;i<4;i++){vec2 q=bc+(vec2(float(i&1),float(i>>1))-.5)*4./uRes;
+      vec2 g=vec2(lum(q+vec2(e.x,0.),lc)-lum(q-vec2(e.x,0.),lc),lum(q+vec2(0.,e.y),lc)-lum(q-vec2(0.,e.y),lc));
+      float it=lum(q,lc)-lum(q,lp);num-=it*g;den+=dot(g,g);}
+    vec2 fl=clamp(num/(den+.01),-3.,3.)*e*(1.+uMosh*3.)*uMoshRes;
+    vec3 base=texture(uPrev,raw-fl).rgb+(yuv(raw,lc)-yuv(raw,lp))*uMoshRes;
+    col=mix(base,col,uRefresh);
+  }
+  if(uTrail>0.)col=mix(col,texture(uPrev,raw).rgb,uTrail);
+  o=vec4(clamp(col,0.,1.),1.);
+}`;
+function prog(fs){const p=gl.createProgram();for(const[t,s]of[[gl.VERTEX_SHADER,VS],[gl.FRAGMENT_SHADER,fs]]){const sh=gl.createShader(t);gl.shaderSource(sh,s);gl.compileShader(sh);
+    if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(sh));gl.attachShader(p,sh)}
+  gl.linkProgram(p);if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(p));
+  const u={};const n=gl.getProgramParameter(p,gl.ACTIVE_UNIFORMS);for(let i=0;i<n;i++){const a=gl.getActiveUniform(p,i);u[a.name.replace(/\[0\]$/,'')]=gl.getUniformLocation(p,a.name)}return{p,u}}
+function texParams(tg,mip){gl.texParameteri(tg,gl.TEXTURE_MIN_FILTER,mip?gl.LINEAR_MIPMAP_LINEAR:gl.LINEAR);gl.texParameteri(tg,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+  gl.texParameteri(tg,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(tg,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE)}
+function tex2D(w,h){const t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);gl.texStorage2D(gl.TEXTURE_2D,1,gl.RGBA8,w,h);texParams(gl.TEXTURE_2D);return t}
+function fboFor(t){const f=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,f);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,t,0);return f}
+function initGL(){
+  gl=cv.getContext('webgl2',{antialias:false,alpha:false,premultipliedAlpha:false,preserveDrawingBuffer:false});
+  if(!gl)return false;
+  try{PR.capY=prog(FS_CAPY);PR.capUV=prog(FS_CAPUV);PR.thumb=prog(FS_THUMB);PR.show=prog(FS_SHOW);PR.comp=prog(FS_COMP)}catch(e){console.error(e);gl=null;return false}
+  gl.bindVertexArray(gl.createVertexArray());
+  maxLayers=gl.getParameter(gl.MAX_ARRAY_TEXTURE_LAYERS)||256;
+  stageTex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,stageTex);texParams(gl.TEXTURE_2D,true);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,false);
+  fboW=gl.createFramebuffer();fboR=gl.createFramebuffer();
+  cv.addEventListener('webglcontextlost',e=>{e.preventDefault();note('画面の描画が止まりました。ページを読み込み直してください。',true)});
+  return true}
+function bindTex(u,unit,target,t){gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(target,t);if(u)gl.uniform1i(u,unit)}
+function pass(pr,fb,w,h,set){gl.bindFramebuffer(gl.FRAMEBUFFER,fb);gl.viewport(0,0,w,h);gl.useProgram(pr.p);set(pr.u);gl.drawArrays(gl.TRIANGLES,0,3)}
+const f1=(u,n,v)=>{if(u[n])gl.uniform1f(u[n],v)},i1=(u,n,v)=>{if(u[n])gl.uniform1i(u[n],v)},f2=(u,n,a,b)=>{if(u[n])gl.uniform2f(u[n],a,b)};
+function setSize(W,H){if(st.W===W&&st.H===H&&fbT[0])return;st.W=W;st.H=H;cv.width=W;cv.height=H;cv.style.setProperty('--asp',String(W/H));
+  for(let i=0;i<2;i++){if(fbF[i])gl.deleteFramebuffer(fbF[i]);if(fbT[i])gl.deleteTexture(fbT[i]);fbT[i]=tex2D(W,H);fbF[i]=fboFor(fbT[i])}clearFeedback()}
+function clearFeedback(){for(let i=0;i<2;i++){gl.bindFramebuffer(gl.FRAMEBUFFER,fbF[i]);gl.clearColor(0,0,0,1);gl.clear(gl.COLOR_BUFFER_BIT)}}
+function makeArrays(W,H,n){
+  while(gl.getError()!==gl.NO_ERROR){}
+  const y=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D_ARRAY,y);gl.texStorage3D(gl.TEXTURE_2D_ARRAY,1,gl.R8,W,H,n);texParams(gl.TEXTURE_2D_ARRAY);
+  const uv=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D_ARRAY,uv);gl.texStorage3D(gl.TEXTURE_2D_ARRAY,1,gl.RG8,W>>1,H>>1,n);texParams(gl.TEXTURE_2D_ARRAY);
+  if(gl.getError()!==gl.NO_ERROR){gl.deleteTexture(y);gl.deleteTexture(uv);return null}
+  return{y,uv}}
+function freeArrays(){if(texY)gl.deleteTexture(texY);if(texUV)gl.deleteTexture(texUV);texY=texUV=null}
+function stageUpload(src){gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,stageTex);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,src);gl.generateMipmap(gl.TEXTURE_2D)}
+function writeLayer(k,src,ty,tuv){const W=st.W,H=st.H;ty=ty||texY;tuv=tuv||texUV;
+  gl.bindFramebuffer(gl.FRAMEBUFFER,fboW);
+  gl.framebufferTextureLayer(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,ty,0,k);gl.viewport(0,0,W,H);gl.useProgram(PR.capY.p);bindTex(PR.capY.u.uSrc,0,gl.TEXTURE_2D,src);f2(PR.capY.u,'uRes',W,H);gl.drawArrays(gl.TRIANGLES,0,3);
+  gl.framebufferTextureLayer(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,tuv,0,k);gl.viewport(0,0,W>>1,H>>1);gl.useProgram(PR.capUV.p);bindTex(PR.capUV.u.uSrc,0,gl.TEXTURE_2D,src);f2(PR.capUV.u,'uRes',W>>1,H>>1);gl.drawArrays(gl.TRIANGLES,0,3);
+  gl.framebufferTextureLayer(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,null,0,0)}
+function copyLayer(j,k){const W=st.W,H=st.H;gl.bindFramebuffer(gl.READ_FRAMEBUFFER,fboR);
+  for(const[t,w,h]of[[texY,W,H],[texUV,W>>1,H>>1]]){gl.framebufferTextureLayer(gl.READ_FRAMEBUFFER,gl.COLOR_ATTACHMENT0,t,0,j);gl.bindTexture(gl.TEXTURE_2D_ARRAY,t);gl.copyTexSubImage3D(gl.TEXTURE_2D_ARRAY,0,0,0,k,0,0,w,h)}
+  gl.framebufferTextureLayer(gl.READ_FRAMEBUFFER,gl.COLOR_ATTACHMENT0,null,0,0);gl.bindFramebuffer(gl.READ_FRAMEBUFFER,null)}
+function fillGaps(filled,N){let any=-1;for(let k=0;k<N;k++)if(filled[k]){any=k;break}if(any<0)return false;
+  for(let k=0;k<N;k++)if(!filled[k]){let j=-1;for(let d=1;d<N;d++){if(k-d>=0&&filled[k-d]){j=k-d;break}if(k+d<N&&filled[k+d]){j=k+d;break}}if(j>=0)copyLayer(j,k)}
+  return true}
+function showLayer(k){pass(PR.thumb,null,st.W,st.H,u=>{bindTex(u.uY,0,gl.TEXTURE_2D_ARRAY,texY);bindTex(u.uUV,1,gl.TEXTURE_2D_ARRAY,texUV);f2(u,'uRes',st.W,st.H);f1(u,'uL',k);f1(u,'uFlipY',1)})}
+function thumbPixels(k,w,h){if(!thT||thW!==w||thH!==h){if(thT){gl.deleteTexture(thT);gl.deleteFramebuffer(thF)}thT=tex2D(w,h);thF=fboFor(thT);thW=w;thH=h}
+  pass(PR.thumb,thF,w,h,u=>{bindTex(u.uY,0,gl.TEXTURE_2D_ARRAY,texY);bindTex(u.uUV,1,gl.TEXTURE_2D_ARRAY,texUV);f2(u,'uRes',w,h);f1(u,'uL',k);f1(u,'uFlipY',0)});
+  const px=new Uint8ClampedArray(w*h*4);gl.readPixels(0,0,w,h,gl.RGBA,gl.UNSIGNED_BYTE,px);gl.bindFramebuffer(gl.FRAMEBUFFER,null);return new ImageData(px,w,h)}
+
+// one rendered frame: R = {F (frame position), black, v (picture dice), crush, time}; dt in 1/30 s
+function renderFrame(R,dt,present){const W=st.W,H=st.H,sr=ctx.sampleRate,fps=st.fps,v=R.v||NOV;
+  const fa=st.a/sr*fps,fb=Math.max(fa+1,st.b/sr*fps),span=fb-fa;
+  const layerOf=f=>Math.min(st.N-1,Math.max(0,Math.floor(fa+(((f-fa)%span)+span)%span)));
+  const FP=st.prevF<0?R.F:st.prevF;let d=Math.abs(layerOf(R.F)-layerOf(FP));d=Math.min(d,Math.round(span)-d);
+  const moshOn=v.mosh&&P.mosh>0,src=fbT[ping^1],dst=fbF[ping];
+  let zx=.5,zy=.5,zz=1;if(v.zoom){zz=v.zoom[2];zx=.5/zz+v.zoom[0]*(1-1/zz);zy=.5/zz+v.zoom[1]*(1-1/zz)}
+  pass(PR.comp,dst,W,H,u=>{bindTex(u.uY,0,gl.TEXTURE_2D_ARRAY,texY);bindTex(u.uUV,1,gl.TEXTURE_2D_ARRAY,texUV);bindTex(u.uPrev,2,gl.TEXTURE_2D,src);
+    f2(u,'uRes',W,H);f2(u,'uReg',fa,fb);f1(u,'uN',st.N);f1(u,'uF',R.F);f1(u,'uFP',FP);f1(u,'uAsp',W/H);f1(u,'uSeed',v.seed);f1(u,'uTime',R.time);
+    i1(u,'uTd',v.td>=0&&P.tdMode!=='any'?Math.max(0,K.TDM.indexOf(P.tdMode)):v.td);f1(u,'uTdDepth',P.tdDepth);f1(u,'uBands',P.tdBands);f1(u,'uRgb',v.rgb?P.rgbDepth:0);
+    gl.uniform3f(u.uZoom,zx,zy,zz);i1(u,'uFlip',v.flip);i1(u,'uInv',v.inv);f1(u,'uTear',v.tear?1:0);
+    f1(u,'uCrush',R.crush?2+R.crush*1.4:0);f1(u,'uLevels',R.crush?Math.max(3,14-R.crush):0);f1(u,'uBlack',R.black);
+    f1(u,'uMosh',moshOn?P.mosh:0);f1(u,'uMoshRes',d>=1&&d<=2?1:0);f1(u,'uRefresh',1-Math.pow(1-(.015+(1-P.mosh)*.2),dt));
+    f1(u,'uTrail',P.trail>0?Math.pow(P.trail,1/Math.max(.25,dt)):0)});
+  const out=fbT[ping];
+  if(present!==false)pass(PR.show,null,W,H,u=>{bindTex(u.uT,0,gl.TEXTURE_2D,out);f2(u,'uRes',W,H)});
+  ping^=1;st.prevF=R.F;return out}
+function wrapS(p){const len=st.b-st.a;p-=st.a;p-=Math.floor(p/len)*len;return p+st.a}
+function paramsFor(ev,tH){const sr=ctx.sampleRate,R={F:st.lastF,black:0,v:null,crush:0,time:tH/sr};
+  if(ev){let tq=tH;if(P.fpsOut>0){const q=sr/P.fpsOut;tq=Math.floor(tH/q)*q}
+    const t=Math.max(0,tq-ev.t0);R.F=wrapS(K.posAt(ev.e,t,ev.L,ev.start))/sr*st.fps;st.lastF=R.F;
+    R.black=(ev.e.type==='gap'||t>=Math.max(32,ev.L*P.gate))?1:0;R.v=ev.e.v;R.crush=ev.e.crush;R.time=tq/sr}
+  return R}
+
+// ---------------------------------------------------------------------------
+// capture
+const vid=$('vid');let vidUrl=null;
+const even4=x=>Math.max(16,Math.round(x/4)*4);
+function geom(w,h){const sc=Math.min(1,QL[P.q]/Math.max(w,h));return{W:even4(w*sc),H:even4(h*sc)}}
+function capacity(W,H){return Math.max(16,Math.min(maxLayers,2048,Math.floor(BUDGET/(W*H*1.5))))}
+function seek(v,t){return new Promise(res=>{let done=false;const fin=()=>{if(done)return;done=true;v.removeEventListener('seeked',fin);res()};v.addEventListener('seeked',fin);v.currentTime=t;setTimeout(fin,3000)})}
+function fixDuration(v){return new Promise(res=>{const on=()=>{v.removeEventListener('durationchange',on);const d=v.duration;v.currentTime=0;res(isFinite(d)?d:10)};v.addEventListener('durationchange',on);v.currentTime=1e7;setTimeout(on,4000)})}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function busy(on,txt,frac){st.busy=on;$('busy').hidden=!on;if(txt)$('busyTxt').textContent=txt;$('busyBar').style.width=Math.round((frac||0)*100)+'%';
+  for(const id of['openBtn','emptyBtn','recapBtn','resampleBtn','origBtn','playBtn','recBtn','pngBtn','syncBtn'])$(id).disabled=on||(!st.N&&id!=='openBtn'&&id!=='emptyBtn')||(id==='recBtn'&&mime===null);
+  if(!on)updateCapUI()}
+async function decodeAudio(f){if(f.size>(MOBILE?320e6:1e9))return null;
+  try{const ab=await f.arrayBuffer();const b=await new Promise((res,rej)=>{const p=ctx.decodeAudioData(ab,res,rej);if(p&&p.catch)p.catch(rej)});
+    return{L:b.getChannelData(0),R:b.numberOfChannels>1?b.getChannelData(1):null,dur:b.duration}}catch(e){return null}}
+function setAudio(A,start,dur){const sr=ctx.sampleRate,n=Math.max(256,Math.round(dur*sr)),L=new Float32Array(n),R=new Float32Array(n);
+  let peak=0;if(A){const s=Math.round(start*sr);if(s<A.L.length){L.set(A.L.subarray(s,Math.min(A.L.length,s+n)));R.set((A.R||A.L).subarray(s,Math.min(A.L.length,s+n)))}
+    for(let i=0;i<n;i+=97){const x=Math.abs(L[i]);if(x>peak)peak=x}}
+  st.aL=L;st.aR=R;st.len=n;st.hasAudio=peak>1e-4;send({t:'src',L,R})}
+async function openFile(f){if(!f||st.busy||!gl)return;
+  const isTs=/\.(m2ts|mts|m2t|ts)$/i.test(f.name)||f.type==='video/mp2t';
+  if(!isTs&&!(f.type.startsWith('video/')||/\.(mp4|mov|m4v|webm|mkv|ogv|avi)$/i.test(f.name))){note('動画のファイルを選んでください（MP4・MOV・WebM・m2ts など）。',true);return}
+  if(st.playing)setPlaying(false);
+  const prev={file:st.file,kind:st.kind,full:st.full,vw:st.vw,vh:st.vh,vidDur:st.vidDur,capStart:st.capStart,noAudio:st.noAudio};
+  st.file=f;st.kind=isTs?'ts':'video';st.full=null;st.audioP=null;st.noAudio=false;st.capStart=0;
+  try{if(isTs)await captureTs(0);else{await openVideo(f);await captureVideo(0)}}
+  catch(e){if(st.capturing)resetEmpty();else Object.assign(st,prev);busy(false);note(e.message||String(e),true)}}
+// a capture that failed halfway leaves nothing usable: go back to the empty stage
+function resetEmpty(){freeArrays();st.N=0;st.capturing=false;st.file=null;st.kind='';st.vw=st.vh=0;st.vidDur=0;filmImg=null;cv.hidden=true;$('empty').hidden=false;$('stage').classList.remove('loaded');
+  $('srcName').textContent='まだありません';$('srcMeta').textContent='';updateRegionTxt()}
+async function openVideo(f){busy(true,'動画を開いています…',0);
+  if(vidUrl)URL.revokeObjectURL(vidUrl);vidUrl=URL.createObjectURL(f);st.vidFile=f;vid.src=vidUrl;vid.load();
+  await new Promise((res,rej)=>{const t=setTimeout(()=>rej(new Error('この動画はこのブラウザで開けませんでした。MP4（H.264）か、別の形式で試してください')),20000);
+    vid.onloadedmetadata=()=>{clearTimeout(t);res()};vid.onerror=()=>{clearTimeout(t);rej(new Error('この動画はこのブラウザで開けませんでした。MP4（H.264）か、別の形式で試してください'))}});
+  let d=vid.duration;if(!isFinite(d)||!d)d=await fixDuration(vid);
+  if(!vid.videoWidth)throw new Error('この動画には映像が見つかりませんでした');
+  st.vidDur=d;st.vw=vid.videoWidth;st.vh=vid.videoHeight;
+  st.audioP=decodeAudio(f).then(A=>{if(A&&A.dur<360)st.full=A;return A})}
+async function captureVideo(start){const fps=+P.capFps,{W,H}=geom(st.vw,st.vh),cap=capacity(W,H);
+  start=Math.max(0,Math.min(start,Math.max(0,st.vidDur-1/fps)));
+  const N=Math.max(2,Math.min(cap,Math.round(Math.min(st.vidDur-start,cap/fps)*fps)));
+  busy(true,'コマを取り込んでいます 0%',0);
+  if(!allocate(W,H,N))throw new Error('取り込むためのメモリが足りませんでした。画質を下げるか、コマ数を減らしてください');
+  st.fps=fps;st.capStart=start;
+  const filled=new Uint8Array(N);let count=0,lastShow=0;
+  st.capStat={rv:0,sk:0,t:performance.now()};
+  const put=(k,how)=>{stageUpload(vid);writeLayer(k,stageTex);filled[k]=1;count++;st.capStat[how||'rv']++;const now=performance.now();if(now-lastShow>40){showLayer(k);lastShow=now}busy(true,`コマを取り込んでいます ${Math.round(count/N*100)}%`,count/N)};
+  vid.muted=true;
+  const rvfc='requestVideoFrameCallback'in HTMLVideoElement.prototype;
+  // play through the range and take each presented frame; a frame the browser skipped (presentedFrames jumps) is picked
+  // up by a second pass at normal speed, and only what is still missing after that is sought one by one
+  let dropped=0;
+  const playPass=async rate=>{vid.playbackRate=rate;dropped=0;await seek(vid,start);
+    await new Promise(res=>{let fin=false,last=performance.now(),wd=0,lastPF=-1;
+      const done=()=>{if(fin)return;fin=true;clearInterval(wd);vid.pause();res()};
+      const cb=(now,m)=>{if(fin)return;last=performance.now();const mt=m.mediaTime,k=Math.round((mt-start)*fps);
+        if(lastPF>=0&&m.presentedFrames>lastPF+1)dropped+=m.presentedFrames-lastPF-1;lastPF=m.presentedFrames;
+        if(k>=0&&k<N&&!filled[k])put(k);
+        if(mt>=start+(N-.5)/fps||count>=N){done();return}vid.requestVideoFrameCallback(cb)};
+      vid.requestVideoFrameCallback(cb);wd=setInterval(()=>{if(vid.ended||performance.now()-last>3000)done()},250);
+      const pp=vid.play();if(pp&&pp.catch)pp.catch(()=>done())})};
+  if(rvfc){await playPass(fps>=30?1.5:fps>=24?2:3);
+    if(N-count>N*.03&&dropped>N*.03)await playPass(1);
+    vid.playbackRate=1}
+  const missing=[];for(let k=0;k<N;k++)if(!filled[k])missing.push(k);
+  if(!rvfc||(missing.length>N*.25&&dropped>N*.03)){vid.pause();for(const k of missing){const t=start+(k+.5)/fps;if(t>st.vidDur)break;await seek(vid,t);put(k,'sk')}}
+  if(!fillGaps(filled,N))throw new Error('この動画からコマを取り出せませんでした');
+  busy(true,'音を読み込んでいます…',1);
+  let A=st.full;if(!A&&!st.noAudio){if(!st.audioP)st.audioP=decodeAudio(st.file);A=await st.audioP;st.audioP=null;if(!A)st.noAudio=true}
+  setAudio(A,start,N/fps);
+  finishSource(st.file.name,A?'':'この動画の音は読み込めなかったので、絵だけを乱します。')}
+function allocate(W,H,N){if(st.playing)setPlaying(false);freeArrays();st.N=0;
+  let a=null;while(N>=2&&!(a=makeArrays(W,H,N)))N=Math.floor(N*.7);if(!a)return false;
+  texY=a.y;texUV=a.uv;st.N=N;st.capturing=true;setSize(W,H);cv.hidden=false;$('empty').hidden=true;$('stage').classList.add('loaded');return N}
+function finishSource(name,warn){st.capturing=false;st.name=name;st.a=0;st.b=st.len;st.lastF=0;st.prevF=-1;st.evq=[];st.cur=null;
+  send({t:'region',a:0,b:st.len});send({t:'p',p:{fps:st.fps}});
+  st.gTy.fill(-1);st.gLk.fill(0);send({t:'unlock'});send({t:'reroll'});cells.forEach((_,s)=>paintCell(s));
+  syncSlices(true);clearFeedback();buildFilm();st.dirty=true;
+  $('srcName').textContent=name;
+  $('srcMeta').textContent=`${fmtDur(st.N/st.fps)} · ${st.W}×${st.H} · ${st.fps} コマ/秒 · ${st.N} コマ · ${st.hasAudio?'音あり':'音なし'}`;
+  $('origBtn').hidden=st.kind!=='resample'||!st.file;
+  busy(false);updateRegionTxt();
+  const long=st.kind!=='resample'&&st.vidDur>st.N/st.fps+.05;
+  note((warn?warn+' ':'')+(long?`長い動画なので ${fmtDur(st.capStart)} から ${fmtDur(st.N/st.fps)} ぶんを取り込みました。始める位置を変えて取り込み直せます。`:'取り込みました。再生を押すと乱れはじめます。'),!!warn)}
+
+// m2ts / mts / ts (AVCHD, MPEG-TS): browsers can't play these in <video>, so demux the H.264/HEVC stream and decode it
+// with WebCodecs, keeping frames as small JPEGs until we know how many there are.
+async function decodeTs(file,start,fps,onFirst,onProg){
+  if(typeof VideoDecoder==='undefined')throw new Error('このブラウザは m2ts の読み込みに対応していません。最新の Chrome か Safari で開いてください');
+  const head=new Uint8Array(await file.slice(0,1024).arrayBuffer());
+  let pk=0;if(head[4]===0x47&&head[196]===0x47)pk=192;else if(head[0]===0x47&&head[188]===0x47)pk=188;
+  if(!pk)throw new Error(`「${file.name}」は m2ts として読めませんでした`);
+  const S={pmt:-1,vpid:-1,vtype:0,pes:[],pts:null,last:null,codec:null,aus:[]};
+  const flushPES=()=>{if(!S.pes.length)return;let n=0;for(const s of S.pes)n+=s.length;const d=new Uint8Array(n);let o=0;for(const s of S.pes){d.set(s,o);o+=s.length}S.pes=[];
+    let key=false;
+    for(let i=0;i+3<d.length;i++)if(d[i]===0&&d[i+1]===0&&d[i+2]===1){const h=d[i+3];
+      if(S.vtype===0x1b){const t=h&0x1f;if(t===5)key=true;if(t===7&&!S.codec)S.codec='avc1.'+[d[i+4],d[i+5],d[i+6]].map(x=>x.toString(16).padStart(2,'0')).join('')}
+      else{const t=(h>>1)&0x3f;if(t>=16&&t<=21)key=true}i+=3}
+    const ts=S.pts!=null?S.pts:(S.last!=null?S.last+3003:0);S.last=ts;S.aus.push({d,key,ts:Math.round(ts*100/9)})};
+  const packet=(b,o)=>{const pid=((b[o+1]&0x1f)<<8)|b[o+2],pusi=b[o+1]&0x40,afc=(b[o+3]>>4)&3;if(!(afc&1))return;
+    let p=o+4;if(afc&2)p+=1+b[o+4];const end=o+188;if(p>=end)return;
+    if(pid===0){if(!pusi)return;p+=1+b[p];const sl=((b[p+1]&0x0f)<<8)|b[p+2],e=p+3+sl-4;for(let q=p+8;q<e;q+=4){const prog=(b[q]<<8)|b[q+1];if(prog!==0){S.pmt=((b[q+2]&0x1f)<<8)|b[q+3];break}}return}
+    if(pid===S.pmt&&S.vpid<0){if(!pusi)return;p+=1+b[p];const sl=((b[p+1]&0x0f)<<8)|b[p+2],e=p+3+sl-4,pil=((b[p+10]&0x0f)<<8)|b[p+11];
+      for(let q=p+12+pil;q<e;){const t=b[q],ep=((b[q+1]&0x1f)<<8)|b[q+2],il=((b[q+3]&0x0f)<<8)|b[q+4];if([0x1b,0x24,0x01,0x02].includes(t)){S.vpid=ep;S.vtype=t;break}q+=5+il}return}
+    if(pid!==S.vpid)return;
+    if(pusi){flushPES();if(b[p]===0&&b[p+1]===0&&b[p+2]===1){const fl=b[p+7],hl=b[p+8];S.pts=(fl&0x80)?((b[p+9]>>1)&7)*1073741824+b[p+10]*4194304+(b[p+11]>>1)*32768+b[p+12]*128+(b[p+13]>>1):null;p+=9+hl}}
+    if(p<end)S.pes.push(b.subarray(p,end))};
+  const out={frames:[],w:0,h:0,end:Infinity,lastT:0,frac:1};
+  const c2=document.createElement('canvas'),x2=c2.getContext('2d');
+  let dec=null,t0=null,lastKept=-1,pending=0,decErr=null,sawKey=false,stop=false;
+  const onFrame=f=>{if(t0===null)t0=f.timestamp;const t=(f.timestamp-t0)/1e6;out.lastT=Math.max(out.lastT,t);
+    if(!out.w){const g=geom(f.displayWidth,f.displayHeight);out.w=c2.width=g.W;out.h=c2.height=g.H;out.end=start+onFirst(g.W,g.H)}
+    if(t>=out.end){stop=true;f.close();return}
+    if(t<start||t-lastKept<1/fps-1e-3){f.close();return}
+    lastKept=t;x2.drawImage(f,0,0,out.w,out.h);f.close();
+    pending++;c2.toBlob(b=>{pending--;if(b)out.frames.push({t:t-start,blob:b})},'image/jpeg',.86)};
+  const ensureDec=async()=>{if(dec)return true;
+    if(S.vtype===0x01||S.vtype===0x02){decErr='この m2ts は MPEG-2 映像なので、ブラウザでは読めません（H.264 / HEVC なら読めます）';return false}
+    const cands=S.vtype===0x24?['hvc1.1.6.L153.B0','hev1.1.6.L153.B0','hvc1.1.6.L120.B0','hev1.2.4.L153.B0']:[S.codec||'avc1.640028','avc1.640028','avc1.4d4028','avc1.42e01f'];
+    for(const codec of cands){try{if((await VideoDecoder.isConfigSupported({codec})).supported){dec=new VideoDecoder({output:onFrame,error:e=>{decErr='m2ts の映像をデコードできませんでした';console.warn(e)}});dec.configure({codec});return true}}catch(e){}}
+    decErr='この m2ts の映像形式は、このブラウザではデコードできません';return false};
+  const feed=async()=>{if(S.vpid<0||(S.vtype===0x1b&&!S.codec))return;if(!(await ensureDec()))return;
+    while(S.aus.length&&!decErr&&!stop){while(dec.decodeQueueSize>8||pending>12)await sleep(4);const a=S.aus.shift();
+      if(!sawKey){if(!a.key)continue;sawKey=true}
+      try{dec.decode(new EncodedVideoChunk({type:a.key?'key':'delta',timestamp:a.ts,data:a.d}))}catch(e){sawKey=false}}};
+  let off=0,rem=null;
+  try{
+    while(off<file.size&&!decErr&&!stop){
+      const buf=new Uint8Array(await file.slice(off,off+(1<<21)).arrayBuffer());off+=buf.length;
+      let b=buf;if(rem){b=new Uint8Array(rem.length+buf.length);b.set(rem);b.set(buf,rem.length)}
+      const lead=pk-188;let i=0;
+      while(i+pk<=b.length){if(b[i+lead]!==0x47){i++;continue}packet(b,i+lead);i+=pk}
+      rem=i<b.length?b.slice(i):null;await feed();
+      onProg(out.end<Infinity?Math.min(1,Math.max(0,out.lastT-start)/(out.end-start)):off/file.size)}
+    if(!stop){flushPES();await feed()}
+    if(dec&&!decErr&&dec.state!=='closed')await dec.flush();
+    while(pending)await sleep(10);
+  }catch(e){decErr=decErr||`m2ts の読み込み中にエラー：${e.message||e}`}
+  try{dec&&dec.state!=='closed'&&dec.close()}catch(e){}
+  if(S.vpid<0&&!decErr)decErr=`「${file.name}」に映像が見つかりませんでした`;
+  if(!out.frames.length)throw new Error(decErr||`「${file.name}」から絵を取り出せませんでした`);
+  out.frac=off/file.size;out.frames.sort((a,b)=>a.t-b.t);return out}
+async function captureTs(start){const fps=+P.capFps,f=st.file;busy(true,`「${f.name}」を読んでいます…`,0);
+  if(st.playing)setPlaying(false);
+  const r=await decodeTs(f,start,fps,(W,H)=>capacity(W,H)/fps,fr=>busy(true,`m2ts をデコードしています ${Math.round(fr*100)}%`,fr));
+  const last=r.frames[r.frames.length-1].t;
+  const N=Math.max(2,Math.min(capacity(r.w,r.h),Math.round(last*fps)+1));
+  if(!allocate(r.w,r.h,N))throw new Error('取り込むためのメモリが足りませんでした。画質を下げるか、コマ数を減らしてください');
+  st.fps=fps;st.capStart=start;st.vw=r.w;st.vh=r.h;
+  st.vidDur=r.frac<.999?(start+last)/Math.max(.01,r.frac):start+last+1/fps;
+  const filled=new Uint8Array(st.N);let i=0;
+  for(const fr of r.frames){const k=Math.round(fr.t*fps);if(k<0||k>=st.N||filled[k])continue;
+    try{const bm=await createImageBitmap(fr.blob);stageUpload(bm);bm.close();writeLayer(k,stageTex);filled[k]=1}catch(e){}
+    if(++i%8===0){showLayer(k);busy(true,`コマを並べています ${Math.round(i/r.frames.length*100)}%`,i/r.frames.length);await sleep(0)}}
+  if(!fillGaps(filled,st.N))throw new Error('この m2ts からコマを取り出せませんでした');
+  setAudio(null,0,st.N/fps);
+  finishSource(f.name,'m2ts の音は読み込めないので、絵だけを乱します。')}
+
+// ---------------------------------------------------------------------------
+// filmstrip
+const film=$('film'),fctx=film.getContext('2d');let filmImg=null;
+function fit(c){const d=window.devicePixelRatio||1,w=Math.max(1,Math.round(c.clientWidth*d)),h=Math.max(1,Math.round(c.clientHeight*d));if(c.width!==w||c.height!==h){c.width=w;c.height=h;return true}return false}
+function buildFilm(){if(!st.N||!gl)return;fit(film);const Wc=film.width,Hc=film.height,th=Hc,tw=Math.max(8,Math.round(th*st.W/st.H)),count=Math.ceil(Wc/tw);
+  const off=document.createElement('canvas');off.width=Wc;off.height=Hc;const o=off.getContext('2d');o.fillStyle='#000';o.fillRect(0,0,Wc,Hc);
+  for(let i=0;i<count;i++){const k=Math.min(st.N-1,Math.floor((i*tw+tw/2)/Wc*st.N));o.putImageData(thumbPixels(k,tw,th),i*tw,0)}
+  if(st.hasAudio&&st.aL){const L=st.aL,n=L.length,hh=Hc*.32;o.fillStyle='rgba(0,0,0,.5)';o.fillRect(0,Hc-hh,Wc,hh);o.fillStyle='rgba(236,226,207,.85)';
+    for(let x=0;x<Wc;x++){const a=Math.floor(x*n/Wc),b=Math.max(a+1,Math.floor((x+1)*n/Wc)),s2=Math.max(1,Math.floor((b-a)/300));let m=0;for(let i=a;i<b;i+=s2){const v=Math.abs(L[i]);if(v>m)m=v}
+      const y=Math.min(1,m)*hh*.9;o.fillRect(x,Hc-hh/2-y/2,1,Math.max(1,y))}}
+  filmImg=off}
+function drawFilm(){if(!filmImg){fit(film);fctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--well');fctx.fillRect(0,0,film.width,film.height);return}
+  if(fit(film)){buildFilm()}
+  const W=film.width,H=film.height,N=st.len,d=window.devicePixelRatio||1;fctx.drawImage(filmImg,0,0);
+  const ns=Math.max(1,Math.round(P.slices)),sl=(st.b-st.a)/ns;
+  fctx.fillStyle='rgba(9,10,14,.62)';if(st.a>0)fctx.fillRect(0,0,st.a/N*W,H);if(st.b<N)fctx.fillRect(st.b/N*W,0,W-st.b/N*W,H);
+  if(sl/N*W>3){fctx.fillStyle='rgba(255,255,255,.28)';for(let k=1;k<ns;k++)fctx.fillRect(Math.round((st.a+k*sl)/N*W),0,d,H)}
+  const pos=st.lastF/st.fps*ctx.sampleRate;
+  if(st.playing&&st.cur){const k=Math.floor((pos-st.a)/sl);if(k>=0&&k<ns){fctx.strokeStyle=TCOL[st.cur.ty];fctx.lineWidth=2*d;fctx.strokeRect((st.a+k*sl)/N*W+d,d,sl/N*W-2*d,H-2*d)}}
+  if(drag&&drag.moved){const a=Math.min(drag.x0,drag.x1),b=Math.max(drag.x0,drag.x1);fctx.fillStyle='rgba(236,226,207,.22)';fctx.fillRect(a*d,0,(b-a)*d,H)}
+  fctx.fillStyle='#fff';fctx.fillRect(pos/N*W-d,0,2*d,H)}
+let drag=null;
+film.addEventListener('pointerdown',e=>{if(!st.N||st.busy)return;film.setPointerCapture(e.pointerId);drag={x0:e.offsetX,x1:e.offsetX,moved:false}});
+film.addEventListener('pointermove',e=>{if(!drag)return;drag.x1=e.offsetX;if(Math.abs(drag.x1-drag.x0)>4)drag.moved=true});
+film.addEventListener('pointerup',()=>{if(!drag)return;const N=st.len,w=film.clientWidth,toS=x=>Math.round(Math.max(0,Math.min(1,x/w))*N),minLen=Math.max(512,2*ctx.sampleRate/st.fps);
+  if(drag.moved){const a=toS(Math.min(drag.x0,drag.x1)),b=toS(Math.max(drag.x0,drag.x1));if(b-a>minLen){st.a=a;st.b=b}}else{st.a=0;st.b=N}
+  send({t:'region',a:st.a,b:st.b});drag=null;if(!st.playing)st.lastF=st.a/ctx.sampleRate*st.fps;st.dirty=true;updateRegionTxt()});
+film.addEventListener('pointercancel',()=>{drag=null});
+const fmtDur=s=>{const m=Math.floor(s/60),r=s-m*60;return m+':'+r.toFixed(1).padStart(4,'0')};
+const tc=f=>{const fr=Math.max(0,Math.floor(f)),fps=st.fps,s=Math.floor(fr/fps),p=n=>String(n).padStart(2,'0');return`${p(Math.floor(s/60))}:${p(s%60)}:${p(fr%fps)}`};
+function updateRegionTxt(){if(!st.N){$('regionTxt').textContent='まだ動画がありません';return}const sr=ctx.sampleRate,ns=Math.round(P.slices);
+  $('regionTxt').textContent=(st.a===0&&st.b===st.len)?`全体 ${fmtDur(st.len/sr)}（${st.N} コマ）を ${ns} 切片に。ドラッグで範囲を選べます`
+    :`範囲 ${fmtDur(st.a/sr)} – ${fmtDur(st.b/sr)}（${Math.round((st.b-st.a)/sr*st.fps)} コマ）を ${ns} 切片に`}
+function stepSec(){return P.div==='free'?P.seg/1000:60/P.bpm/K.DIVS[P.div]}
+function syncSlices(quiet){if(!st.N)return;const sec=(st.b-st.a)/ctx.sampleRate,n=Math.max(2,Math.min(256,Math.round(sec/stepSec())));setVal('slices',n);updateRegionTxt();
+  if(!quiet)note(`1 切片が 1 ステップ（${(stepSec()*st.fps).toFixed(1)} コマ）になるよう ${n} 切片にしました。`)}
+$('syncBtn').onclick=()=>syncSlices(false);
+
+// ---------------------------------------------------------------------------
+// controls
+const TYPE_JA=['そのまま','跳躍','逆行','連打','変速','失速','引っかかり','往復','擦り','欠落'];
+const TYPE_HINT=['切片を順番どおりに','別の切片へ跳ぶ','切片を逆回しに','切片の頭を細かくくり返す','速さを変える（音の高さも変わる）','テープが止まるように遅くなる','数コマだけをくり返す（1コマなら静止）','進んでは戻る','レコードを擦るように前後に揺れる','そのステップは黒と無音'];
+const TCOL=['#8a909c','#4f8df5','#a77bf0','#ff6a3d','#f0b23a','#3fbf8e','#33c6d6','#e86bb4','#c3d648','#4a505d'];
+const GROUPS=[
+ {id:'types',title:'撹乱の種類',sub:'各ステップで何が起きるかの割合。0 にするとその撹乱は起きません。',dice:true,
+  items:K.TYPES.map((t,i)=>['w_'+t,TYPE_JA[i],0,1,.01,'w',{c:i,hint:TYPE_HINT[i]}])},
+ {id:'jump',title:'跳び方',sub:'跳ぶ先をどう選ぶか、パターンをどれだけ覚えておくか。',dice:true,
+  segs:[['rtype','跳ぶ先の選び方',[['uniform','一様'],['walk','酔歩'],['chaos','カオス']]]],
+  items:[['slices','切片の数',2,256,1,'',{}],['range','跳ぶ距離',0,1,.01,'%',{}],['chaos','カオスの度合い',0,1,.01,'%',{}],['patLen','パターン長',4,64,1,'step',{}],['mutate','変異率',0,1,.01,'%',{}]],
+  mem:true,seed:true},
+ {id:'speed',title:'速さと連打',sub:'変速の速さは音階の段から選びます。音の高さも同じだけ変わります。',dice:true,
+  segs:[['scale','速さの段',[['oct','倍と半分'],['fifth','5度'],['jungle','ジャングル'],['minor','短調'],['chrom','半音'],['slow','遅いだけ']]]],
+  items:[['pspread','速さの幅',0,1,.01,'%',{}],['maxRoll','連打の細かさ',2,16,1,'max',{}],['rise','連打の加速',-12,12,1,'st',{}],['skipFr','引っかかりのコマ数',1,8,1,'fr',{}],['scr','擦りの深さ',.05,1,.01,'%',{}]]},
+ {id:'pic',title:'画のサイコロ',sub:'ステップごとに、この確率で画に起きること。潰しは音も一緒に潰します。',dice:true,
+  items:[['tdProb','時間のずらし',0,1,.01,'%',{}],['rgbProb','色の時間差',0,1,.01,'%',{}],['zoomProb','寄り',0,1,.01,'%',{}],['flipProb','反転',0,1,.01,'%',{}],['tearProb','走査ずれ',0,1,.01,'%',{}],['invProb','ネガ',0,1,.01,'%',{}],['moshProb','溶解',0,1,.01,'%',{}],['crushProb','潰し',0,1,.01,'%',{}]]},
+ {id:'time',title:'時間のずらし',sub:'画面の場所ごとに少し前のコマを見せます。色の時間差は赤・緑・青を別々の瞬間から取ります。',dice:true,
+  segs:[['tdMode','形',[['any','毎回選ぶ'],['rows','横縞'],['cols','縦縞'],['rings','同心円'],['blocks','ブロック'],['grid','格子'],['wave','波']]]],
+  items:[['tdDepth','ずらす深さ',1,90,1,'fr',{}],['tdBands','分け方の細かさ',2,64,1,'',{}],['rgbDepth','色の時間差',1,30,1,'fr',{}]]},
+ {id:'look',title:'画の全体',sub:'すべてのステップにかかります。ゲートを短くすると明滅します。',dice:false,
+  segs:[['fpsOut','コマ落ち',[[0,'なし'],[15,'15'],[12,'12'],[8,'8'],[6,'6'],[4,'4']]]],
+  items:[['trail','残像',0,.97,.01,'%',{}],['mosh','溶解の強さ',0,1,.01,'%',{}],['gate','ゲートの長さ',.1,1,.01,'%',{}]]},
+ {id:'sound',title:'音',sub:'動画の音にかかります。フィルタと左右の揺れはステップごとのサイコロです。',dice:false,
+  items:[['fProb','フィルタが動く確率',0,1,.01,'%',{}],['panAmt','左右の揺れ',0,1,.01,'%',{}],['drive','歪み',0,1,.01,'%',{}],['cutoff','ローパス',80,20000,0,'Hz',{log:true}],['res','共振',.5,12,.1,'',{}],['dlySteps','ディレイの長さ',1,8,1,'step',{}],['dlyFb','ディレイの帰還',0,.9,.01,'%',{}],['dlyMix','ディレイの量',0,1,.01,'%',{}]]},
+];
+const diceOn={};
+const ctl={};
+function fmtV(k,v,unit){
+  if(unit==='%'||unit==='w')return Math.round(v*100)+(unit==='%'?'%':'');
+  if(unit==='st')return(v>0?'+':'')+v+' 半音';
+  if(unit==='fr')return Math.round(v)+' コマ';
+  if(unit==='Hz')return v>=19500?'開放':v>=1000?(v/1000).toFixed(1)+' kHz':Math.round(v)+' Hz';
+  if(unit==='ms')return Math.round(v)+' ms';
+  if(k==='bpm')return Math.round(v)+' BPM';if(k==='swing')return Math.round(v*100)+'%';
+  if(unit==='step')return Math.round(v)+(k==='patLen'?' ステップ':' ステップ分');if(unit==='max')return'最大 '+Math.round(v);
+  return String(+(+v).toFixed(2))}
+function setFill(inp){inp.style.setProperty('--v',((+inp.value-+inp.min)/(+inp.max-+inp.min)*100)+'%')}
+function onParam(k){st.dirty=true;if(k==='slices')updateRegionTxt();if(k==='patLen')buildGrid()}
+function slider(it){const[k,label,mn,mx,step,unit,o]=it;const lab=document.createElement('label');lab.className='knob';
+  const kl=document.createElement('span');kl.className='kl';const nm=document.createElement('span');
+  if(o&&o.c!=null){const ch=document.createElement('i');ch.className='chip'+(o.c===9?' hol':'');ch.style.setProperty('--c',`var(--e${o.c})`);nm.append(ch)}
+  nm.append(document.createTextNode(label));if(o&&o.hint)lab.title=o.hint;
+  const out=document.createElement('output'),inp=document.createElement('input');inp.type='range';inp.id='k_'+k;
+  if(o&&o.c!=null)inp.style.setProperty('--c',o.c===9?'var(--dim)':`var(--e${o.c})`);
+  if(o&&o.log){inp.min=0;inp.max=1000;inp.step=1}else{inp.min=mn;inp.max=mx;inp.step=step}
+  const toV=x=>o&&o.log?mn*Math.pow(mx/mn,x/1000):x,fromV=v=>o&&o.log?Math.round(Math.log(v/mn)/Math.log(mx/mn)*1000):v;
+  const show=()=>{out.textContent=fmtV(k,P[k],unit);setFill(inp)};
+  inp.oninput=()=>{P[k]=+toV(+inp.value);show();send({t:'p',p:{[k]:P[k]}});onParam(k);markPreset(null)};
+  ctl[k]={set:v=>{P[k]=v;inp.value=fromV(v);show()}};ctl[k].set(P[k]);
+  kl.append(nm,out);lab.append(kl,inp);return lab}
+function segs(k,label,opts,onchg,noSend){const wrap=document.createElement('div');wrap.className='row';const l=document.createElement('span');l.className='label';l.textContent=label;
+  const g=document.createElement('div');g.className='seg';g.setAttribute('role','group');g.setAttribute('aria-label',label);
+  const btns=opts.map(([v,t])=>{const b=document.createElement('button');b.type='button';b.textContent=t;b.onclick=()=>{P[k]=v;paint();if(!noSend)send({t:'p',p:{[k]:v}});onParam(k);onchg&&onchg();if(!noSend)markPreset(null)};return[v,b]});
+  const paint=()=>btns.forEach(([v,b])=>b.setAttribute('aria-pressed',String(P[k]===v)));btns.forEach(([,b])=>g.append(b));paint();
+  ctl[k]={set:v=>{P[k]=v;paint();onchg&&onchg()}};wrap.append(l,g);return wrap}
+function setVal(k,v){if(ctl[k])ctl[k].set(v);else P[k]=v;send({t:'p',p:{[k]:v}});onParam(k)}
+function buildControls(){
+  const kn=$('knobs');kn.append(slider(['bpm','テンポ',40,220,1,'',{}]),slider(['swing','スウィング',0,.5,.01,'',{}]));
+  const vk=slider(['vol','音量',0,1.5,.01,'%',{}]);const mb=document.createElement('button');mb.type='button';mb.className='btn tog';mb.id='muteBtn';mb.textContent='消音';mb.style.padding='2px 8px';mb.style.fontSize='12px';
+  mb.setAttribute('aria-pressed','false');mb.onclick=e=>{e.preventDefault();muted=!muted;mb.setAttribute('aria-pressed',String(muted));if(outGain)outGain.gain.value=muted?0:1};
+  vk.querySelector('.kl > :first-child').append(mb);kn.append(vk);
+  const segEl=slider(['seg','自由な断片の長さ',40,1000,1,'ms',{}]);segEl.id='segKnob';
+  $('divRow').append(segs('div','刻み',[['8','8分'],['12','8分3連'],['16','16分'],['24','16分3連'],['32','32分'],['free','自由']],()=>{$('segKnob').hidden=P.div!=='free'}).lastChild);
+  $('divRow').append(segEl);segEl.style.flex='1 1 220px';$('segKnob').hidden=P.div!=='free';
+  $('qRow').append(segs('q','画質',[['S','軽い'],['M','標準'],['L','細かい']],updateCapUI,true).lastChild);
+  $('fpsRow').append(segs('capFps','コマ数',[[30,'30'],[24,'24'],[15,'15'],[12,'12']],updateCapUI,true).lastChild);
+  const panels=$('panels');
+  for(const g of GROUPS){const c=document.createElement('section');c.className='card';const hd=document.createElement('div');hd.className='hd';
+    const h=document.createElement('h2');h.textContent=g.title;hd.append(h);
+    const dl=document.createElement('label');dl.className='dk';const cb=document.createElement('input');cb.type='checkbox';cb.id='dice_'+g.id;cb.checked=g.dice;diceOn[g.id]=g.dice;
+    cb.onchange=()=>{diceOn[g.id]=cb.checked};dl.append(cb,document.createTextNode('サイコロで振る'));hd.append(dl);
+    const s=document.createElement('p');s.className='sub';s.textContent=g.sub;c.append(hd,s);
+    if(g.segs)for(const[k,l,o]of g.segs)c.append(segs(k,l,o));
+    if(g.mem){const r=document.createElement('div');r.className='row';const b=document.createElement('button');b.type='button';b.className='btn tog';b.textContent='記憶';b.title='オンにするとパターンがくり返し、変異率の割合で崩れていきます';
+      const paint=()=>b.setAttribute('aria-pressed',String(!!P.mem));b.onclick=()=>{P.mem=P.mem?0:1;paint();send({t:'p',p:{mem:P.mem}});markPreset(null)};ctl.mem={set:v=>{P.mem=v;paint()}};paint();
+      const t=document.createElement('span');t.className='sub';t.style.margin='0';t.textContent='パターンをくり返す';r.append(b,t);c.append(r)}
+    for(const it of g.items)c.append(slider(it));
+    if(g.seed){const r=document.createElement('div');r.className='seed';const l=document.createElement('span');l.className='label';l.textContent='種';
+      const inp=document.createElement('input');inp.type='number';inp.id='seedIn';inp.min=1;inp.max=99999;inp.value=P.seed;inp.onchange=()=>{P.seed=Math.max(1,Math.round(+inp.value)||1);inp.value=P.seed;send({t:'p',p:{seed:P.seed}})};
+      const b=document.createElement('button');b.type='button';b.className='btn';b.textContent='新しい種';b.onclick=()=>{P.seed=1+Math.floor(Math.random()*99999);inp.value=P.seed;send({t:'p',p:{seed:P.seed}});send({t:'reroll'});clearGrid();note(`種 ${P.seed} にしました。`)};
+      ctl.seed={set:v=>{P.seed=v;inp.value=v}};r.append(l,inp,b);c.append(r)}
+    panels.append(c)}
+  const lg=$('legend');TYPE_JA.forEach((t,i)=>{const s=document.createElement('span');const ic=document.createElement('i');if(i===9)ic.className='hol';ic.style.setProperty('--c',`var(--e${i})`);s.title=TYPE_HINT[i];s.append(ic,document.createTextNode(t));lg.append(s)})}
+
+// source card: how much fits, and the window into a long video
+function updateCapUI(){const fps=+P.capFps,aw=st.vw||16,ah=st.vh||9,{W,H}=geom(aw,ah),cap=capacity(W,H),sec=cap/fps;
+  $('capTxt').textContent=`一度に取り込めるのは約 ${sec<60?sec.toFixed(1)+' 秒':fmtDur(sec)}（${W}×${H}・${fps} コマ/秒・最大 ${cap} コマ）。`;
+  $('recapBtn').disabled=st.busy||!st.file;
+  const long=!!st.file&&st.vidDur>sec+.05;$('win').hidden=!long;
+  if(long){const mx=Math.max(0,st.vidDur-Math.min(sec,st.vidDur)),ws=$('winStart');ws.max=mx.toFixed(1);if(+ws.value>mx)ws.value=mx.toFixed(1);
+    $('winTxt').textContent=`動画は ${fmtDur(st.vidDur)}${st.kind==='ts'?'（だいたい）':''}。始める位置から ${fmtDur(Math.min(sec,st.vidDur))} ぶんを取り込みます。`;
+    $('winOut').textContent=fmtDur(+ws.value);setFill(ws)}}
+$('winStart').oninput=()=>{$('winOut').textContent=fmtDur(+$('winStart').value);setFill($('winStart'))};
+$('recapBtn').onclick=async()=>{if(!st.file||st.busy)return;const start=$('win').hidden?st.capStart:+$('winStart').value;
+  try{if(st.kind==='ts'||/\.(m2ts|mts|m2t|ts)$/i.test(st.file.name)){st.kind='ts';await captureTs(start)}else{st.kind='video';if(st.vidFile!==st.file)await openVideo(st.file);await captureVideo(start)}}
+  catch(e){if(st.capturing)resetEmpty();busy(false);note(e.message||String(e),true)}};
+$('origBtn').onclick=()=>$('recapBtn').onclick();
+
+// ---------------------------------------------------------------------------
+// step strip
+let cells=[];
+function buildGrid(){const g=$('grid');g.textContent='';const n=Math.round(P.patLen);cells=[];
+  for(let s=0;s<n;s++){const b=document.createElement('button');b.type='button';b.className='cell';b.setAttribute('aria-label',`ステップ ${s+1}`);
+    b.onclick=()=>{if(st.gTy[s]<0){note('まだ再生していないステップは固定できません。再生して一巡させてください。');return}st.gLk[s]=st.gLk[s]?0:1;send({t:'lock',s,on:!!st.gLk[s]});paintCell(s)};cells.push(b);g.append(b)}
+  cells.forEach((_,s)=>paintCell(s))}
+function paintCell(s){const b=cells[s];if(!b)return;const ty=st.gTy[s];b.style.background=ty>=0&&ty!==9?`var(--e${ty})`:'';b.className='cell'+(ty===9?' t9':'')+(st.gLk[s]?' lk':'')+(s===st.now&&st.playing?' now':'');
+  b.title=ty>=0?TYPE_JA[ty]+(st.gLk[s]?'（固定）':''):'未再生'}
+let lastNow=-1;function markNow(){if(lastNow>=0)paintCell(lastNow);if(st.now>=0)paintCell(st.now);lastNow=st.now}
+function clearGrid(){for(let s=0;s<64;s++)if(!st.gLk[s])st.gTy[s]=-1;cells.forEach((_,s)=>paintCell(s))}
+$('unlockBtn').onclick=()=>{st.gLk.fill(0);send({t:'unlock'});cells.forEach((_,s)=>paintCell(s))};
+$('rerollBtn').onclick=()=>{send({t:'reroll'});clearGrid();note('固定していないステップを、次の一巡で作り直します。')};
+const FX_JA={td:['横縞','縦縞','同心円','ブロック','格子','波'],rgb:'色の時間差',zoom:'寄り',flip:'反転',tear:'走査ずれ',inv:'ネガ',mosh:'溶解',crush:'潰し'};
+function onStep(ev){st.now=ev.s;st.gTy[ev.s]=ev.ty;st.gLk[ev.s]=ev.lk?1:0;markNow();
+  const v=ev.e.v,fx=[];if(v.td>=0)fx.push('ずらし（'+FX_JA.td[v.td]+'）');for(const k of['rgb','zoom','flip','tear','inv','mosh'])if(v[k])fx.push(FX_JA[k]);if(ev.e.crush)fx.push(FX_JA.crush);
+  let d=TYPE_JA[ev.ty];if(ev.e.type==='speed')d+=` ${Math.abs(ev.e.rate)<1?Math.abs(ev.e.rate).toFixed(2):Math.abs(ev.e.rate).toFixed(1)}倍${ev.e.rate<0?'・逆':''}`;
+  else if(ev.e.type==='roll')d+=` ×${ev.e.roll}`;else if(ev.e.type==='skip')d+=` ${ev.e.n}コマ`;
+  $('nowTxt').textContent=d+(fx.length?' ＋ '+fx.join('・'):'')}
+
+// ---------------------------------------------------------------------------
+// presets & dice
+const PRESETS=[
+ ['刻み','8分で刻み、跳んで連打して、ときどき画がずれる。',{}],
+ ['コラージュ','拍に縛られない切り貼り。跳躍と変速と逆行。',{div:'free',seg:260,w_straight:.25,w_jump:.55,w_rev:.25,w_roll:0,w_speed:.35,w_stop:0,w_skip:.05,w_pong:.1,w_scratch:0,w_gap:0,range:.4,pspread:.7,scale:'fifth',mem:0,tdProb:.05,rgbProb:.05,zoomProb:.15,tearProb:.02,moshProb:.04,crushProb:0,dlyMix:0,fProb:0,panAmt:.2,drive:0}],
+ ['酔いどれ','すぐ隣へよろめき、連打は加速し、テープは止まり、擦る。',{rtype:'walk',range:.15,w_straight:.3,w_jump:.4,w_rev:.1,w_roll:.35,w_speed:.1,w_stop:.25,w_skip:.05,w_pong:.15,w_scratch:.3,w_gap:.03,rise:7,swing:.2,trail:.35,dlyMix:.18,dlyFb:.5,zoomProb:.15,tdProb:.08}],
+ ['引っかかり','傷ついたディスクのように、数コマに引っかかって飛ぶ。',{div:'16',w_straight:.35,w_jump:.3,w_rev:.05,w_roll:.2,w_speed:0,w_stop:0,w_skip:.7,w_pong:0,w_scratch:0,w_gap:.15,skipFr:3,maxRoll:4,gate:.75,crushProb:.18,tearProb:.2,tdProb:.05,rgbProb:.12,zoomProb:.05,invProb:.06,moshProb:0,mem:1,mutate:.08}],
+ ['時間の裂け目','画面の場所ごとに違う瞬間が流れる。',{w_straight:.7,w_jump:.25,w_rev:.15,w_roll:.1,w_speed:.15,w_stop:.05,w_skip:.05,w_pong:.15,w_scratch:.05,w_gap:0,tdProb:.75,tdMode:'any',tdDepth:24,tdBands:24,rgbProb:.45,rgbDepth:5,zoomProb:.05,tearProb:.03,moshProb:0,crushProb:0,trail:.2}],
+ ['溶解','跳ぶたびに前の画が残り、新しい動きに押し流される。',{w_straight:.45,w_jump:.55,w_rev:.2,w_roll:.1,w_speed:.15,w_stop:.05,w_skip:0,w_pong:.25,w_scratch:.1,w_gap:0,moshProb:.6,mosh:.85,trail:.15,tdProb:.04,rgbProb:.06,zoomProb:.04,tearProb:.02,crushProb:0,mem:0}],
+ ['カオス','ロジスティック写像で跳ぶ先を決め、画も音も暴れる。',{div:'16',rtype:'chaos',chaos:.92,w_straight:.15,w_jump:.4,w_rev:.25,w_roll:.3,w_speed:.25,w_stop:.1,w_skip:.2,w_pong:.15,w_scratch:.15,w_gap:.08,tdProb:.35,rgbProb:.3,zoomProb:.25,flipProb:.2,tearProb:.25,invProb:.12,moshProb:.15,crushProb:.2,pspread:1,mem:0,drive:.35,fProb:.4,panAmt:.9}],
+];
+function markPreset(i){document.querySelectorAll('.presets .btn[data-i]').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.i===i)))}
+function applyAll(vals){for(const k in vals)setVal(k,vals[k])}
+function buildPresets(){const box=$('presets');PRESETS.forEach(([name,desc,v],i)=>{const b=document.createElement('button');b.type='button';b.className='btn';b.dataset.i=i;b.textContent=name;b.title=desc;
+    b.onclick=()=>{const keep={bpm:P.bpm,slices:P.slices,seed:P.seed,vol:P.vol};const vals=Object.assign({},K.DEF,keep,v);applyAll(vals);if(vals.div!==keep.div&&st.N)syncSlices(true);send({t:'reroll'});clearGrid();markPreset(i);note(`${name}：${desc}`)};box.append(b)});
+  const d=document.createElement('button');d.type='button';d.className='btn primary';d.id='diceBtn';d.textContent='サイコロ';d.title='「サイコロで振る」に印のある欄だけを振ります';d.onclick=()=>dice(false);box.append(d);
+  const ar=$('autoRow');const tb=document.createElement('button');tb.type='button';tb.className='btn tog';tb.id='autoBtn';tb.textContent='自動で振る';tb.setAttribute('aria-pressed','false');
+  tb.onclick=()=>{P.autoDice=P.autoDice?0:1;tb.setAttribute('aria-pressed',String(!!P.autoDice));st.lastDice=st.playing?clockNow():0;note(P.autoDice?`再生中は ${P.autoBars} 小節ごとにサイコロを振ります。`:'自動のサイコロを止めました。')};
+  const sel=document.createElement('select');sel.id='autoBars';sel.setAttribute('aria-label','何小節ごとに振るか');[1,2,4,8,16].forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=`${n} 小節ごと`;if(n===P.autoBars)o.selected=true;sel.append(o)});
+  sel.onchange=()=>{P.autoBars=+sel.value};ar.append(tb,sel)}
+const r2=v=>+v.toFixed(2);
+const DICE={
+  types:R=>{const v={};K.TYPES.forEach(t=>{v['w_'+t]=r2(R()*R())});v.w_straight=r2(.2+R()*.5);v.w_gap=r2(R()*R()*.3);return v},
+  jump:R=>({rtype:['uniform','uniform','walk','chaos'][Math.floor(R()*4)],range:r2(R()),chaos:r2(R()),mutate:r2(R()*.5),mem:R()<.7?1:0}),
+  speed:R=>({scale:['oct','fifth','jungle','minor','chrom','slow'][Math.floor(R()*6)],pspread:r2(R()),maxRoll:[3,4,6,8,12,16][Math.floor(R()*6)],rise:[0,0,0,5,7,12,-12,-5][Math.floor(R()*8)],skipFr:1+Math.floor(R()*5),scr:r2(.1+R()*.8)}),
+  pic:R=>({tdProb:r2(R()*R()*.8),rgbProb:r2(R()*R()*.6),zoomProb:r2(R()*.3),flipProb:r2(R()*R()*.4),tearProb:r2(R()*R()*.5),invProb:r2(R()*R()*.25),moshProb:r2(R()*R()*.5),crushProb:r2(R()*R()*.35)}),
+  time:R=>({tdMode:['any','any','rows','cols','rings','blocks','grid','wave'][Math.floor(R()*8)],tdDepth:2+Math.floor(R()*R()*60),tdBands:2+Math.floor(R()*62),rgbDepth:1+Math.floor(R()*R()*12)}),
+  look:R=>({trail:R()<.5?0:r2(R()*.8),mosh:r2(.3+R()*.7),fpsOut:[0,0,0,15,12,8,6][Math.floor(R()*7)],gate:R()<.6?1:r2(.35+R()*.65)}),
+  sound:R=>({fProb:r2(R()*.5),panAmt:r2(R()),drive:r2(R()*.6),cutoff:R()<.6?20000:Math.round(400*Math.pow(40,R())),dlySteps:[1,2,3,3,4,6][Math.floor(R()*6)],dlyFb:r2(R()*.7),dlyMix:r2(R()*.35)})};
+function dice(auto){const v={};for(const id in DICE)if(diceOn[id])Object.assign(v,DICE[id](Math.random));
+  if(!Object.keys(v).length){note('「サイコロで振る」に印のある欄がありません。',true);return}
+  applyAll(v);send({t:'reroll'});clearGrid();markPreset(null);if(!auto)note('サイコロを振りました。')}
+
+// ---------------------------------------------------------------------------
+// transport
+function setPlaying(on){if(on&&!st.N)return;st.playing=on;send({t:'play',v:on});st.evq=[];st.cur=null;
+  $('playBtn').setAttribute('aria-pressed',String(on));$('playTxt').textContent=on?'停止':'再生';
+  $('playIco').innerHTML=on?'<path d="M3 2h4v12H3zM9 2h4v12H9z"/>':'<path d="M3 1.5v13l11-6.5z"/>';
+  if(on){st.lastDice=clockNow();st.prevF=-1;st.firstT0=null}else{st.now=-1;markNow();$('nowTxt').textContent='';st.dirty=true;if(rec)stopRec()}}
+$('playBtn').onclick=async()=>{if(!st.N||st.busy)return;if(ctx.state!=='running')try{await ctx.resume()}catch(e){}setPlaying(!st.playing)};
+document.addEventListener('keydown',e=>{if(e.code==='Space'&&(e.target===document.body||e.target===film||e.target===cv)){e.preventDefault();$('playBtn').click()}});
+
+function frame(now){requestAnimationFrame(frame);
+  if(st.N&&!st.busy&&gl){
+    let ev=null,tH=0;
+    if(st.playing){tH=clockNow();
+      while(st.evq.length>1&&st.evq[1].t0<=tH)st.evq.shift();
+      if(st.evq.length&&st.evq[0].t0<=tH)ev=st.evq[0];
+      if(ev&&ev!==st.cur){st.cur=ev;onStep(ev)}
+      if(P.autoDice&&tH-st.lastDice>=P.autoBars*4*60/P.bpm*ctx.sampleRate){st.lastDice=tH;dice(true)}
+      if(rec&&recBars&&st.firstT0!=null&&tH>=st.firstT0+recBars*4*60/P.bpm*ctx.sampleRate+ctx.sampleRate*.05)stopRec()}
+    if(st.playing||st.dirty){const dt=st.lastRT?Math.min(4,Math.max(.25,(now-st.lastRT)/33.333)):1;st.lastRT=now;
+      renderFrame(paramsFor(st.playing?(ev||st.cur):null,tH),dt);st.dirty=false;
+      const t=tc(st.lastF);if(t!==st.tcs){st.tcs=t;$('tcTxt').textContent=t}}
+    else st.lastRT=0;
+    if(rec)$('recTime').textContent=`REC ${((performance.now()-recStart)/1000).toFixed(1)}s`}
+  drawFilm()}
+
+// ---------------------------------------------------------------------------
+// recording & saving
+let rec=null,recChunks=[],recStart=0,recBlob=null,recExt='webm',recUrl=null,recBars=0;
+function pickMime(){if(!window.MediaRecorder||!cv.captureStream)return null;const c=['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4;codecs=avc1','video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];
+  for(const m of c){try{if(MediaRecorder.isTypeSupported(m))return m}catch(e){}}return''}
+let mime=pickMime();
+$('fmtNote').textContent=mime===null?'このブラウザは動画の録画に対応していません。静止画は保存できます。':`${mime.includes('mp4')?'MP4':'WebM'} 形式・毎秒 30 コマで録ります。音も入ります。`;
+function stamp(){const d=new Date(),p=n=>String(n).padStart(2,'0');return`${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`}
+async function deliver(name,blob){
+  if(inViewer){const dl=await window.claude.use('downloads');if(!dl)throw new Error('この表示ではファイルを保存できません');
+    try{await dl.save({filename:name,data:blob});return`${name} を保存しました。`}
+    catch(e){const c=e&&e.code;if(c==='declined')return'保存をやめました。';if(c==='rate_limited')throw new Error('保存の確認がまだ開いています。閉じてからもう一度押してください');throw new Error('この表示ではファイルを保存できません')}}
+  const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);return`${name} を書き出しました。`}
+async function startRec(){if(!st.N||mime===null)return;if(ctx.state!=='running')try{await ctx.resume()}catch(e){}
+  recBars=+$('recLen').value;
+  if(recBars&&st.playing)setPlaying(false);
+  const stream=cv.captureStream(30);if(mdest&&!muted)mdest.stream.getAudioTracks().forEach(t=>stream.addTrack(t));
+  try{rec=new MediaRecorder(stream,mime?{mimeType:mime,videoBitsPerSecond:st.W>=900?12e6:8e6}:{videoBitsPerSecond:8e6})}catch(e){note('録画を始められませんでした：'+e.message,true);rec=null;return}
+  recChunks=[];const r=rec;r.ondataavailable=e=>{if(e.data&&e.data.size)recChunks.push(e.data)};
+  r.onstop=()=>{const type=r.mimeType||mime||'video/webm';recExt=type.includes('mp4')?'mp4':'webm';recBlob=new Blob(recChunks,{type});
+    $('recBtn').setAttribute('aria-pressed','false');$('recTxt').textContent='録画';$('recBadge').hidden=true;
+    if(recBlob.size<4096){recBlob=null;if(recExt==='mp4'){const w=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'].find(m=>{try{return MediaRecorder.isTypeSupported(m)}catch(e){return false}});
+      if(w){mime=w;$('fmtNote').textContent='このブラウザでは MP4 の録画が空になったため、WebM 形式で録ります。';note('MP4 で録画できなかったので WebM に切り替えました。もう一度録画してください。',true);return}}
+      note('録画が空でした。タブを表示したまま、もう一度録画してください。',true);return}
+    if(recUrl)URL.revokeObjectURL(recUrl);recUrl=URL.createObjectURL(recBlob);$('resVid').src=recUrl;
+    $('resInfo').textContent=`${((performance.now()-recStart)/1000).toFixed(1)} 秒 · ${st.W}×${st.H} · ${recExt.toUpperCase()} · ${(recBlob.size/1048576).toFixed(1)} MB${muted||!mdest?'（音なし）':''}`;
+    $('result').hidden=false;note(recBars?`${recBars} 小節を録画しました。下で確かめて保存できます。`:'録画しました。下で確かめて保存できます。')};
+  r.start(250);recStart=performance.now();
+  $('recBtn').setAttribute('aria-pressed','true');$('recTxt').textContent='止める';$('recBadge').hidden=false;
+  if(!st.playing)setPlaying(true);
+  if(recBars)note(`頭から ${recBars} 小節を録画しています。終われば自動で止まります。`);
+  else note('録画しています。もう一度押すと止まります。')}
+function stopRec(){if(!rec)return;const r=rec;rec=null;try{r.stop()}catch(e){}if(recBars&&st.playing)setPlaying(false)}
+$('recBtn').onclick=()=>{if(st.busy)return;rec?stopRec():startRec()};
+$('saveBtn').onclick=async()=>{if(!recBlob)return;try{note(await deliver(`komaran-${stamp()}.${recExt}`,recBlob))}catch(e){note(e.message,true)}};
+$('dropRes').onclick=()=>{$('result').hidden=true;$('resVid').removeAttribute('src');if(recUrl)URL.revokeObjectURL(recUrl);recUrl=null;recBlob=null};
+$('pngBtn').onclick=()=>{if(!st.N)return;renderFrame(paramsFor(st.playing?st.cur:null,st.playing?clockNow():0),1);
+  cv.toBlob(async b=>{if(!b)return;try{note(await deliver(`komaran-${stamp()}.png`,b))}catch(e){note(e.message,true)}},'image/png')};
+
+// ---------------------------------------------------------------------------
+// resample: render N bars offline (sound and picture, frame by frame on the audio clock) into a new clip
+async function fetchLocks(){if(!st.gLk.some(x=>x))return[];
+  if(eng){const l=[];eng.pat.forEach((e,s)=>{if(e&&e.lock)l.push([s,e])});return l}
+  return await new Promise(res=>{const h=e=>{if(e.data&&e.data.locks){node.port.removeEventListener('message',h);res(e.data.locks)}};node.port.addEventListener('message',h);node.port.postMessage({t:'getLocks'});setTimeout(()=>res([]),1000)})}
+$('resampleBtn').onclick=async()=>{if(!st.N||st.busy)return;
+  const bars=+$('recLen').value||4,sr=ctx.sampleRate,fps=st.fps,len=Math.round(bars*4*60/P.bpm*sr),nF=Math.max(2,Math.round(len/sr*fps));
+  const per=st.W*st.H*1.5;
+  if(nF>Math.min(maxLayers,2048)||(nF+st.N)*per>BUDGET*1.6){note(`${bars} 小節は長すぎて素材にできません。小節を減らすか、テンポを上げてください。`,true);return}
+  if(rec)stopRec();if(st.playing)setPlaying(false);
+  busy(true,'結果を焼き込んでいます 0%',0);
+  try{
+    const locks=await fetchLocks();
+    const E=new K.Engine(sr);E.setSource(st.aL,st.aR);E.setRegion(st.a,st.b);Object.assign(E.p,P,{fps});E.reset();for(const[s,e]of locks)E.pat[s]=Object.assign({},e);
+    const oL=new Float32Array(len),oR=new Float32Array(len),B=1024,bl=new Float32Array(B),br=new Float32Array(B),evs=[];E.playing=true;let done=0,t0=performance.now();
+    while(done<len){const m=Math.min(B,len-done);E.clock=done;E.render(bl,br,m);oL.set(bl.subarray(0,m),done);oR.set(br.subarray(0,m),done);done+=m;for(const e of E.out)evs.push(e);E.out=[];
+      if(performance.now()-t0>50){busy(true,`音を焼き込んでいます ${Math.round(done/len*100)}%`,done/len*.3);await sleep(0);t0=performance.now()}}
+    const A=makeArrays(st.W,st.H,nF);if(!A)throw new Error('メモリが足りなくて焼き込めませんでした。小節を減らしてください');
+    clearFeedback();st.prevF=-1;const keepF=st.lastF;let ei=0;
+    for(let k=0;k<nF;k++){const tH=k/fps*sr;while(ei+1<evs.length&&evs[ei+1].t0<=tH)ei++;
+      const out=renderFrame(paramsFor(evs[ei],tH),30/fps,k%6===0);writeLayer(k,out,A.y,A.uv);
+      if(k%6===0){busy(true,`画を焼き込んでいます ${Math.round(k/nF*100)}%`,.3+k/nF*.7);await sleep(0)}}
+    freeArrays();texY=A.y;texUV=A.uv;st.N=nF;st.lastF=keepF;
+    st.aL=oL;st.aR=oR;st.len=len;let peak=0;for(let i=0;i<len;i+=97){const x=Math.abs(oL[i]);if(x>peak)peak=x}st.hasAudio=peak>1e-4;send({t:'src',L:oL,R:oR});
+    st.kind='resample';finishSource(`焼き込み（種 ${P.seed}・${bars} 小節）`,'');
+    note('結果を新しい素材にしました。もう一度刻めます。「元の動画に戻す」で取り込み直せます。')}
+  catch(e){busy(false);note(e.message||String(e),true)}};
+
+// ---------------------------------------------------------------------------
+// opening files
+function note(t,err){const n=$('note');n.textContent=t;n.className='note'+(err?' err':'')}
+$('openBtn').onclick=()=>$('fileIn').click();$('emptyBtn').onclick=()=>$('fileIn').click();
+$('fileIn').onchange=e=>{const f=e.target.files[0];if(f)openFile(f);e.target.value=''};
+let dragDepth=0;const stage=$('stage');
+document.addEventListener('dragenter',e=>{if(e.dataTransfer&&[...e.dataTransfer.types].includes('Files')){dragDepth++;stage.classList.add('on')}});
+document.addEventListener('dragleave',()=>{if(--dragDepth<=0){dragDepth=0;stage.classList.remove('on')}});
+document.addEventListener('dragover',e=>e.preventDefault());
+document.addEventListener('drop',e=>{e.preventDefault();dragDepth=0;stage.classList.remove('on');const f=e.dataTransfer&&e.dataTransfer.files[0];if(f)openFile(f)});
+window.addEventListener('resize',()=>{if(st.N)buildFilm()});
+
+(async()=>{buildControls();buildPresets();buildGrid();markPreset(0);updateCapUI();
+  if(!initGL()){$('emptyTxt').textContent='このブラウザでは WebGL2 が使えないため、齣乱を動かせません。最新の Chrome・Safari・Firefox で開いてください。';$('emptyBtn').hidden=true;$('openBtn').disabled=true}
+  if(mime===null)$('recBtn').title='このブラウザは録画に対応していません';
+  await initAudio();
+  requestAnimationFrame(frame)})();
+</script>
+
+</body></html>
