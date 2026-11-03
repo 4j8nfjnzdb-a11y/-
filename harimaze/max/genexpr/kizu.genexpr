@@ -1,0 +1,230 @@
+// harimaze / KIZU - wounded disc
+// A CD player that fails: sticking loops that creep, skips, dropouts,
+// zipper buzz from tiny frames, and crushed error concealment.
+// in1  : trigger (rising edge forces an error now)
+// out1 : left    out2 : right
+// out3 : read position 0..1
+// out4 : 0 play, 1 stick, 2 dropout, 3 zip, 4 skip
+
+Buffer src("hz_kizu_src");
+
+Param speed(1);
+Param damage(0.35);
+Param stick(0.6);
+Param skip(0.4);
+Param drop(0.25);
+Param zip(0.2);
+Param sticklen(120);
+Param creep(0.3);
+Param crush(0.4);
+Param click(0.5);
+Param level(0.8);
+
+History pos(0);
+History mode(0);
+History mtimer(0);
+History lstart(0);
+History llen(1000);
+History lrel(0);
+History reps(0);
+History etimer(22050);
+History gpos(0);
+History gfade(0);
+History dgain(1);
+History lastrd(0);
+History holdl(0);
+History holdr(0);
+History hcnt(0);
+History flash(0);
+History trigprev(0);
+History dcx1(0);
+History dcy1(0);
+History dcx2(0);
+History dcy2(0);
+
+blen = max(dim(src), 2);
+ch2 = 0;
+if (channels(src) > 1) {
+	ch2 = 1;
+}
+
+p = pos;
+m = mode;
+t = mtimer;
+s0 = lstart;
+sl = llen;
+r0 = lrel;
+rp = reps;
+e0 = etimer - 1;
+g = gpos;
+gf = gfade;
+dg = dgain;
+fl = max(flash - 1, 0);
+trig = (in1 > 0.5) * (trigprev <= 0.5);
+jumped = 0;
+r = 0;
+blk = 0;
+n = 0;
+dirn = 1;
+wsum = stick + skip + drop + zip;
+
+// error engine: only a disc that is playing normally can start a new fault
+if (m == 0 && (e0 <= 0 || trig > 0)) {
+	e0 = mstosamps(mix(6000, 60, clamp(damage, 0, 1)) * (0.3 + 1.4 * (noise() * 0.5 + 0.5)));
+	if (wsum > 0.001 && (damage > 0.001 || trig > 0)) {
+		r = (noise() * 0.5 + 0.5) * wsum;
+		if (r < stick) {
+			m = 1;
+			sl = max(mstosamps(sticklen * (0.5 + (noise() * 0.5 + 0.5))), 64);
+			s0 = p;
+			r0 = 0;
+			rp = 2 + floor((noise() * 0.5 + 0.5) * 14);
+		} else if (r < stick + skip) {
+			blk = mstosamps(53.3);
+			n = 1 + floor((noise() * 0.5 + 0.5) * 30);
+			dirn = 1;
+			if (noise() < -0.4) {
+				dirn = -1;
+			}
+			p = wrap(p + dirn * n * blk, 0, blen);
+			jumped = 1;
+			fl = mstosamps(120);
+		} else if (r < stick + skip + drop) {
+			m = 2;
+			t = mstosamps(5 + 120 * (noise() * 0.5 + 0.5));
+		} else {
+			m = 3;
+			sl = max(mstosamps(0.7 + 6 * (noise() * 0.5 + 0.5)), 16);
+			s0 = p;
+			r0 = 0;
+			t = mstosamps(60 + 500 * (noise() * 0.5 + 0.5));
+		}
+	}
+}
+
+rd = p;
+if (m == 0) {
+	p = wrap(p + speed, 0, blen);
+	rd = p;
+} else if (m == 1) {
+	// stuck: repeat one fragment, the stuck point creeps a little each time
+	r0 = r0 + speed;
+	if (r0 >= sl || r0 < 0) {
+		r0 = wrap(r0, 0, sl);
+		rp = rp - 1;
+		jumped = 1;
+		s0 = wrap(s0 + creep * sl * (0.15 + 0.35 * noise()), 0, blen);
+		if (rp <= 0) {
+			m = 0;
+			p = wrap(s0 + sl, 0, blen);
+		}
+	}
+	rd = wrap(s0 + r0, 0, blen);
+} else if (m == 2) {
+	// dropout: digital silence while the disc keeps turning
+	t = t - 1;
+	p = wrap(p + speed, 0, blen);
+	rd = p;
+	if (t <= 0) {
+		m = 0;
+		jumped = 1;
+	}
+} else {
+	// zip: a frame a few ms long repeats into a pitched buzz
+	r0 = r0 + 1;
+	if (r0 >= sl) {
+		r0 = 0;
+	}
+	t = t - 1;
+	rd = wrap(s0 + r0, 0, blen);
+	if (t <= 0) {
+		m = 0;
+		p = wrap(s0 + sl, 0, blen);
+		jumped = 1;
+	}
+}
+
+// declick: click 0 = a 4 ms crossfade from where the laser was,
+// click 1 = raw cuts. Dropouts fade over the same time.
+atk = max(mstosamps(mix(4, 0, clamp(click, 0, 1))), 1);
+g = wrap(g + speed, 0, blen);
+gf = max(gf - 1 / atk, 0);
+if (jumped > 0) {
+	g = wrap(lastrd + speed, 0, blen);
+	gf = max(1 - 1 / atk, 0);
+}
+tg = 1;
+if (m == 2) {
+	tg = 0;
+}
+if (dg < tg) {
+	dg = min(dg + 1 / atk, tg);
+} else {
+	dg = max(dg - 1 / atk, tg);
+}
+
+i0 = floor(rd);
+fr = rd - i0;
+i1 = wrap(i0 + 1, 0, blen);
+sL = mix(peek(src, i0, 0), peek(src, i1, 0), fr);
+sR = mix(peek(src, i0, ch2), peek(src, i1, ch2), fr);
+j0 = floor(g);
+gr = g - j0;
+j1 = wrap(j0 + 1, 0, blen);
+sL = mix(sL, mix(peek(src, j0, 0), peek(src, j1, 0), gr), gf);
+sR = mix(sR, mix(peek(src, j0, ch2), peek(src, j1, ch2), gr), gf);
+
+// crushed error concealment while the disc is failing
+cr = 0;
+if (m != 0 || fl > 0) {
+	cr = clamp(crush, 0, 1);
+}
+hn = 1 + floor(cr * 24);
+hc = hcnt + 1;
+hl = holdl;
+hr = holdr;
+if (hc >= hn) {
+	hc = 0;
+	hl = sL;
+	hr = sR;
+}
+q = pow(2, mix(15, 3, cr));
+cL = floor(hl * q + 0.5) / q;
+cR = floor(hr * q + 0.5) / q;
+
+oL = cL * dg;
+oR = cR * dg;
+
+yL = oL - dcx1 + 0.9995 * dcy1;
+yR = oR - dcx2 + 0.9995 * dcy2;
+dcx1 = oL;
+dcy1 = yL;
+dcx2 = oR;
+dcy2 = yR;
+
+st = m;
+if (fl > 0 && m == 0) {
+	st = 4;
+}
+out1 = yL * level;
+out2 = yR * level;
+out3 = rd / blen;
+out4 = st;
+
+pos = p;
+mode = m;
+mtimer = t;
+lstart = s0;
+llen = sl;
+lrel = r0;
+reps = rp;
+etimer = e0;
+gpos = g;
+gfade = gf;
+dgain = dg;
+lastrd = rd;
+holdl = hl;
+holdr = hr;
+hcnt = hc;
+flash = fl;
+trigprev = in1;

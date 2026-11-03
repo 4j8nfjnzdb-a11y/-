@@ -1,0 +1,204 @@
+// harimaze / TSUIOKU - memory tape
+// The input is written into a circular tape. Three heads keep recalling
+// moments from the past: they loop them, run them backwards, change speed,
+// then let go. What they recall is written back, eroded, so memories of
+// memories pile up and wear down. Freeze stops writing.
+// in1, in2 : live input (used when source = 0)
+// out1 : left    out2 : right
+// out3 : write position 0..1    out4 : head 1 read position 0..1
+
+Buffer tape("hz_tsuioku_tape");
+Buffer feed("hz_tsuioku_file");
+Data hd(3, 8);
+
+Param source(1);
+Param ingain(0.8);
+Param recall(0.4);
+Param span(0.6);
+Param loop(900);
+Param rev(0.35);
+Param varispeed(0.3);
+Param wow(0.2);
+Param feedback(0.45);
+Param erode(0.4);
+Param freeze(0);
+Param dry(0.3);
+Param level(0.8);
+
+History wp(0);
+History fpos(0);
+History filled(0);
+History lp1(0);
+History lp2(0);
+History wowph(0);
+History dcx1(0);
+History dcy1(0);
+History dcx2(0);
+History dcy2(0);
+
+tl = max(dim(tape), 2);
+fl = max(dim(feed), 2);
+fch = 0;
+if (channels(feed) > 1) {
+	fch = 1;
+}
+tch = 0;
+if (channels(tape) > 1) {
+	tch = 1;
+}
+
+w = wp;
+fp = fpos;
+fd = filled;
+
+// input: live (in1/in2) or the file buffer played as a loop
+fi = floor(fp);
+fL = peek(feed, fi, 0);
+fR = peek(feed, fi, fch);
+fp = wrap(fp + 1, 0, fl);
+inL = in1;
+inR = in2;
+if (source > 0.5) {
+	inL = fL;
+	inR = fR;
+}
+inL = inL * ingain;
+inR = inR * ingain;
+
+wv = sin(twopi * wowph);
+wph = wowph + 0.55 / samplerate;
+wph = wph - floor(wph);
+
+sumL = 0;
+sumR = 0;
+h0 = 0;
+i = 0;
+hls = 0;
+hll = 256;
+hrel = 0;
+hsp = 1;
+htm = 0;
+hen = 0;
+hst = 0;
+hpn = 0.5;
+back = 0;
+avail = 0;
+young = 1;
+spv = 1;
+fade = 1;
+edge = 1;
+rpos = 0;
+k0 = 0;
+k1 = 0;
+kf = 0;
+vL = 0;
+vR = 0;
+mono = 0;
+gg = 0;
+maxll = tl * 0.25;
+
+for (i = 0; i < 3; i += 1) {
+	hls = peek(hd, i, 0);
+	hll = max(peek(hd, i, 1), 256);
+	hrel = peek(hd, i, 2);
+	hsp = peek(hd, i, 3);
+	htm = peek(hd, i, 4) - 1;
+	hen = peek(hd, i, 5);
+	hst = peek(hd, i, 6);
+	hpn = peek(hd, i, 7);
+	if (htm <= 0 && hst < 0.5) {
+		hst = 1;
+	}
+	if (hst > 0.5) {
+		// let go of the old memory, then recall a new one
+		hen = hen - 1 / mstosamps(60);
+		if (hen <= 0) {
+			hen = 0;
+			hst = 0;
+			hll = clamp(mstosamps(loop * (0.5 + (noise() * 0.5 + 0.5))), 256, maxll);
+			avail = max(min(fd, tl) - 2 * hll, 0);
+			back = hll + (0.02 + clamp(span, 0, 1) * 0.95 * (noise() * 0.5 + 0.5)) * avail;
+			hls = wrap(w - back, 0, tl);
+			hsp = 1 + varispeed * noise() * 0.5;
+			if ((noise() * 0.5 + 0.5) < varispeed * 0.3) {
+				hsp = 2;
+				if (noise() > 0) {
+					hsp = 0.5;
+				}
+			}
+			hrel = 0;
+			if ((noise() * 0.5 + 0.5) < rev) {
+				hsp = 0 - hsp;
+				hrel = hll - 1;
+			}
+			young = clamp(fd / (tl * 0.3), 0.15, 1);
+			htm = mstosamps(mix(14000, 700, clamp(recall, 0, 1)) * (0.5 + (noise() * 0.5 + 0.5))) * young;
+			hpn = clamp(0.5 + 0.8 * noise() * 0.5, 0, 1);
+		}
+	} else {
+		hen = min(hen + 1 / mstosamps(120), 1);
+	}
+	spv = hsp * (1 + wow * 0.015 * wv * (0.6 + 0.4 * i));
+	hrel = wrap(hrel + spv, 0, hll);
+	fade = max(min(mstosamps(15), hll * 0.25), 1);
+	edge = clamp(min(hrel, hll - hrel) / fade, 0, 1);
+	rpos = wrap(hls + hrel, 0, tl);
+	k0 = floor(rpos);
+	kf = rpos - k0;
+	k1 = wrap(k0 + 1, 0, tl);
+	vL = mix(peek(tape, k0, 0), peek(tape, k1, 0), kf);
+	vR = mix(peek(tape, k0, tch), peek(tape, k1, tch), kf);
+	mono = (vL + vR) * 0.5;
+	gg = hen * edge;
+	sumL += mono * sqrt(1 - hpn) * gg;
+	sumR += mono * sqrt(hpn) * gg;
+	if (i == 0) {
+		h0 = rpos / tl;
+	}
+	poke(hd, hls, i, 0);
+	poke(hd, hll, i, 1);
+	poke(hd, hrel, i, 2);
+	poke(hd, hsp, i, 3);
+	poke(hd, htm, i, 4);
+	poke(hd, hen, i, 5);
+	poke(hd, hst, i, 6);
+	poke(hd, hpn, i, 7);
+}
+
+// erosion on the way back to tape: darker, saturated, a little hiss
+cut = mix(0.9, 0.035, clamp(erode, 0, 1));
+a1 = lp1 + (sumL * 0.6 - lp1) * cut;
+a2 = lp2 + (sumR * 0.6 - lp2) * cut;
+drv = 1 + 3 * erode;
+eL = tanh(a1 * drv) / drv + noise() * erode * 0.0015;
+eR = tanh(a2 * drv) / drv + noise() * erode * 0.0015;
+fb = clamp(feedback, 0, 0.99);
+if (freeze < 0.5) {
+	poke(tape, inL + eL * fb, w, 0);
+	if (tch > 0) {
+		poke(tape, inR + eR * fb, w, 1);
+	}
+	w = wrap(w + 1, 0, tl);
+	fd = min(fd + 1, tl);
+}
+
+oL = inL * dry + sumL;
+oR = inR * dry + sumR;
+yL = oL - dcx1 + 0.9995 * dcy1;
+yR = oR - dcx2 + 0.9995 * dcy2;
+dcx1 = oL;
+dcy1 = yL;
+dcx2 = oR;
+dcy2 = yR;
+
+out1 = yL * level;
+out2 = yR * level;
+out3 = w / tl;
+out4 = h0;
+
+wp = w;
+fpos = fp;
+filled = fd;
+lp1 = a1;
+lp2 = a2;
+wowph = wph;

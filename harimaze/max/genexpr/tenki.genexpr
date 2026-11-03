@@ -1,0 +1,200 @@
+// harimaze / TENKI - loop weather
+// One loop window over a buffer. A weather process keeps changing it:
+// tape stops, rewinds, leaps back in time, freezes into a micro loop.
+// in1  : trigger (rising edge forces a weather event now)
+// out1 : left    out2 : right
+// out3 : play position 0..1
+// out4 : weather 0 calm, 1 tape stop, 2 rewind, 3 freeze, 4 leap
+
+Buffer src("hz_tenki_src");
+
+Param speed(1);
+Param start(0.1);
+Param size(0.25);
+Param drift(0.2);
+Param weather(0.35);
+Param tapestop(0.5);
+Param rewind(0.4);
+Param leap(0.4);
+Param freeze(0.3);
+Param glide(250);
+Param xfade(20);
+Param level(0.8);
+
+History rpos(0);
+History gpos(0);
+History gfade(0);
+History spd(1);
+History wander(0);
+History wvel(0);
+History wtgt(0);
+History plst(0);
+History lastap(0);
+History offs(0);
+History mode(0);
+History mtimer(0);
+History etimer(44100);
+History frz(800);
+History ramt(1);
+History flash(0);
+History trigprev(0);
+History dcx1(0);
+History dcy1(0);
+History dcx2(0);
+History dcy2(0);
+
+blen = max(dim(src), 2);
+ch2 = 0;
+if (channels(src) > 1) {
+	ch2 = 1;
+}
+
+rp = rpos;
+g = gpos;
+gf = gfade;
+sp = spd;
+wd = wander;
+wv = wvel;
+wt = wtgt;
+of = offs;
+md = mode;
+mt = mtimer;
+et = etimer - 1;
+fz = frz;
+ra = ramt;
+fl = max(flash - 1, 0);
+r = 0;
+leapnow = 0;
+trig = (in1 > 0.5) * (trigprev <= 0.5);
+wsum = tapestop + rewind + leap + freeze;
+
+// drift: the window slides at a slowly changing speed (at most a few
+// percent of real time, so it reads as tape wow), pulled gently home
+if (noise() > 0.9999) {
+	wt = noise() * drift * 0.04;
+}
+wv = wv + (wt - wv) * 0.0001;
+wd = clamp(wd + wv / blen - wd * 0.000002, -0.5, 0.5);
+
+// weather engine: pick the next event
+if (et <= 0 || trig > 0) {
+	et = mstosamps(mix(8000, 150, clamp(weather, 0, 1)) * (0.4 + 1.2 * (noise() * 0.5 + 0.5)));
+	if (md == 0 && wsum > 0.001 && (weather > 0.001 || trig > 0)) {
+		r = (noise() * 0.5 + 0.5) * wsum;
+		if (r < tapestop) {
+			md = 1;
+			mt = mstosamps(300 + 1500 * (noise() * 0.5 + 0.5));
+		} else if (r < tapestop + rewind) {
+			md = 2;
+			mt = mstosamps(400 + 2500 * (noise() * 0.5 + 0.5));
+			ra = 0.5 + 1.5 * (noise() * 0.5 + 0.5);
+		} else if (r < tapestop + rewind + leap) {
+			leapnow = 1;
+		} else {
+			md = 3;
+			mt = mstosamps(500 + 3000 * (noise() * 0.5 + 0.5));
+			fz = mstosamps(15 + 120 * (noise() * 0.5 + 0.5));
+		}
+	}
+}
+if (md != 0) {
+	mt = mt - 1;
+	if (mt <= 0) {
+		md = 0;
+	}
+}
+
+// speed glides toward its target like a tape transport
+tgt = speed;
+if (md == 1) {
+	tgt = 0;
+}
+if (md == 2) {
+	tgt = 0 - speed * ra;
+}
+coef = 1 - exp(-1 / max(mstosamps(glide), 1));
+sp = sp + (tgt - sp) * coef;
+
+// leap: jump the window back in time, or return to the present
+if (leapnow > 0) {
+	if (of != 0 && noise() > 0) {
+		of = 0;
+	} else {
+		of = wrap(of - (0.05 + 0.4 * (noise() * 0.5 + 0.5)), 0, 1);
+	}
+	fl = mstosamps(250);
+}
+lst = wrap(start + wd + of, 0, 1) * blen;
+lsz = clamp(size, 0.0005, 1) * blen;
+if (md == 3) {
+	lsz = min(fz, lsz);
+}
+lsz = max(lsz, 32);
+xf = max(min(mstosamps(xfade), lsz * 0.5 / max(abs(sp), 1)), 1);
+
+// advance; when the window jumps (leap, a new start) or the loop reaches
+// its seam, a ghost head carries on from the old place and fades out
+g = wrap(g + sp, 0, blen);
+gf = max(gf - 1 / xf, 0);
+dl = abs(wrap(lst - plst, blen * -0.5, blen * 0.5));
+if (dl > 64) {
+	g = wrap(lastap + sp, 0, blen);
+	gf = 1;
+}
+rp = rp + sp;
+if (rp >= lsz || rp < 0) {
+	g = wrap(lst + rp, 0, blen);
+	gf = 1;
+	rp = wrap(rp, 0, lsz);
+}
+
+ap = wrap(lst + rp, 0, blen);
+i0 = floor(ap);
+fr = ap - i0;
+i1 = wrap(i0 + 1, 0, blen);
+mL = mix(peek(src, i0, 0), peek(src, i1, 0), fr);
+mR = mix(peek(src, i0, ch2), peek(src, i1, ch2), fr);
+j0 = floor(g);
+gr = g - j0;
+j1 = wrap(j0 + 1, 0, blen);
+gL = mix(peek(src, j0, 0), peek(src, j1, 0), gr);
+gR = mix(peek(src, j0, ch2), peek(src, j1, ch2), gr);
+ka = sqrt(1 - gf);
+kb = sqrt(gf);
+oL = mL * ka + gL * kb;
+oR = mR * ka + gR * kb;
+
+// dc blocker (a stopped tape holds a constant value)
+yL = oL - dcx1 + 0.9995 * dcy1;
+yR = oR - dcx2 + 0.9995 * dcy2;
+dcx1 = oL;
+dcy1 = yL;
+dcx2 = oR;
+dcy2 = yR;
+
+st = md;
+if (fl > 0) {
+	st = 4;
+}
+out1 = yL * level;
+out2 = yR * level;
+out3 = ap / blen;
+out4 = st;
+
+rpos = rp;
+gpos = g;
+gfade = gf;
+spd = sp;
+wander = wd;
+wvel = wv;
+wtgt = wt;
+plst = lst;
+lastap = ap;
+offs = of;
+mode = md;
+mtimer = mt;
+etimer = et;
+frz = fz;
+ramt = ra;
+flash = fl;
+trigprev = in1;

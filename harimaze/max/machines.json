@@ -1,0 +1,1507 @@
+[
+ {
+  "key": "tenki",
+  "file": "harimaze_tenki.maxpat",
+  "title": "TENKI 天気 — loop weather",
+  "concept": "ひとつのループ窓が、天気のように移り変わる。テープが止まり（tape stop）、巻き戻り（rewind）、\n過去へ跳び（leap）、マイクロループに凍る（freeze）。窓そのものもゆっくり漂う（drift）。\n継ぎ目は「ゴースト・ヘッド」がクロスフェードするのでクリックしない。",
+  "context": "文脈: Philip Jeck のターンテーブル速度操作 / Ulla の揺れるループ / 竹村延和の「SCRUB」的な即興",
+  "out3": "再生位置 (out3)\n← 戻る / 進む →",
+  "out4": "天気 (out4)\n0 晴 1 停止 2 巻戻\n3 凍結 4 跳躍",
+  "params": [
+   {
+    "name": "speed",
+    "ja": "速度",
+    "min": -2.0,
+    "max": 2.0,
+    "range": "-2〜2",
+    "dp": 3
+   },
+   {
+    "name": "start",
+    "ja": "開始位置",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "size",
+    "ja": "ループ長",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "drift",
+    "ja": "漂い",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "weather",
+    "ja": "天気の頻度",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "tapestop",
+    "ja": "テープ停止",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "rewind",
+    "ja": "巻き戻し",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "leap",
+    "ja": "跳躍",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "freeze",
+    "ja": "凍結",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "glide",
+    "ja": "慣性 ms",
+    "min": 1.0,
+    "max": 3000.0,
+    "range": "1〜3000",
+    "dp": 0
+   },
+   {
+    "name": "xfade",
+    "ja": "継ぎ目 ms",
+    "min": 1.0,
+    "max": 200.0,
+    "range": "1〜200",
+    "dp": 0
+   },
+   {
+    "name": "level",
+    "ja": "音量",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   }
+  ],
+  "presets": [
+   {
+    "name": "晴れ calm",
+    "note": "ループだけ。漂いは少し。まずはここから",
+    "values": [
+     [
+      "speed",
+      1
+     ],
+     [
+      "start",
+      0.1
+     ],
+     [
+      "size",
+      0.25
+     ],
+     [
+      "drift",
+      0.15
+     ],
+     [
+      "weather",
+      0
+     ],
+     [
+      "tapestop",
+      0.5
+     ],
+     [
+      "rewind",
+      0.4
+     ],
+     [
+      "leap",
+      0.4
+     ],
+     [
+      "freeze",
+      0.3
+     ],
+     [
+      "glide",
+      250
+     ],
+     [
+      "xfade",
+      20
+     ],
+     [
+      "level",
+      0.8
+     ]
+    ]
+   },
+   {
+    "name": "小雨 drizzle",
+    "note": "ときどき巻き戻り、ときどき跳ぶ",
+    "values": [
+     [
+      "size",
+      0.12
+     ],
+     [
+      "drift",
+      0.3
+     ],
+     [
+      "weather",
+      0.3
+     ],
+     [
+      "tapestop",
+      0.3
+     ],
+     [
+      "rewind",
+      0.5
+     ],
+     [
+      "leap",
+      0.3
+     ],
+     [
+      "freeze",
+      0.2
+     ],
+     [
+      "glide",
+      250
+     ]
+    ]
+   },
+   {
+    "name": "夕立 shower",
+    "note": "短いループで頻繁に天気が変わる",
+    "values": [
+     [
+      "size",
+      0.06
+     ],
+     [
+      "weather",
+      0.7
+     ],
+     [
+      "tapestop",
+      0.6
+     ],
+     [
+      "rewind",
+      0.6
+     ],
+     [
+      "leap",
+      0.5
+     ],
+     [
+      "freeze",
+      0.5
+     ],
+     [
+      "glide",
+      120
+     ]
+    ]
+   },
+   {
+    "name": "霜 frost",
+    "note": "半速で、マイクロループに凍りつく",
+    "values": [
+     [
+      "speed",
+      0.5
+     ],
+     [
+      "size",
+      0.03
+     ],
+     [
+      "drift",
+      0.5
+     ],
+     [
+      "weather",
+      0.5
+     ],
+     [
+      "tapestop",
+      0.2
+     ],
+     [
+      "rewind",
+      0.2
+     ],
+     [
+      "leap",
+      0.1
+     ],
+     [
+      "freeze",
+      1
+     ],
+     [
+      "glide",
+      800
+     ],
+     [
+      "xfade",
+      40
+     ]
+    ]
+   },
+   {
+    "name": "嵐 storm",
+    "note": "全部のイベントが最大頻度で",
+    "values": [
+     [
+      "speed",
+      1.2
+     ],
+     [
+      "size",
+      0.02
+     ],
+     [
+      "weather",
+      1
+     ],
+     [
+      "tapestop",
+      1
+     ],
+     [
+      "rewind",
+      1
+     ],
+     [
+      "leap",
+      1
+     ],
+     [
+      "freeze",
+      1
+     ],
+     [
+      "glide",
+      60
+     ],
+     [
+      "xfade",
+      8
+     ]
+    ]
+   }
+  ],
+  "sources": [
+   {
+    "buffer": "hz_tenki_src",
+    "label": "1  音源 SOURCE"
+   }
+  ],
+  "live_input": false,
+  "trigger_note": "● 今すぐ天気を変える（in1 の立ち上がりでイベント。外部の click~ や他マシンでも駆動できる）"
+ },
+ {
+  "key": "kizu",
+  "file": "harimaze_kizu.maxpat",
+  "title": "KIZU 傷盤 — wounded disc",
+  "concept": "傷ついた CD を鳴らすプレーヤー。引っかかって同じ断片を繰り返し（stick、少しずつずれる creep）、\n飛び（skip）、無音に落ち（drop）、数 ms のフレームがジーッと鳴る（zip）。\n故障中はエラー補間が崩れたように音が粗くなる（crush）。",
+  "context": "文脈: Oval（マーカーで塗った CD）/ 刀根康尚『Solo for Wounded CD』（穴を開けたテープ）/ Pontiac Streator の Oval 的グリッチ",
+  "out3": "読み取り位置 (out3)",
+  "out4": "状態 (out4)\n0 再生 1 引っかかり\n2 欠落 3 ジッ 4 飛び",
+  "params": [
+   {
+    "name": "speed",
+    "ja": "速度",
+    "min": -2.0,
+    "max": 2.0,
+    "range": "-2〜2",
+    "dp": 3
+   },
+   {
+    "name": "damage",
+    "ja": "損傷",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "stick",
+    "ja": "引っかかり",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "skip",
+    "ja": "飛び",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "drop",
+    "ja": "欠落",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "zip",
+    "ja": "ジッ音",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "sticklen",
+    "ja": "断片 ms",
+    "min": 10.0,
+    "max": 1000.0,
+    "range": "10〜1000",
+    "dp": 0
+   },
+   {
+    "name": "creep",
+    "ja": "ずれ",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "crush",
+    "ja": "劣化",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "click",
+    "ja": "クリック",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "level",
+    "ja": "音量",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   }
+  ],
+  "presets": [
+   {
+    "name": "新品 mint",
+    "note": "傷なし。素の音源",
+    "values": [
+     [
+      "speed",
+      1
+     ],
+     [
+      "damage",
+      0
+     ],
+     [
+      "stick",
+      0.6
+     ],
+     [
+      "skip",
+      0.4
+     ],
+     [
+      "drop",
+      0.25
+     ],
+     [
+      "zip",
+      0.2
+     ],
+     [
+      "sticklen",
+      120
+     ],
+     [
+      "creep",
+      0.3
+     ],
+     [
+      "crush",
+      0.4
+     ],
+     [
+      "click",
+      0.5
+     ],
+     [
+      "level",
+      0.8
+     ]
+    ]
+   },
+   {
+    "name": "指紋 fingerprint",
+    "note": "たまに引っかかる程度",
+    "values": [
+     [
+      "damage",
+      0.2
+     ],
+     [
+      "stick",
+      0.8
+     ],
+     [
+      "skip",
+      0.2
+     ],
+     [
+      "drop",
+      0.1
+     ],
+     [
+      "zip",
+      0
+     ],
+     [
+      "sticklen",
+      200
+     ],
+     [
+      "creep",
+      0.2
+     ],
+     [
+      "crush",
+      0.2
+     ],
+     [
+      "click",
+      0.3
+     ]
+    ]
+   },
+   {
+    "name": "マーカー marker",
+    "note": "塗られた盤。短い断片がずれながら反復",
+    "values": [
+     [
+      "damage",
+      0.6
+     ],
+     [
+      "stick",
+      1
+     ],
+     [
+      "skip",
+      0.3
+     ],
+     [
+      "drop",
+      0.2
+     ],
+     [
+      "zip",
+      0.4
+     ],
+     [
+      "sticklen",
+      60
+     ],
+     [
+      "creep",
+      0.5
+     ],
+     [
+      "crush",
+      0.5
+     ],
+     [
+      "click",
+      0.7
+     ]
+    ]
+   },
+   {
+    "name": "テープの穴 pinholes",
+    "note": "誤り訂正が破綻する。ほぼ制御不能",
+    "values": [
+     [
+      "damage",
+      0.9
+     ],
+     [
+      "stick",
+      0.5
+     ],
+     [
+      "skip",
+      0.8
+     ],
+     [
+      "drop",
+      0.5
+     ],
+     [
+      "zip",
+      0.7
+     ],
+     [
+      "sticklen",
+      25
+     ],
+     [
+      "creep",
+      0.8
+     ],
+     [
+      "crush",
+      0.8
+     ],
+     [
+      "click",
+      1
+     ]
+    ]
+   }
+  ],
+  "sources": [
+   {
+    "buffer": "hz_kizu_src",
+    "label": "1  音源 SOURCE（CD 役）"
+   }
+  ],
+  "live_input": false,
+  "trigger_note": "● 今すぐ故障させる（in1 の立ち上がりでエラーを 1 回起こす）"
+ },
+ {
+  "key": "mebuki",
+  "file": "harimaze_mebuki.maxpat",
+  "title": "MEBUKI 芽吹 — texture bloom",
+  "concept": "ふたつの音源 A / B から粒（grain）を取り出す。morph は「次の粒をどちらから取るか」の確率なので、\nA のテクスチャーの中に B が少しずつ芽を出し、やがて入れ替わる。bloom で morph が勝手に揺れる。\nscan は時間の流れ（負で逆行、0 で静止）。toy で音高を五音音階に丸める。",
+  "context": "文脈: Jake Muir のグラニュラー処理 / KMRU の環境音 + 粒 / 竹村延和のおもちゃのような旋律",
+  "out3": "読み取り位置 (out3)",
+  "out4": "いまの morph (out4)\n0 = A, 1 = B",
+  "params": [
+   {
+    "name": "morph",
+    "ja": "移ろい A→B",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "bloom",
+    "ja": "自走",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "position",
+    "ja": "位置",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "scan",
+    "ja": "時間の流れ",
+    "min": -1.0,
+    "max": 1.0,
+    "range": "-1〜1",
+    "dp": 3
+   },
+   {
+    "name": "spray",
+    "ja": "散り",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "density",
+    "ja": "密度 /秒",
+    "min": 0.2,
+    "max": 200.0,
+    "range": "0.2〜200",
+    "dp": 1
+   },
+   {
+    "name": "grainsize",
+    "ja": "粒長 ms",
+    "min": 5.0,
+    "max": 2000.0,
+    "range": "5〜2000",
+    "dp": 0
+   },
+   {
+    "name": "pitch",
+    "ja": "音高 半音",
+    "min": -24.0,
+    "max": 24.0,
+    "range": "-24〜24",
+    "dp": 1
+   },
+   {
+    "name": "pspray",
+    "ja": "音高の散り",
+    "min": 0.0,
+    "max": 24.0,
+    "range": "0〜24",
+    "dp": 1
+   },
+   {
+    "name": "toy",
+    "ja": "五音に丸める",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "on/off",
+    "dp": 3,
+    "kind": "toggle"
+   },
+   {
+    "name": "rev",
+    "ja": "逆再生率",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "width",
+    "ja": "広がり",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "level",
+    "ja": "音量",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   }
+  ],
+  "presets": [
+   {
+    "name": "霧 mist",
+    "note": "A だけの長い粒。ゆっくり前へ",
+    "values": [
+     [
+      "morph",
+      0
+     ],
+     [
+      "bloom",
+      0.2
+     ],
+     [
+      "position",
+      0.2
+     ],
+     [
+      "scan",
+      0.02
+     ],
+     [
+      "spray",
+      0.1
+     ],
+     [
+      "density",
+      30
+     ],
+     [
+      "grainsize",
+      400
+     ],
+     [
+      "pitch",
+      0
+     ],
+     [
+      "pspray",
+      0
+     ],
+     [
+      "toy",
+      0
+     ],
+     [
+      "rev",
+      0.15
+     ],
+     [
+      "width",
+      0.6
+     ],
+     [
+      "level",
+      0.8
+     ]
+    ]
+   },
+   {
+    "name": "芽 sprout",
+    "note": "B がときどき顔を出す",
+    "values": [
+     [
+      "morph",
+      0.25
+     ],
+     [
+      "bloom",
+      0.6
+     ],
+     [
+      "scan",
+      0.05
+     ],
+     [
+      "density",
+      18
+     ],
+     [
+      "grainsize",
+      220
+     ]
+    ]
+   },
+   {
+    "name": "開花 bloom",
+    "note": "B が地になり、A が残り香になる",
+    "values": [
+     [
+      "morph",
+      0.8
+     ],
+     [
+      "bloom",
+      0.4
+     ],
+     [
+      "density",
+      40
+     ],
+     [
+      "grainsize",
+      150
+     ],
+     [
+      "pspray",
+      3
+     ]
+    ]
+   },
+   {
+    "name": "おもちゃ toy",
+    "note": "五音音階に丸めた短い粒",
+    "values": [
+     [
+      "morph",
+      0.5
+     ],
+     [
+      "toy",
+      1
+     ],
+     [
+      "pspray",
+      12
+     ],
+     [
+      "density",
+      8
+     ],
+     [
+      "grainsize",
+      90
+     ],
+     [
+      "rev",
+      0.3
+     ]
+    ]
+   },
+   {
+    "name": "逆流 backwards",
+    "note": "時間が戻っていく",
+    "values": [
+     [
+      "scan",
+      -0.4
+     ],
+     [
+      "spray",
+      0.03
+     ],
+     [
+      "density",
+      50
+     ],
+     [
+      "grainsize",
+      300
+     ],
+     [
+      "toy",
+      0
+     ],
+     [
+      "pspray",
+      0
+     ]
+    ]
+   }
+  ],
+  "sources": [
+   {
+    "buffer": "hz_mebuki_a",
+    "label": "1A  音源 A（地）"
+   },
+   {
+    "buffer": "hz_mebuki_b",
+    "label": "1B  音源 B（芽）"
+   }
+  ],
+  "live_input": false,
+  "trigger_note": "● 粒をひとつ出す（in1 の立ち上がりで grain を生成。リズムで駆動すると粒が拍に乗る）"
+ },
+ {
+  "key": "tsuioku",
+  "file": "harimaze_tsuioku.maxpat",
+  "title": "TSUIOKU 追憶 — memory tape",
+  "concept": "入力を 32 秒の円環テープに書き続け、3 つのヘッドが過去の瞬間を「思い出す」。\nループし、逆に回り、速度を変え、やがて手放す。思い出した音は風化して（erode）テープに戻されるので、\n記憶の記憶が積もってすり減っていく。freeze で書き込みを止め、記憶だけを鳴らす。",
+  "context": "文脈: Philip Jeck / William Basinski 的な劣化ループ / Ulla『Hometown Girl』の擦り切れたループ / claire rousay の日記的録音",
+  "out3": "書き込み位置 (out3)",
+  "out4": "ヘッド1 の位置 (out4)\n戻ったり進んだり",
+  "params": [
+   {
+    "name": "source",
+    "ja": "入力 1=file 0=mic",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "on/off",
+    "dp": 3,
+    "kind": "toggle"
+   },
+   {
+    "name": "ingain",
+    "ja": "入力量",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "recall",
+    "ja": "想起の頻度",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "span",
+    "ja": "遡る深さ",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "loop",
+    "ja": "ループ長 ms",
+    "min": 50.0,
+    "max": 4000.0,
+    "range": "50〜4000",
+    "dp": 0
+   },
+   {
+    "name": "rev",
+    "ja": "逆行",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "varispeed",
+    "ja": "速度の揺れ",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "wow",
+    "ja": "うねり",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "feedback",
+    "ja": "再録",
+    "min": 0.0,
+    "max": 0.99,
+    "range": "0〜0.99",
+    "dp": 3
+   },
+   {
+    "name": "erode",
+    "ja": "風化",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "freeze",
+    "ja": "凍結",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "on/off",
+    "dp": 3,
+    "kind": "toggle"
+   },
+   {
+    "name": "dry",
+    "ja": "原音",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "level",
+    "ja": "音量",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   }
+  ],
+  "presets": [
+   {
+    "name": "日記 diary",
+    "note": "少し前のことを、ときどき思い出す",
+    "values": [
+     [
+      "source",
+      1
+     ],
+     [
+      "ingain",
+      0.8
+     ],
+     [
+      "recall",
+      0.3
+     ],
+     [
+      "span",
+      0.5
+     ],
+     [
+      "loop",
+      1500
+     ],
+     [
+      "rev",
+      0.2
+     ],
+     [
+      "varispeed",
+      0.1
+     ],
+     [
+      "wow",
+      0.15
+     ],
+     [
+      "feedback",
+      0.3
+     ],
+     [
+      "erode",
+      0.3
+     ],
+     [
+      "freeze",
+      0
+     ],
+     [
+      "dry",
+      0.5
+     ],
+     [
+      "level",
+      0.8
+     ]
+    ]
+   },
+   {
+    "name": "反芻 rumination",
+    "note": "同じ場面に何度も戻る",
+    "values": [
+     [
+      "recall",
+      0.7
+     ],
+     [
+      "span",
+      0.2
+     ],
+     [
+      "loop",
+      600
+     ],
+     [
+      "rev",
+      0.4
+     ],
+     [
+      "varispeed",
+      0.3
+     ],
+     [
+      "feedback",
+      0.6
+     ],
+     [
+      "erode",
+      0.5
+     ],
+     [
+      "dry",
+      0.2
+     ]
+    ]
+   },
+   {
+    "name": "風化 disintegration",
+    "note": "再録を深く。擦り切れていく",
+    "values": [
+     [
+      "recall",
+      0.2
+     ],
+     [
+      "span",
+      0.1
+     ],
+     [
+      "loop",
+      3000
+     ],
+     [
+      "rev",
+      0
+     ],
+     [
+      "varispeed",
+      0
+     ],
+     [
+      "wow",
+      0.3
+     ],
+     [
+      "feedback",
+      0.9
+     ],
+     [
+      "erode",
+      0.8
+     ],
+     [
+      "dry",
+      0
+     ]
+    ]
+   },
+   {
+    "name": "逆夢 backwards",
+    "note": "記憶がいつも逆に流れる",
+    "values": [
+     [
+      "rev",
+      1
+     ],
+     [
+      "recall",
+      0.6
+     ],
+     [
+      "span",
+      0.8
+     ],
+     [
+      "loop",
+      1200
+     ],
+     [
+      "varispeed",
+      0.5
+     ],
+     [
+      "feedback",
+      0.4
+     ],
+     [
+      "dry",
+      0.1
+     ]
+    ]
+   }
+  ],
+  "sources": [
+   {
+    "buffer": "hz_tsuioku_file",
+    "label": "1  入力ファイル（source = 1 のとき）"
+   }
+  ],
+  "live_input": true,
+  "trigger_note": ""
+ },
+ {
+  "key": "kiri",
+  "file": "harimaze_kiri.maxpat",
+  "title": "KIRI 切貼 — cut-up sequencer",
+  "concept": "音源を等分に切り、16 ステップのパターンで貼り直す。各ステップは切片・向き・音程・連打・休符を持ち、\n1 周ごとに一部が変異（mutate）するので、コラージュが自分で書き換わり続ける。\norder 0 で元の並び、1 で完全にシャッフル。reroll でパターンを丸ごと書き直す。",
+  "context": "文脈: 竹村延和 / Jan Jelinek のループ探し / Space Afrika・Klein のカットアップ / 3XL 周辺のサンプリング",
+  "out3": "ステップ (out3)",
+  "out4": "鳴っている切片 (out4)\n0〜1",
+  "params": [
+   {
+    "name": "bpm",
+    "ja": "テンポ",
+    "min": 20.0,
+    "max": 400.0,
+    "range": "20〜400",
+    "dp": 1
+   },
+   {
+    "name": "slices",
+    "ja": "切片の数",
+    "min": 1.0,
+    "max": 64.0,
+    "range": "1〜64",
+    "dp": 0
+   },
+   {
+    "name": "steps",
+    "ja": "ステップ数",
+    "min": 1.0,
+    "max": 16.0,
+    "range": "1〜16",
+    "dp": 0
+   },
+   {
+    "name": "order",
+    "ja": "並びの乱れ",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "mutate",
+    "ja": "変異",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "rest",
+    "ja": "休符",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "rev",
+    "ja": "逆再生",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "pitch",
+    "ja": "音程 (五音)",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "ratchet",
+    "ja": "連打",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   },
+   {
+    "name": "gatelen",
+    "ja": "音の長さ",
+    "min": 0.05,
+    "max": 1.0,
+    "range": "0.05〜1",
+    "dp": 3
+   },
+   {
+    "name": "swing",
+    "ja": "スウィング",
+    "min": 0.0,
+    "max": 0.9,
+    "range": "0〜0.9",
+    "dp": 3
+   },
+   {
+    "name": "reroll",
+    "ja": "書き直す",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "●",
+    "dp": 3,
+    "kind": "bang"
+   },
+   {
+    "name": "level",
+    "ja": "音量",
+    "min": 0.0,
+    "max": 1.0,
+    "range": "0〜1",
+    "dp": 3
+   }
+  ],
+  "presets": [
+   {
+    "name": "原形 original",
+    "note": "元の並びのまま刻む",
+    "values": [
+     [
+      "bpm",
+      96
+     ],
+     [
+      "slices",
+      16
+     ],
+     [
+      "steps",
+      16
+     ],
+     [
+      "order",
+      0
+     ],
+     [
+      "mutate",
+      0
+     ],
+     [
+      "rest",
+      0
+     ],
+     [
+      "rev",
+      0
+     ],
+     [
+      "pitch",
+      0
+     ],
+     [
+      "ratchet",
+      0
+     ],
+     [
+      "gatelen",
+      1
+     ],
+     [
+      "swing",
+      0
+     ],
+     [
+      "level",
+      0.8
+     ]
+    ],
+    "extra": "kiri_reroll bang"
+   },
+   {
+    "name": "切り絵 cutout",
+    "note": "少しずつ並びが崩れていく",
+    "values": [
+     [
+      "order",
+      0.6
+     ],
+     [
+      "mutate",
+      0.15
+     ],
+     [
+      "rest",
+      0.15
+     ],
+     [
+      "rev",
+      0.2
+     ],
+     [
+      "pitch",
+      0.2
+     ],
+     [
+      "ratchet",
+      0.15
+     ],
+     [
+      "gatelen",
+      0.85
+     ]
+    ],
+    "extra": "kiri_reroll bang"
+   },
+   {
+    "name": "おもちゃ箱 toybox",
+    "note": "五音の音程と連打。竹村延和的な遊び",
+    "values": [
+     [
+      "bpm",
+      112
+     ],
+     [
+      "order",
+      0.8
+     ],
+     [
+      "pitch",
+      0.8
+     ],
+     [
+      "rest",
+      0.25
+     ],
+     [
+      "ratchet",
+      0.3
+     ],
+     [
+      "rev",
+      0.3
+     ],
+     [
+      "gatelen",
+      0.5
+     ]
+    ],
+    "extra": "kiri_reroll bang"
+   },
+   {
+    "name": "解体 dismantle",
+    "note": "毎周大きく変異し、スウィングする",
+    "values": [
+     [
+      "order",
+      1
+     ],
+     [
+      "mutate",
+      0.6
+     ],
+     [
+      "rest",
+      0.35
+     ],
+     [
+      "rev",
+      0.5
+     ],
+     [
+      "pitch",
+      0.5
+     ],
+     [
+      "ratchet",
+      0.5
+     ],
+     [
+      "swing",
+      0.3
+     ],
+     [
+      "gatelen",
+      0.7
+     ]
+    ],
+    "extra": "kiri_reroll bang"
+   }
+  ],
+  "sources": [
+   {
+    "buffer": "hz_kiri_src",
+    "label": "1  音源 SOURCE"
+   }
+  ],
+  "live_input": false,
+  "trigger_note": "● 1 ステップ進める（in1 の立ち上がりで進む。bpm を 20 にして外部クロックで駆動もできる）"
+ }
+]

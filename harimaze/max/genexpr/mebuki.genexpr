@@ -1,0 +1,177 @@
+// harimaze / MEBUKI - texture bloom
+// Grains drawn from two sources. Morph decides which source each new grain
+// comes from, so a second texture slowly sprouts inside the first.
+// Bloom lets the morph wander by itself. Scan moves the reading position
+// through time, forwards or backwards; 0 stops time.
+// in1  : trigger (rising edge spawns a grain now)
+// out1 : left    out2 : right
+// out3 : scan position 0..1    out4 : current morph 0..1
+
+Buffer srca("hz_mebuki_a");
+Buffer srcb("hz_mebuki_b");
+Data gr(12, 8);
+
+Param morph(0);
+Param bloom(0.3);
+Param position(0.2);
+Param scan(0.05);
+Param spray(0.05);
+Param density(14);
+Param grainsize(180);
+Param pitch(0);
+Param pspray(0);
+Param toy(0);
+Param rev(0.15);
+Param width(0.6);
+Param level(0.8);
+
+History gtimer(0);
+History scanpos(0);
+History mwander(0);
+History trigprev(0);
+
+la = max(dim(srca), 2);
+lb = max(dim(srcb), 2);
+t0 = gtimer - 1;
+sc = scanpos;
+w = mwander;
+trig = (in1 > 0.5) * (trigprev <= 0.5);
+
+slot = -1;
+i = 0;
+sb = 0;
+bl = 0;
+st = 0;
+semis = 0;
+oct = 0;
+deg = 0;
+qd = 0;
+inc = 1;
+dur = 1;
+pn = 0.5;
+dens = 1;
+
+sc = wrap(sc + scan / la, 0, 1);
+w = clamp(w * 0.99998 + noise() * bloom * 0.0006, -1, 1);
+mo = clamp(morph + w, 0, 1);
+
+// spawn a grain in the first free voice
+if (t0 <= 0 || trig > 0) {
+	dens = clamp(density, 0.2, 200);
+	t0 = samplerate / dens * (0.5 + (noise() * 0.5 + 0.5));
+	for (i = 0; i < 12; i += 1) {
+		if (slot < 0) {
+			if (peek(gr, i, 0) < 0.5) {
+				slot = i;
+			}
+		}
+	}
+	if (slot >= 0) {
+		sb = 0;
+		if ((noise() * 0.5 + 0.5) < mo) {
+			sb = 1;
+		}
+		bl = la;
+		if (sb > 0) {
+			bl = lb;
+		}
+		st = wrap(position + sc + spray * noise() * 0.5, 0, 1) * bl;
+		semis = pitch + pspray * noise();
+		if (toy > 0.5) {
+			// snap to a major pentatonic: 0 2 4 7 9
+			oct = floor(semis / 12);
+			deg = semis - oct * 12;
+			qd = 0;
+			if (deg >= 1) {
+				qd = 2;
+			}
+			if (deg >= 3) {
+				qd = 4;
+			}
+			if (deg >= 5.5) {
+				qd = 7;
+			}
+			if (deg >= 8) {
+				qd = 9;
+			}
+			if (deg >= 10.5) {
+				qd = 12;
+			}
+			semis = oct * 12 + qd;
+		}
+		inc = pow(2, semis / 12);
+		if ((noise() * 0.5 + 0.5) < rev) {
+			inc = 0 - inc;
+		}
+		dur = max(mstosamps(grainsize * (0.75 + 0.5 * (noise() * 0.5 + 0.5))), 64);
+		pn = clamp(0.5 + width * noise() * 0.5, 0, 1);
+		poke(gr, 1, slot, 0);
+		poke(gr, st, slot, 1);
+		poke(gr, inc, slot, 2);
+		poke(gr, 0, slot, 3);
+		poke(gr, dur, slot, 4);
+		poke(gr, sqrt(1 - pn), slot, 5);
+		poke(gr, sqrt(pn), slot, 6);
+		poke(gr, sb, slot, 7);
+	}
+}
+
+// render the voices
+sumL = 0;
+sumR = 0;
+gp = 0;
+gi = 0;
+ga = 0;
+gd = 1;
+gs = 0;
+rpos = 0;
+k0 = 0;
+k1 = 0;
+kf = 0;
+v = 0;
+wv = 0;
+for (i = 0; i < 12; i += 1) {
+	if (peek(gr, i, 0) > 0.5) {
+		gp = peek(gr, i, 1);
+		gi = peek(gr, i, 2);
+		ga = peek(gr, i, 3);
+		gd = peek(gr, i, 4);
+		gs = peek(gr, i, 7);
+		v = 0;
+		if (gs > 0.5) {
+			rpos = wrap(gp, 0, lb);
+			k0 = floor(rpos);
+			kf = rpos - k0;
+			k1 = wrap(k0 + 1, 0, lb);
+			v = mix(peek(srcb, k0, 0), peek(srcb, k1, 0), kf);
+		} else {
+			rpos = wrap(gp, 0, la);
+			k0 = floor(rpos);
+			kf = rpos - k0;
+			k1 = wrap(k0 + 1, 0, la);
+			v = mix(peek(srca, k0, 0), peek(srca, k1, 0), kf);
+		}
+		wv = 0.5 - 0.5 * cos(twopi * ga / gd);
+		v = v * wv;
+		sumL += v * peek(gr, i, 5);
+		sumR += v * peek(gr, i, 6);
+		ga = ga + 1;
+		poke(gr, gp + gi, i, 1);
+		poke(gr, ga, i, 3);
+		if (ga >= gd) {
+			poke(gr, 0, i, 0);
+		}
+	}
+}
+
+ov = clamp(density * grainsize / 1000, 1, 12);
+nrm = 1 / sqrt(ov);
+out1 = sumL * nrm * level;
+out2 = sumR * nrm * level;
+out3 = wrap(position + sc, 0, 1);
+out4 = mo;
+
+gtimer = t0;
+scanpos = sc;
+mwander = w;
+trigprev = in1;

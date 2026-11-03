@@ -1,0 +1,164 @@
+// harimaze / KIRI - cut-up sequencer
+// The source is cut into equal slices and a 16 step pattern plays them.
+// Each step stores slice, direction, pitch, ratchet and rest. At the end of
+// every cycle some steps mutate, so the collage keeps rewriting itself.
+// Order 0 keeps the slices in their original order; 1 shuffles them.
+// Change reroll to any new value to rewrite the whole pattern.
+// in1  : clock (rising edge advances one step; pair it with a slow bpm)
+// out1 : left    out2 : right
+// out3 : step 0..1    out4 : slice 0..1
+
+Buffer src("hz_kiri_src");
+Data pat(16, 5);
+
+Param bpm(96);
+Param slices(16);
+Param steps(16);
+Param order(0.5);
+Param mutate(0.15);
+Param rest(0.15);
+Param rev(0.2);
+Param pitch(0.3);
+Param ratchet(0.15);
+Param gatelen(0.85);
+Param swing(0);
+Param reroll(0);
+Param level(0.8);
+
+History cnt(0);
+History stp(0);
+History inited(0);
+History rrprev(0);
+History trigprev(0);
+
+blen = max(dim(src), 2);
+ch2 = 0;
+if (channels(src) > 1) {
+	ch2 = 1;
+}
+ns = clamp(floor(slices), 1, 64);
+nst = clamp(floor(steps), 1, 16);
+slen = blen / ns;
+base = samplerate * 15 / clamp(bpm, 20, 400);
+c = cnt + 1;
+s = stp;
+trig = (in1 > 0.5) * (trigprev <= 0.5);
+pm = 0;
+doit = 0;
+j = 0;
+sv = 0;
+dv = 1;
+semi = 0;
+dg = 0;
+oc = 0;
+rv = 1;
+ov = 1;
+ordslice = 0;
+rnds = 0;
+
+if (inited < 0.5 || reroll != rrprev) {
+	pm = 1;
+	doit = 1;
+}
+
+// clock with swing on the off-beats
+odd = s - 2 * floor(s / 2);
+sw = 1 + clamp(swing, 0, 0.9) * 0.5;
+if (odd > 0.5) {
+	sw = 1 - clamp(swing, 0, 0.9) * 0.5;
+}
+sl = base * sw;
+if (c >= sl || trig > 0) {
+	c = 0;
+	s = s + 1;
+	if (s >= nst) {
+		s = 0;
+		if (doit < 1) {
+			pm = clamp(mutate, 0, 1);
+			doit = 1;
+		}
+	}
+}
+
+// write or mutate the pattern
+if (doit > 0) {
+	for (j = 0; j < 16; j += 1) {
+		if ((noise() * 0.5 + 0.5) < pm) {
+			ordslice = j - ns * floor(j / ns);
+			rnds = floor((noise() * 0.5 + 0.5) * ns);
+			sv = ordslice;
+			if ((noise() * 0.5 + 0.5) < order) {
+				sv = rnds;
+			}
+			dv = 1;
+			if ((noise() * 0.5 + 0.5) < rev) {
+				dv = -1;
+			}
+			semi = 0;
+			if ((noise() * 0.5 + 0.5) < pitch) {
+				// pentatonic by fifths: 0 7 2 9 4, one octave down to one up
+				dg = floor((noise() * 0.5 + 0.5) * 5);
+				semi = dg * 7 - 12 * floor(dg * 7 / 12);
+				oc = floor((noise() * 0.5 + 0.5) * 3) - 1;
+				semi = semi + oc * 12;
+				if (semi > 12) {
+					semi = semi - 12;
+				}
+			}
+			rv = 1;
+			if ((noise() * 0.5 + 0.5) < ratchet) {
+				rv = 2 + floor((noise() * 0.5 + 0.5) * 3);
+			}
+			ov = 1;
+			if (j > 0 && (noise() * 0.5 + 0.5) < rest) {
+				ov = 0;
+			}
+			poke(pat, sv, j, 0);
+			poke(pat, dv, j, 1);
+			poke(pat, semi, j, 2);
+			poke(pat, rv, j, 3);
+			poke(pat, ov, j, 4);
+		}
+	}
+}
+
+// play the current step
+csl = peek(pat, s, 0);
+csl = csl - ns * floor(csl / ns);
+cdr = peek(pat, s, 1);
+cse = peek(pat, s, 2);
+crt = max(peek(pat, s, 3), 1);
+con = peek(pat, s, 4);
+subl = sl / crt;
+lc = c - subl * floor(c / subl);
+rt = pow(2, cse / 12);
+rel = wrap(lc * rt, 0, slen);
+sst = csl * slen;
+rd = sst + rel;
+if (cdr < 0) {
+	rd = sst + slen - 1 - rel;
+}
+rd = wrap(rd, 0, blen);
+atk = mstosamps(2);
+rls = mstosamps(8);
+glen = subl * clamp(gatelen, 0.05, 1);
+en = clamp(lc / atk, 0, 1) * clamp((glen - lc) / rls, 0, 1);
+if (con < 0.5) {
+	en = 0;
+}
+i0 = floor(rd);
+fr = rd - i0;
+i1 = wrap(i0 + 1, 0, blen);
+oL = mix(peek(src, i0, 0), peek(src, i1, 0), fr) * en;
+oR = mix(peek(src, i0, ch2), peek(src, i1, ch2), fr) * en;
+
+out1 = oL * level;
+out2 = oR * level;
+out3 = s / 16;
+out4 = csl / ns;
+
+cnt = c;
+stp = s;
+inited = 1;
+rrprev = reroll;
+trigprev = in1;
