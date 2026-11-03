@@ -1,0 +1,28 @@
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <h1><i>芽吹</i><span>mebuki</span></h1>
+      <p>ふたつの音から粒を取り出し、それぞれに手を加え、混ぜ合わせて別の音を立ち上げる楽器。</p>
+    </div>
+    <div class="trans">
+      <button class="play" id="play" aria-pressed="false"><span id="playlabel">▶ 再生</span></button>
+      <button class="rec" id="rec" aria-pressed="false"><span class="dot"></span><span id="reclabel">録音</span></button>
+      <span class="mono" id="rectime"></span>
+    </div>
+  </header>
+  <div class="scenes" id="scenes"><span class="lab">場面</span></div>
+  <p class="msg" id="msg">A と B に音声ファイルを入れて、再生を押してください（起動時は空です）。</p>
+
+  <main class="desk">
+    <section class="strip trk" id="trkA" data-t="a" aria-label="トラック A"></section>
+    <section class="strip" id="morph" aria-label="合体"></section>
+    <section class="strip trk" id="trkB" data-t="b" aria-label="トラック B"></section>
+    <section class="strip" id="master" aria-label="全体"></section>
+  </main>
+
+  <footer>
+    <span>フェーダーはドラッグ／矢印キー（Shift で大きく）、ダブルクリックで初期値。</span>
+    <span>録音は WebM（Safari では MP4）で保存されます。</span>
+  </footer>
+  <input type="file" id="file" accept="audio/*,.wav,.aif,.aiff,.mp3,.m4a,.flac,.ogg" hidden>
+</div>
