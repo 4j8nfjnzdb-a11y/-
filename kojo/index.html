@@ -5,12 +5,12 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: a dark projection booth. The stage (canvas) holds the left column and stays in view;
-   the instrument panel scrolls beside it on desktop and stacks under it on a phone.
+/* Layout: a projection booth. The wall (canvas) holds the left column and stays in view;
+   material comes first in the panel because everything on the wall is made from it.
    Deliberately single-theme: light work is judged against darkness. */
 :root{
-  --bg:#06070b; --panel:#0e1016; --well:#181b25; --ink:#e8e9f1; --dim:#9da3bb; --faint:#5f667d;
-  --line:rgba(160,172,255,.13); --acc:#5465ff; --acc-ink:#f3f4ff; --rec:#ff4747;
+  --bg:#060709; --panel:#0d0f14; --well:#171a22; --ink:#e7e8ee; --dim:#9a9fb3; --faint:#5c6275;
+  --line:rgba(170,178,230,.12); --acc:#5b6bff; --acc-ink:#f3f4ff; --rec:#ff4747;
   --f-disp:"Shippori Mincho B1","Hiragino Mincho ProN","Yu Mincho",serif;
   --f-body:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
   --f-mono:"DM Mono",ui-monospace,Menlo,monospace;
@@ -23,25 +23,28 @@ button,input,select{font:inherit;color:inherit}
 button{cursor:pointer}
 button:disabled{cursor:default;opacity:.4}
 :focus-visible{outline:2px solid var(--acc);outline-offset:2px}
-.app{max-width:1360px;margin:0 auto;padding-left:max(16px, env(safe-area-inset-left,0px));padding-right:max(16px, env(safe-area-inset-right,0px));padding-block:20px 48px;display:flex;flex-direction:column;gap:16px}
+.app{max-width:1440px;margin:0 auto;padding-left:max(16px, env(safe-area-inset-left,0px));padding-right:max(16px, env(safe-area-inset-right,0px));padding-block:20px 48px;display:flex;flex-direction:column;gap:16px}
 .top{display:flex;align-items:flex-end;gap:6px 22px;flex-wrap:wrap}
-.top h1{margin:0;font-family:var(--f-disp);font-weight:800;font-size:clamp(40px,7vw,62px);line-height:1;letter-spacing:.12em;display:flex;align-items:baseline;gap:12px}
-.top h1 small{font-family:var(--f-mono);font-weight:400;font-size:13px;letter-spacing:.2em;color:var(--acc);text-transform:lowercase}
-.top p{margin:0;color:var(--dim);max-width:60ch;min-width:0;flex:1 1 300px;text-wrap:pretty}
-.main{display:grid;grid-template-columns:minmax(0,1fr) 410px;gap:20px;align-items:start}
-@media (max-width:900px){.main{grid-template-columns:minmax(0,1fr)}}
+.top h1{margin:0;font-family:var(--f-disp);font-weight:800;font-size:clamp(40px,7vw,60px);line-height:1;letter-spacing:.12em;display:flex;align-items:baseline;gap:12px}
+.top h1 small{font-family:var(--f-mono);font-weight:400;font-size:13px;letter-spacing:.2em;color:var(--acc)}
+.top p{margin:0;color:var(--dim);max-width:62ch;min-width:0;flex:1 1 300px;text-wrap:pretty}
+.main{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:20px;align-items:start}
+@media (max-width:960px){.main{grid-template-columns:minmax(0,1fr)}}
 .stageCol{display:flex;flex-direction:column;gap:12px;min-width:0;position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px)}
-@media (max-width:900px){.stageCol{position:static}}
-.stage{position:relative;display:flex;justify-content:center;background:#000;border-radius:6px;border:1px solid var(--line);padding:10px;min-width:0}
-#cv{display:block;width:auto;height:auto;max-width:100%;max-height:calc(100vh - 230px);background:#000;touch-action:manipulation;cursor:crosshair}
-@media (max-width:900px){#cv{max-height:64vh}}
-.recBadge{position:absolute;top:18px;left:18px;font-family:var(--f-mono);font-size:12px;letter-spacing:.08em;color:#fff;background:rgba(0,0,0,.55);padding:3px 9px;border-radius:4px;display:flex;align-items:center;gap:7px}
+@media (max-width:960px){.stageCol{position:static}}
+.stage{position:relative;display:flex;justify-content:center;align-items:center;background:#000;border-radius:4px;min-width:0}
+#cv{display:block;width:auto;height:auto;max-width:100%;max-height:calc(100vh - 250px);background:#000;touch-action:manipulation;cursor:crosshair}
+@media (max-width:960px){#cv{max-height:62vh}}
+.recBadge{position:absolute;top:10px;left:10px;font-family:var(--f-mono);font-size:12px;letter-spacing:.08em;color:#fff;background:rgba(0,0,0,.6);padding:3px 9px;border-radius:4px;display:flex;align-items:center;gap:7px}
 .recBadge i{width:8px;height:8px;border-radius:50%;background:var(--rec);animation:blink 1s steps(2) infinite}
 @keyframes blink{50%{opacity:.2}}
 @media (prefers-reduced-motion:reduce){.recBadge i{animation:none}}
+.now{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;font-size:13px;color:var(--dim);min-height:1.6em}
+.now b{font-family:var(--f-disp);font-weight:700;font-size:17px;color:var(--ink);letter-spacing:.06em}
+.now span{min-width:0}
 .transport{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:8px 13px;border-radius:8px;border:1px solid var(--line);background:var(--panel);font-size:13.5px;line-height:1.2;white-space:nowrap}
-.btn:hover:not(:disabled){border-color:rgba(160,172,255,.35)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:8px 13px;border-radius:7px;border:1px solid var(--line);background:var(--panel);font-size:13.5px;line-height:1.2;white-space:nowrap}
+.btn:hover:not(:disabled){border-color:rgba(170,178,230,.35)}
 .btn.primary{background:var(--acc);color:var(--acc-ink);border-color:transparent;font-weight:700}
 .btn.rec{border-color:rgba(255,71,71,.5);color:#ffd6d6}
 .btn.rec[aria-pressed="true"]{background:var(--rec);color:#fff;border-color:transparent}
@@ -50,11 +53,11 @@ button:disabled{cursor:default;opacity:.4}
 .status.err{color:#ff8a8a}
 .warn{margin:0;font-size:12px;color:var(--faint)}
 .result{display:flex;gap:12px;flex-wrap:wrap;align-items:center;padding:12px;border-radius:8px;background:var(--panel);border:1px solid var(--line)}
-.result video{max-height:180px;max-width:100%;border-radius:4px;background:#000}
+.result video{max-height:180px;max-width:100%;border-radius:3px;background:#000}
 .result .ri{display:flex;flex-direction:column;gap:8px;min-width:0;flex:1 1 180px}
 .mono{font-family:var(--f-mono);font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
 .panel{display:flex;flex-direction:column;gap:12px;min-width:0}
-.card{display:flex;flex-direction:column;gap:10px;padding:15px 15px 16px;border-radius:10px;background:var(--panel);border:1px solid var(--line);min-width:0}
+.card{display:flex;flex-direction:column;gap:10px;padding:15px 15px 16px;border-radius:9px;background:var(--panel);border:1px solid var(--line);min-width:0}
 .card h2{margin:0;display:flex;align-items:baseline;gap:10px;font-family:var(--f-disp);font-weight:700;font-size:21px;letter-spacing:.08em}
 .card h2 span{font-family:var(--f-mono);font-weight:400;font-size:11px;letter-spacing:.14em;color:var(--faint);text-transform:uppercase}
 .card .sub{margin:-4px 0 0;font-size:12.5px;color:var(--dim);text-wrap:pretty}
@@ -62,14 +65,21 @@ button:disabled{cursor:default;opacity:.4}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{padding:6px 11px;border-radius:999px;border:1px solid var(--line);background:transparent;font-size:13px;display:inline-flex;align-items:center;gap:6px}
 .chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:transparent}
-.chip i{display:inline-block;width:11px;height:11px;border-radius:50%;background:var(--c);box-shadow:0 0 0 1px rgba(255,255,255,.25)}
+.chip i{display:inline-block;width:11px;height:11px;border-radius:50%;box-shadow:0 0 0 1px rgba(255,255,255,.25)}
+.ops{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.op{display:flex;flex-direction:column;align-items:flex-start;gap:0;padding:7px 9px;border-radius:7px;border:1px solid var(--line);background:transparent;text-align:left;min-width:0}
+.op b{font-family:var(--f-disp);font-size:16px;font-weight:700;letter-spacing:.06em}
+.op small{font-family:var(--f-mono);font-size:10px;color:var(--faint);letter-spacing:.06em}
+.op[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:transparent}
+.op[aria-pressed="true"] small{color:#5c6275}
+.opDesc{margin:0;font-size:12.5px;color:var(--dim);min-height:2.6em;text-wrap:pretty}
 .sl{display:flex;flex-direction:column;gap:1px;min-width:0}
 .sl .kl{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .sl .kl span{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sl .kl span em{font-style:normal;font-family:var(--f-mono);font-size:10.5px;color:var(--faint);margin-left:6px;letter-spacing:.06em}
 .sl output{font-family:var(--f-mono);font-size:12px;color:var(--acc);font-variant-numeric:tabular-nums;white-space:nowrap}
 .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 16px}
-@media (max-width:420px){.grid2{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:420px){.grid2{grid-template-columns:minmax(0,1fr)}.ops{grid-template-columns:repeat(2,minmax(0,1fr))}}
 input[type=range]{-webkit-appearance:none;appearance:none;width:100%;min-width:0;height:24px;background:transparent;margin:0;--v:50%}
 input[type=range]::-webkit-slider-runnable-track{height:3px;border-radius:2px;background:linear-gradient(to right,var(--acc) var(--v),var(--well) var(--v))}
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;margin-top:-5.5px;border-radius:50%;background:var(--ink);border:3px solid var(--acc)}
@@ -80,24 +90,23 @@ input[type=range]::-moz-range-thumb{width:10px;height:10px;border-radius:50%;bac
 .sel{display:flex;flex-direction:column;gap:3px;min-width:0}
 select{padding:7px 9px;border-radius:7px;border:1px solid var(--line);background:var(--well);font-size:13px;max-width:100%}
 .tog{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer}
-.tog input{accent-color:var(--acc);width:16px;height:16px;margin:0}
-.samples{display:flex;flex-wrap:wrap;gap:8px}
-.smp{position:relative;width:64px;height:64px;border-radius:6px;overflow:hidden;border:1px solid var(--line);background:var(--well);padding:0}
-.smp img,.smp video{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
-.smp[aria-current="true"]{outline:2px solid var(--acc);outline-offset:1px}
-.smp .x{position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;border:0;background:rgba(0,0,0,.7);color:#fff;font-size:12px;line-height:20px;padding:0}
-.smp .k{position:absolute;left:3px;bottom:2px;font-family:var(--f-mono);font-size:9.5px;color:#fff;text-shadow:0 0 3px #000}
-.drop{border:1px dashed rgba(160,172,255,.3);border-radius:8px;padding:12px;text-align:center;color:var(--dim);font-size:12.5px}
+.tog input{accent-color:var(--acc);width:16px;height:16px;margin:0;flex:none}
+.mats{display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:8px}
+.mat{position:relative;aspect-ratio:1.4;max-width:100%;border-radius:5px;overflow:hidden;border:1px solid var(--line);background:var(--well);padding:0}
+.mat img,.mat video,.mat canvas{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
+.mat[aria-current="true"]{outline:2px solid var(--acc);outline-offset:1px}
+.mat .x{position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;border:0;background:rgba(0,0,0,.72);color:#fff;font-size:12px;line-height:20px;padding:0}
+.mat .k{position:absolute;left:4px;bottom:2px;font-family:var(--f-mono);font-size:9.5px;color:#fff;text-shadow:0 0 3px #000,0 0 6px #000}
+.drop{display:flex;flex-direction:column;align-items:center;gap:8px;border:1px dashed rgba(170,178,230,.3);border-radius:8px;padding:16px 12px;text-align:center;color:var(--dim);font-size:12.5px}
 .drop.on{border-color:var(--acc);color:var(--ink)}
-.refs{margin:0;padding-left:1.1em;display:flex;flex-direction:column;gap:7px;color:var(--dim);font-size:12.5px}
+.refs{margin:0;padding-left:1.1em;display:flex;flex-direction:column;gap:8px;color:var(--dim);font-size:12.5px}
 .refs b{color:var(--ink);font-weight:500}
-.refs a{color:var(--dim)}
 </style>
 
 <div class="app">
   <header class="top">
     <h1>光条<small>kōjō</small></h1>
-    <p>光の面と線を空間のあちこちに置き、カットで切り替え、点滅させ、前のカットと重ねる映像装置です。写真や動画を入れると、その色が光の帯になり、明るい部分が光の窓になります。画面を叩くとカットします。</p>
+    <p>写真や動画を素材にして、LED の壁に映す光の映像を作ります。素材の一行を引き伸ばして縞にし、一点へ終わりなく寄り、スリットでなぞり、明暗を色の層に置き換え、カットと明滅でつないでいきます。</p>
   </header>
 
   <div class="main">
@@ -106,6 +115,7 @@ select{padding:7px 9px;border-radius:7px;border:1px solid var(--line);background
         <canvas id="cv" aria-label="生成中の映像。叩くとカット"></canvas>
         <div class="recBadge" id="recBadge" hidden><i></i><span id="recTime">REC 0.0s</span></div>
       </div>
+      <div class="now" id="now"></div>
       <div class="transport">
         <button class="btn primary" id="playBtn" type="button" aria-pressed="true"><svg viewBox="0 0 16 16" id="playIco"><path d="M3 2h3.5v12H3zM9.5 2H13v12H9.5z"/></svg><span id="playTxt">止める</span></button>
         <button class="btn" id="cutBtn" type="button">カット</button>
@@ -122,70 +132,66 @@ select{padding:7px 9px;border-radius:7px;border:1px solid var(--line);background
           <div class="row"><button class="btn primary" id="saveBtn" type="button">動画を保存</button><button class="btn" id="dropRes" type="button">捨てる</button></div>
         </div>
       </div>
-      <p class="warn">強い明滅を含む映像です。光に敏感な方は「点滅」を 0 にしてから再生してください。</p>
+      <p class="warn">強い明滅を含む映像です。光に敏感な方は「点滅」を 0 に、つなぎの「交互に明滅」を外してから再生してください。</p>
     </section>
 
     <aside class="panel" aria-label="操作">
+      <section class="card">
+        <h2>素材<span>material</span></h2>
+        <p class="sub">映像はすべて素材から作られます。写真・動画・音を入れてください。入れるまでは内蔵の生成素材で動きます。</p>
+        <div class="drop" id="drop">ここにファイルを落とす<button class="btn primary" id="addBtn" type="button">素材を選ぶ</button></div>
+        <input type="file" id="fileIn" accept="image/*,video/*,audio/*,.mp3,.wav,.m4a,.aif,.aiff,.mov" multiple hidden>
+        <div class="mats" id="mats"></div>
+        <label class="tog"><input type="checkbox" id="t-cycleMat">カットで素材を替える</label>
+        <label class="tog"><input type="checkbox" id="t-useBuiltin">自分の素材があっても内蔵素材を混ぜる</label>
+        <div class="row" id="audioRow" hidden>
+          <button class="btn" id="audioBtn" type="button">音を鳴らす</button>
+          <span class="mono" id="audioName"></span>
+        </div>
+        <div id="audioCtl" hidden>
+          <div id="g-audio" class="grid2"></div>
+          <label class="tog"><input type="checkbox" id="t-audioCut">音の立ち上がりでカットする</label>
+        </div>
+      </section>
+
       <section class="card">
         <h2>はじめ方<span>presets</span></h2>
         <div class="chips" id="presetChips"></div>
       </section>
 
       <section class="card">
-        <h2>素材<span>samples</span></h2>
-        <p class="sub">写真・動画・音を入れられます。ライブの写真や動画なら、明るい壁が光の窓になり、人の影はそのまま残ります。</p>
-        <div class="drop" id="drop">ここにファイルを落とすか <button class="btn" id="addBtn" type="button">ファイルを選ぶ</button></div>
-        <input type="file" id="fileIn" accept="image/*,video/*,audio/*,.mp3,.wav,.m4a,.aif,.aiff" multiple hidden>
-        <div class="samples" id="samples"></div>
-        <div class="row" id="audioRow" hidden>
-          <button class="btn" id="audioBtn" type="button">音を鳴らす</button>
-          <span class="mono" id="audioName"></span>
-        </div>
-        <div id="g-audio" class="grid2"></div>
-        <label class="tog"><input type="checkbox" id="t-audioCut">音の立ち上がりでカットする</label>
-        <label class="tog"><input type="checkbox" id="t-stripFromSample">光の帯の色を素材から取る</label>
+        <h2>技法<span>techniques</span></h2>
+        <p class="sub">素材をどう光に変えるか。選んだ技法がカットごとに入れ替わります。</p>
+        <div class="ops" id="opChips"></div>
+        <p class="opDesc" id="opDesc"></p>
+        <div id="g-tech" class="grid2"></div>
       </section>
 
       <section class="card">
-        <h2>光<span>light</span></h2>
-        <p class="sub">壁に映る光の種類。選んだものがカットごとに入れ替わります。</p>
-        <div class="chips" id="modeChips"></div>
-        <span class="label">色</span>
+        <h2>つなぎ<span>cut · flicker</span></h2>
+        <span class="label">カットのつなぎ方</span>
+        <div class="chips" id="trChips"></div>
+        <div id="g-edit" class="grid2"></div>
+        <label class="sel"><span class="label">カットの細かさ</span><select id="s-sub"><option value="4">4拍</option><option value="2">2拍</option><option value="1">1拍</option><option value="0.5">半拍</option><option value="0.25">4分の1拍</option></select></label>
+      </section>
+
+      <section class="card">
+        <h2>色<span>colour</span></h2>
+        <p class="sub">「素材」は素材から取り出した色です。色層の技法と色付けに使います。</p>
         <div class="chips" id="palChips"></div>
         <label class="tog"><input type="checkbox" id="t-palCycle">カットごとに色を変える</label>
-        <div id="g-light" class="grid2"></div>
-      </section>
-
-      <section class="card">
-        <h2>空間<span>space</span></h2>
-        <p class="sub">光の面をどこに、どの角度で、どの奥行きに置くか。複数選ぶとカットで空間ごと飛びます。</p>
-        <div class="chips" id="layChips"></div>
-        <div id="g-space" class="grid2"></div>
-      </section>
-
-      <section class="card">
-        <h2>編集<span>cut · flicker</span></h2>
-        <div id="g-edit" class="grid2"></div>
-        <div class="grid2">
-          <label class="sel"><span class="label">カットの細かさ</span><select id="s-sub"><option value="2">2拍</option><option value="1">1拍</option><option value="0.5">半拍</option><option value="0.25">4分の1拍</option></select></label>
-          <label class="sel"><span class="label">重ね方</span><select id="s-ghostMode"><option value="0">スクリーン</option><option value="1">加算</option><option value="2">差分</option><option value="3">明るい方</option></select></label>
-          <label class="sel"><span class="label">入れ子</span><select id="s-nest"><option value="0">なし</option><option value="1">上の帯に並べる</option><option value="2">中心に入れる</option></select></label>
-        </div>
+        <div id="g-color" class="grid2"></div>
       </section>
 
       <section class="card">
         <h2>仕上げ<span>finish</span></h2>
-        <div class="grid2">
-          <label class="sel"><span class="label">シルエット</span><select id="s-matte"><option value="none">なし</option><option value="stage">ステージ（内蔵）</option><option value="sample">素材から</option></select></label>
-          <label class="tog" style="align-self:end;padding-bottom:6px"><input type="checkbox" id="t-matteInv">明暗を逆にする</label>
-        </div>
         <div id="g-finish" class="grid2"></div>
       </section>
 
       <section class="card">
         <h2>書き出し<span>export</span></h2>
         <div class="grid2">
-          <label class="sel"><span class="label">画面比</span><select id="s-aspect"><option value="9:16">9:16 縦</option><option value="4:5">4:5</option><option value="1:1">1:1</option><option value="16:9">16:9 横</option></select></label>
+          <label class="sel"><span class="label">画面比</span><select id="s-aspect"><option value="16:9">16:9 横</option><option value="32:9">32:9 横長の壁</option><option value="21:9">21:9</option><option value="1:1">1:1</option><option value="4:5">4:5</option><option value="9:16">9:16 縦</option></select></label>
           <label class="sel"><span class="label">画質（短辺）</span><select id="s-q"><option value="540">540px 軽い</option><option value="720">720px</option><option value="1080">1080px 重い</option></select></label>
           <label class="sel"><span class="label">録画の長さ</span><select id="s-dur"><option value="10">10秒</option><option value="15">15秒</option><option value="30">30秒</option><option value="60">60秒</option><option value="0">止めるまで</option></select></label>
         </div>
@@ -195,10 +201,13 @@ select{padding:7px 9px;border-radius:7px;border:1px solid var(--line);background
       <section class="card">
         <h2>参照<span>sources</span></h2>
         <ul class="refs">
-          <li><b>松本俊夫『アートマン』（1975）</b> 面をつけた人物を円周上の480の位置から一コマずつ撮り、周回を加速させていく。→「周回」の空間とコマ送りのカメラ、カット直後の前後交互の明滅。</li>
-          <li><b>ゲルハルト・リヒター《Strip》</b> 1990年の絵画《Abstraktes Bild 724-4》の画像を縦に分割し、鏡像にして反復し、横縞の帯にした連作。→「帯」の光と「分割」。</li>
-          <li><b>ハンス・リヒター《Rhythmus 21》（1921）</b> 白黒の矩形が画面を分割し、伸び縮みして奥行きを作る初期の抽象映画。→「矩形」の光と「隧道」。</li>
-          <li><b>泉田亨（Toru Izumida）</b> TouchDesigner で組んだ多層の映像を音に反応させるライブA/V。→ 音への反応とレイヤーの重ね。</li>
+          <li><b>ゲルハルト・リヒター《Strip》</b> 1990年のスキージ画《Abstraktes Bild 724-4》の画像を縦に分割し、鏡像にして反復することを12段繰り返し、細い帯を横に引き伸ばした連作。本『Patterns』では分割・鏡像・反復で左右対称の模様を作る。→「帯」「鏡」、内蔵のスキージ画素材。</li>
+          <li><b>松本俊夫『メタスタシス』（1971）</b> ナックのカラー・データ・システムで、映像の濃淡の段ごとに別の色相を当てた。→「色層」。</li>
+          <li><b>松本俊夫『モナ・リザ』（1973）</b> スキャニメイトで画像を電子的に変形・合成し、モニターをフィルムで撮った。スキャニメイトは走査線の振れを発振器で曲げ、画面を帯に分けて別々に動かす。→「変形」。</li>
+          <li><b>松本俊夫『アートマン』（1975）</b> 面をつけた人物を円周上の480の位置からコマ撮りし、回りを加速させる。→「周回」、カット直後の前後交互の明滅。</li>
+          <li><b>ハンス・リヒター《Rhythmus 21》（1921）</b> 白黒の矩形が画面を分割し、伸び縮みして奥行きを作る。→「矩形」。</li>
+          <li><b>スリットスキャン</b> 細い切れ目から取った列を時間順に並べ、時間を空間に置き換える（ゴラン・レヴィンの目録など）。→「走査」。</li>
+          <li><b>泉田亨</b> TouchDesigner で組んだ多層の映像を、音に合わせて動かすライブ A/V。→ 二つの層を重ねてつなぐ構成と、音への反応。</li>
         </ul>
       </section>
     </aside>
@@ -215,309 +224,347 @@ const status=(m,err)=>{const s=$('status');s.textContent=m||'';s.classList.toggl
 
 // ---------------- parameters ----------------
 const P={
-  modes:new Set([1,2,4]), layouts:new Set(['front']), pal:'blue', palCycle:true, stripFromSample:true,
-  div:.45, speed:.6, bright:1,
-  zoom:.35, fog:.04, trans:.15, spaceChange:.35,
-  bpm:118, cut:.45, sub:1, flick:.1, flickRate:12, ghost:.25, ghostMode:0, fb:.3, nest:1, nestK:.13, neg:.05,
-  matte:'stage', matteInv:false, th:.4, soft:.06, srcMix:0, glow:.6, rgb:.12, contrast:1.15, expo:1.1, grid:0, grain:.05,
-  react:.6, audioCut:true, aspect:'9:16', q:720, dur:15
+  ops:new Set([0,2,3,1]), trans:new Set(['cut','dissolve','wipe']), pal:'material', palCycle:false,
+  div:.5, speed:.6, zoom:.55, blur:.35, warp:.5,
+  bpm:112, cut:.4, sub:1, layer:.12, fb:.25, flick:.05, flickRate:12, neg:.04,
+  tint:0, sat:1.15, expo:1.1, contrast:1.05,
+  bloom:.6, rgb:.1, grid:0, grain:.04,
+  react:.6, audioCut:true, cycleMat:true, useBuiltin:false, aspect:'16:9', q:720, dur:15
 };
 const SL={
   audio:[['react','音への反応','react',0,1.5,.01]],
-  light:[['div','分割','divide',0,1,.01],['speed','うごき','drift',0,2,.01],['bright','明るさ','level',.2,2,.01]],
-  space:[['zoom','ズーム','push in',0,1,.01],['fog','奥の闇','fog',0,.15,.001],['trans','透過','layer',0,1,.01],['spaceChange','空間の切替','re-stage',0,1,.01]],
-  edit:[['bpm','テンポ','bpm',40,200,1],['cut','カット率','per beat',0,1,.01],['flick','点滅','flicker',0,1,.01],['flickRate','点滅の速さ','hz',2,30,1],['ghost','前のカットを重ねる','ghost',0,1,.01],['fb','残像','trail',0,.95,.01],['nestK','入れ子の大きさ','nest',.08,.6,.01],['neg','反転の率','negative',0,1,.01]],
-  finish:[['th','影の閾値','key',0,1,.01],['soft','影の境目','soft',0,.3,.005],['srcMix','素材を重ねる','overlay',0,1,.01],['glow','にじみ','halation',0,2,.01],['rgb','色ずれ','rgb',0,1,.01],['contrast','コントラスト','contrast',.5,2.5,.01],['expo','露出','exposure',.3,3,.01],['grid','LED の粒','grid',0,1,.01],['grain','ざらつき','grain',0,.3,.005]]
+  tech:[['div','分割','divide',0,1,.01],['speed','速さ','speed',0,2,.01],['zoom','寄りの深さ','depth',0,1,.01],['blur','やわらかさ','soft',0,1,.01],['warp','歪み','warp',0,1,.01]],
+  edit:[['bpm','テンポ','bpm',40,200,1],['cut','カット率','per beat',0,1,.01],['layer','前のカットを重ねる','layer',0,1,.01],['fb','残像','trail',0,.95,.01],['flick','点滅','flicker',0,1,.01],['flickRate','点滅の速さ','hz',2,30,1],['neg','反転の率','negative',0,1,.01]],
+  color:[['tint','色付け','tint',0,1,.01],['sat','彩度','saturation',0,2,.01],['expo','露出','exposure',.2,3,.01],['contrast','コントラスト','contrast',.5,2,.01]],
+  finish:[['bloom','光のにじみ','bloom',0,2,.01],['rgb','色ずれ','rgb',0,1,.01],['grid','LED の粒','pixel',0,1,.01],['grain','ざらつき','grain',0,.2,.005]]
 };
-const MODES=[[0,'帯','strip'],[1,'場','field'],[2,'地平','horizon'],[3,'矩形','rhythm'],[4,'線','lines'],[6,'閃光','solid'],[5,'素材','sample']];
-const LAYS=[['front','正面'],['corridor','回廊'],['scatter','散在'],['tunnel','隧道'],['atman','周回']];
+const OPS=[
+  [0,'帯','strip','素材の一行を横に引き伸ばし、分割・鏡像・反復して縞にする。一行の位置はゆっくり素材の上を動く（G・リヒター《Strip》）。'],
+  [1,'鏡','pattern','素材の一部を上下左右に折り返して増やし、左右対称の模様にする（リヒター『Patterns』）。'],
+  [2,'拡大','zoom','素材の明るい一点へ終わりなく寄っていき、像を光の場に溶かす。'],
+  [3,'走査','slit','細いスリットで素材をなぞり、取った列を横へ流して時間を空間に並べる（スリットスキャン）。'],
+  [4,'色層','colour','明暗の段ごとに別の色を当て、色が段を巡る（松本俊夫『メタスタシス』のカラー・データ・システム）。'],
+  [5,'変形','raster','走査線を発振器で波打たせ、画面を帯に分けて別々にずらす（『モナ・リザ』のスキャニメイト）。'],
+  [6,'周回','orbit','交差させた素材の面と光の柱を、円周上の位置からコマ送りで回り見る（『アートマン』）。'],
+  [7,'矩形','rhythm','伸び縮みする矩形の窓が図と地を入れ替え、窓の中に素材が寄って見える（H・リヒター《Rhythmus 21》）。'],
+  [8,'光線','lines','素材の明るい色を引いた光の線が、空間の奥から様々な角度で現れては消える。']
+];
+const TRS=[['cut','切る'],['dissolve','溶ける'],['wipe','明るい所から'],['alt','交互に明滅']];
 const hex=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)/255);
 const PALS={
-  blue:['青',['#020313','#2b3dff','#8d98ff','#0a0f6b']],
-  magenta:['桃',['#08020f','#b42cff','#ff4fb0','#3d55ff']],
-  cyan:['水',['#030a1c','#2fb6e8','#d6fbff','#0b2a7a']],
-  white:['白',['#050505','#c9cad1','#ffffff','#6f7382']],
-  ember:['朱',['#0d0302','#ff3a1a','#ffc08a','#7a0f2a']],
-  jade:['翠',['#010a06','#18d48a','#d9ffe9','#0b4a6a']],
+  blue:['青',['#020316','#2233ff','#7a3cff','#38c6ff','#e9edff']],
+  magenta:['桃',['#0a0212','#b42cff','#ff3d9a','#4b5bff','#ffe0f2']],
+  cyan:['水',['#020b1a','#18a8e0','#9ff3ff','#1b3fd0','#ffffff']],
+  white:['白',['#000000','#3c4049','#8d929c','#d4d6dc','#ffffff']],
+  ember:['朱',['#0b0201','#ff3a12','#ffb347','#8a0f3a','#fff1d6']],
+  jade:['翠',['#010806','#0fd18a','#c8ff6a','#0b5a8a','#eafff4']],
 };
-let curPal=PALS.blue[1].map(hex), samplePal=null;
-
 const PRESETS=[
-  ['青い部屋',{modes:[1,2,4],layouts:['front'],pal:'blue',palCycle:true,div:.4,speed:.6,zoom:.35,cut:.45,flick:.08,flickRate:12,ghost:.25,fb:.3,nest:1,nestK:.13,neg:.04,matte:'stage',th:.4,glow:.6,contrast:1.15,expo:1.1,grid:0,trans:.15,sub:1}],
-  ['帯の壁',{modes:[0],layouts:['front','scatter'],pal:'magenta',palCycle:true,div:.55,speed:.4,zoom:.25,cut:.4,flick:.06,ghost:.15,fb:.2,nest:1,nestK:.13,neg:.03,matte:'stage',th:.4,glow:.45,contrast:1.15,expo:.95,trans:.1,sub:1}],
-  ['水平線',{modes:[2,1],layouts:['front'],pal:'cyan',palCycle:false,div:.3,speed:.5,zoom:.4,cut:.3,flick:.04,ghost:.15,fb:.35,nest:0,neg:0,matte:'stage',th:.45,glow:.7,contrast:1.25,expo:1.05,sub:2}],
-  ['周回（アートマン）',{modes:[0,4,6],layouts:['atman'],pal:'white',palCycle:true,div:.6,speed:1,zoom:.5,cut:.5,flick:.35,flickRate:18,ghost:.35,fb:.15,nest:0,neg:.3,matte:'none',glow:.5,contrast:1.4,expo:1.1,trans:.4,sub:.5,fog:.03}],
-  ['リズム21',{modes:[3],layouts:['tunnel','front'],pal:'white',palCycle:false,div:.3,speed:.9,zoom:.5,cut:.5,flick:.15,flickRate:16,ghost:.3,ghostMode:2,fb:.1,nest:2,nestK:.34,neg:.25,matte:'none',glow:.3,contrast:1.6,expo:1,grid:0,trans:0,sub:1,fog:.06}],
-  ['光線',{modes:[4,6,0],layouts:['scatter'],pal:'blue',palCycle:true,div:.7,speed:1.2,zoom:.45,cut:.55,flick:.12,ghost:.2,fb:.6,nest:0,neg:.05,matte:'none',glow:1.1,contrast:1.2,expo:1.25,trans:.8,sub:.5,fog:.05}],
-  ['回廊',{modes:[0,1,4],layouts:['corridor','tunnel'],pal:'magenta',palCycle:true,div:.5,speed:.7,zoom:.4,cut:.4,flick:.1,ghost:.25,fb:.45,nest:0,neg:.08,matte:'none',glow:.8,contrast:1.2,expo:1.15,trans:.3,sub:1,fog:.045}],
+  ['壁',{ops:[0,2,3,1],trans:['cut','dissolve','wipe'],pal:'material',div:.5,speed:.6,zoom:.55,blur:.35,cut:.4,sub:1,layer:.12,fb:.25,flick:.05,neg:.04,tint:0,sat:1.15,expo:1.1,contrast:1.05,bloom:.6}],
+  ['帯',{ops:[0],trans:['cut','wipe'],div:.55,speed:.45,zoom:.3,blur:.15,cut:.45,sub:1,layer:.08,fb:.15,flick:.03,neg:.02,sat:1.25,expo:1.05,contrast:1.1,bloom:.5}],
+  ['拡大',{ops:[2,1],trans:['dissolve','wipe'],div:.35,speed:.5,zoom:.8,blur:.8,cut:.3,sub:2,layer:.2,fb:.35,flick:.02,neg:0,sat:1.4,expo:1.2,contrast:1.15,bloom:.9}],
+  ['走査',{ops:[3,0],trans:['cut','dissolve'],div:.5,speed:.8,zoom:.4,blur:.1,cut:.35,sub:2,layer:.1,fb:.1,flick:.04,neg:.03,sat:1.2,expo:1.05,contrast:1.1,bloom:.55}],
+  ['色層',{ops:[4,5],trans:['cut','alt'],pal:'blue',div:.45,speed:.7,zoom:.5,blur:.3,warp:.45,cut:.5,sub:1,layer:.1,fb:.2,flick:.08,flickRate:14,neg:.1,sat:1.1,expo:1.1,contrast:1.1,bloom:.7}],
+  ['変形',{ops:[5,1],trans:['cut','wipe','alt'],pal:'material',div:.4,speed:.8,zoom:.5,blur:.15,warp:.75,cut:.5,sub:1,layer:.15,fb:.3,flick:.06,neg:.08,tint:.25,sat:1.2,expo:1.1,contrast:1.15,bloom:.6,rgb:.25}],
+  ['周回',{ops:[6],trans:['alt','cut'],pal:'white',div:.5,speed:1,zoom:.5,blur:.2,cut:.5,sub:.5,layer:.15,fb:.15,flick:.25,flickRate:18,neg:.25,sat:1,expo:1.15,contrast:1.25,bloom:.5}],
+  ['矩形',{ops:[7],trans:['cut','alt'],div:.4,speed:.9,zoom:.5,blur:.2,cut:.45,sub:1,layer:.1,fb:.1,flick:.12,flickRate:16,neg:.25,sat:.9,expo:1.1,contrast:1.35,bloom:.4}],
+  ['光線',{ops:[8,2],trans:['dissolve','cut'],div:.6,speed:1,zoom:.55,blur:.6,cut:.45,sub:.5,layer:.2,fb:.55,flick:.08,neg:.04,sat:1.4,expo:1.2,contrast:1.1,bloom:1.2}],
 ];
 
 // ---------------- WebGL ----------------
 const cv=$('cv');
 const gl=cv.getContext('webgl2',{preserveDrawingBuffer:true,antialias:false,alpha:false,premultipliedAlpha:false});
-if(!gl){status('この端末のブラウザでは WebGL2 が使えないため、映像を作れません。',true);return}
-gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);
+if(!gl){status('このブラウザでは WebGL2 が使えないため、映像を作れません。',true);return}
+const HDR=!!gl.getExtension('EXT_color_buffer_float');
+const FMT=HDR?[gl.RGBA16F,gl.RGBA,gl.HALF_FLOAT]:[gl.RGBA8,gl.RGBA,gl.UNSIGNED_BYTE];
 const VS=`#version 300 es
 in vec2 aP;out vec2 vUv;void main(){vUv=aP*.5+.5;gl_Position=vec4(aP,0.,1.);}`;
-const COMMON=`#version 300 es
+const HEAD=`#version 300 es
 precision highp float;
 in vec2 vUv;
+uniform vec2 uRes;
 float h11(float p){p=fract(p*.1031);p*=p+33.33;p*=p+p;return fract(p);}
 float h21(vec2 p){vec3 q=fract(p.xyx*.1031);q+=dot(q,q.yzx+33.33);return fract((q.x+q.y)*q.z);}
+float luma(vec3 c){return dot(c,vec3(.2126,.7152,.0722));}
+uniform vec3 uPal[5];
+vec3 palc(float x){x=fract(x)*5.;int i=int(floor(x));float f=smoothstep(0.,1.,fract(x));return mix(uPal[i],uPal[(i+1)%5],f);}
 `;
-const FS_SCENE=COMMON+`
+// material access: sRGB texture -> linear light, with blur that reaches a separately blurred copy
+const MAT=`
+uniform sampler2D uMat,uMatB;uniform float uMatAsp,uMatW,uBaseLod;
+vec3 M(vec2 m,float b){vec3 a=textureLod(uMat,m,uBaseLod+b*5.).rgb;vec3 c=texture(uMatB,m).rgb;return pow(mix(a,c,smoothstep(.55,1.,b)),vec3(2.2));}
+vec2 fitUV(vec2 uv){float oa=uRes.x/uRes.y;vec2 u=uv-.5;if(uMatAsp>oa)u.x*=oa/uMatAsp;else u.y*=uMatAsp/oa;return u+.5;}
+`;
+const FS_DECK=HEAD+MAT+`
 out vec4 o;
-uniform vec2 uRes;uniform float uTime,uSpeed,uDiv,uStripOff,uFog,uTrans,uBright,uSrcAsp,uTanF;
+uniform int uOp;uniform float uSeed,uT,uSpeed,uDiv,uZoom,uBlur,uWarp,uTanF;
+uniform vec2 uFocus;uniform sampler2D uScan;
 uniform vec3 uCamPos;uniform mat3 uCam;
-uniform vec4 uPA[8],uPB[8],uPC[8],uPD[8];uniform int uN;
-uniform vec3 uCol[4];
-uniform sampler2D uStrip,uSrc;
-// Richter Strip: a line of colour, divided, mirrored, repeated
-vec3 mStrip(vec2 uv,float sd){
-  float rep=exp2(floor(uDiv*5.+.5));
+uniform vec4 uL1[14],uL2[14];uniform int uLN;
+mat2 rot(float a){float c=cos(a),s=sin(a);return mat2(c,-s,s,c);}
+vec3 opStrip(vec2 uv){
+  if(h11(uSeed+3.)>.72)uv=vec2(uv.y,1.-uv.x);
+  float rep=exp2(floor(uDiv*6.+.5));
   float k=uv.x*rep,f=fract(k);if(mod(floor(k),2.)>.5)f=1.-f;
-  float w=mix(.9,.04,uDiv);
-  vec3 c=texture(uStrip,vec2(uStripOff+sd*.618+f*w+uTime*uSpeed*.003,.5)).rgb;
-  float side=step(.5,h11(sd*7.1));
-  float wf=smoothstep(.45,.85,mix(1.-uv.x,uv.x,side)+(h11(sd*3.3)-.5)*.5)*step(.62,h11(sd*9.7));
-  c=mix(c,vec3(1.),wf*.85);
-  return c*(.82+.18*smoothstep(0.,.7,uv.y));
+  float w=mix(.9,.025,uDiv);
+  float n=max(2.,w*uMatW*.5);float fq=(floor(f*n)+.5)/n;f=mix(fq,f,uBlur);
+  float x0=fract(h11(uSeed)*.8+uT*uSpeed*.004);
+  float y0=.08+.84*(.5+.5*sin(uT*uSpeed*.05+h11(uSeed+1.)*6.283));
+  return M(vec2(x0+f*w,y0+(uv.y-.5)*uZoom*.018),uBlur*.25)*1.1;
 }
-// saturated field with drifting dark blobs and pin lights
-vec3 mField(vec2 uv,float sd,float asp){
-  vec3 c=mix(uCol[1],mix(uCol[1],uCol[2],.35),uv.y);
-  float d=0.,sp=0.;
-  for(int i=0;i<5;i++){float fi=float(i);
-    vec2 p=vec2(h11(sd+fi*1.7),h11(sd+fi*3.1+.5));
-    p+=.16*vec2(sin(uTime*uSpeed*.3+fi*2.+sd),cos(uTime*uSpeed*.23+fi*1.3));
-    float r=.05+.11*h11(sd+fi*5.3);
-    vec2 q=uv-p;q.x*=asp;
-    float g=dot(q,q);d+=exp(-g/(r*r));
-    sp+=exp(-g/(r*r*.02))*step(.55,h11(sd+fi*9.1));
-  }
-  c*=1.-.92*clamp(d,0.,1.);
-  c+=uCol[2]*sp*1.6;
-  return c*(.75+.25*smoothstep(0.,.25,min(uv.x,1.-uv.x)*asp));
+vec3 opMirror(vec2 uv){
+  vec2 p=(uv-.5)*vec2(uRes.x/uRes.y,1.);
+  float k=exp2(floor(1.+uDiv*4.));
+  vec2 q=abs(fract(p*k*.5+.5)*2.-1.);
+  float r=mix(.5,.06,uDiv)*(1.-.5*uZoom);
+  vec2 c=uFocus+vec2(sin(uT*uSpeed*.05+uSeed),cos(uT*uSpeed*.037+uSeed*2.))*.12;
+  return M(c+(q-.5)*r*vec2(1./uMatAsp,1.),uBlur*.6);
 }
-// bright horizon under a dark band
-vec3 mHorizon(vec2 uv,float sd){
-  float h=.5+.22*sin(uTime*uSpeed*.21+sd*6.28);
-  float b=smoothstep(h+.28,h-.18,uv.y);
-  vec3 c=mix(uCol[0]*1.5,mix(uCol[1],uCol[2],.75),b);
-  c=mix(c,uCol[3]*1.4,smoothstep(h+.05,h+.18,uv.y)*smoothstep(h+.45,h+.2,uv.y)*.7);
-  c+=uCol[2]*exp(-abs(uv.y-h+.1)*30.)*.35;
-  return c*(.93+.07*sin(uv.y*420.));
+vec3 opZoom(vec2 uv){
+  vec2 p=(uv-.5)*vec2(uRes.x/uRes.y,1.);
+  p=rot(uT*uSpeed*.01+uSeed)*p;
+  float base=mix(.9,.03,uZoom),z=fract(uT*uSpeed*.05);
+  vec3 acc=vec3(0.);float ws=0.;
+  for(int i=0;i<3;i++){float k=float(i)+z;float s=base*exp2(1.5-k);float w=sin(3.14159*k/3.);w*=w;
+    acc+=M(uFocus+p*s*vec2(1./uMatAsp,1.),clamp(uBlur+.15*(2.-k),0.,1.))*w;ws+=w;}
+  return acc/max(ws,1e-3)*1.1;
 }
-// Rhythmus 21: rectangles growing out of depth, figure and ground swapping
-vec3 mRhythm(vec2 uv,float sd,float asp){
-  vec2 p=uv-.5;p.x*=asp;float par=0.;
+vec3 opSlit(vec2 uv){return texture(uScan,uv).rgb;}
+vec3 opColour(vec2 uv){
+  float z=mix(1.,.2,uZoom);
+  vec2 m=uFocus+(fitUV(uv)-.5)*z+vec2(sin(uT*uSpeed*.07),cos(uT*uSpeed*.05))*.04*uZoom;
+  float l=sqrt(luma(M(m,uBlur*.6)));
+  float n=floor(3.+uDiv*10.),q=floor(l*n)/n;
+  vec3 c=palc(q*.85+uT*uSpeed*.04+h11(uSeed));
+  return pow(c,vec3(2.2))*(.1+q*1.5);
+}
+vec3 opRaster(vec2 uv){
+  float t=uT*uSpeed,bands=floor(2.+uDiv*10.),b=floor(uv.y*bands),bh=h11(b+uSeed);
+  float dx=uWarp*(.14*sin(uv.y*6.+t*1.3+uSeed)+.05*sin(uv.y*31.-t*2.3)+.22*(bh-.5)*sin(t*.6+bh*6.));
+  float dy=uWarp*.06*sin(uv.x*4.+t*.8);
+  float depth=1.+uWarp*.45*sin(t*.4+bh*3.);
+  vec2 p=(uv-.5)*depth+.5+vec2(dx,dy);
+  p.x=(p.x-.5)*(1.+uZoom*.8*(uv.y-.5))+.5;
+  vec3 c=M(fitUV(p),uBlur*.2);
+  vec3 c2=M(fitUV(p+vec2(.035*sin(t*.9),.0)),.1);
+  c=max(c,c2*pow(palc(t*.03+bh),vec3(2.2))*.7);
+  c*=step(0.,p.x)*step(p.x,1.)*step(0.,p.y)*step(p.y,1.);
+  return c*(.8+.2*sin(uv.y*uRes.y*1.5708));
+}
+vec3 opOrbit(vec2 uv){
+  vec2 p=(uv*2.-1.)*uTanF;p.x*=uRes.x/uRes.y;
+  vec3 rd=normalize(uCam*vec3(p,1.)),ro=uCamPos,col=vec3(0.);float tn=1e9;
+  float hh=1.5,hw=hh*clamp(uMatAsp,.6,1.8);
+  for(int i=0;i<2;i++){vec3 n=i==0?vec3(0,0,1):vec3(1,0,0);float den=dot(rd,n);if(abs(den)<1e-5)continue;
+    float t=-dot(ro,n)/den;if(t<.05||t>tn)continue;vec3 h=ro+rd*t;vec2 q=i==0?h.xy:vec2(h.z,h.y);
+    if(abs(q.x)>hw||abs(q.y)>hh)continue;tn=t;col=M(q/vec2(hw,hh)*.5+.5,uBlur*.3)*(i==0?1.:.8);}
+  for(int k=0;k<16;k++){float a=float(k)*.3927+uSeed;vec2 c=vec2(cos(a),sin(a))*4.2;
+    vec2 o2=ro.xz-c,d2=rd.xz;float dd=dot(d2,d2);float tt=-dot(o2,d2)/dd;if(tt<.05)continue;
+    float dist=length(o2+d2*tt),y=ro.y+rd.y*tt,w=.012*tt;
+    float g=exp(-dist*dist/(w*w))*smoothstep(3.2,2.6,abs(y));
+    vec3 lc=M(vec2(fract(float(k)/16.+uSeed),.5+y*.15),.3);lc/=max(max(lc.r,lc.g),lc.b)+.02;
+    col+=lc*g*(tt<tn?2.5:.4);}
+  return col;
+}
+vec3 opRhythm(vec2 uv){
+  float asp=uRes.x/uRes.y;vec2 p=(uv-.5)*vec2(asp,1.);float par=0.,sc=1.;vec2 off0=vec2(0.);
   for(int i=0;i<4;i++){float fi=float(i);
-    float s=fract(uTime*uSpeed*.12+fi*.25+sd);s=s*s*(.9*asp+.7);
-    vec2 off=(vec2(h11(sd+fi),h11(sd+fi+.3))-.5)*.5*(1.-s);
-    vec2 a=vec2(s*(.5+.9*h11(sd+fi*2.)),s);
-    vec2 q=abs(p-off);if(q.x<a.x&&q.y<a.y)par=1.-par;
-  }
-  return mix(uCol[0]*.5,mix(uCol[2],vec3(1.),.6),par);
+    float s=fract(uT*uSpeed*.1+fi*.25+h11(uSeed));s=s*s*(.9*asp+.7);
+    vec2 off=(vec2(h11(uSeed+fi),h11(uSeed+fi+.3))-.5)*.6*(1.-s);
+    vec2 a=vec2(s*(.5+.9*h11(uSeed+fi*2.)),s);
+    vec2 q=abs(p-off);if(q.x<a.x&&q.y<a.y){par=1.-par;sc=s;off0=off;}}
+  vec2 m=uFocus+(p-off0)/max(sc,.08)*mix(.5,.08,uZoom)*vec2(1./uMatAsp,1.)*.5;
+  vec3 c=M(m,uBlur*.4);
+  return par>.5?c*1.3:c*.04;
 }
-// lines of light switching on and off, one scan line travelling
-vec3 mLines(vec2 uv,float sd){
-  float n=18.+floor(h11(sd)*46.);
-  float cell=floor(uv.x*n);
-  float tick=floor(uTime*uSpeed*4.+h11(cell+sd)*8.);
-  float on=step(.55,h21(vec2(cell,tick+sd*13.)));
-  float fx=fract(uv.x*n);
-  float ln=smoothstep(.5,.0,abs(fx-.5)-.16);
-  vec3 c=uCol[0]*.4+mix(uCol[1],vec3(1.),.55)*on*ln;
-  float sy=fract(uTime*uSpeed*.25+sd);
-  return c+uCol[2]*exp(-abs(uv.y-sy)*70.)*1.3;
-}
-vec3 mSrc(vec2 uv,float asp){
-  vec2 u=uv-.5;if(uSrcAsp>asp)u.x*=asp/uSrcAsp;else u.y*=uSrcAsp/asp;
-  return texture(uSrc,u+.5).rgb*1.15;
-}
-vec3 mSolid(vec2 uv,float sd){return mix(uCol[2],vec3(1.),.45)*(.8+.2*sin(uTime*uSpeed*6.+sd*10.));}
-vec3 wall(vec2 uv,float m,float sd,float asp){
-  if(m<.5)return mStrip(uv,sd);
-  if(m<1.5)return mField(uv,sd,asp);
-  if(m<2.5)return mHorizon(uv,sd);
-  if(m<3.5)return mRhythm(uv,sd,asp);
-  if(m<4.5)return mLines(uv,sd);
-  if(m<5.5)return mSrc(uv,asp);
-  return mSolid(uv,sd);
+vec3 opLines(vec2 uv){
+  vec2 p=(uv-.5)*vec2(uRes.x/uRes.y,1.);
+  vec3 col=M(uFocus+p*.25*vec2(1./uMatAsp,1.),.95)*.05;
+  for(int i=0;i<14;i++){if(i>=uLN)break;vec4 a=uL1[i],b=uL2[i];if(b.y<.003)continue;
+    vec2 pa=p-a.xy,ba=a.zw-a.xy;float h=clamp(dot(pa,ba)/max(dot(ba,ba),1e-6),0.,1.);float d=length(pa-ba*h);
+    float th=b.x;float g=exp(-d*d/(th*th))*1.6+exp(-d/(th*6.))*.22;
+    vec3 c=M(vec2(b.z+h*.25,b.w),.15);c/=max(max(c.r,c.g),c.b)+.03;
+    col+=c*g*b.y;}
+  return col;
 }
 void main(){
-  vec2 p=(vUv*2.-1.)*uTanF;p.x*=uRes.x/uRes.y;
-  vec3 rd=normalize(uCam*vec3(p,1.)),ro=uCamPos;
-  vec3 nr=vec3(0.),sum=vec3(0.);float tn=1e9;
-  for(int i=0;i<8;i++){if(i>=uN)break;
-    float I=uPD[i].x;if(I<.004)continue;
-    vec3 c=uPA[i].xyz,R=uPB[i].xyz,U=uPC[i].xyz,n=cross(R,U);
-    float den=dot(rd,n);if(abs(den)<1e-7)continue;
-    float t=dot(c-ro,n)/den;if(t<.05)continue;
-    vec3 d=ro+rd*t-c;float rr=dot(R,R),uu=dot(U,U);
-    float s=dot(d,R)/rr,q=dot(d,U)/uu;
-    if(abs(s)>1.||abs(q)>1.)continue;
-    float hl=uPC[i].w;if(hl>0.&&abs(s)<hl&&abs(q)<hl)continue;
-    vec2 uv=vec2(s,q)*.5+.5;if(den<0.)uv.x=1.-uv.x;
-    vec3 col=wall(uv,uPA[i].w,uPB[i].w,sqrt(rr/uu))*I*exp(-t*uFog);
-    sum+=col;if(t<tn){tn=t;nr=col;}
-  }
-  o=vec4(mix(nr,sum,uTrans)*uBright,1.);
+  vec2 uv=vUv;vec3 c;
+  if(uOp==0)c=opStrip(uv);else if(uOp==1)c=opMirror(uv);else if(uOp==2)c=opZoom(uv);else if(uOp==3)c=opSlit(uv);
+  else if(uOp==4)c=opColour(uv);else if(uOp==5)c=opRaster(uv);else if(uOp==6)c=opOrbit(uv);else if(uOp==7)c=opRhythm(uv);else c=opLines(uv);
+  o=vec4(c,1.);
 }`;
-const FS_POST=COMMON+`
-layout(location=0) out vec4 o;
-layout(location=1) out vec4 oc;
-uniform sampler2D uScene,uPrev,uGhost,uMatte,uSrc;
-uniform vec2 uRes;uniform float uTime,uRGB,uGlow,uTh,uSoft,uMatteOn,uMatteInv,uMatteAsp,uSrcAsp,uSrcMix,uGhostAmt,uGhostMode,uFb,uFbZoom,uFlick,uNeg,uSol,uContrast,uExpo,uGrid,uGrain,uNest,uNestK,uLevel;
-float luma(vec3 c){return dot(c,vec3(.299,.587,.114));}
-vec2 cover(vec2 uv,float a){float oa=uRes.x/uRes.y;vec2 u=uv-.5;if(a>oa)u.x*=oa/a;else u.y*=a/oa;return u+.5;}
+const FS_SCAN=HEAD+MAT+`
+out vec4 o;uniform sampler2D uPrevS;uniform float uShift,uSlit,uSlit0,uVert;
 void main(){
-  vec2 uv=vUv;vec3 c=vec3(0.);bool nested=false;
-  if(uNest>.5){float k=uNestK;
-    if(uNest<1.5){if(uv.y>1.-k){nested=true;c=texture(uPrev,vec2(fract((uv.x-.5)/k+.5),(uv.y-1.+k)/k)).rgb;}}
-    else if(abs(uv.x-.5)<k*.5&&abs(uv.y-.5)<k*.5){nested=true;c=texture(uPrev,(uv-.5)/k+.5).rgb;}
-  }
-  if(!nested){
-    vec2 d=(uv-.5)*uRGB*.035;
-    c=vec3(texture(uScene,uv+d).r,texture(uScene,uv).g,texture(uScene,uv-d).b);
-    if(uGlow>0.){vec3 g=vec3(0.);float ar=uRes.y/uRes.x;
-      for(int i=0;i<12;i++){float a=float(i)*.5236+.3;float r=.012*(1.+float(i%3)*1.7);g+=texture(uScene,uv+vec2(cos(a)*ar,sin(a))*r).rgb;}
-      c+=g/12.*uGlow*1.3;}
-    if(uSrcMix>0.){vec3 s=texture(uSrc,cover(uv,uSrcAsp)).rgb;c=mix(c,1.-(1.-c)*(1.-s),uSrcMix);}
-    if(uMatteOn>.5){float m=luma(texture(uMatte,cover(uv,uMatteAsp)).rgb);if(uMatteInv>.5)m=1.-m;c*=smoothstep(uTh-uSoft,uTh+uSoft+.001,m);}
-    vec3 g=texture(uGhost,uv).rgb*uGhostAmt;
-    if(uGhostMode<.5)c=1.-(1.-clamp(c,0.,1.))*(1.-g);else if(uGhostMode<1.5)c+=g;else if(uGhostMode<2.5)c=abs(c-g);else c=max(c,g);
-    vec3 pr=texture(uPrev,(uv-.5)*(1.-uFbZoom)+.5).rgb;c=max(c,pr*uFb);
-    c*=uExpo*(1.+uLevel);
-    c=(c-.5)*uContrast+.5;
-  }
-  c=clamp(c,0.,1.);
+  float along=uVert>.5?1.-vUv.y:vUv.x,across=uVert>.5?vUv.x:vUv.y;vec3 c;
+  if(along<uShift){vec2 f=fitUV(uVert>.5?vec2(across,.5):vec2(.5,across));float sl=mix(uSlit,uSlit0,along/max(uShift,1e-5));c=M(uVert>.5?vec2(f.x,sl):vec2(sl,f.y),.04)*1.1;}
+  else c=texture(uPrevS,uVert>.5?vUv+vec2(0.,uShift):vUv-vec2(uShift,0.)).rgb;
+  o=vec4(c,1.);
+}`;
+const FS_BLUR=HEAD+`
+out vec4 o;uniform sampler2D uSrc;uniform vec2 uDir;uniform float uLod;
+void main(){vec3 c=vec3(0.);float ws=0.;for(int i=-6;i<=6;i++){float w=exp(-float(i*i)/18.);c+=textureLod(uSrc,vUv+uDir*float(i),uLod).rgb*w;ws+=w;}o=vec4(c/ws,1.);}`;
+const FS_MIX=HEAD+`
+layout(location=0) out vec4 o;layout(location=1) out vec4 oc;
+uniform sampler2D uA,uB,uPrev;
+uniform float uMode,uK,uAlt,uLayer,uFb,uFbZoom,uFlick,uNeg,uSol,uExpo,uLevel,uSat,uTint,uContrast;
+void main(){
+  vec3 a=texture(uA,vUv).rgb,b=texture(uB,vUv).rgb,c=a;
+  if(uMode>.5&&uMode<1.5)c=mix(b,a,uK);
+  else if(uMode<2.5&&uMode>1.5){float l=luma(a);l=l/(l+.35);float th=1.-uK*1.25;c=mix(b,a,smoothstep(th-.08,th+.08,l));}
+  else if(uMode>2.5)c=uAlt>.5?b:a;
+  c+=b*uLayer;
+  vec3 pr=texture(uPrev,(vUv-.5)*(1.-uFbZoom)+.5).rgb;c=max(c,pr*uFb);
+  float L=luma(c);c=max(vec3(0.),mix(vec3(L),c,uSat));
+  if(uTint>0.){vec3 t=pow(palc(sqrt(L)*.8),vec3(2.2))*(L*2.+.02);c=mix(c,t,uTint);}
+  c*=uExpo*(1.+uLevel);
+  c=.18*pow(c/.18,vec3(uContrast));
   oc=vec4(c,1.);
-  if(uSol>0.)c=mix(c,1.-abs(2.*c-1.),uSol);
-  if(uNeg>.5)c=1.-c;
-  if(uFlick>.5){if(uFlick<1.5)c=vec3(0.);else if(uFlick<2.5)c=vec3(1.);else if(uFlick<3.5)c=1.-c;else c=texture(uGhost,uv).rgb;}
-  if(uGrid>0.){float cs=mix(3.,11.,uGrid);vec2 f=fract(uv*uRes/cs)-.5;float m=1.-smoothstep(.26,.5,max(abs(f.x),abs(f.y)));c*=mix(1.,m*1.4,min(1.,uGrid*1.6));}
-  c+=(h21(uv*uRes+fract(uTime*7.)*313.)-.5)*uGrain;
+  vec3 s=clamp(c,0.,1.);
+  if(uSol>0.)c=mix(c,1.-abs(2.*s-1.),uSol);
+  if(uNeg>.5)c=1.-clamp(c,0.,1.);
+  if(uFlick>.5){if(uFlick<1.5)c=vec3(0.);else if(uFlick<2.5)c=vec3(1.6);else if(uFlick<3.5)c=1.-clamp(c,0.,1.);else c=b;}
+  o=vec4(c,1.);
+}`;
+const FS_DOWN=HEAD+`
+out vec4 o;uniform sampler2D uSrc;uniform vec2 uTx;uniform float uThr;
+vec3 f(vec2 u){vec3 c=texture(uSrc,u).rgb;if(uThr>0.){float l=luma(c);c*=smoothstep(uThr*.5,uThr*1.5,l);}return c;}
+void main(){vec2 d=uTx;vec3 c=f(vUv)*4.+f(vUv+vec2(-d.x,-d.y))+f(vUv+vec2(d.x,-d.y))+f(vUv+vec2(-d.x,d.y))+f(vUv+vec2(d.x,d.y));o=vec4(c/8.,1.);}`;
+const FS_UP=HEAD+`
+out vec4 o;uniform sampler2D uSrc,uBase;uniform vec2 uTx;
+void main(){vec2 d=uTx;vec3 c=vec3(0.);
+  c+=texture(uSrc,vUv+vec2(-d.x*2.,0.)).rgb+texture(uSrc,vUv+vec2(d.x*2.,0.)).rgb+texture(uSrc,vUv+vec2(0.,-d.y*2.)).rgb+texture(uSrc,vUv+vec2(0.,d.y*2.)).rgb;
+  c+=(texture(uSrc,vUv+vec2(-d.x,d.y)).rgb+texture(uSrc,vUv+vec2(d.x,d.y)).rgb+texture(uSrc,vUv+vec2(-d.x,-d.y)).rgb+texture(uSrc,vUv+vec2(d.x,-d.y)).rgb)*2.;
+  o=vec4(c/12.+texture(uBase,vUv).rgb,1.);}`;
+const FS_OUT=HEAD+`
+out vec4 o;uniform sampler2D uMix,uBloom;uniform float uBloomAmt,uRGB,uGrain,uGrid,uTime;
+vec3 aces(vec3 x){return clamp((x*(2.51*x+.03))/(x*(2.43*x+.59)+.14),0.,1.);}
+void main(){
+  vec2 d=(vUv-.5)*uRGB*.018;
+  vec3 c=vec3(texture(uMix,vUv+d).r,texture(uMix,vUv).g,texture(uMix,vUv-d).b);
+  c+=texture(uBloom,vUv).rgb*uBloomAmt*.35;
+  c=pow(aces(c*1.1),vec3(1./2.2));
+  if(uGrid>0.){float cs=mix(2.,9.,uGrid);vec2 f=fract(vUv*uRes/cs)-.5;float r=length(f);float m=1.-smoothstep(.32,.5,r);c*=mix(1.,m*1.5,min(1.,uGrid*1.4));}
+  c+=(h21(vUv*uRes+fract(uTime*7.)*313.)-.5)*(uGrain+1./255.);
   o=vec4(c,1.);
 }`;
 function compile(type,src){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(s));return s}
 function program(fs){const p=gl.createProgram();gl.attachShader(p,compile(gl.VERTEX_SHADER,VS));gl.attachShader(p,compile(gl.FRAGMENT_SHADER,fs));gl.bindAttribLocation(p,0,'aP');gl.linkProgram(p);
   if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(p));
   const u={};const n=gl.getProgramParameter(p,gl.ACTIVE_UNIFORMS);for(let i=0;i<n;i++){const nm=gl.getActiveUniform(p,i).name;u[nm.replace(/\[0\]$/,'')]=gl.getUniformLocation(p,nm)}return{p,u}}
-let SC,PO;
-try{SC=program(FS_SCENE);PO=program(FS_POST)}catch(e){status('シェーダーを組み立てられませんでした: '+e.message,true);console.error(e);return}
+let PR;
+try{PR={deck:program(FS_DECK),scan:program(FS_SCAN),blur:program(FS_BLUR),mix:program(FS_MIX),down:program(FS_DOWN),up:program(FS_UP),out:program(FS_OUT)}}
+catch(e){status('シェーダーを組み立てられませんでした: '+e.message,true);console.error(e);return}
 const vb=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,vb);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
 gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
-function mkTex(w,h,filter,wrap){const t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,filter||gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,filter||gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,wrap||gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
-  if(w)gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,w,h,0,gl.RGBA,gl.UNSIGNED_BYTE,null);return t}
+function mkTex(w,h,o={}){const t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,o.min||gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,o.wrap||gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,o.wrap||gl.CLAMP_TO_EDGE);
+  if(w){const f=o.ldr?[gl.RGBA8,gl.RGBA,gl.UNSIGNED_BYTE]:FMT;gl.texImage2D(gl.TEXTURE_2D,0,f[0],w,h,0,f[1],f[2],null)}t.w=w;t.h=h;return t}
 function mkFbo(texs){const f=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,f);
-  texs.forEach((t,i)=>gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0+i,gl.TEXTURE_2D,t,0));
-  gl.drawBuffers(texs.map((_,i)=>gl.COLOR_ATTACHMENT0+i));return f}
-const stripTex=mkTex(0,0,gl.NEAREST,gl.REPEAT), srcTex=mkTex(0,0), stageTex=mkTex(0,0);
-gl.bindTexture(gl.TEXTURE_2D,srcTex);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([40,40,60,255]));
-let W=0,H=0,sceneT,sceneF,outT=[],outC=[],outF=[],ghostT,ghostF,ping=0;
-function freeTargets(){[sceneT,ghostT,...outT,...outC].forEach(t=>t&&gl.deleteTexture(t));[sceneF,ghostF,...outF].forEach(f=>f&&gl.deleteFramebuffer(f))}
-function resize(){
-  const [a,b]=P.aspect.split(':').map(Number), q=+P.q;
-  if(a<b){W=q;H=Math.round(q*b/a/2)*2}else{H=q;W=Math.round(q*a/b/2)*2}
-  cv.width=W;cv.height=H;freeTargets();
-  sceneT=mkTex(W,H);sceneF=mkFbo([sceneT]);
-  outT=[mkTex(W,H),mkTex(W,H)];outC=[mkTex(W,H),mkTex(W,H)];outF=[mkFbo([outT[0],outC[0]]),mkFbo([outT[1],outC[1]])];
-  ghostT=mkTex(W,H);ghostF=mkFbo([ghostT]);
-  gl.bindFramebuffer(gl.FRAMEBUFFER,null);
-  drawStage();
-}
+  texs.forEach((t,i)=>gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0+i,gl.TEXTURE_2D,t,0));gl.drawBuffers(texs.map((_,i)=>gl.COLOR_ATTACHMENT0+i));f.w=texs[0].w;f.h=texs[0].h;return f}
+function target(w,h,n=1,o){const t=[];for(let i=0;i<n;i++)t.push(mkTex(w,h,o));const f=mkFbo(t);return{t,f,w,h}}
+function freeTarget(x){if(!x)return;x.t.forEach(t=>gl.deleteTexture(t));gl.deleteFramebuffer(x.f)}
+const tri=()=>gl.drawArrays(gl.TRIANGLES,0,3);
+function bindT(prog,name,tex,unit){gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,tex);gl.uniform1i(prog.u[name],unit)}
+function draw(prog,tgt,w,h,fn){gl.bindFramebuffer(gl.FRAMEBUFFER,tgt?tgt.f:null);gl.viewport(0,0,w,h);gl.useProgram(prog.p);gl.uniform2f(prog.u.uRes,w,h);fn(prog.u,prog)}
+const f1=(u,k,v)=>u[k]&&gl.uniform1f(u[k],v);
 
-// ---------------- built-in stage silhouette ----------------
-const stageCv=document.createElement('canvas');
-function drawStage(){
-  const w=W,h=H;stageCv.width=w;stageCv.height=h;const x=stageCv.getContext('2d');
-  let seed=11;const r=()=>(seed=(seed*16807)%2147483647)/2147483647;
-  x.fillStyle='#fff';x.fillRect(0,0,w,h);x.fillStyle='#000';x.strokeStyle='#000';x.lineCap='round';
-  const s=Math.min(w,h*.5625)/100,cx=w*.5,by=h*.6;
-  x.lineWidth=Math.max(1,s*.22);
-  // performer
-  x.beginPath();x.arc(cx-s*.8,by-s*21,s*3.3,0,7);x.fill();
-  x.fillRect(cx-s*2,by-s*19,s*3,s*4);
-  x.beginPath();x.moveTo(cx-s*7,by-s*15);x.quadraticCurveTo(cx-s*1,by-s*18.5,cx+s*5.5,by-s*15.5);x.lineTo(cx+s*6.5,by-s*6);x.lineTo(cx+s*4,by+s*2);x.lineTo(cx-s*5,by+s*2);x.lineTo(cx-s*7.5,by-s*6);x.closePath();x.fill();
-  x.lineWidth=s*2.2;x.beginPath();x.moveTo(cx-s*6,by-s*13);x.lineTo(cx-s*7.5,by-s*1);x.moveTo(cx+s*5,by-s*13);x.lineTo(cx+s*6.5,by-s*1);x.stroke();
-  x.fillRect(cx-s*3.6,by,s*3,s*14);x.fillRect(cx+s*.6,by,s*3,s*14);
-  // table and gear
-  x.fillRect(cx-s*14,by-s*.6,s*28,s*1.3);x.fillRect(cx-s*6,by-s*2.2,s*11,s*1.8);x.fillRect(cx+s*6,by-s*3.2,s*1,s*2.6);
-  x.lineWidth=s*.75;[-1,1].forEach(g=>{x.beginPath();x.moveTo(cx+g*s*13,by);x.lineTo(cx+g*s*8,by+s*14);x.moveTo(cx+g*s*8,by);x.lineTo(cx+g*s*12,by+s*14);x.stroke()});
-  x.lineWidth=Math.max(1,s*.18);for(let i=0;i<4;i++){x.beginPath();x.moveTo(cx+s*(2+i),by+s*.6);x.bezierCurveTo(cx+s*(4+i*1.5),by+s*6,cx+s*(1+i),by+s*9,cx+s*(2+i*2),by+s*14);x.stroke()}
-  // floor monitors
-  [-1,1].forEach(g=>{const mx=cx+g*s*31;x.beginPath();x.moveTo(mx-s*7,by+s*13);x.lineTo(mx-s*5,by+s*6);x.lineTo(mx+s*6,by+s*5);x.lineTo(mx+s*7,by+s*13);x.closePath();x.fill()});
-  // audience: back row then front row
-  const row=(y,rh,step)=>{for(let hx=-s*4;hx<w+s*6;hx+=step*(.8+r()*.5)){const hr=rh*(.85+r()*.3),hy=y+(r()-.5)*rh*.8;
-    if(Math.abs(hx-cx)<s*15&&y<by+s*12)continue;
-    x.beginPath();x.arc(hx,hy,hr,0,7);x.fill();x.beginPath();x.ellipse(hx,hy+hr*2.3,hr*1.9,hr*1.3,0,0,7);x.fill();}};
-  x.fillRect(0,by+s*13,w,h);
-  row(by+s*7,s*2.6,s*8.5);row(by+s*14,s*3.6,s*11);row(by+s*24,s*5,s*15);
-  gl.bindTexture(gl.TEXTURE_2D,stageTex);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,stageCv);
+// ---------------- material slots ----------------
+// Two slots so the outgoing cut keeps its own material while the incoming one loads another.
+const slots=[0,1].map(()=>({tex:mkTex(0,0,{min:gl.LINEAR_MIPMAP_LINEAR,wrap:gl.MIRRORED_REPEAT}),blur:null,tmp:null,mat:null,asp:1,w:1}));
+function slotUpload(s){const m=s.mat;if(!m||!matReady(m))return;
+  gl.bindTexture(gl.TEXTURE_2D,s.tex);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);
+  try{gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,gl.RGBA,gl.UNSIGNED_BYTE,m.src)}catch(e){gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);return}
+  gl.generateMipmap(gl.TEXTURE_2D);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);
+  const mw=m.kind==='video'?m.src.videoWidth:m.src.width,mh=m.kind==='video'?m.src.videoHeight:m.src.height;s.asp=mw/mh||1;s.w=mw;
+  const bw=s.asp>=1?192:Math.round(192*s.asp),bh=s.asp>=1?Math.round(192/s.asp):192;
+  if(!s.blur||s.blur.w!==bw||s.blur.h!==bh){freeTarget(s.blur);freeTarget(s.tmp);s.blur=target(bw,bh,1,{ldr:true,wrap:gl.MIRRORED_REPEAT});s.tmp=target(bw,bh,1,{ldr:true})}
+  const lod=Math.max(0,Math.log2(mw/bw)-1);
+  draw(PR.blur,s.tmp,bw,bh,u=>{bindT(PR.blur,'uSrc',s.tex,0);gl.uniform2f(u.uDir,2.2/bw,0);f1(u,'uLod',lod);tri()});
+  draw(PR.blur,s.blur,bw,bh,u=>{bindT(PR.blur,'uSrc',s.tmp.t[0],0);gl.uniform2f(u.uDir,0,2.2/bh);f1(u,'uLod',0);tri()});
+  draw(PR.blur,s.tmp,bw,bh,u=>{bindT(PR.blur,'uSrc',s.blur.t[0],0);gl.uniform2f(u.uDir,2.2/bw,0);f1(u,'uLod',0);tri()});
+  draw(PR.blur,s.blur,bw,bh,u=>{bindT(PR.blur,'uSrc',s.tmp.t[0],0);gl.uniform2f(u.uDir,0,2.2/bh);f1(u,'uLod',0);tri()});
 }
+function bindMat(prog,s,u0){bindT(prog,'uMat',s.tex,u0);bindT(prog,'uMatB',s.blur?s.blur.t[0]:s.tex,u0+1);const u=prog.u;
+  f1(u,'uMatAsp',s.asp);f1(u,'uMatW',s.w);f1(u,'uBaseLod',Math.max(0,Math.log2(s.w/Math.max(W,H))-.5))}
 
-// ---------------- strip (one line of colour) ----------------
-const STRIP_W=1024, stripData=new Uint8Array(STRIP_W*4), grab=document.createElement('canvas');
-const mixc=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];
-function buildStrip(){
-  const smp=samples[cur];
-  if(P.stripFromSample&&smp&&smp.kind!=='audio'&&sampleReady(smp)){
-    try{grab.width=STRIP_W;grab.height=48;const g=grab.getContext('2d',{willReadFrequently:true});g.drawImage(smp.el,0,0,STRIP_W,48);
-      const row=g.getImageData(0,Math.floor(Math.random()*48),STRIP_W,1).data;stripData.set(row);upStrip();return}catch(e){}
-  }
-  const pal=curPal.concat([[1,1,1],curPal[1],curPal[2]]);let x=0;
-  while(x<STRIP_W){const w=Math.max(1,Math.floor(Math.pow(Math.random(),2.3)*90));
-    const a=pick(pal),b=pick(pal),c0=mixc(a,b,Math.random()),c1=Math.random()<.5?c0:mixc(a,b,Math.random());
-    for(let i=0;i<w&&x<STRIP_W;i++,x++){const c=mixc(c0,c1,i/w),n=(Math.random()-.5)*.05;
-      stripData[x*4]=clamp((c[0]+n)*255,0,255);stripData[x*4+1]=clamp((c[1]+n)*255,0,255);stripData[x*4+2]=clamp((c[2]+n)*255,0,255);stripData[x*4+3]=255}}
-  upStrip();
+// ---------------- materials ----------------
+const mats=[];let curMat=null;
+const matReady=m=>m.kind==='video'?m.src.readyState>=2&&m.src.videoWidth>0:true;
+const userMats=()=>mats.filter(m=>!m.builtin);
+function pool(){const u=userMats();return u.length?(P.useBuiltin?mats:u):mats}
+function mkRng(seed){let s=seed>>>0||1;return()=>(s=(s*1664525+1013904223)>>>0)/4294967296}
+// a squeegee painting: colour laid down, then dragged across itself again and again
+function squeegee(cols,seed){
+  const W0=1400,H0=900,c=document.createElement('canvas');c.width=W0;c.height=H0;const x=c.getContext('2d');const r=mkRng(seed),pk=()=>cols[Math.floor(r()*cols.length)];
+  const g=x.createLinearGradient(0,0,W0,H0);g.addColorStop(0,pk());g.addColorStop(.5,pk());g.addColorStop(1,pk());x.fillStyle=g;x.fillRect(0,0,W0,H0);
+  for(let i=0;i<18;i++){x.globalAlpha=.6+r()*.4;x.fillStyle=pk();x.fillRect(r()*W0-80,0,30+r()*260,H0)}
+  for(let i=0;i<26;i++){x.globalAlpha=.4+r()*.6;x.fillStyle=pk();x.fillRect(r()*W0-200,r()*H0,120+r()*700,6+r()*140)}
+  for(let i=0;i<70;i++){const y=r()*H0,h=20+r()*300,dx=(r()-.5)*520,st=9;x.globalAlpha=.16+r()*.12;
+    for(let k=1;k<=st;k++)x.drawImage(c,0,y,W0,h,dx*k/st,y+(r()-.5)*5,W0,h)}
+  for(let i=0;i<24;i++){const xx=r()*W0,w=20+r()*240,dy=(r()-.5)*420,st=8;x.globalAlpha=.14+r()*.1;
+    for(let k=1;k<=st;k++)x.drawImage(c,xx,0,w,H0,xx+(r()-.5)*4,dy*k/st,w,H0)}
+  for(let i=0;i<60;i++){x.globalAlpha=.25+r()*.55;x.strokeStyle=pk();x.lineWidth=.6+r()*3.5;const y=r()*H0;x.beginPath();x.moveTo(-10,y);x.bezierCurveTo(W0*.3,y+(r()-.5)*40,W0*.7,y+(r()-.5)*40,W0+10,y+(r()-.5)*30);x.stroke()}
+  for(let i=0;i<30;i++){const y=r()*H0,h=4+r()*60;x.globalAlpha=.35;x.drawImage(c,0,y,W0,h,(r()-.5)*900,y,W0,h)}
+  x.globalAlpha=1;return c}
+// out-of-focus city lights: points of colour of every size, a few hard bars of LED
+function bokeh(seed){
+  const W0=1400,H0=900,c=document.createElement('canvas');c.width=W0;c.height=H0;const x=c.getContext('2d');const r=mkRng(seed);
+  x.fillStyle='#02030a';x.fillRect(0,0,W0,H0);x.globalCompositeOperation='lighter';
+  const cols=[[40,70,255],[255,60,170],[60,220,255],[255,190,90],[140,80,255],[255,255,255]];
+  for(let i=0;i<190;i++){const cx=r()*W0,cy=H0*(.15+.7*r()),rad=6+Math.pow(r(),2.2)*170,cc=cols[Math.floor(r()*cols.length)],a=.06+r()*.3;
+    const g=x.createRadialGradient(cx,cy,0,cx,cy,rad);g.addColorStop(0,`rgba(${cc},${a})`);g.addColorStop(.72,`rgba(${cc},${a*.8})`);g.addColorStop(1,`rgba(${cc},0)`);x.fillStyle=g;x.beginPath();x.arc(cx,cy,rad,0,7);x.fill()}
+  for(let i=0;i<9;i++){const bx=r()*W0,bw=3+r()*26,cc=cols[Math.floor(r()*cols.length)];const g=x.createLinearGradient(0,0,0,H0);g.addColorStop(0,`rgba(${cc},0)`);g.addColorStop(.5,`rgba(${cc},${.3+r()*.5})`);g.addColorStop(1,`rgba(${cc},0)`);x.fillStyle=g;x.fillRect(bx,0,bw,H0)}
+  x.globalCompositeOperation='source-over';return c}
+function addBuiltins(){
+  const defs=[['スキージ画・青',()=>squeegee(['#0a0d3d','#2337ff','#5b2bd6','#e8ecff','#0b0b12','#38b8ff','#ff3d9a'],7)],
+    ['スキージ画・朱',()=>squeegee(['#1a0402','#ff3a12','#ffb347','#7a1035','#f5ecd8','#10403a','#0b0b0b'],23)],
+    ['光の粒',()=>bokeh(5)]];
+  defs.forEach(([name,fn])=>{const src=fn();const m={kind:'canvas',src,name,builtin:true};analyse(m);mats.push(m)});
 }
-function upStrip(){gl.bindTexture(gl.TEXTURE_2D,stripTex);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,STRIP_W,1,0,gl.RGBA,gl.UNSIGNED_BYTE,stripData)}
-
-// ---------------- samples ----------------
-const samples=[];let cur=-1;
-const sampleReady=s=>s.kind==='image'?s.el.complete&&s.el.naturalWidth>0:s.el.readyState>=2;
-function sampleAsp(s){if(!s)return 1;return s.kind==='image'?s.el.naturalWidth/s.el.naturalHeight:(s.el.videoWidth/s.el.videoHeight)||1}
-function upSrc(){const s=samples[cur];if(!s||!sampleReady(s))return;gl.bindTexture(gl.TEXTURE_2D,srcTex);try{gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,s.el)}catch(e){}}
-function palFromSample(s){
-  try{grab.width=40;grab.height=40;const g=grab.getContext('2d',{willReadFrequently:true});g.drawImage(s.el,0,0,40,40);const d=g.getImageData(0,0,40,40).data;
-    const px=[];for(let i=0;i<d.length;i+=4){const c=[d[i]/255,d[i+1]/255,d[i+2]/255],mx=Math.max(...c),mn=Math.min(...c);px.push({c,l:.299*c[0]+.587*c[1]+.114*c[2],s:mx?(mx-mn)/mx:0})}
-    px.sort((a,b)=>a.l-b.l);const avg=a=>a.reduce((s,p)=>[s[0]+p.c[0]/a.length,s[1]+p.c[1]/a.length,s[2]+p.c[2]/a.length],[0,0,0]);
-    const dark=avg(px.slice(0,px.length*.1|0)).map(v=>v*.35),hi=avg(px.slice(px.length*.92|0));
-    const sat=px.filter(p=>p.l>.18).sort((a,b)=>b.s-a.s);const base=sat.length?avg(sat.slice(0,Math.max(1,sat.length*.12|0))):hi;
-    const mxb=Math.max(...base,.001);const baseB=base.map(v=>v/mxb*.95);
-    const acc=avg(px.slice(px.length*.55|0,px.length*.7|0));
-    samplePal=[dark,baseB,mixc(hi,[1,1,1],.2),acc];
-  }catch(e){samplePal=null}
+// a small look at the material: its colours and its brightest points
+function analyse(m){
+  try{const s=document.createElement('canvas');const asp=(m.kind==='video'?m.src.videoWidth/m.src.videoHeight:m.src.width/m.src.height)||1;s.width=64;s.height=Math.max(8,Math.round(64/asp));
+    const g=s.getContext('2d',{willReadFrequently:true});g.drawImage(m.src,0,0,s.width,s.height);const d=g.getImageData(0,0,s.width,s.height).data;
+    const px=[];for(let i=0,j=0;i<d.length;i+=4,j++){const c=[d[i]/255,d[i+1]/255,d[i+2]/255],mx=Math.max(...c),mn=Math.min(...c),l=.2126*c[0]+.7152*c[1]+.0722*c[2];
+      px.push({c,l,s:mx?(mx-mn)/mx:0,u:(j%s.width+.5)/s.width,v:1-(Math.floor(j/s.width)+.5)/s.height})}
+    const avg=a=>a.reduce((s,p)=>[s[0]+p.c[0]/a.length,s[1]+p.c[1]/a.length,s[2]+p.c[2]/a.length],[0,0,0]);
+    const byL=px.slice().sort((a,b)=>a.l-b.l),dark=avg(byL.slice(0,Math.max(1,byL.length*.08|0))).map(v=>v*.4),hi=avg(byL.slice(byL.length*.95|0));
+    const sat=px.filter(p=>p.l>.12).sort((a,b)=>b.s-a.s);const hues=[];
+    for(const p of sat){const h=hue(p.c);if(hues.every(q=>Math.min(Math.abs(q.h-h),1-Math.abs(q.h-h))>.09)){hues.push({h,c:p.c});if(hues.length===3)break}}
+    while(hues.length<3)hues.push({h:-9,c:avg(byL.slice(byL.length*(.4+hues.length*.15)|0,byL.length*(.55+hues.length*.15)|0))});
+    const boost=c=>{const mx=Math.max(...c,.001);return c.map(v=>v/mx*.92)};
+    m.pal=[dark,boost(hues[0].c),boost(hues[1].c),boost(hues[2].c),hi.map(v=>Math.min(1,v*1.05+.05))];
+    const br=px.slice().sort((a,b)=>(b.l*(.6+b.s))-(a.l*(.6+a.s)));m.points=[];
+    for(const p of br){if(m.points.every(q=>Math.hypot(q[0]-p.u,q[1]-p.v)>.08))m.points.push([p.u,p.v]);if(m.points.length>=24)break}
+  }catch(e){m.pal=PALS.blue[1].map(hex);m.points=[[.5,.5]]}
 }
-function setCur(i){cur=i;const s=samples[i];renderSamples();if(!s)return;upSrc();palFromSample(s);if(P.pal==='sample'&&samplePal)curPal=samplePal}
+function hue(c){const[r,g,b]=c,mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;if(!d)return 0;let h=mx===r?((g-b)/d)%6:mx===g?(b-r)/d+2:(r-g)/d+4;return(h/6+1)%1}
 function addFile(f){
   const url=URL.createObjectURL(f),type=f.type||'',n=f.name.toLowerCase();
   if(type.startsWith('audio')||/\.(mp3|wav|m4a|aiff?|ogg|flac)$/.test(n)){loadAudio(f);return}
   if(type.startsWith('video')||/\.(mp4|mov|webm|m4v)$/.test(n)){
     const v=document.createElement('video');v.src=url;v.muted=true;v.loop=true;v.playsInline=true;v.setAttribute('playsinline','');v.preload='auto';
-    const s={kind:'video',el:v,name:f.name,url};samples.push(s);v.addEventListener('loadeddata',()=>{if(samples[cur]===s){upSrc();palFromSample(s);buildStrip()}renderSamples()},{once:true});v.play().catch(()=>{});
-    setCur(samples.length-1);status(`動画「${f.name}」を入れました。`);return}
+    const m={kind:'video',src:v,name:f.name,url};
+    v.addEventListener('loadeddata',()=>{analyse(m);mats.push(m);useMat(m);renderMats();status(`動画「${f.name}」を素材にしました。`)},{once:true});
+    v.addEventListener('error',()=>status(`「${f.name}」を動画として読めませんでした。MP4 で試してください。`,true),{once:true});
+    v.play().catch(()=>{});return}
   if(type.startsWith('image')||/\.(png|jpe?g|gif|webp|heic|avif)$/.test(n)){
-    const im=new Image();const s={kind:'image',el:im,name:f.name,url};samples.push(s);
-    im.onload=()=>{if(samples[cur]===s){upSrc();palFromSample(s);if(P.pal==='sample'&&samplePal)curPal=samplePal;buildStrip()}renderSamples()};
-    im.onerror=()=>{status(`「${f.name}」を画像として読めませんでした。JPEG か PNG で試してください。`,true);removeSample(samples.indexOf(s))};
-    im.src=url;setCur(samples.length-1);status(`写真「${f.name}」を入れました。シルエットを「素材から」にすると、明るい部分が光の窓になります。`);return}
-  status(`「${f.name}」は扱えない形式です。`,true);
+    const im=new Image();im.onload=()=>{const k=Math.min(1,2048/Math.max(im.naturalWidth,im.naturalHeight));const c=document.createElement('canvas');c.width=Math.round(im.naturalWidth*k);c.height=Math.round(im.naturalHeight*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+      const m={kind:'canvas',src:c,name:f.name,url};analyse(m);mats.push(m);useMat(m);renderMats();status(`写真「${f.name}」を素材にしました。`)};
+    im.onerror=()=>status(`「${f.name}」を画像として読めませんでした。JPEG か PNG で試してください。`,true);im.src=url;return}
+  status(`「${f.name}」は扱えない形式です。写真・動画・音のファイルを入れてください。`,true);
 }
-function removeSample(i){if(i<0)return;const s=samples.splice(i,1)[0];if(s.kind==='video')s.el.pause();URL.revokeObjectURL(s.url);if(cur>=samples.length)cur=samples.length-1;if(cur>=0)setCur(cur);else{samplePal=null;renderSamples()}}
-function renderSamples(){
-  const box=$('samples');box.textContent='';
-  samples.forEach((s,i)=>{const b=document.createElement('button');b.type='button';b.className='smp';b.setAttribute('aria-current',i===cur?'true':'false');b.title=s.name+'（押すと使う）';
-    const th=s.kind==='image'?new Image():document.createElement('video');th.src=s.url;if(s.kind==='video'){th.muted=true;th.playsInline=true;th.preload='metadata'}b.append(th);
-    const k=document.createElement('span');k.className='k';k.textContent=s.kind==='video'?'動画':'写真';b.append(k);
-    const x=document.createElement('button');x.type='button';x.className='x';x.textContent='×';x.setAttribute('aria-label',s.name+'を外す');x.onclick=e=>{e.stopPropagation();removeSample(i)};b.append(x);
-    b.onclick=()=>{setCur(i);buildStrip()};box.append(b)});
-  const pc=document.querySelector('[data-pal="sample"]');if(pc)pc.disabled=!samples.length;
-  const mc=document.querySelector('[data-mode="5"]');if(mc)mc.disabled=!samples.length;
+function useMat(m){if(!m)return;curMat=m;if(P.pal==='material')setPalette('material');cut(true,m);renderMats()}
+function removeMat(m){const i=mats.indexOf(m);if(i<0)return;mats.splice(i,1);if(m.kind==='video')m.src.pause();if(m.url)URL.revokeObjectURL(m.url);if(curMat===m)useMat(pool()[0]);renderMats()}
+function renderMats(){
+  const box=$('mats');box.textContent='';
+  mats.forEach(m=>{const b=document.createElement('button');b.type='button';b.className='mat';b.setAttribute('aria-current',m===curMat?'true':'false');b.title=m.name+'（押すとこの素材でカット）';
+    let th;if(m.kind==='video'){th=document.createElement('video');th.src=m.url;th.muted=true;th.playsInline=true;th.preload='metadata'}else{th=document.createElement('canvas');th.width=160;th.height=Math.round(160*m.src.height/m.src.width);th.getContext('2d').drawImage(m.src,0,0,th.width,th.height)}
+    b.append(th);const k=document.createElement('span');k.className='k';k.textContent=m.builtin?'内蔵':m.kind==='video'?'動画':'写真';b.append(k);
+    if(!m.builtin){const x=document.createElement('button');x.type='button';x.className='x';x.textContent='×';x.setAttribute('aria-label',m.name+'を外す');x.onclick=e=>{e.stopPropagation();removeMat(m)};b.append(x)}
+    b.onclick=()=>useMat(m);box.append(b)});
 }
 $('addBtn').onclick=()=>$('fileIn').click();
 $('fileIn').onchange=e=>{[...e.target.files].forEach(addFile);e.target.value=''};
@@ -527,13 +574,13 @@ const drop=$('drop');
 document.addEventListener('drop',e=>{[...(e.dataTransfer?.files||[])].forEach(addFile)});
 
 // ---------------- audio ----------------
-let ac=null,abuf=null,asrc=null,analyser=null,mdest=null,aPlaying=false,aName='';
+let ac=null,abuf=null,asrc=null,analyser=null,mdest=null,aPlaying=false;
 const tbuf=new Float32Array(1024);let lvl=0,lvlAvg=0,lastOnset=0;
 async function loadAudio(f){
   try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();
     if(!analyser){analyser=ac.createAnalyser();analyser.fftSize=1024;analyser.connect(ac.destination);if(ac.createMediaStreamDestination){mdest=ac.createMediaStreamDestination();analyser.connect(mdest)}}
     const ab=await f.arrayBuffer();abuf=await new Promise((res,rej)=>{const p=ac.decodeAudioData(ab,res,rej);if(p&&p.then)p.then(res,rej)});
-    aName=f.name;$('audioName').textContent=`${f.name} · ${abuf.duration.toFixed(1)}秒`;$('audioRow').hidden=false;stopAudio();startAudio();
+    $('audioName').textContent=`${f.name} · ${abuf.duration.toFixed(1)}秒`;$('audioRow').hidden=false;$('audioCtl').hidden=false;stopAudio();startAudio();
     status(`音「${f.name}」を入れました。音の強さで光が明るくなり、立ち上がりでカットします。`);
   }catch(e){status(`「${f.name}」を音として読めませんでした。MP3 か WAV で試してください。`,true)}
 }
@@ -541,115 +588,119 @@ function startAudio(){if(!abuf)return;ac.resume();asrc=ac.createBufferSource();a
 function stopAudio(){if(asrc){try{asrc.stop()}catch(e){}asrc.disconnect();asrc=null}aPlaying=false;$('audioBtn').textContent='音を鳴らす'}
 $('audioBtn').onclick=()=>aPlaying?stopAudio():startAudio();
 
-// ---------------- space: planes and camera ----------------
-function rotv(v,y,p,r){let [a,b,c]=v,co=Math.cos(r),si=Math.sin(r);[a,b]=[a*co-b*si,a*si+b*co];co=Math.cos(p);si=Math.sin(p);[b,c]=[b*co-c*si,b*si+c*co];co=Math.cos(y);si=Math.sin(y);[a,c]=[a*co+c*si,-a*si+c*co];return[a,b,c]}
-function mkPlane(c,y,p,r,hw,hh,o){const pl=Object.assign({c:c.slice(),ang:[y,p,r],hw,hh,mode:0,seed:Math.random()*100,hole:0,I:1,T:1,thin:false,spin:0},o||{});orient(pl);return pl}
-function orient(pl){pl.r=rotv([1,0,0],...pl.ang);pl.u=rotv([0,1,0],...pl.ang)}
-let planes=[];const cam={pos:[0,0,0],tgt:[0,0,1],fov:60,roll:0};const st={};let layName='front',fog=.04;
-const LAY={
-  front:{fog:0,init(){planes=[mkPlane([0,.6,6],0,0,0,6,2.2)];this.cut()},
-    cut(){const close=Math.random()<.22,z=close?rnd(3.9,4.8):rnd(-2,2.4);cam.pos=[rnd(-1.6,1.6),rnd(-1,.2),z];cam.tgt=[cam.pos[0]*.4+rnd(-.5,.5),rnd(0,1),6];cam.fov=rnd(48,68);cam.roll=Math.random()<.15?rnd(-.2,.2):0},
-    update(dt,v){cam.pos[2]=Math.min(5.3,cam.pos[2]+dt*P.zoom*.3*v)}},
-  corridor:{fog:.045,init(){planes=[];for(let k=0;k<3;k++){planes.push(mkPlane([-3.2,0,4+k*8],Math.PI/2,0,0,3.6,1.8));planes.push(mkPlane([3.2,0,8+k*8],-Math.PI/2,0,0,3.6,1.8))}planes.push(mkPlane([0,0,30],0,0,0,3.2,1.8));cam.pos=[0,0,0];this.cut()},
-    cut(){cam.pos[0]=rnd(-1.4,1.4);cam.pos[1]=rnd(-1,1);cam.roll=rnd(-.3,.3);cam.fov=rnd(55,82)},
-    update(dt,v){cam.pos[2]+=(1.2+P.zoom*6)*v*dt;const z=cam.pos[2];planes.forEach((p,i)=>{if(i<6&&p.c[2]+3.6<z)p.c[2]+=24});planes[6].c[2]=z+27;
-      cam.tgt=[cam.pos[0]*.5+Math.sin(T*.3)*.8,cam.pos[1]*.5+Math.sin(T*.21)*.3,z+10]}},
-  scatter:{fog:.05,rp(z){const thin=Math.random()<.45;return mkPlane([rnd(-6,6),rnd(-3.5,3.5),cam.pos[2]+z],rnd(-1.2,1.2),rnd(-.9,.9),rnd(-Math.PI,Math.PI),thin?rnd(1.5,6):rnd(.6,3),thin?rnd(.015,.05):rnd(.4,2.2),{thin})},
-    init(){cam.pos=[0,0,0];planes=[];for(let i=0;i<8;i++)planes.push(this.rp(rnd(4,24)));this.cut()},
-    cut(){planes.forEach((p,i)=>{if(Math.random()<.5)planes[i]=this.rp(rnd(4,22))});cam.roll=rnd(-.5,.5);cam.fov=rnd(50,80)},
-    beat(){planes.forEach(p=>p.T=Math.random()<.72?1:0)},
-    update(dt,v){cam.pos[2]+=dt*(.5+P.zoom*4)*v;const z=cam.pos[2];cam.tgt=[Math.sin(T*.13)*2,Math.cos(T*.11),z+8];
-      planes.forEach((p,i)=>{if(p.c[2]<z+.4){const n=this.rp(rnd(18,26));n.mode=p.mode;n.seed=p.seed;if(n.thin!==p.thin)n.mode=pickMode(n.thin);planes[i]=n}})}},
-  tunnel:{fog:.06,init(){planes=[];for(let k=0;k<7;k++)planes.push(mkPlane([0,0,3+k*4],0,0,k*.3,3.4,2.2,{hole:rnd(.55,.85)}));cam.pos=[0,0,0];cam.tgt=[0,0,10];this.cut()},
-    cut(){planes.forEach(p=>p.spin=rnd(-.7,.7));cam.roll=rnd(-.4,.4);cam.fov=rnd(60,90)},
-    update(dt,v){const sp=(1.5+P.zoom*9)*v;planes.forEach(p=>{p.c[2]-=sp*dt;if(p.c[2]<.3){p.c[2]+=28;p.hole=rnd(.5,.88)}p.ang[2]+=p.spin*dt;orient(p)});
-      cam.pos=[0,0,0];cam.tgt=[Math.sin(T*.4)*.6,Math.cos(T*.3)*.35,10]}},
-  atman:{fog:.03,init(){planes=[mkPlane([0,0,0],0,0,0,1.3,2.4),mkPlane([0,0,0],Math.PI/2,0,0,1.3,2.4)];
-      for(let k=0;k<6;k++){const a=k/6*Math.PI*2;planes.push(mkPlane([Math.cos(a)*4.5,0,Math.sin(a)*4.5],Math.PI/2-a,0,0,.07,3.2,{thin:true}))}
-      st.th=0;st.rad=7.5;st.h=.5;st.tick=0;this.cut()},
-    cut(){st.h=rnd(-1.5,3);st.rad=rnd(4.8,9);cam.fov=rnd(45,70);cam.roll=Math.random()<.3?rnd(-.4,.4):0;if(Math.random()<.3)st.th+=Math.PI*rnd(.3,1)},
-    update(dt,v){st.tick+=dt;while(st.tick>1/12){st.tick-=1/12;const ph=(beatN%16)/16;st.th+=(Math.PI*2/480)*(3+40*ph*ph)*v}
-      cam.pos=[Math.sin(st.th)*st.rad,st.h,-Math.cos(st.th)*st.rad];cam.tgt=[0,.2,0]}},
-};
-function enabledModes(){let en=[...P.modes].filter(m=>m!==5||samples[cur]);if(!en.length)en=[0];return en}
-function pickMode(thin){const en=enabledModes();if(thin){const tm=en.filter(m=>m===0||m===4||m===6);return tm.length?pick(tm):6}return pick(en)}
-function assignModes(){const en=enabledModes(),same=Math.random()<.55,m0=pick(en);planes.forEach(p=>{p.mode=p.thin?pickMode(true):same?m0:pick(en);p.seed=Math.random()*100})}
-function setLayout(n){layName=n;fog=LAY[n].fog;cam.roll=0;LAY[n].init();assignModes()}
-
 // ---------------- palette ----------------
-function setPalette(k){P.pal=k;curPal=(k==='sample'&&samplePal)?samplePal:(PALS[k]||PALS.blue)[1].map(hex);syncChips()}
+let curPal=PALS.blue[1].map(hex);const PALF=new Float32Array(15);
+function setPalette(k){P.pal=k;curPal=k==='material'?((curMat&&curMat.pal)||PALS.blue[1].map(hex)):(PALS[k]||PALS.blue)[1].map(hex);syncChips()}
+function bindPal(u){curPal.forEach((c,i)=>PALF.set(c,i*3));gl.uniform3fv(u.uPal,PALF)}
 
-// ---------------- cut / flicker ----------------
-let T=0,segT=0,beatN=0,beatAcc=0,flick=0,flickAcc=0,flickHold=0,burst=0,negOn=0,solOn=0,segBright=1,stripOff=0;
-function snapshotGhost(){const src=outF[ping^1];gl.bindFramebuffer(gl.READ_FRAMEBUFFER,src);gl.readBuffer(gl.COLOR_ATTACHMENT1);gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER,ghostF);
-  gl.blitFramebuffer(0,0,W,H,0,0,W,H,gl.COLOR_BUFFER_BIT,gl.NEAREST);gl.bindFramebuffer(gl.FRAMEBUFFER,null)}
-function cut(manual){
-  snapshotGhost();segT=0;
-  const lays=[...P.layouts].filter(l=>LAY[l]);
-  if(!lays.includes(layName))setLayout(lays[0]||'front');
-  else if(lays.length>1&&Math.random()<(manual?Math.max(.5,P.spaceChange):P.spaceChange))setLayout(pick(lays.filter(l=>l!==layName)));
-  else{LAY[layName].cut();assignModes()}
-  if(P.palCycle&&Math.random()<.6){const ks=Object.keys(PALS).concat(samplePal?['sample']:[]).filter(k=>k!==P.pal);setPalette(pick(ks))}
-  stripOff=Math.random();if(Math.random()<.55)buildStrip();
+// ---------------- decks, cuts, flicker ----------------
+let W=0,H=0,deckT=[],mixT=[],scanT=[],bl=[],up=[],ping=0,sping=0;
+let A=null,B=null;const tr={mode:0,k:1,dur:0,t:0};
+let scanInit=false,T=0,beatN=0,beatAcc=0,flick=0,flickAcc=0,flickHold=0,burst=0,negOn=0,solOn=0,segT=0;
+const opName=i=>OPS[i][1];
+function pickFocus(m){const pts=(m&&m.points)||[[.5,.5]];const p=Math.random()<.8?pick(pts):[rnd(.15,.85),rnd(.15,.85)];return[p[0],p[1]]}
+function slotFor(m,avoid){const s0=slots.find(s=>s.mat===m);if(s0)return s0;const s=slots.find(s=>s!==avoid)||slots[0];s.mat=m;slotUpload(s);return s}
+function cut(manual,forceMat){
+  if(!curMat)return;
+  const ops=[...P.ops];const prevOp=A?A.op:-1;
+  const op=pick(ops.length>1?ops.filter(o=>o!==prevOp):ops);
+  let m=forceMat||(A?A.slot.mat:curMat);
+  if(!forceMat&&P.cycleMat&&A&&Math.random()<.45){const pl=pool().filter(x=>x!==m);if(pl.length){m=pick(pl);curMat=m;renderMats();if(P.pal==='material')setPalette('material')}}
+  if(A)B=A;
+  const slot=slotFor(m,B?B.slot:null);
+  A={op,seed:Math.random()*100,t:0,slot,focus:pickFocus(m)};
+  if(!B)B={...A};
+  const trs=[...P.trans];const tm=pick(trs.length?trs:['cut']);const bl=60/P.bpm;
+  tr.mode={cut:0,dissolve:1,wipe:2,alt:3}[tm];tr.t=0;tr.dur=tm==='cut'?0:tm==='alt'?rnd(.25,.6):bl*rnd(.6,2);tr.k=tm==='cut'?1:0;
+  if(op===6)orbitCut();if(op===8)linesCut();if(op===3)scanInit=true;
+  if(P.palCycle&&Math.random()<.6)setPalette(pick(Object.keys(PALS).filter(k=>k!==P.pal)));
   const r=Math.random();negOn=r<P.neg*.6?1:0;solOn=!negOn&&r<P.neg?rnd(.5,1):0;
-  segBright=rnd(.85,1.2);
-  if(samples.length>1&&Math.random()<.4){let j=Math.floor(Math.random()*samples.length);if(samples[j].kind)setCur(j)}
-  if(Math.random()<P.flick*1.6)burst=2+Math.floor(Math.random()*6);
+  if(Math.random()<P.flick*1.2&&!tr.mode)burst=2+Math.floor(Math.random()*5);
+  segT=0;updateNow();
 }
-function beat(){beatN++;if(LAY[layName].beat)LAY[layName].beat();if(Math.random()<P.cut)cut(false)}
+function beat(){beatN++;linesBeat();if(Math.random()<P.cut)cut(false)}
+function updateNow(){const el=$('now');if(!A)return;el.textContent='';
+  const b=document.createElement('b');b.textContent=opName(A.op);const s=document.createElement('span');s.textContent=`素材：${A.slot.mat.name}`;
+  const p=document.createElement('span');p.textContent=B&&B!==A?`前のカット：${opName(B.op)}`:'';el.append(b,s,p)}
 
-// ---------------- render ----------------
-const PA=new Float32Array(32),PB=new Float32Array(32),PC=new Float32Array(32),PD=new Float32Array(32),COL=new Float32Array(12),CAM=new Float32Array(9);
+// orbit camera (Atman): stepped positions on a circle, accelerating through each phrase
+const cam={pos:[0,0,-7],tgt:[0,0,0],fov:55,roll:0},orb={th:0,rad:7.5,h:.5,tick:0};
+function orbitCut(){orb.h=rnd(-1.4,2.6);orb.rad=rnd(4.6,8.5);cam.fov=rnd(45,68);cam.roll=Math.random()<.3?rnd(-.35,.35):0;if(Math.random()<.4)orb.th+=Math.PI*rnd(.3,1)}
+function orbitUpdate(dt){orb.tick+=dt;while(orb.tick>1/12){orb.tick-=1/12;const ph=(beatN%16)/16;orb.th+=(Math.PI*2/480)*(3+40*ph*ph)*(.4+P.speed)}
+  cam.pos=[Math.sin(orb.th)*orb.rad,orb.h,-Math.cos(orb.th)*orb.rad];cam.tgt=[0,.1,0]}
+const CAM=new Float32Array(9);
 const norm=v=>{const l=Math.hypot(...v)||1;return v.map(a=>a/l)},cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
-function camMat(){const f=norm(cam.tgt.map((v,i)=>v-cam.pos[i]));let r=cross([0,1,0],f);if(Math.hypot(...r)<1e-4)r=[1,0,0];r=norm(r);let u=cross(f,r);
-  const c=Math.cos(cam.roll),s=Math.sin(cam.roll),r2=r.map((v,i)=>v*c+u[i]*s),u2=u.map((v,i)=>u[i]*c-r[i]*s);CAM.set([...r2,...u2,...f])}
-let playing=true,last=performance.now(),level=0;
+function camMat(){const f=norm(cam.tgt.map((v,i)=>v-cam.pos[i]));let r=cross([0,1,0],f);if(Math.hypot(...r)<1e-4)r=[1,0,0];r=norm(r);const u=cross(f,r);
+  const c=Math.cos(cam.roll),s=Math.sin(cam.roll);CAM.set([...r.map((v,i)=>v*c+u[i]*s),...u.map((v,i)=>v*c-r[i]*s),...f])}
+
+// light lines: segments in space, coloured from the material's brightest points, travelling toward the eye
+const LN=14,lines=[],L1=new Float32Array(LN*4),L2=new Float32Array(LN*4);let lineZ=0;
+function newLine(z){const m=A?A.slot.mat:curMat,p=pick((m&&m.points)||[[.5,.5]]);const a=rnd(0,Math.PI),e=rnd(-.6,.6),len=rnd(1.2,9);
+  const c=[rnd(-5,5),rnd(-3,3),z],d=[Math.cos(a)*Math.cos(e),Math.sin(e),Math.sin(a)*Math.cos(e)*.6];
+  return{p1:c.map((v,i)=>v-d[i]*len/2),p2:c.map((v,i)=>v+d[i]*len/2),th:rnd(.014,.06),u:p[0],v:p[1],I:0,T:Math.random()<.7?1:0}}
+function linesCut(){lines.length=0;for(let i=0;i<LN;i++)lines.push(newLine(lineZ+rnd(3,30)))}
+function linesBeat(){lines.forEach(l=>l.T=Math.random()<.72?1:0)}
+function linesUpdate(dt){if(!lines.length)linesCut();lineZ+=dt*(1+P.zoom*7)*(.4+P.speed);
+  lines.forEach((l,i)=>{if(Math.max(l.p1[2],l.p2[2])<lineZ+.4)lines[i]=newLine(lineZ+rnd(24,32));lines[i].I+=(lines[i].T-lines[i].I)*Math.min(1,dt*14)});
+  const tanF=Math.tan(28*Math.PI/180),proj=q=>{const z=Math.max(.3,q[2]-lineZ);return[q[0]/(z*tanF)*.5,q[1]/(z*tanF)*.5,z]};
+  lines.forEach((l,i)=>{let a=l.p1,b=l.p2;const za=a[2]-lineZ,zb=b[2]-lineZ;if(za<.3&&zb<.3){L2[i*4+1]=0;return}
+    if(za<.3){const t=(.3-za)/(zb-za);a=a.map((v,k)=>v+(b[k]-v)*t)}if(zb<.3){const t=(.3-zb)/(za-zb);b=b.map((v,k)=>v+(a[k]-v)*t)}
+    const A2=proj(a),B2=proj(b),zm=(A2[2]+B2[2])/2,raw=l.th/(zm*tanF)*.5,th=Math.max(.0016,raw);
+    L1.set([A2[0],A2[1],B2[0],B2[1]],i*4);L2.set([th,l.I*Math.exp(-zm*.05)*Math.min(1,raw/th+.35),l.u,l.v],i*4)})}
+
+// ---------------- frame ----------------
+function resize(){
+  const [a,b]=P.aspect.split(':').map(Number),q=+P.q;
+  if(a<b){W=q;H=Math.round(q*b/a/2)*2}else{H=q;W=Math.round(q*a/b/2)*2}
+  cv.width=W;cv.height=H;
+  [...deckT,...mixT,...scanT,...bl,...up].forEach(freeTarget);
+  deckT=[target(W,H),target(W,H)];mixT=[target(W,H,2),target(W,H,2)];scanT=[target(W,H),target(W,H)];
+  bl=[];up=[];let w=W,h=H;for(let i=0;i<6;i++){w=Math.max(2,w>>1);h=Math.max(2,h>>1);bl.push(target(w,h));up.push(target(w,h))}
+}
+function renderDeck(d,tgt){
+  draw(PR.deck,tgt,W,H,(u,p)=>{
+    bindMat(p,d.slot,0);bindT(p,'uScan',scanT[sping^1].t[0],2);bindPal(u);
+    gl.uniform1i(u.uOp,d.op);f1(u,'uSeed',d.seed);f1(u,'uT',d.t);f1(u,'uSpeed',P.speed);f1(u,'uDiv',P.div);f1(u,'uZoom',P.zoom);f1(u,'uBlur',P.blur);f1(u,'uWarp',P.warp);
+    gl.uniform2f(u.uFocus,d.focus[0],d.focus[1]);
+    if(d.op===6){camMat();gl.uniformMatrix3fv(u.uCam,false,CAM);gl.uniform3fv(u.uCamPos,cam.pos);f1(u,'uTanF',Math.tan(cam.fov*Math.PI/360))}
+    if(d.op===8){gl.uniform4fv(u.uL1,L1);gl.uniform4fv(u.uL2,L2);gl.uniform1i(u.uLN,LN)}
+    tri()})}
+function h11js(p){p=(p*.1031)%1;p*=p+33.33;p*=p+p;return p%1}
+let playing=true,last=performance.now(),level=0,frameN=0;
 function frame(now){
-  requestAnimationFrame(frame);
-  let dt=Math.min(.1,(now-last)/1000);last=now;if(!playing)dt=0;
-  T+=dt;segT+=dt;
-  // audio level and onsets
+  requestAnimationFrame(frame);if(!W||!A)return;
+  let dt=Math.min(.1,(now-last)/1000);last=now;if(!playing)dt=0;frameN++;
+  T+=dt;segT+=dt;A.t+=dt;if(B&&B!==A)B.t+=dt;
   level=0;if(aPlaying&&analyser){analyser.getFloatTimeDomainData(tbuf);let s=0;for(let i=0;i<tbuf.length;i++)s+=tbuf[i]*tbuf[i];const rms=Math.sqrt(s/tbuf.length);
     lvl+=(rms-lvl)*.35;lvlAvg+=(rms-lvlAvg)*.03;level=clamp(lvl*3,0,1)*P.react;
-    if(P.audioCut&&playing&&rms>lvlAvg*1.7&&rms>.03&&now-lastOnset>140){lastOnset=now;if(Math.random()<.5+P.cut*.5)cut(false);else if(Math.random()<P.flick*2)flickHold=1/30,flick=pick([1,2,4])}}
-  // clock
+    if(P.audioCut&&playing&&rms>lvlAvg*1.7&&rms>.03&&now-lastOnset>140){lastOnset=now;if(Math.random()<.5+P.cut*.5)cut(false);else if(Math.random()<P.flick*2){flickHold=1/24;flick=pick([1,2,4])}}}
   if(playing){beatAcc+=dt;const bl=60/P.bpm*P.sub;while(beatAcc>=bl){beatAcc-=bl;beat()}
+    tr.t+=dt;tr.k=tr.dur>0?clamp(tr.t/tr.dur,0,1):1;
     flickAcc+=dt;const fl=1/P.flickRate;flickHold-=dt;
-    if(burst>0){flick=(burst%2)?4:0;burst--}
-    else if(flickAcc>=fl){flickAcc%=fl;if(Math.random()<P.flick){const r=Math.random();flick=r<.4?1:r<.6?2:r<.8?3:4;flickHold=fl*.5}else if(flickHold<=0)flick=0}
-    else if(flickHold<=0)flick=0;}
-  const v=.4+P.speed;LAY[layName].update(dt,v);
-  if(cam.pos[2]>400){const s=cam.pos[2];cam.pos[2]-=s;cam.tgt[2]-=s;planes.forEach(p=>p.c[2]-=s)}
-  planes.forEach(p=>{p.I+=(p.T-p.I)*Math.min(1,dt*18)});
-  const sm=samples[cur];if(sm&&sm.kind==='video'&&sampleReady(sm))upSrc();
-  // scene pass
-  gl.viewport(0,0,W,H);
-  gl.bindFramebuffer(gl.FRAMEBUFFER,sceneF);gl.useProgram(SC.p);const u=SC.u;
-  const n=Math.min(8,planes.length);PA.fill(0);PB.fill(0);PC.fill(0);PD.fill(0);
-  for(let i=0;i<n;i++){const p=planes[i];PA.set([...p.c,p.mode],i*4);PB.set([...p.r.map(a=>a*p.hw),p.seed],i*4);PC.set([...p.u.map(a=>a*p.hh),p.hole],i*4);PD[i*4]=p.I}
-  gl.uniform4fv(u.uPA,PA);gl.uniform4fv(u.uPB,PB);gl.uniform4fv(u.uPC,PC);gl.uniform4fv(u.uPD,PD);gl.uniform1i(u.uN,n);
-  camMat();gl.uniformMatrix3fv(u.uCam,false,CAM);gl.uniform3fv(u.uCamPos,cam.pos);gl.uniform1f(u.uTanF,Math.tan(cam.fov*Math.PI/360));
-  curPal.forEach((c,i)=>COL.set(c,i*3));gl.uniform3fv(u.uCol,COL);
-  gl.uniform2f(u.uRes,W,H);gl.uniform1f(u.uTime,T);gl.uniform1f(u.uSpeed,P.speed);gl.uniform1f(u.uDiv,P.div);gl.uniform1f(u.uStripOff,stripOff);
-  gl.uniform1f(u.uFog,fog*(P.fog/.04));gl.uniform1f(u.uTrans,P.trans);gl.uniform1f(u.uBright,P.bright*segBright*(1+level*.5));gl.uniform1f(u.uSrcAsp,sampleAsp(sm));
-  gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,stripTex);gl.uniform1i(u.uStrip,0);
-  gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,srcTex);gl.uniform1i(u.uSrc,1);
-  gl.drawArrays(gl.TRIANGLES,0,3);
-  // post pass
-  const tgt=ping,prev=ping^1;
-  gl.bindFramebuffer(gl.FRAMEBUFFER,outF[tgt]);gl.useProgram(PO.p);const w=PO.u;
-  [[sceneT,'uScene'],[outC[prev],'uPrev'],[ghostT,'uGhost'],[P.matte==='sample'&&sm?srcTex:stageTex,'uMatte'],[srcTex,'uSrc']].forEach(([t,nm],i)=>{gl.activeTexture(gl.TEXTURE0+i);gl.bindTexture(gl.TEXTURE_2D,t);gl.uniform1i(w[nm],i)});
-  const matteOn=P.matte==='stage'||(P.matte==='sample'&&!!sm);
-  const f1=(k,val)=>gl.uniform1f(w[k],val);
-  gl.uniform2f(w.uRes,W,H);f1('uTime',T);f1('uRGB',P.rgb*(1+level*2));f1('uGlow',P.glow);f1('uTh',P.th);f1('uSoft',P.soft);
-  f1('uMatteOn',matteOn?1:0);f1('uMatteInv',P.matteInv?1:0);f1('uMatteAsp',P.matte==='sample'&&sm?sampleAsp(sm):W/H);f1('uSrcAsp',sampleAsp(sm));f1('uSrcMix',sm?P.srcMix:0);
-  f1('uGhostAmt',P.ghost*(.3+.7*Math.exp(-segT*1.3)));f1('uGhostMode',+P.ghostMode);f1('uFb',P.fb);f1('uFbZoom',.003+P.zoom*.012);
-  f1('uFlick',flick);f1('uNeg',negOn);f1('uSol',solOn);f1('uContrast',P.contrast);f1('uExpo',P.expo);f1('uGrid',P.grid);f1('uGrain',P.grain);
-  f1('uNest',+P.nest);f1('uNestK',P.nestK);f1('uLevel',level*.8);
-  gl.drawArrays(gl.TRIANGLES,0,3);
-  // show
-  gl.bindFramebuffer(gl.READ_FRAMEBUFFER,outF[tgt]);gl.readBuffer(gl.COLOR_ATTACHMENT0);gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER,null);
-  gl.blitFramebuffer(0,0,W,H,0,0,W,H,gl.COLOR_BUFFER_BIT,gl.NEAREST);gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+    if(burst>0){flick=(burst%2)?4:0;if(frameN%2===0)burst--}
+    else if(flickAcc>=fl){flickAcc%=fl;if(Math.random()<P.flick){const r=Math.random();flick=r<.35?1:r<.55?2:r<.75?3:4;flickHold=Math.max(fl*.5,1/28)}else if(flickHold<=0)flick=0}
+    else if(flickHold<=0)flick=0}
+  const active=[A,B];
+  if(active.some(d=>d&&d.op===6))orbitUpdate(dt);
+  if(active.some(d=>d&&d.op===8))linesUpdate(dt);
+  slots.forEach(s=>{if(s.mat&&s.mat.kind==='video'&&(s===A.slot||s===B.slot)&&playing)slotUpload(s)});
+  // slit-scan buffer, fed by whichever cut is using it
+  const sd=A.op===3?A:B.op===3?B:null;
+  if(sd&&(playing||scanInit)){const pv=sping^1,vert=h11js(sd.seed)>.7,len=vert?H:W,sl=.5+.42*Math.sin(sd.t*(.08+P.speed*.25)+sd.seed);
+    let sh=(30+P.speed*260)*dt/len,s0=sd.slitPrev??sl;if(scanInit&&sd===A){sh=1.001;s0=clamp(sl+(Math.random()<.5?-1:1)*rnd(.15,.4),0,1);scanInit=false}
+    draw(PR.scan,scanT[sping],W,H,(u,p)=>{bindMat(p,sd.slot,0);bindT(p,'uPrevS',scanT[pv].t[0],2);f1(u,'uVert',vert?1:0);f1(u,'uShift',sh);f1(u,'uSlit',sl);f1(u,'uSlit0',s0);tri()});sd.slitPrev=sl;sping^=1}
+  const needB=tr.k<1||P.layer>0||flick===4||burst>0;
+  renderDeck(A,deckT[0]);if(needB)renderDeck(B,deckT[1]);
+  const prev=ping^1;
+  draw(PR.mix,mixT[ping],W,H,u=>{bindT(PR.mix,'uA',deckT[0].t[0],0);bindT(PR.mix,'uB',deckT[1].t[0],1);bindT(PR.mix,'uPrev',mixT[prev].t[1],2);bindPal(u);
+    const alt=tr.mode===3&&tr.k<1?(Math.floor(tr.t*P.flickRate*1.5)%2):0;
+    f1(u,'uMode',tr.k<1?tr.mode:0);f1(u,'uK',tr.k);f1(u,'uAlt',alt);f1(u,'uLayer',needB?P.layer*(.35+.65*Math.exp(-segT*.8)):0);
+    f1(u,'uFb',P.fb);f1(u,'uFbZoom',.002+P.zoom*.008);f1(u,'uFlick',flick);f1(u,'uNeg',negOn);f1(u,'uSol',solOn);
+    f1(u,'uExpo',P.expo);f1(u,'uLevel',level*.8);f1(u,'uSat',P.sat);f1(u,'uTint',P.tint);f1(u,'uContrast',P.contrast);tri()});
+  let src=mixT[ping].t[0];
+  bl.forEach((b,i)=>{draw(PR.down,b,b.w,b.h,u=>{bindT(PR.down,'uSrc',src,0);const sw=i?bl[i-1].w:W,sh=i?bl[i-1].h:H;gl.uniform2f(u.uTx,1/sw,1/sh);f1(u,'uThr',i?0:.55);tri()});src=b.t[0]});
+  for(let i=bl.length-2;i>=0;i--){const lo=i===bl.length-2?bl[i+1]:up[i+1];draw(PR.up,up[i],up[i].w,up[i].h,u=>{bindT(PR.up,'uSrc',lo.t[0],0);bindT(PR.up,'uBase',bl[i].t[0],1);gl.uniform2f(u.uTx,1/lo.w,1/lo.h);tri()})}
+  draw(PR.out,null,W,H,u=>{bindT(PR.out,'uMix',mixT[ping].t[0],0);bindT(PR.out,'uBloom',up[0].t[0],1);f1(u,'uBloomAmt',P.bloom*(1+level));f1(u,'uRGB',P.rgb*(1+level*2));f1(u,'uGrain',P.grain);f1(u,'uGrid',P.grid);f1(u,'uTime',T);tri()});
   ping^=1;
   if(rec)$('recTime').textContent=`REC ${((now-recStart)/1000).toFixed(1)}s`;
 }
@@ -670,7 +721,7 @@ async function deliver(name,blob){
 function startRec(){
   if(!playing)togglePlay();
   const stream=cv.captureStream(30);if(aPlaying&&mdest)mdest.stream.getAudioTracks().forEach(t=>stream.addTrack(t));
-  try{rec=new MediaRecorder(stream,mime?{mimeType:mime,videoBitsPerSecond:P.q>=1080?16e6:10e6}:{videoBitsPerSecond:10e6})}catch(e){status('録画を始められませんでした: '+e.message,true);return}
+  try{rec=new MediaRecorder(stream,mime?{mimeType:mime,videoBitsPerSecond:P.q>=1080?18e6:12e6}:{videoBitsPerSecond:12e6})}catch(e){status('録画を始められませんでした: '+e.message,true);return}
   recChunks=[];rec.ondataavailable=e=>{if(e.data&&e.data.size)recChunks.push(e.data)};
   rec.onstop=()=>{const type=rec.mimeType||mime||'video/webm';recExt=type.includes('mp4')?'mp4':'webm';recBlob=new Blob(recChunks,{type});rec=null;
     $('recBtn').setAttribute('aria-pressed','false');$('recTxt').textContent='録画';$('recBadge').hidden=true;clearTimeout(recTimer);
@@ -692,46 +743,49 @@ $('pngBtn').onclick=()=>cv.toBlob(async b=>{if(!b)return;try{status(await delive
 
 // ---------------- UI ----------------
 function togglePlay(){playing=!playing;$('playBtn').setAttribute('aria-pressed',String(playing));$('playTxt').textContent=playing?'止める':'動かす';
-  $('playIco').innerHTML=playing?'<path d="M3 2h3.5v12H3zM9.5 2H13v12H9.5z"/>':'<path d="M3 1.5v13l11-6.5z"/>'}
+  $('playIco').innerHTML=playing?'<path d="M3 2h3.5v12H3zM9.5 2H13v12H9.5z"/>':'<path d="M3 1.5v13l11-6.5z"/>';
+  mats.forEach(m=>{if(m.kind==='video')playing?m.src.play().catch(()=>{}):m.src.pause()})}
 $('playBtn').onclick=togglePlay;
 $('cutBtn').onclick=()=>cut(true);
-$('burstBtn').onclick=()=>{cut(true);burst=6+Math.floor(Math.random()*6)};
+$('burstBtn').onclick=()=>{cut(true);tr.mode=3;tr.t=0;tr.dur=rnd(.4,.8);tr.k=0};
 cv.addEventListener('pointerdown',()=>cut(true));
 document.addEventListener('keydown',e=>{if(e.target.closest('input,select,textarea'))return;if(e.code==='Space'){e.preventDefault();cut(true)}});
-const fmt=(k,v)=>k==='bpm'||k==='flickRate'?String(Math.round(v)):k==='fog'?v.toFixed(3):v.toFixed(2);
+const fmt=(k,v)=>k==='bpm'||k==='flickRate'?String(Math.round(v)):v.toFixed(2);
 function buildSliders(){Object.entries(SL).forEach(([g,list])=>{const box=$('g-'+g);list.forEach(([k,ja,en,mn,mx,stp])=>{
   const w=document.createElement('label');w.className='sl';w.innerHTML=`<span class="kl"><span>${ja}<em>${en}</em></span><output id="o-${k}"></output></span><input type="range" id="r-${k}" min="${mn}" max="${mx}" step="${stp}">`;
   box.append(w);const r=w.querySelector('input');r.oninput=()=>{P[k]=+r.value;paint(k)}})})}
 function paint(k){const r=$('r-'+k);if(!r)return;r.value=P[k];r.style.setProperty('--v',((P[k]-r.min)/(r.max-r.min)*100)+'%');$('o-'+k).textContent=fmt(k,P[k])}
-function chip(label,attr,val,on,color){const b=document.createElement('button');b.type='button';b.className='chip';b.dataset[attr]=val;b.setAttribute('aria-pressed',String(on));
-  if(color){const i=document.createElement('i');i.style.setProperty('--c',color);b.append(i)}b.append(label);return b}
+function showDesc(i){$('opDesc').textContent=OPS[i][3]}
 function buildChips(){
-  MODES.forEach(([m,ja])=>{const b=chip(ja,'mode',m,P.modes.has(m));b.onclick=()=>{P.modes.has(m)?P.modes.delete(m):P.modes.add(m);if(!P.modes.size)P.modes.add(m);syncChips();assignModes()};$('modeChips').append(b)});
-  Object.entries(PALS).forEach(([k,[ja,c]])=>{const b=chip(ja,'pal',k,P.pal===k,`linear-gradient(135deg,${c[1]},${c[2]})`);b.querySelector('i').style.background=`linear-gradient(135deg,${c[1]},${c[2]})`;b.onclick=()=>setPalette(k);$('palChips').append(b)});
-  const sb=chip('素材','pal','sample',false);sb.onclick=()=>{if(!samplePal){status('先に写真か動画を入れてください。',true);return}setPalette('sample')};$('palChips').append(sb);
-  LAYS.forEach(([k,ja])=>{const b=chip(ja,'lay',k,P.layouts.has(k));b.onclick=()=>{const had=P.layouts.has(k);if(had&&P.layouts.size===1)return;had?P.layouts.delete(k):P.layouts.add(k);syncChips();if(!had){setLayout(k)}else if(layName===k)setLayout([...P.layouts][0])};$('layChips').append(b)});
+  OPS.forEach(([i,ja,en,desc])=>{const b=document.createElement('button');b.type='button';b.className='op';b.dataset.op=i;b.title=desc;b.innerHTML=`<b>${ja}</b><small>${en}</small>`;
+    b.onclick=()=>{if(P.ops.has(i)&&P.ops.size>1)P.ops.delete(i);else P.ops.add(i);syncChips();showDesc(i);if(P.ops.has(i))cut(true)};
+    b.onmouseenter=()=>showDesc(i);b.onfocus=()=>showDesc(i);$('opChips').append(b)});
+  TRS.forEach(([k,ja])=>{const b=document.createElement('button');b.type='button';b.className='chip';b.dataset.tr=k;b.textContent=ja;b.onclick=()=>{P.trans.has(k)?P.trans.delete(k):P.trans.add(k);syncChips()};$('trChips').append(b)});
+  const mb=document.createElement('button');mb.type='button';mb.className='chip';mb.dataset.pal='material';mb.innerHTML='<i id="matSw"></i>素材';mb.onclick=()=>setPalette('material');$('palChips').append(mb);
+  Object.entries(PALS).forEach(([k,[ja,c]])=>{const b=document.createElement('button');b.type='button';b.className='chip';b.dataset.pal=k;b.innerHTML=`<i style="background:linear-gradient(135deg,${c[1]},${c[2]},${c[3]})"></i>${ja}`;b.onclick=()=>setPalette(k);$('palChips').append(b)});
   PRESETS.forEach(([nm,cfg])=>{const b=document.createElement('button');b.type='button';b.className='btn';b.textContent=nm;b.onclick=()=>applyPreset(cfg,nm);$('presetChips').append(b)});
 }
-function syncChips(){document.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',String(P.modes.has(+b.dataset.mode))));
+function syncChips(){document.querySelectorAll('[data-op]').forEach(b=>b.setAttribute('aria-pressed',String(P.ops.has(+b.dataset.op))));
+  document.querySelectorAll('[data-tr]').forEach(b=>b.setAttribute('aria-pressed',String(P.trans.has(b.dataset.tr))));
   document.querySelectorAll('[data-pal]').forEach(b=>b.setAttribute('aria-pressed',String(P.pal===b.dataset.pal)));
-  document.querySelectorAll('[data-lay]').forEach(b=>b.setAttribute('aria-pressed',String(P.layouts.has(b.dataset.lay))))}
-const SELS=['sub','ghostMode','nest','matte','aspect','q','dur'],TOGS=['audioCut','stripFromSample','palCycle','matteInv'];
+  const sw=$('matSw');if(sw&&curMat&&curMat.pal){const c=curMat.pal.map(v=>`rgb(${v.map(x=>Math.round(x*255)).join(',')})`);sw.style.background=`linear-gradient(135deg,${c[1]},${c[2]},${c[3]})`}}
+const SELS=['sub','aspect','q','dur'],TOGS=['audioCut','cycleMat','useBuiltin','palCycle'];
 function syncUI(){Object.values(SL).flat().forEach(([k])=>paint(k));SELS.forEach(k=>$('s-'+k).value=String(P[k]));TOGS.forEach(k=>$('t-'+k).checked=!!P[k]);syncChips()}
-SELS.forEach(k=>$('s-'+k).onchange=e=>{const v=e.target.value;P[k]=(k==='matte'||k==='aspect')?v:+v;if(k==='aspect'||k==='q')resize();if(k==='matte'&&v==='sample'&&!samples[cur])status('「素材から」は写真か動画を入れると効きます。それまではシルエットなしで映ります。')});
-TOGS.forEach(k=>$('t-'+k).onchange=e=>{P[k]=e.target.checked;if(k==='stripFromSample')buildStrip()});
-function applyPreset(cfg,nm){const d={ghostMode:0,grid:0,nest:0,fog:.04,trans:.15,sub:1,flickRate:12,neg:0};Object.assign(P,d);
-  Object.entries(cfg).forEach(([k,v])=>{if(k==='modes')P.modes=new Set(v);else if(k==='layouts')P.layouts=new Set(v);else if(k!=='pal')P[k]=v});
-  setPalette(cfg.pal||'blue');setLayout([...P.layouts][0]);buildStrip();syncUI();if(nm)status(`「${nm}」にしました。`)}
+SELS.forEach(k=>$('s-'+k).onchange=e=>{const v=e.target.value;P[k]=k==='aspect'?v:+v;if(k==='aspect'||k==='q')resize()});
+TOGS.forEach(k=>$('t-'+k).onchange=e=>{P[k]=e.target.checked});
+const BASE={warp:.5,flickRate:12,tint:0,rgb:.1,grid:0,grain:.04,layer:.12,fb:.25};
+function applyPreset(cfg,nm){Object.assign(P,BASE);
+  Object.entries(cfg).forEach(([k,v])=>{if(k==='ops')P.ops=new Set(v);else if(k==='trans')P.trans=new Set(v);else if(k!=='pal')P[k]=v});
+  setPalette(cfg.pal||'material');syncUI();if(nm){cut(true);status(`「${nm}」にしました。`)}}
 $('diceBtn').onclick=()=>{
-  const mk=MODES.map(m=>m[0]).filter(m=>m!==5||samples[cur]);const ms=mk.filter(()=>Math.random()<.4);P.modes=new Set(ms.length?ms:[pick(mk)]);
-  const ls=LAYS.map(l=>l[0]).filter(()=>Math.random()<.35);P.layouts=new Set(ls.length?ls:[pick(LAYS)[0]]);
-  Object.assign(P,{div:rnd(.1,.9),speed:rnd(.2,1.4),zoom:rnd(.1,.8),trans:rnd(0,.8),spaceChange:rnd(.1,.6),bpm:Math.round(rnd(80,150)),cut:rnd(.2,.7),flick:rnd(0,.3),flickRate:Math.round(rnd(6,24)),
-    ghost:rnd(0,.5),ghostMode:Math.floor(rnd(0,4)),fb:rnd(0,.7),nest:Math.random()<.35?Math.ceil(rnd(0,2)):0,nestK:rnd(.1,.4),neg:rnd(0,.25),glow:rnd(.2,1.2),rgb:rnd(0,.4),contrast:rnd(.9,1.6),expo:rnd(.9,1.4),grid:Math.random()<.25?rnd(.2,.8):0,palCycle:Math.random()<.7});
-  setPalette(pick(Object.keys(PALS)));setLayout([...P.layouts][0]);buildStrip();syncUI();status('おまかせで組み直しました。気に入らなければもう一度押してください。')};
+  const ok=OPS.map(o=>o[0]);const ms=ok.filter(()=>Math.random()<.35);P.ops=new Set(ms.length?ms:[pick(ok)]);
+  const ts=TRS.map(t=>t[0]).filter(()=>Math.random()<.5);P.trans=new Set(ts.length?ts:['cut']);
+  Object.assign(P,{div:rnd(.1,.9),speed:rnd(.2,1.4),zoom:rnd(.15,.9),blur:rnd(0,.9),warp:rnd(.2,.9),bpm:Math.round(rnd(80,150)),cut:rnd(.2,.65),layer:rnd(0,.35),fb:rnd(0,.6),flick:rnd(0,.2),flickRate:Math.round(rnd(8,22)),
+    neg:rnd(0,.2),tint:Math.random()<.3?rnd(.2,.8):0,sat:rnd(.9,1.5),expo:rnd(.9,1.35),contrast:rnd(.9,1.35),bloom:rnd(.3,1.2),rgb:rnd(0,.35)});
+  setPalette(Math.random()<.5?'material':pick(Object.keys(PALS)));syncUI();cut(true);status('おまかせで組み直しました。気に入らなければもう一度押してください。')};
 
-buildSliders();buildChips();
-applyPreset(PRESETS[0][1]);
-resize();renderSamples();
+buildSliders();buildChips();addBuiltins();curMat=mats[0];
+applyPreset(PRESETS[0][1]);resize();renderMats();cut(true,curMat);
 requestAnimationFrame(t=>{last=t;requestAnimationFrame(frame)});
 })();
 </script>
