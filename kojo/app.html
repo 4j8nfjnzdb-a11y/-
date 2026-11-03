@@ -78,8 +78,9 @@ button:disabled{cursor:default;opacity:.4}
 .opDesc{margin:0;font-size:12.5px;color:var(--dim);min-height:2.6em;text-wrap:pretty}
 .sl{display:flex;flex-direction:column;gap:1px;min-width:0}
 .sl .kl{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
-.sl .kl span{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sl .kl span em{font-style:normal;font-family:var(--f-mono);font-size:10.5px;color:var(--faint);margin-left:6px;letter-spacing:.06em}
+.sl .kl .nm{display:flex;align-items:center;gap:7px;min-width:0}
+.sl .kl label{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.sl .kl em{font-style:normal;font-family:var(--f-mono);font-size:10.5px;color:var(--faint);margin-left:6px;letter-spacing:.06em}
 .sl output{font-family:var(--f-mono);font-size:12px;color:var(--acc);font-variant-numeric:tabular-nums;white-space:nowrap}
 .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 16px}
 @media (max-width:420px){.grid2{grid-template-columns:minmax(0,1fr)}.ops{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -90,6 +91,14 @@ input[type=range]::-moz-range-track{height:3px;border-radius:2px;background:var(
 input[type=range]::-moz-range-progress{height:3px;border-radius:2px;background:var(--acc)}
 input[type=range]::-moz-range-thumb{width:10px;height:10px;border-radius:50%;background:var(--ink);border:3px solid var(--acc)}
 .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.dk{accent-color:var(--acc);width:15px;height:15px;margin:0;flex:none;cursor:pointer}
+.dkl{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--dim);cursor:pointer}
+.lh{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.auto{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--dim)}
+.auto input{width:4.6em;padding:7px 8px;border-radius:7px;border:1px solid var(--line);background:var(--well);font-family:var(--f-mono);font-size:13px;font-variant-numeric:tabular-nums}
+.btn.on{background:var(--ink);color:var(--bg);border-color:transparent}
+.btn.on .pulse{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--acc);animation:blink 1s steps(2) infinite}
+@media (prefers-reduced-motion:reduce){.btn.on .pulse{animation:none}}
 .sel{display:flex;flex-direction:column;gap:3px;min-width:0}
 select{padding:7px 9px;border-radius:7px;border:1px solid var(--line);background:var(--well);font-size:13px;max-width:100%}
 .tog{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer}
@@ -128,9 +137,14 @@ select{padding:7px 9px;border-radius:7px;border:1px solid var(--line);background
         <button class="btn primary" id="playBtn" type="button" aria-pressed="true"><svg viewBox="0 0 16 16" id="playIco"><path d="M3 2h3.5v12H3zM9.5 2H13v12H9.5z"/></svg><span id="playTxt">止める</span></button>
         <button class="btn" id="cutBtn" type="button">カット</button>
         <button class="btn" id="burstBtn" type="button">明滅</button>
-        <button class="btn" id="diceBtn" type="button">おまかせ</button>
         <button class="btn rec" id="recBtn" type="button" aria-pressed="false"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/></svg><span id="recTxt">録画</span></button>
         <button class="btn" id="pngBtn" type="button">静止画</button>
+      </div>
+      <div class="transport">
+        <button class="btn" id="diceBtn" type="button" title="チェックした項目だけ変える（D キー）"><svg viewBox="0 0 16 16"><path d="M3 1h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2zm1.5 2.5a1.25 1.25 0 1 0 0 2.5 1.25 1.25 0 0 0 0-2.5zm7 0a1.25 1.25 0 1 0 0 2.5 1.25 1.25 0 0 0 0-2.5zM8 6.75a1.25 1.25 0 1 0 0 2.5 1.25 1.25 0 0 0 0-2.5zM4.5 10a1.25 1.25 0 1 0 0 2.5 1.25 1.25 0 0 0 0-2.5zm7 0a1.25 1.25 0 1 0 0 2.5 1.25 1.25 0 0 0 0-2.5z"/></svg>サイコロ</button>
+        <button class="btn" id="autoBtn" type="button" aria-pressed="false"><span id="autoTxt">ずっと変える</span></button>
+        <label class="auto"><input type="number" id="autoSec" min="0.5" max="600" step="0.5" inputmode="decimal" aria-label="何秒ごとに変えるか">秒ごと</label>
+        <label class="dkl"><input type="checkbox" class="dk" id="glide">なめらかに移る</label>
       </div>
       <p class="status" id="status" role="status"></p>
       <div class="result" id="result" hidden>
@@ -162,6 +176,12 @@ select{padding:7px 9px;border-radius:7px;border:1px solid var(--line);background
       </section>
 
       <section class="card">
+        <h2>ランダム<span>dice</span></h2>
+        <p class="sub">各項目の横のチェック <input type="checkbox" class="dk" checked disabled aria-hidden="true" style="vertical-align:-2px"> を付けたものだけが、「サイコロ」と「ずっと変える」で変わります。チェックを外した項目は今の値のまま残ります。</p>
+        <div class="row"><button class="btn" id="dAll" type="button">すべてチェック</button><button class="btn" id="dNone" type="button">すべて外す</button><button class="btn" id="dSafe" type="button">明滅以外をチェック</button></div>
+      </section>
+
+      <section class="card">
         <h2>はじめ方<span>presets</span></h2>
         <div class="chips" id="presetChips"></div>
       </section>
@@ -169,6 +189,7 @@ select{padding:7px 9px;border-radius:7px;border:1px solid var(--line);background
       <section class="card">
         <h2>技法<span>techniques</span></h2>
         <p class="sub">素材をどう光に変えるか。選んだ技法がカットごとに入れ替わります。</p>
+        <label class="dkl"><input type="checkbox" class="dk" id="d-ops">技法の組み合わせ</label>
         <div class="ops" id="opChips"></div>
         <p class="opDesc" id="opDesc"></p>
         <div id="g-tech" class="grid2"></div>
@@ -176,15 +197,16 @@ select{padding:7px 9px;border-radius:7px;border:1px solid var(--line);background
 
       <section class="card">
         <h2>つなぎ<span>cut · flicker</span></h2>
-        <span class="label">カットのつなぎ方</span>
+        <label class="dkl"><input type="checkbox" class="dk" id="d-trans">カットのつなぎ方</label>
         <div class="chips" id="trChips"></div>
         <div id="g-edit" class="grid2"></div>
-        <label class="sel"><span class="label">カットの細かさ</span><select id="s-sub"><option value="4">4拍</option><option value="2">2拍</option><option value="1">1拍</option><option value="0.5">半拍</option><option value="0.25">4分の1拍</option></select></label>
+        <div class="sel"><label class="dkl"><input type="checkbox" class="dk" id="d-sub">カットの細かさ</label><select id="s-sub" aria-label="カットの細かさ"><option value="4">4拍</option><option value="2">2拍</option><option value="1">1拍</option><option value="0.5">半拍</option><option value="0.25">4分の1拍</option></select></div>
       </section>
 
       <section class="card">
         <h2>色<span>colour</span></h2>
         <p class="sub">「素材」は素材から取り出した色です。色層の技法と色付けに使います。</p>
+        <label class="dkl"><input type="checkbox" class="dk" id="d-pal">色の選び方</label>
         <div class="chips" id="palChips"></div>
         <label class="tog"><input type="checkbox" id="t-palCycle">カットごとに色を変える</label>
         <div id="g-color" class="grid2"></div>
@@ -538,7 +560,7 @@ function removeMat(m){const i=mats.indexOf(m);if(i<0)return;mats.splice(i,1);if(
   if(!mats.length){curMat=null;A=B=null;slots.forEach(s=>s.mat=null);setEmpty(true)}
   else if(curMat===m||(A&&A.slot.mat===m)||(B&&B.slot.mat===m)){useMat(mats[0]);B=A;tr.k=1;tr.dur=0}
   slots.forEach(s=>{if(s.mat===m&&(!A||A.slot!==s))s.mat=null});renderMats()}
-function setEmpty(on){$('empty').hidden=!on;['cutBtn','burstBtn','diceBtn','recBtn','pngBtn'].forEach(id=>$(id).disabled=on||(id==='recBtn'&&mime===null));
+function setEmpty(on){$('empty').hidden=!on;['cutBtn','burstBtn','recBtn','pngBtn'].forEach(id=>$(id).disabled=on||(id==='recBtn'&&mime===null));
   if(on){$('now').textContent='';gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,W,H);gl.clearColor(0,0,0,1);gl.clear(gl.COLOR_BUFFER_BIT)}}
 function renderMats(){
   const box=$('mats');box.textContent='';
@@ -652,8 +674,8 @@ function h11js(p){p=(p*.1031)%1;p*=p+33.33;p*=p+p;return p%1}
 let playing=true,last=performance.now(),level=0,frameN=0;
 function frame(now){
   requestAnimationFrame(frame);if(!W||!A)return;
-  let dt=Math.min(.1,(now-last)/1000);last=now;if(!playing)dt=0;frameN++;
-  T+=dt;segT+=dt;A.t+=dt;if(B&&B!==A)B.t+=dt;
+  const rdt=playing?Math.min(1,(now-last)/1000):0;let dt=Math.min(.1,rdt);last=now;frameN++;
+  T+=dt;segT+=dt;A.t+=dt;if(B&&B!==A)B.t+=dt;tickDice(rdt);
   level=0;if(aPlaying&&analyser){analyser.getFloatTimeDomainData(tbuf);let s=0;for(let i=0;i<tbuf.length;i++)s+=tbuf[i]*tbuf[i];const rms=Math.sqrt(s/tbuf.length);
     lvl+=(rms-lvl)*.35;lvlAvg+=(rms-lvlAvg)*.03;level=clamp(lvl*3,0,1)*P.react;
     if(P.audioCut&&playing&&rms>lvlAvg*1.7&&rms>.03&&now-lastOnset>140){lastOnset=now;if(Math.random()<.5+P.cut*.5)cut(false);else if(Math.random()<P.flick*2){flickHold=1/24;flick=pick([1,2,4])}}}
@@ -732,11 +754,11 @@ $('playBtn').onclick=togglePlay;
 $('cutBtn').onclick=()=>cut(true);
 $('burstBtn').onclick=()=>{cut(true);tr.mode=3;tr.t=0;tr.dur=rnd(.4,.8);tr.k=0};
 cv.addEventListener('pointerdown',()=>{if(curMat)cut(true)});
-document.addEventListener('keydown',e=>{if(e.target.closest('input,select,textarea'))return;if(e.code==='Space'){e.preventDefault();cut(true)}});
+document.addEventListener('keydown',e=>{if(e.target.closest('input,select,textarea'))return;if(e.code==='Space'){e.preventDefault();cut(true)}else if(e.code==='KeyD'&&!e.metaKey&&!e.ctrlKey){roll(false)}});
 const fmt=(k,v)=>k==='bpm'||k==='flickRate'?String(Math.round(v)):v.toFixed(2);
 function buildSliders(){Object.entries(SL).forEach(([g,list])=>{const box=$('g-'+g);list.forEach(([k,ja,en,mn,mx,stp])=>{
-  const w=document.createElement('label');w.className='sl';w.innerHTML=`<span class="kl"><span>${ja}<em>${en}</em></span><output id="o-${k}"></output></span><input type="range" id="r-${k}" min="${mn}" max="${mx}" step="${stp}">`;
-  box.append(w);const r=w.querySelector('input');r.oninput=()=>{P[k]=+r.value;paint(k)}})})}
+  const w=document.createElement('div');w.className='sl';w.innerHTML=`<span class="kl"><span class="nm"><input type="checkbox" class="dk" id="d-${k}" title="サイコロの対象" aria-label="サイコロで${ja}を変える"><label for="r-${k}">${ja}<em>${en}</em></label></span><output id="o-${k}"></output></span><input type="range" id="r-${k}" min="${mn}" max="${mx}" step="${stp}">`;
+  box.append(w);const r=w.querySelector('input[type=range]');r.oninput=()=>{P[k]=+r.value;delete tw[k];paint(k)}})})}
 function paint(k){const r=$('r-'+k);if(!r)return;r.value=P[k];r.style.setProperty('--v',((P[k]-r.min)/(r.max-r.min)*100)+'%');$('o-'+k).textContent=fmt(k,P[k])}
 function showDesc(i){$('opDesc').textContent=OPS[i][3]}
 function buildChips(){
@@ -757,17 +779,50 @@ function syncUI(){Object.values(SL).flat().forEach(([k])=>paint(k));SELS.forEach
 SELS.forEach(k=>$('s-'+k).onchange=e=>{const v=e.target.value;P[k]=k==='aspect'?v:+v;if(k==='aspect'||k==='q'){resize();if(!curMat)setEmpty(true)}});
 TOGS.forEach(k=>$('t-'+k).onchange=e=>{P[k]=e.target.checked});
 const BASE={warp:.5,flickRate:12,tint:0,rgb:.1,grid:0,grain:.04,layer:.12,fb:.25};
-function applyPreset(cfg,nm){Object.assign(P,BASE);
+function applyPreset(cfg,nm){Object.keys(tw).forEach(k=>delete tw[k]);Object.assign(P,BASE);
   Object.entries(cfg).forEach(([k,v])=>{if(k==='ops')P.ops=new Set(v);else if(k==='trans')P.trans=new Set(v);else if(k!=='pal')P[k]=v});
   setPalette(cfg.pal||'material');syncUI();if(nm){cut(true);status(curMat?`「${nm}」にしました。`:`「${nm}」にしました。素材を入れると始まります。`)}}
-$('diceBtn').onclick=()=>{
-  const ok=OPS.map(o=>o[0]);const ms=ok.filter(()=>Math.random()<.35);P.ops=new Set(ms.length?ms:[pick(ok)]);
-  const ts=TRS.map(t=>t[0]).filter(()=>Math.random()<.5);P.trans=new Set(ts.length?ts:['cut']);
-  Object.assign(P,{div:rnd(.1,.9),speed:rnd(.2,1.4),zoom:rnd(.15,.9),blur:rnd(0,.9),warp:rnd(.2,.9),bpm:Math.round(rnd(80,150)),cut:rnd(.2,.65),layer:rnd(0,.35),fb:rnd(0,.6),flick:rnd(0,.2),flickRate:Math.round(rnd(8,22)),
-    neg:rnd(0,.2),tint:Math.random()<.3?rnd(.2,.8):0,sat:rnd(.9,1.5),expo:rnd(.9,1.35),contrast:rnd(.9,1.35),bloom:rnd(.3,1.2),rgb:rnd(0,.35)});
-  setPalette(Math.random()<.5?'material':pick(Object.keys(PALS)));syncUI();cut(true);status('おまかせで組み直しました。気に入らなければもう一度押してください。')};
+// ---------------- dice ----------------
+// D holds which items the dice may change; the ranges keep each roll inside what reads well on a wall
+const RR={div:[0,1],speed:[.15,1.5],zoom:[.1,.95],blur:[0,.95],warp:[.1,.95],bpm:[70,160],cut:[.15,.7],layer:[0,.4],fb:[0,.7],flick:[0,.25],flickRate:[6,22],neg:[0,.2],
+  tint:[0,.8],sat:[.8,1.6],expo:[.8,1.4],contrast:[.85,1.4],bloom:[.2,1.3],rgb:[0,.4],grid:[0,.8],grain:[0,.1],react:[0,1.2]};
+const SKEYS=Object.values(SL).flat().map(x=>x[0]),GKEYS=['ops','trans','sub','pal'],FLASH=['flick','flickRate','neg'];
+const D={};SKEYS.concat(GKEYS).forEach(k=>D[k]=!['bpm','flick','flickRate','neg','grid','grain','react','trans','sub'].includes(k));
+const AUTO={on:false,sec:4,glide:false,acc:0};const tw={};
+try{const sv=JSON.parse(localStorage.getItem('kojo-dice')||'null');if(sv){Object.assign(D,sv.D||{});if(sv.sec>0)AUTO.sec=sv.sec;AUTO.glide=!!sv.glide}}catch(e){}
+function saveD(){try{localStorage.setItem('kojo-dice',JSON.stringify({D,sec:AUTO.sec,glide:AUTO.glide}))}catch(e){}}
+function syncDice(){SKEYS.concat(GKEYS).forEach(k=>{const c=$('d-'+k);if(c)c.checked=!!D[k]});$('autoSec').value=AUTO.sec;$('glide').checked=AUTO.glide}
+function bindDice(){SKEYS.concat(GKEYS).forEach(k=>{const c=$('d-'+k);if(c)c.onchange=()=>{D[k]=c.checked;saveD()}});
+  const set=f=>{SKEYS.concat(GKEYS).forEach(k=>D[k]=f(k));syncDice();saveD()};
+  $('dAll').onclick=()=>set(()=>true);$('dNone').onclick=()=>set(()=>false);$('dSafe').onclick=()=>set(k=>!FLASH.includes(k));
+  $('autoSec').onchange=e=>{const v=parseFloat(e.target.value);AUTO.sec=clamp(isFinite(v)?v:4,.5,600);e.target.value=AUTO.sec;saveD();updAuto()};
+  $('glide').onchange=e=>{AUTO.glide=e.target.checked;saveD()}}
+function roll(fromAuto){
+  const keys=SKEYS.filter(k=>D[k]);let n=keys.length,opsChanged=false;
+  const glideT=AUTO.glide?(fromAuto?AUTO.sec:1.2):0;
+  keys.forEach(k=>{const[a,b]=RR[k]||[0,1];let v=rnd(a,b);if(k==='bpm'||k==='flickRate')v=Math.round(v);
+    if(glideT>0&&k!=='bpm'&&k!=='flickRate')tw[k]={a:P[k],b:v,t:0,d:glideT};else{P[k]=v;delete tw[k];paint(k)}});
+  if(D.ops){const ok=OPS.map(o=>o[0]);let ms=ok.filter(()=>Math.random()<.34);if(!ms.length)ms=[pick(ok)];P.ops=new Set(ms);opsChanged=true;n++}
+  if(D.trans){const ts=TRS.map(t=>t[0]).filter(()=>Math.random()<.5);P.trans=new Set(ts.length?ts:['cut']);n++}
+  if(D.sub){P.sub=pick([2,1,1,.5]);$('s-sub').value=String(P.sub);n++}
+  if(D.pal){setPalette(Math.random()<.45?'material':pick(Object.keys(PALS)));n++}
+  syncChips();
+  if(!n){status('チェックの付いた項目がありません。変えたい項目の横にチェックを付けてください。',true);return}
+  if(opsChanged||!fromAuto)cut(true);
+  if(!fromAuto)status(`サイコロ：${n} 項目を変えました。`);
+}
+function updAuto(){const b=$('autoBtn');b.setAttribute('aria-pressed',String(AUTO.on));b.classList.toggle('on',AUTO.on);
+  $('autoTxt').innerHTML=AUTO.on?`<span class="pulse"></span> 変え続けています（${AUTO.sec}秒ごと）`:'ずっと変える'}
+$('diceBtn').onclick=()=>roll(false);
+$('autoBtn').onclick=()=>{AUTO.on=!AUTO.on;AUTO.acc=0;updAuto();if(AUTO.on){roll(true);status(`${AUTO.sec}秒ごとに、チェックした項目を変え続けます。もう一度押すと止まります。`)}else status('変え続けるのを止めました。')};
+let twPaint=0;
+function tickDice(dt){
+  if(AUTO.on){AUTO.acc+=dt;if(AUTO.acc>=AUTO.sec){AUTO.acc%=AUTO.sec;roll(true)}}
+  const ks=Object.keys(tw);if(!ks.length)return;twPaint+=dt;const doPaint=twPaint>.08;if(doPaint)twPaint=0;
+  ks.forEach(k=>{const g=tw[k];g.t+=dt;const x=clamp(g.t/g.d,0,1),e=x*x*(3-2*x);P[k]=g.a+(g.b-g.a)*e;if(doPaint||x>=1)paint(k);if(x>=1)delete tw[k]});
+}
 
-buildSliders();buildChips();
+buildSliders();buildChips();bindDice();syncDice();updAuto();
 applyPreset(PRESETS[0][1]);resize();renderMats();setEmpty(true);
 requestAnimationFrame(t=>{last=t;requestAnimationFrame(frame)});
 })();
