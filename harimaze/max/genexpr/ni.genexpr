@@ -1,0 +1,198 @@
+// harimaze / NI - similarity mosaic
+// The source is cut into short segments and each is measured for loudness
+// and brightness (zero crossings). Playback walks from segment to segment:
+// similarity 1 always takes the nearest neighbour, 0 takes any. Sweep
+// pushes the target brighter (+) or darker (-) at every step, so the walk
+// turns into a slow sort through the sound. Weight 0 = loudness only,
+// 1 = brightness only.
+// in1  : trigger (rising edge jumps to a random segment now)
+// out1 : left    out2 : right
+// out3 : read position 0..1    out4 : target feature 0..1
+
+Buffer src("hz_ni_src");
+Data ft(512, 3);
+
+Param seglen(120);
+Param similarity(0.8);
+Param weight(0.5);
+Param sweep(0);
+Param speed(1);
+Param rev(0.1);
+Param xfade(10);
+Param level(0.8);
+
+History an(0);
+History adone(0);
+History blprev(0);
+History slprev(0);
+History zprev(0);
+History cur(0);
+History rel(0);
+History cdir(1);
+History gpos(0);
+History gdir(1);
+History gfade(0);
+History tgt(0.5);
+History lastap(0);
+History trigprev(0);
+
+blen = max(dim(src), 2);
+ch2 = 0;
+if (channels(src) > 1) {
+	ch2 = 1;
+}
+sl = clamp(floor(mstosamps(seglen)), 64, blen);
+ns = clamp(floor(blen / sl), 1, 512);
+a0 = an;
+ad = adone;
+zp = zprev;
+j = 0;
+k = 0;
+seg = 0;
+x = 0;
+lmn = 0;
+lmx = 0;
+zmn = 0;
+zmx = 0;
+lv = 0;
+zv = 0;
+
+// re-analyse when the buffer or the segment length changes
+if (blen != blprev || sl != slprev) {
+	a0 = 0;
+	ad = 0;
+	for (j = 0; j < 512; j += 1) {
+		poke(ft, 0, j, 0);
+		poke(ft, 0, j, 1);
+		poke(ft, 0, j, 2);
+	}
+}
+// analysis: 256 samples per tick, sum of squares and zero crossings
+if (ad < 0.5) {
+	for (k = 0; k < 256; k += 1) {
+		if (a0 < ns * sl) {
+			seg = floor(a0 / sl);
+			x = peek(src, a0, 0);
+			poke(ft, peek(ft, seg, 0) + x * x, seg, 0);
+			if ((x >= 0) != (zp >= 0)) {
+				poke(ft, peek(ft, seg, 1) + 1, seg, 1);
+			}
+			zp = x;
+			a0 = a0 + 1;
+		}
+	}
+	if (a0 >= ns * sl) {
+		// normalise both features to 0..1 across the segments
+		lmn = 1000000;
+		lmx = 0;
+		zmn = 1000000;
+		zmx = 0;
+		for (j = 0; j < 512; j += 1) {
+			if (j < ns) {
+				lv = sqrt(peek(ft, j, 0) / sl);
+				zv = peek(ft, j, 1) / sl;
+				poke(ft, lv, j, 0);
+				poke(ft, zv, j, 1);
+				lmn = min(lmn, lv);
+				lmx = max(lmx, lv);
+				zmn = min(zmn, zv);
+				zmx = max(zmx, zv);
+			}
+		}
+		for (j = 0; j < 512; j += 1) {
+			if (j < ns) {
+				poke(ft, (peek(ft, j, 0) - lmn) / max(lmx - lmn, 0.000001), j, 0);
+				poke(ft, (peek(ft, j, 1) - zmn) / max(zmx - zmn, 0.000001), j, 1);
+			}
+		}
+		ad = 1;
+	}
+}
+
+c = cur;
+rl = rel + abs(speed);
+dr = cdir;
+g = gpos;
+gd = gdir;
+gf = gfade;
+t = tgt;
+trig = (in1 > 0.5) * (trigprev <= 0.5);
+best = 0;
+bd = 0;
+cand = 0;
+fc = 0;
+fcur = 0;
+dd = 0;
+xf = max(min(mstosamps(xfade), sl * 0.5), 1);
+g = wrap(g + gd * abs(speed), 0, blen);
+gf = max(gf - 1 / xf, 0);
+
+// end of segment: choose the next one
+if (rl >= sl || trig > 0 || c >= ns) {
+	fcur = weight * peek(ft, c, 1) + (1 - weight) * peek(ft, c, 0);
+	t = wrap(fcur + sweep * 0.06, 0, 1);
+	best = floor((noise() * 0.5 + 0.5) * ns);
+	if (ad > 0.5 && (noise() * 0.5 + 0.5) < similarity && trig < 0.5) {
+		bd = 1000000;
+		for (k = 0; k < 16; k += 1) {
+			cand = floor((noise() * 0.5 + 0.5) * ns);
+			fc = weight * peek(ft, cand, 1) + (1 - weight) * peek(ft, cand, 0);
+			dd = abs(fc - t);
+			if (cand != c && dd < bd) {
+				bd = dd;
+				best = cand;
+			}
+		}
+	}
+	if (ad < 0.5 && trig < 0.5) {
+		best = wrap(c + 1, 0, ns);
+	}
+	g = lastap;
+	gd = dr;
+	gf = 1;
+	c = best;
+	rl = 0;
+	dr = 1;
+	if ((noise() * 0.5 + 0.5) < rev) {
+		dr = -1;
+	}
+	if (speed < 0) {
+		dr = 0 - dr;
+	}
+}
+
+ap = c * sl + rl;
+if (dr < 0) {
+	ap = c * sl + sl - 1 - rl;
+}
+ap = wrap(ap, 0, blen);
+i0 = floor(ap);
+fr = ap - i0;
+i1 = wrap(i0 + 1, 0, blen);
+j0 = floor(g);
+gr = g - j0;
+j1 = wrap(j0 + 1, 0, blen);
+ka = sqrt(1 - gf);
+kb = sqrt(gf);
+oL = mix(peek(src, i0, 0), peek(src, i1, 0), fr) * ka + mix(peek(src, j0, 0), peek(src, j1, 0), gr) * kb;
+oR = mix(peek(src, i0, ch2), peek(src, i1, ch2), fr) * ka + mix(peek(src, j0, ch2), peek(src, j1, ch2), gr) * kb;
+
+out1 = oL * level;
+out2 = oR * level;
+out3 = ap / blen;
+out4 = t;
+
+an = a0;
+adone = ad;
+blprev = blen;
+slprev = sl;
+zprev = zp;
+cur = c;
+rel = rl;
+cdir = dr;
+gpos = g;
+gdir = gd;
+gfade = gf;
+tgt = t;
+lastap = ap;
+trigprev = in1;

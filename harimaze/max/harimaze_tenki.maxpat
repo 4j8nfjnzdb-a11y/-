@@ -150,60 +150,6 @@
           "patching_rect": [
             24,
             174,
-            142,
-            22.0
-          ],
-          "outlettype": [
-            ""
-          ],
-          "text": "replace jongly.aif",
-          "id": "obj-6"
-        }
-      },
-      {
-        "box": {
-          "maxclass": "message",
-          "numinlets": 2,
-          "numoutlets": 1,
-          "patching_rect": [
-            170,
-            174,
-            135,
-            22.0
-          ],
-          "outlettype": [
-            ""
-          ],
-          "text": "replace anton.aif",
-          "id": "obj-7"
-        }
-      },
-      {
-        "box": {
-          "maxclass": "message",
-          "numinlets": 2,
-          "numoutlets": 1,
-          "patching_rect": [
-            309,
-            174,
-            156,
-            22.0
-          ],
-          "outlettype": [
-            ""
-          ],
-          "text": "replace drumLoop.aif",
-          "id": "obj-8"
-        }
-      },
-      {
-        "box": {
-          "maxclass": "message",
-          "numinlets": 2,
-          "numoutlets": 1,
-          "patching_rect": [
-            469,
-            174,
             65,
             22.0
           ],
@@ -211,7 +157,7 @@
             ""
           ],
           "text": "replace",
-          "id": "obj-9"
+          "id": "obj-6"
         }
       },
       {
@@ -220,14 +166,14 @@
           "numinlets": 1,
           "numoutlets": 0,
           "patching_rect": [
-            527,
+            86,
             176,
-            120,
+            420,
             21.95
           ],
-          "text": "← ファイルを選ぶ",
+          "text": "← 音声ファイルを選ぶ（起動時は空。何も読み込みません）",
           "fontsize": 11.0,
-          "id": "obj-10"
+          "id": "obj-7"
         }
       },
       {
@@ -245,7 +191,7 @@
             "",
             ""
           ],
-          "id": "obj-11"
+          "id": "obj-8"
         }
       },
       {
@@ -262,7 +208,7 @@
           "text": "ここに音声ファイルを\nドロップ (wav / aif)",
           "fontsize": 10.5,
           "linecount": 2,
-          "id": "obj-12"
+          "id": "obj-9"
         }
       },
       {
@@ -281,7 +227,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-13"
+          "id": "obj-10"
         }
       },
       {
@@ -300,7 +246,7 @@
             230,
             22.0
           ],
-          "id": "obj-14"
+          "id": "obj-11"
         }
       },
       {
@@ -322,26 +268,7 @@
             "list",
             ""
           ],
-          "id": "obj-15"
-        }
-      },
-      {
-        "box": {
-          "maxclass": "newobj",
-          "text": "loadmess replace jongly.aif",
-          "numinlets": 1,
-          "numoutlets": 1,
-          "outlettype": [
-            ""
-          ],
-          "patching_rect": [
-            354,
-            300,
-            203,
-            22.0
-          ],
-          "hidden": 1,
-          "id": "obj-16"
+          "id": "obj-12"
         }
       },
       {
@@ -360,7 +287,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-17"
+          "id": "obj-13"
         }
       },
       {
@@ -383,7 +310,7 @@
           "rounded": 8,
           "border": 0,
           "background": 1,
-          "id": "obj-18"
+          "id": "obj-14"
         }
       },
       {
@@ -400,7 +327,7 @@
           "text": "2  パラメータ PARAMETERS — 数字をドラッグ / ダブルクリックで入力",
           "fontsize": 12.0,
           "fontface": 1,
-          "id": "obj-19"
+          "id": "obj-15"
         }
       },
       {
@@ -417,7 +344,7 @@
           "text": "speed\n速度  -2〜2",
           "fontsize": 11.0,
           "linecount": 2,
-          "id": "obj-20"
+          "id": "obj-16"
         }
       },
       {
@@ -436,7 +363,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-21"
+          "id": "obj-17"
         }
       },
       {
@@ -458,7 +385,7 @@
           "maximum": 2.0,
           "numdecimalplaces": 3,
           "format": 6,
-          "id": "obj-22"
+          "id": "obj-18"
         }
       },
       {
@@ -477,7 +404,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-23"
+          "id": "obj-19"
         }
       },
       {
@@ -494,7 +421,7 @@
           "text": "start\n開始位置  0〜1",
           "fontsize": 11.0,
           "linecount": 2,
-          "id": "obj-24"
+          "id": "obj-20"
         }
       },
       {
@@ -513,7 +440,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-25"
+          "id": "obj-21"
         }
       },
       {
@@ -535,7 +462,7 @@
           "maximum": 1.0,
           "numdecimalplaces": 3,
           "format": 6,
-          "id": "obj-26"
+          "id": "obj-22"
         }
       },
       {
@@ -554,7 +481,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-27"
+          "id": "obj-23"
         }
       },
       {
@@ -571,7 +498,7 @@
           "text": "size\nループ長  0〜1",
           "fontsize": 11.0,
           "linecount": 2,
-          "id": "obj-28"
+          "id": "obj-24"
         }
       },
       {
@@ -590,7 +517,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-29"
+          "id": "obj-25"
         }
       },
       {
@@ -612,7 +539,7 @@
           "maximum": 1.0,
           "numdecimalplaces": 3,
           "format": 6,
-          "id": "obj-30"
+          "id": "obj-26"
         }
       },
       {
@@ -631,7 +558,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-31"
+          "id": "obj-27"
         }
       },
       {
@@ -648,7 +575,7 @@
           "text": "drift\n漂い  0〜1",
           "fontsize": 11.0,
           "linecount": 2,
-          "id": "obj-32"
+          "id": "obj-28"
         }
       },
       {
@@ -667,7 +594,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-33"
+          "id": "obj-29"
         }
       },
       {
@@ -689,7 +616,7 @@
           "maximum": 1.0,
           "numdecimalplaces": 3,
           "format": 6,
-          "id": "obj-34"
+          "id": "obj-30"
         }
       },
       {
@@ -708,7 +635,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-35"
+          "id": "obj-31"
         }
       },
       {
@@ -725,7 +652,7 @@
           "text": "weather\n天気の頻度  0〜1",
           "fontsize": 11.0,
           "linecount": 2,
-          "id": "obj-36"
+          "id": "obj-32"
         }
       },
       {
@@ -744,7 +671,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-37"
+          "id": "obj-33"
         }
       },
       {
@@ -766,7 +693,7 @@
           "maximum": 1.0,
           "numdecimalplaces": 3,
           "format": 6,
-          "id": "obj-38"
+          "id": "obj-34"
         }
       },
       {
@@ -785,7 +712,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-39"
+          "id": "obj-35"
         }
       },
       {
@@ -802,7 +729,7 @@
           "text": "tapestop\nテープ停止  0〜1",
           "fontsize": 11.0,
           "linecount": 2,
-          "id": "obj-40"
+          "id": "obj-36"
         }
       },
       {
@@ -821,7 +748,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-41"
+          "id": "obj-37"
         }
       },
       {
@@ -843,7 +770,7 @@
           "maximum": 1.0,
           "numdecimalplaces": 3,
           "format": 6,
-          "id": "obj-42"
+          "id": "obj-38"
         }
       },
       {
@@ -862,7 +789,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-43"
+          "id": "obj-39"
         }
       },
       {
@@ -879,7 +806,7 @@
           "text": "rewind\n巻き戻し  0〜1",
           "fontsize": 11.0,
           "linecount": 2,
-          "id": "obj-44"
+          "id": "obj-40"
         }
       },
       {
@@ -898,7 +825,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-45"
+          "id": "obj-41"
         }
       },
       {
@@ -920,7 +847,7 @@
           "maximum": 1.0,
           "numdecimalplaces": 3,
           "format": 6,
-          "id": "obj-46"
+          "id": "obj-42"
         }
       },
       {
@@ -939,7 +866,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-47"
+          "id": "obj-43"
         }
       },
       {
@@ -956,7 +883,7 @@
           "text": "leap\n跳躍  0〜1",
           "fontsize": 11.0,
           "linecount": 2,
-          "id": "obj-48"
+          "id": "obj-44"
         }
       },
       {
@@ -975,7 +902,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-49"
+          "id": "obj-45"
         }
       },
       {
@@ -997,7 +924,7 @@
           "maximum": 1.0,
           "numdecimalplaces": 3,
           "format": 6,
-          "id": "obj-50"
+          "id": "obj-46"
         }
       },
       {
@@ -1016,7 +943,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-51"
+          "id": "obj-47"
         }
       },
       {
@@ -1033,7 +960,7 @@
           "text": "freeze\n凍結  0〜1",
           "fontsize": 11.0,
           "linecount": 2,
-          "id": "obj-52"
+          "id": "obj-48"
         }
       },
       {
@@ -1052,7 +979,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-53"
+          "id": "obj-49"
         }
       },
       {
@@ -1074,7 +1001,7 @@
           "maximum": 1.0,
           "numdecimalplaces": 3,
           "format": 6,
-          "id": "obj-54"
+          "id": "obj-50"
         }
       },
       {
@@ -1093,7 +1020,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-55"
+          "id": "obj-51"
         }
       },
       {
@@ -1110,7 +1037,7 @@
           "text": "glide\n慣性 ms  1〜3000",
           "fontsize": 11.0,
           "linecount": 2,
-          "id": "obj-56"
+          "id": "obj-52"
         }
       },
       {
@@ -1129,7 +1056,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-57"
+          "id": "obj-53"
         }
       },
       {
@@ -1151,7 +1078,7 @@
           "maximum": 3000.0,
           "numdecimalplaces": 0,
           "format": 6,
-          "id": "obj-58"
+          "id": "obj-54"
         }
       },
       {
@@ -1170,7 +1097,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-59"
+          "id": "obj-55"
         }
       },
       {
@@ -1187,7 +1114,7 @@
           "text": "xfade\n継ぎ目 ms  1〜200",
           "fontsize": 11.0,
           "linecount": 2,
-          "id": "obj-60"
+          "id": "obj-56"
         }
       },
       {
@@ -1206,7 +1133,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-61"
+          "id": "obj-57"
         }
       },
       {
@@ -1228,7 +1155,7 @@
           "maximum": 200.0,
           "numdecimalplaces": 0,
           "format": 6,
-          "id": "obj-62"
+          "id": "obj-58"
         }
       },
       {
@@ -1247,7 +1174,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-63"
+          "id": "obj-59"
         }
       },
       {
@@ -1264,7 +1191,7 @@
           "text": "level\n音量  0〜1",
           "fontsize": 11.0,
           "linecount": 2,
-          "id": "obj-64"
+          "id": "obj-60"
         }
       },
       {
@@ -1283,7 +1210,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-65"
+          "id": "obj-61"
         }
       },
       {
@@ -1305,7 +1232,7 @@
           "maximum": 1.0,
           "numdecimalplaces": 3,
           "format": 6,
-          "id": "obj-66"
+          "id": "obj-62"
         }
       },
       {
@@ -1324,7 +1251,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-67"
+          "id": "obj-63"
         }
       },
       {
@@ -1558,7 +1485,7 @@
               }
             ]
           },
-          "id": "obj-68"
+          "id": "obj-64"
         }
       },
       {
@@ -1575,7 +1502,7 @@
           "outlettype": [
             "bang"
           ],
-          "id": "obj-69"
+          "id": "obj-65"
         }
       },
       {
@@ -1593,7 +1520,7 @@
             56,
             22.0
           ],
-          "id": "obj-70"
+          "id": "obj-66"
         }
       },
       {
@@ -1609,7 +1536,7 @@
           ],
           "text": "● 今すぐ天気を変える（in1 の立ち上がりでイベント。外部の click~ や他マシンでも駆動できる）",
           "fontsize": 11.0,
-          "id": "obj-71"
+          "id": "obj-67"
         }
       },
       {
@@ -1632,7 +1559,7 @@
           "rounded": 8,
           "border": 0,
           "background": 1,
-          "id": "obj-72"
+          "id": "obj-68"
         }
       },
       {
@@ -1649,7 +1576,7 @@
           "text": "3  マシン MACHINE — gen~ をダブルクリックするとコードが見られます",
           "fontsize": 12.0,
           "fontface": 1,
-          "id": "obj-73"
+          "id": "obj-69"
         }
       },
       {
@@ -1667,7 +1594,7 @@
             60,
             22.0
           ],
-          "id": "obj-74"
+          "id": "obj-70"
         }
       },
       {
@@ -1685,7 +1612,7 @@
             60,
             22.0
           ],
-          "id": "obj-75"
+          "id": "obj-71"
         }
       },
       {
@@ -1704,7 +1631,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-76"
+          "id": "obj-72"
         }
       },
       {
@@ -1726,7 +1653,7 @@
           "maximum": 1.0,
           "numdecimalplaces": 2,
           "format": 6,
-          "id": "obj-77"
+          "id": "obj-73"
         }
       },
       {
@@ -1742,7 +1669,7 @@
           ],
           "text": "master",
           "fontsize": 11.0,
-          "id": "obj-78"
+          "id": "obj-74"
         }
       },
       {
@@ -1761,7 +1688,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-79"
+          "id": "obj-75"
         }
       },
       {
@@ -1781,7 +1708,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-80"
+          "id": "obj-76"
         }
       },
       {
@@ -1800,7 +1727,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-81"
+          "id": "obj-77"
         }
       },
       {
@@ -1814,7 +1741,7 @@
             45,
             45
           ],
-          "id": "obj-82"
+          "id": "obj-78"
         }
       },
       {
@@ -1831,7 +1758,7 @@
           "outlettype": [
             "float"
           ],
-          "id": "obj-83"
+          "id": "obj-79"
         }
       },
       {
@@ -1848,7 +1775,7 @@
           "outlettype": [
             "float"
           ],
-          "id": "obj-84"
+          "id": "obj-80"
         }
       },
       {
@@ -1864,7 +1791,7 @@
           ],
           "text": "← クリックで音を出す",
           "fontsize": 11.0,
-          "id": "obj-85"
+          "id": "obj-81"
         }
       },
       {
@@ -1882,7 +1809,7 @@
             ""
           ],
           "text": "open",
-          "id": "obj-86"
+          "id": "obj-82"
         }
       },
       {
@@ -1899,7 +1826,7 @@
           "outlettype": [
             "int"
           ],
-          "id": "obj-87"
+          "id": "obj-83"
         }
       },
       {
@@ -1917,7 +1844,7 @@
             90,
             22.0
           ],
-          "id": "obj-88"
+          "id": "obj-84"
         }
       },
       {
@@ -1934,7 +1861,7 @@
           "text": "録音: open で保存先 → トグルで開始/停止",
           "fontsize": 10.5,
           "linecount": 2,
-          "id": "obj-89"
+          "id": "obj-85"
         }
       },
       {
@@ -1952,7 +1879,7 @@
             90,
             22.0
           ],
-          "id": "obj-90"
+          "id": "obj-86"
         }
       },
       {
@@ -1970,7 +1897,7 @@
             90,
             22.0
           ],
-          "id": "obj-91"
+          "id": "obj-87"
         }
       },
       {
@@ -1990,7 +1917,7 @@
           "floatoutput": 1,
           "size": 1.0,
           "ignoreclick": 1,
-          "id": "obj-92"
+          "id": "obj-88"
         }
       },
       {
@@ -2007,7 +1934,7 @@
           "text": "再生位置 (out3)\n← 戻る / 進む →",
           "fontsize": 10.5,
           "linecount": 2,
-          "id": "obj-93"
+          "id": "obj-89"
         }
       },
       {
@@ -2028,7 +1955,7 @@
           "numdecimalplaces": 2,
           "format": 6,
           "ignoreclick": 1,
-          "id": "obj-94"
+          "id": "obj-90"
         }
       },
       {
@@ -2045,7 +1972,7 @@
           "text": "天気 (out4)\n0 晴 1 停止 2 巻戻\n3 凍結 4 跳躍",
           "fontsize": 10.5,
           "linecount": 3,
-          "id": "obj-95"
+          "id": "obj-91"
         }
       },
       {
@@ -2068,7 +1995,7 @@
           "rounded": 8,
           "border": 0,
           "background": 1,
-          "id": "obj-96"
+          "id": "obj-92"
         }
       },
       {
@@ -2085,7 +2012,7 @@
           "text": "プリセット PRESETS — ● を押す",
           "fontsize": 12.0,
           "fontface": 1,
-          "id": "obj-97"
+          "id": "obj-93"
         }
       },
       {
@@ -2104,7 +2031,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-98"
+          "id": "obj-94"
         }
       },
       {
@@ -2121,7 +2048,7 @@
           "outlettype": [
             "bang"
           ],
-          "id": "obj-99"
+          "id": "obj-95"
         }
       },
       {
@@ -2138,7 +2065,7 @@
           "text": "晴れ calm",
           "fontsize": 13.0,
           "fontface": 1,
-          "id": "obj-100"
+          "id": "obj-96"
         }
       },
       {
@@ -2154,7 +2081,7 @@
           ],
           "text": "ループだけ。漂いは少し。まずはここから",
           "fontsize": 10.5,
-          "id": "obj-101"
+          "id": "obj-97"
         }
       },
       {
@@ -2173,7 +2100,7 @@
           ],
           "hidden": 1,
           "text": "; tenki_speed 1; tenki_start 0.1; tenki_size 0.25; tenki_drift 0.15; tenki_weather 0; tenki_tapestop 0.5; tenki_rewind 0.4; tenki_leap 0.4; tenki_freeze 0.3; tenki_glide 250; tenki_xfade 20; tenki_level 0.8",
-          "id": "obj-102"
+          "id": "obj-98"
         }
       },
       {
@@ -2190,7 +2117,7 @@
           "outlettype": [
             "bang"
           ],
-          "id": "obj-103"
+          "id": "obj-99"
         }
       },
       {
@@ -2207,7 +2134,7 @@
           "text": "小雨 drizzle",
           "fontsize": 13.0,
           "fontface": 1,
-          "id": "obj-104"
+          "id": "obj-100"
         }
       },
       {
@@ -2223,7 +2150,7 @@
           ],
           "text": "ときどき巻き戻り、ときどき跳ぶ",
           "fontsize": 10.5,
-          "id": "obj-105"
+          "id": "obj-101"
         }
       },
       {
@@ -2242,7 +2169,7 @@
           ],
           "hidden": 1,
           "text": "; tenki_size 0.12; tenki_drift 0.3; tenki_weather 0.3; tenki_tapestop 0.3; tenki_rewind 0.5; tenki_leap 0.3; tenki_freeze 0.2; tenki_glide 250",
-          "id": "obj-106"
+          "id": "obj-102"
         }
       },
       {
@@ -2259,7 +2186,7 @@
           "outlettype": [
             "bang"
           ],
-          "id": "obj-107"
+          "id": "obj-103"
         }
       },
       {
@@ -2276,7 +2203,7 @@
           "text": "夕立 shower",
           "fontsize": 13.0,
           "fontface": 1,
-          "id": "obj-108"
+          "id": "obj-104"
         }
       },
       {
@@ -2292,7 +2219,7 @@
           ],
           "text": "短いループで頻繁に天気が変わる",
           "fontsize": 10.5,
-          "id": "obj-109"
+          "id": "obj-105"
         }
       },
       {
@@ -2311,7 +2238,7 @@
           ],
           "hidden": 1,
           "text": "; tenki_size 0.06; tenki_weather 0.7; tenki_tapestop 0.6; tenki_rewind 0.6; tenki_leap 0.5; tenki_freeze 0.5; tenki_glide 120",
-          "id": "obj-110"
+          "id": "obj-106"
         }
       },
       {
@@ -2328,7 +2255,7 @@
           "outlettype": [
             "bang"
           ],
-          "id": "obj-111"
+          "id": "obj-107"
         }
       },
       {
@@ -2345,7 +2272,7 @@
           "text": "霜 frost",
           "fontsize": 13.0,
           "fontface": 1,
-          "id": "obj-112"
+          "id": "obj-108"
         }
       },
       {
@@ -2361,7 +2288,7 @@
           ],
           "text": "半速で、マイクロループに凍りつく",
           "fontsize": 10.5,
-          "id": "obj-113"
+          "id": "obj-109"
         }
       },
       {
@@ -2380,7 +2307,7 @@
           ],
           "hidden": 1,
           "text": "; tenki_speed 0.5; tenki_size 0.03; tenki_drift 0.5; tenki_weather 0.5; tenki_tapestop 0.2; tenki_rewind 0.2; tenki_leap 0.1; tenki_freeze 1; tenki_glide 800; tenki_xfade 40",
-          "id": "obj-114"
+          "id": "obj-110"
         }
       },
       {
@@ -2397,7 +2324,7 @@
           "outlettype": [
             "bang"
           ],
-          "id": "obj-115"
+          "id": "obj-111"
         }
       },
       {
@@ -2414,7 +2341,7 @@
           "text": "嵐 storm",
           "fontsize": 13.0,
           "fontface": 1,
-          "id": "obj-116"
+          "id": "obj-112"
         }
       },
       {
@@ -2430,7 +2357,7 @@
           ],
           "text": "全部のイベントが最大頻度で",
           "fontsize": 10.5,
-          "id": "obj-117"
+          "id": "obj-113"
         }
       },
       {
@@ -2449,7 +2376,7 @@
           ],
           "hidden": 1,
           "text": "; tenki_speed 1.2; tenki_size 0.02; tenki_weather 1; tenki_tapestop 1; tenki_rewind 1; tenki_leap 1; tenki_freeze 1; tenki_glide 60; tenki_xfade 8",
-          "id": "obj-118"
+          "id": "obj-114"
         }
       },
       {
@@ -2461,12 +2388,12 @@
             800,
             520,
             380,
-            101.7
+            117.64999999999999
           ],
-          "text": "使い方\n1. 右下の ezdac~（スピーカー）をクリックして DSP を ON\n2. プリセットの ● を押す（起動時は 1 番目が入ります）\n3. 数字をドラッグして変える。音源はドロップで差し替え\n同梱音源（jongly.aif など）は Max 付属のサンプルです。\n見つからない場合は自分のファイルをドロップしてください。",
+          "text": "使い方\n1. 音声ファイルをドロップ（または replace）\n2. ezdac~（スピーカー）をクリックして DSP を ON\n3. プリセットの ● を押す（起動時は 1 番目が入ります）\n4. 数字をドラッグして変える\n起動時は音源が空です。まず音声ファイルを\nドロップするか replace で選んでください。",
           "fontsize": 11.0,
-          "linecount": 6,
-          "id": "obj-119"
+          "linecount": 7,
+          "id": "obj-115"
         }
       }
     ],
@@ -2478,19 +2405,7 @@
             0
           ],
           "destination": [
-            "obj-14",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-7",
-            0
-          ],
-          "destination": [
-            "obj-14",
+            "obj-11",
             0
           ]
         }
@@ -2502,33 +2417,22 @@
             0
           ],
           "destination": [
-            "obj-14",
+            "obj-10",
             0
-          ]
+          ],
+          "hidden": 1
         }
       },
       {
         "patchline": {
           "source": [
-            "obj-9",
+            "obj-10",
             0
           ],
           "destination": [
-            "obj-14",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
             "obj-11",
             0
           ],
-          "destination": [
-            "obj-13",
-            0
-          ],
           "hidden": 1
         }
       },
@@ -2539,20 +2443,7 @@
             0
           ],
           "destination": [
-            "obj-14",
-            0
-          ],
-          "hidden": 1
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-16",
-            0
-          ],
-          "destination": [
-            "obj-14",
+            "obj-12",
             0
           ],
           "hidden": 1
@@ -2565,7 +2456,20 @@
             0
           ],
           "destination": [
-            "obj-15",
+            "obj-18",
+            0
+          ],
+          "hidden": 1
+        }
+      },
+      {
+        "patchline": {
+          "source": [
+            "obj-18",
+            0
+          ],
+          "destination": [
+            "obj-19",
             0
           ],
           "hidden": 1
@@ -2860,24 +2764,11 @@
       {
         "patchline": {
           "source": [
-            "obj-65",
+            "obj-19",
             0
           ],
           "destination": [
-            "obj-66",
-            0
-          ],
-          "hidden": 1
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-66",
-            0
-          ],
-          "destination": [
-            "obj-67",
+            "obj-64",
             0
           ],
           "hidden": 1
@@ -2890,7 +2781,7 @@
             0
           ],
           "destination": [
-            "obj-68",
+            "obj-64",
             0
           ],
           "hidden": 1
@@ -2903,7 +2794,7 @@
             0
           ],
           "destination": [
-            "obj-68",
+            "obj-64",
             0
           ],
           "hidden": 1
@@ -2916,7 +2807,7 @@
             0
           ],
           "destination": [
-            "obj-68",
+            "obj-64",
             0
           ],
           "hidden": 1
@@ -2929,7 +2820,7 @@
             0
           ],
           "destination": [
-            "obj-68",
+            "obj-64",
             0
           ],
           "hidden": 1
@@ -2942,7 +2833,7 @@
             0
           ],
           "destination": [
-            "obj-68",
+            "obj-64",
             0
           ],
           "hidden": 1
@@ -2955,7 +2846,7 @@
             0
           ],
           "destination": [
-            "obj-68",
+            "obj-64",
             0
           ],
           "hidden": 1
@@ -2968,7 +2859,7 @@
             0
           ],
           "destination": [
-            "obj-68",
+            "obj-64",
             0
           ],
           "hidden": 1
@@ -2981,7 +2872,7 @@
             0
           ],
           "destination": [
-            "obj-68",
+            "obj-64",
             0
           ],
           "hidden": 1
@@ -2994,7 +2885,7 @@
             0
           ],
           "destination": [
-            "obj-68",
+            "obj-64",
             0
           ],
           "hidden": 1
@@ -3007,7 +2898,7 @@
             0
           ],
           "destination": [
-            "obj-68",
+            "obj-64",
             0
           ],
           "hidden": 1
@@ -3020,7 +2911,7 @@
             0
           ],
           "destination": [
-            "obj-68",
+            "obj-64",
             0
           ],
           "hidden": 1
@@ -3029,20 +2920,31 @@
       {
         "patchline": {
           "source": [
-            "obj-67",
+            "obj-65",
             0
           ],
           "destination": [
-            "obj-68",
+            "obj-66",
             0
-          ],
-          "hidden": 1
+          ]
         }
       },
       {
         "patchline": {
           "source": [
-            "obj-69",
+            "obj-66",
+            0
+          ],
+          "destination": [
+            "obj-64",
+            0
+          ]
+        }
+      },
+      {
+        "patchline": {
+          "source": [
+            "obj-64",
             0
           ],
           "destination": [
@@ -3054,37 +2956,65 @@
       {
         "patchline": {
           "source": [
-            "obj-70",
-            0
-          ],
-          "destination": [
-            "obj-68",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-68",
-            0
-          ],
-          "destination": [
-            "obj-74",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-68",
+            "obj-64",
             1
+          ],
+          "destination": [
+            "obj-71",
+            0
+          ]
+        }
+      },
+      {
+        "patchline": {
+          "source": [
+            "obj-72",
+            0
+          ],
+          "destination": [
+            "obj-73",
+            0
+          ],
+          "hidden": 1
+        }
+      },
+      {
+        "patchline": {
+          "source": [
+            "obj-77",
+            0
+          ],
+          "destination": [
+            "obj-73",
+            0
+          ],
+          "hidden": 1
+        }
+      },
+      {
+        "patchline": {
+          "source": [
+            "obj-73",
+            0
           ],
           "destination": [
             "obj-75",
             0
-          ]
+          ],
+          "hidden": 1
+        }
+      },
+      {
+        "patchline": {
+          "source": [
+            "obj-75",
+            0
+          ],
+          "destination": [
+            "obj-76",
+            0
+          ],
+          "hidden": 1
         }
       },
       {
@@ -3094,8 +3024,8 @@
             0
           ],
           "destination": [
-            "obj-77",
-            0
+            "obj-70",
+            1
           ],
           "hidden": 1
         }
@@ -3103,12 +3033,12 @@
       {
         "patchline": {
           "source": [
-            "obj-81",
+            "obj-76",
             0
           ],
           "destination": [
-            "obj-77",
-            0
+            "obj-71",
+            1
           ],
           "hidden": 1
         }
@@ -3116,99 +3046,119 @@
       {
         "patchline": {
           "source": [
-            "obj-77",
+            "obj-70",
+            0
+          ],
+          "destination": [
+            "obj-78",
+            0
+          ]
+        }
+      },
+      {
+        "patchline": {
+          "source": [
+            "obj-71",
+            0
+          ],
+          "destination": [
+            "obj-78",
+            1
+          ]
+        }
+      },
+      {
+        "patchline": {
+          "source": [
+            "obj-70",
             0
           ],
           "destination": [
             "obj-79",
             0
-          ],
-          "hidden": 1
+          ]
         }
       },
       {
         "patchline": {
           "source": [
-            "obj-79",
+            "obj-71",
             0
           ],
           "destination": [
             "obj-80",
             0
-          ],
-          "hidden": 1
+          ]
         }
       },
       {
         "patchline": {
           "source": [
-            "obj-80",
-            0
-          ],
-          "destination": [
-            "obj-74",
-            1
-          ],
-          "hidden": 1
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-80",
-            0
-          ],
-          "destination": [
-            "obj-75",
-            1
-          ],
-          "hidden": 1
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-74",
-            0
-          ],
-          "destination": [
             "obj-82",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-75",
-            0
-          ],
-          "destination": [
-            "obj-82",
-            1
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-74",
-            0
-          ],
-          "destination": [
-            "obj-83",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-75",
             0
           ],
           "destination": [
             "obj-84",
+            0
+          ]
+        }
+      },
+      {
+        "patchline": {
+          "source": [
+            "obj-83",
+            0
+          ],
+          "destination": [
+            "obj-84",
+            0
+          ]
+        }
+      },
+      {
+        "patchline": {
+          "source": [
+            "obj-70",
+            0
+          ],
+          "destination": [
+            "obj-84",
+            0
+          ]
+        }
+      },
+      {
+        "patchline": {
+          "source": [
+            "obj-71",
+            0
+          ],
+          "destination": [
+            "obj-84",
+            1
+          ]
+        }
+      },
+      {
+        "patchline": {
+          "source": [
+            "obj-64",
+            2
+          ],
+          "destination": [
+            "obj-86",
+            0
+          ]
+        }
+      },
+      {
+        "patchline": {
+          "source": [
+            "obj-64",
+            3
+          ],
+          "destination": [
+            "obj-87",
             0
           ]
         }
@@ -3232,42 +3182,6 @@
             0
           ],
           "destination": [
-            "obj-88",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-74",
-            0
-          ],
-          "destination": [
-            "obj-88",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-75",
-            0
-          ],
-          "destination": [
-            "obj-88",
-            1
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-68",
-            2
-          ],
-          "destination": [
             "obj-90",
             0
           ]
@@ -3276,47 +3190,11 @@
       {
         "patchline": {
           "source": [
-            "obj-68",
-            3
-          ],
-          "destination": [
-            "obj-91",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-90",
+            "obj-95",
             0
           ],
           "destination": [
-            "obj-92",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-91",
-            0
-          ],
-          "destination": [
-            "obj-94",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-99",
-            0
-          ],
-          "destination": [
-            "obj-102",
+            "obj-98",
             0
           ],
           "hidden": 1
@@ -3325,7 +3203,20 @@
       {
         "patchline": {
           "source": [
+            "obj-94",
+            0
+          ],
+          "destination": [
             "obj-98",
+            0
+          ],
+          "hidden": 1
+        }
+      },
+      {
+        "patchline": {
+          "source": [
+            "obj-99",
             0
           ],
           "destination": [
@@ -3369,19 +3260,6 @@
           ],
           "destination": [
             "obj-114",
-            0
-          ],
-          "hidden": 1
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-115",
-            0
-          ],
-          "destination": [
-            "obj-118",
             0
           ],
           "hidden": 1

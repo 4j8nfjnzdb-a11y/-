@@ -1,0 +1,192 @@
+// harimaze / KODAMA - dub echo
+// A dub engineer's delay used as a collage tool. With sparse above 0 only
+// thrown fragments of the input reach the echo. The delay time jumps
+// between beat divisions and glides there, so the tape bends in pitch;
+// some repeats run backwards; the feedback is filtered, saturated and
+// crossed between left and right. Freeze keeps the echoes circling.
+// in1, in2 : live input (used when source = 0)
+// out1 : left    out2 : right
+// out3 : send gate 0..1    out4 : delay time in seconds / 8
+
+Buffer dl("hz_kodama_dl");
+Buffer feed("hz_kodama_file");
+
+Param source(1);
+Param bpm(84);
+Param feedback(0.6);
+Param jump(0.3);
+Param glide(250);
+Param reverse(0.25);
+Param sparse(0.5);
+Param color(0.5);
+Param res(0.5);
+Param freeze(0);
+Param wet(0.7);
+Param dry(0.6);
+Param level(0.8);
+
+History wp(0);
+History fpos(0);
+History dt(24000);
+History td(24000);
+History rv(0);
+History rvs(0);
+History rk(0);
+History bt(0);
+History qt(0);
+History gsm(0);
+History gtgt(0);
+History gtime(0);
+History lo1(0);
+History bd1(0);
+History lo2(0);
+History bd2(0);
+History lph(0);
+
+tl = max(dim(dl), 2);
+fl = max(dim(feed), 2);
+fch = 0;
+if (channels(feed) > 1) {
+	fch = 1;
+}
+tch = 0;
+if (channels(dl) > 1) {
+	tch = 1;
+}
+w = wp;
+fp = fpos;
+fi = floor(fp);
+inL = peek(feed, fi, 0);
+inR = peek(feed, fi, fch);
+fp = wrap(fp + 1, 0, fl);
+if (source < 0.5) {
+	inL = in1;
+	inR = in2;
+}
+
+beat = samplerate * 60 / clamp(bpm, 30, 300);
+tdd = td;
+rvv = rv;
+b = bt + 1;
+qq = qt + 1;
+gtg = gtgt;
+gtm = gtime - 1;
+k = 0;
+dv = 1;
+
+// on every beat: maybe jump to a new division, maybe flip to reverse
+if (b >= beat) {
+	b = 0;
+	if ((noise() * 0.5 + 0.5) < jump) {
+		k = floor((noise() * 0.5 + 0.5) * 7);
+		dv = 0.25;
+		if (k == 1) {
+			dv = 0.375;
+		}
+		if (k == 2) {
+			dv = 0.5;
+		}
+		if (k == 3) {
+			dv = 0.75;
+		}
+		if (k == 4) {
+			dv = 1;
+		}
+		if (k == 5) {
+			dv = 1.5;
+		}
+		if (k == 6) {
+			dv = 2;
+		}
+		tdd = clamp(beat * dv, 64, tl - 1024);
+		rvv = (noise() * 0.5 + 0.5) < reverse;
+	}
+}
+// throws: on each quarter beat a fragment of input may be sent
+if (qq >= beat * 0.25) {
+	qq = 0;
+	if (gtm <= 0) {
+		gtg = 0;
+		if ((noise() * 0.5 + 0.5) < 0.6 * (1 - sparse) + 0.04) {
+			gtg = 1;
+			gtm = beat * (0.25 + 0.75 * (noise() * 0.5 + 0.5));
+		}
+	}
+}
+if (sparse < 0.001) {
+	gtg = 1;
+}
+if (freeze > 0.5) {
+	gtg = 0;
+}
+gs = gsm + (gtg - gsm) * 0.01;
+
+// delay time glides, so a jump bends the pitch like a tape echo
+d = dt + (tdd - dt) * (1 - exp(-1 / max(mstosamps(glide), 1)));
+rs = rvs + (rvv - rvs) * 0.002;
+rkk = rk + 1;
+if (rkk >= d * 0.5) {
+	rkk = 0;
+}
+
+rp = wrap(w - d, 0, tl);
+i0 = floor(rp);
+fr = rp - i0;
+i1 = wrap(i0 + 1, 0, tl);
+fL = mix(peek(dl, i0, 0), peek(dl, i1, 0), fr);
+fR = mix(peek(dl, i0, tch), peek(dl, i1, tch), fr);
+bp = wrap(w - d - 2 * rkk, 0, tl);
+j0 = floor(bp);
+bL = peek(dl, j0, 0);
+bR = peek(dl, j0, tch);
+wv = 0.5 - 0.5 * cos(twopi * rkk / max(d * 0.5, 1));
+eL = mix(fL, bL * wv, rs);
+eR = mix(fR, bR * wv, rs);
+
+// feedback: state-variable filter with a slow sweep, then saturation
+lp = lph + 0.07 / samplerate;
+lp = lp - floor(lp);
+fc = 150 * pow(2, clamp(color, 0, 1) * 6.2) * (1 + 0.25 * sin(twopi * lp));
+f = 2 * sin(pi * min(fc, samplerate * 0.2) / samplerate);
+qd = 2 - clamp(res, 0, 1) * 1.85;
+l1 = lo1 + f * bd1;
+h1 = eL - l1 - qd * bd1;
+b1 = bd1 + f * h1;
+l2 = lo2 + f * bd2;
+h2 = eR - l2 - qd * bd2;
+b2 = bd2 + f * h2;
+sL = tanh((l1 * 0.6 + b1 * (0.6 + res)) * 1.2);
+sR = tanh((l2 * 0.6 + b2 * (0.6 + res)) * 1.2);
+fb = clamp(feedback, 0, 1.05);
+if (freeze > 0.5) {
+	fb = 1;
+}
+// ping-pong: each side feeds the other
+poke(dl, inL * gs + sR * fb, w, 0);
+if (tch > 0) {
+	poke(dl, inR * gs + sL * fb, w, 1);
+}
+w = wrap(w + 1, 0, tl);
+
+out1 = (inL * dry + eL * wet) * level;
+out2 = (inR * dry + eR * wet) * level;
+out3 = gs;
+out4 = d / samplerate / 8;
+
+wp = w;
+fpos = fp;
+dt = d;
+td = tdd;
+rv = rvv;
+rvs = rs;
+rk = rkk;
+bt = b;
+qt = qq;
+gsm = gs;
+gtgt = gtg;
+gtime = gtm;
+lo1 = l1;
+bd1 = b1;
+lo2 = l2;
+bd2 = b2;
+lph = lp;

@@ -4,7 +4,7 @@
 // ---------------------------------------------------------------------------
 const GROUPS={now:'3XL・West Mineral 周辺',pre:'先行世代',edge:'周縁：日記・声・場所'};
 const TAGS={loop:'ループ',glitch:'グリッチ・誤作動',field:'フィールド録音',voice:'声・会話',turntable:'ターンテーブル',grain:'グラニュラー',software:'自作ソフト・Max',dj:'DJ ソフト',diary:'日記'};
-const MACH={tenki:'天気',kizu:'傷盤',mebuki:'芽吹',tsuioku:'追憶',kiri:'切貼'};
+const MACH={tenki:'天気',kizu:'傷盤',mebuki:'芽吹',tsuioku:'追憶',kiri:'切貼',bake:'化け',wa:'輪',hibiki:'響',kosuri:'擦',ni:'似',kodama:'こだま'};
 
 const ARTISTS=[
 {id:'ulla',name:'Ulla',kana:'ウラ（Ulla Straus / U.e.）',group:'now',meta:'フィラデルフィア出身・ベルリン拠点　2016–',
@@ -19,7 +19,7 @@ const ARTISTS=[
   '『Hometown Girl』は 2 年間に作った曲をまとめたもの（本人の Instagram、Stereogum 経由）。全楽器を本人が演奏・録音し、電子音と、窓を開けて録った環境音を加えた。劣化したループのざらつきが評された（Boomkat の評、exystence 経由）。'],
  tools:'機材やソフトを本人が具体的に語った一次資料は、今回の調査では見つからなかった。',
  ideas:['『Limitless Frame』に添えた本人の詩に、こういう一行がある。',{q:'I made this music to hug myself.'},'名義は 2020 年に Ulla Straus から Ulla へ。2026 年作は U.e. 名義。'],
- machines:['tenki','tsuioku'],
+ machines:['tenki','tsuioku','kodama'],
  src:[['ele-king『Foam』レビュー','https://www.ele-king.net/review/album/009080/'],['ele-king『Tumbling Towards A Wall』レビュー','https://www.ele-king.net/review/album/007446/'],['Quiet Time Tapes『Big Room』','https://quiettimetapes.bandcamp.com/album/big-room'],['Motion Ward『Limitless Frame』','https://motionward.bandcamp.com/album/limitless-frame'],['Bandcamp Daily: Best Ambient June 2021','https://daily.bandcamp.com/best-ambient/the-best-ambient-music-on-bandcamp-june-2021'],['PopMatters『Limitless Frame』','https://www.popmatters.com/ulla-limitless-frame-album-review'],['XLR8R: foam のリリース','https://xlr8r.com/news/ulla-kickstarts-new-direction-with-album-of-looped-jazz-and-dub/'],['RA: 名義変更と『Tumbling…』','https://ra.co/news/71684'],['Stereogum: Hometown Girl','https://stereogum.com/2293343/ue-ulla-straus-hometown-girl/music'],['exystence: Hometown Girl','https://exystence.net/?p=299291'],['Conflux: Ulla in Three Key Albums','https://www.confluxfestival.nl/ulla-in-three-key-albums/']]},
 
 {id:'pontiac',name:'Pontiac Streator',kana:'ポンティアック・ストリーター',group:'now',meta:'フィラデルフィア　virtualdemonlaxative / CrimeBoys',
@@ -32,7 +32,7 @@ const ARTISTS=[
   'Ulla との『11 Items』は、切り詰めた声とハンドドラムが不穏に没入させるとレビューされた（exystence）。'],
  tools:'VirtualDJ（『Sone Glo』、RA の報道による）。',
  ideas:['DJ ソフトを作曲の道具として使う。3XL まわりでは、DJ ソフトに素材を放り込んで操作しながらアイデアを掴むやり方が共有されている（Ben Bondy の項を参照）。'],
- machines:['kizu','kiri'],
+ machines:['kizu','kiri','bake'],
  src:[['RA: Sone Glo','https://pt-br.ra.co/news/77386'],['World of Echo: Triz','https://worldofechomusic.com/products/pontiac-streator-triz'],['Bleep: 11 Items','https://bleep.com/release/138595-pontiac-streator-ulla-straus-11-items'],['exystence: 11 Items','https://exystence.net/?p=169275'],['NTS: Pontiac Streator','https://www.nts.live/artists/61733-pontiac-streator']]},
 
 {id:'huerco',name:'Huerco S.',kana:'ヒュエルコ・エス（Brian Leeds）',group:'now',meta:'カンザス出身　1991 年生　West Mineral Ltd. 主宰',
@@ -45,7 +45,7 @@ const ARTISTS=[
   '『Colonial Patterns』について、ハードコア・パンク、エンヤ、古代のネイティブ・アメリカン文化からの影響を語った（Spin、2013）。'],
  tools:'クレジットは「作曲・制作 Brian Leeds」のみで、機材を語った一次資料は今回見つからなかった。',
  ideas:['First Floor のインタビュー（2022）で、自分の楽しみのために聴くのはほとんどラップだけだと話している。','Huerco S. 名義をいったん置いて Pendant 名義と West Mineral Ltd. に注力し、6 年ぶりに『Plonk』で戻った。'],
- machines:['tenki','tsuioku'],
+ machines:['tenki','tsuioku','wa'],
  src:[['Wikipedia: Brian Leeds','https://en.wikipedia.org/wiki/Brian_Leeds'],['Wikipedia: For Those of You Who Have Never…','https://en.wikipedia.org/wiki/For_Those_of_You_Who_Have_Never_(And_Also_Those_Who_Have)'],['Juno Plus Podcast 141','https://www.juno.co.uk/reviews/2016/06/22/juno-plus-podcast-141-huerco-s/'],['First Floor: The Return of Huerco S.','https://firstfloor.substack.com/p/the-return-of-huerco-s'],['Spin: Colonial Patterns interview','https://www.spinmagazine.com/2013/10/huerco-s-colonial-patterns-interview/'],['The Quietus: Plonk','https://thequietus.com/?p=30853'],['Spectrum Culture: Plonk','https://spectrumculture.com/2022/03/07/huerco-s-plonk-review/']]},
 
 {id:'sgdj',name:'Special Guest DJ',kana:'スペシャル・ゲスト・DJ（Shy）',group:'now',meta:'米国出身・ベルリン拠点　3XL 主宰',
@@ -70,7 +70,7 @@ const ARTISTS=[
   '本人いわく「何でもあり」のサンプリング。YouTube から多く取り、とくに手の届かない機材の解説動画から音を拾う。'],
  tools:'DJ ソフト（製品名は記事に明記なし）、YouTube の機材解説動画を音源に。',
  ideas:['手に入らない機材は、その紹介動画の音を素材にすればいい。道具の本来の使い方から外れることを気にしない。'],
- machines:['kiri','tenki'],
+ machines:['kiri','tenki','kosuri'],
  src:[['Ableton: Processed Realities','https://www.ableton.com/en/blog/processed-realities-exploring-the-psychedelic-future-music-of-special-guest-dj-perila-and-ben-bondy/'],['RA: Ben Bondy','https://ra.co/dj/benbondy']]},
 
 {id:'perila',name:'Perila',kana:'ペリラ',group:'now',meta:'3XL 周辺　Smalltown Supersound',
@@ -84,7 +84,7 @@ const ARTISTS=[
   '別プロジェクトのセッションについて「クラリネットと声と、部屋にあるもので何かのジャズを作りたかった」と語っている（Post-Trash）。'],
  tools:'具体的な機材の一次資料は見つからず。',
  ideas:['場所と時間を限定して録る。ネットのない村で録ること自体が作品の条件になる。'],
- machines:['tsuioku','mebuki'],
+ machines:['tsuioku','mebuki','hibiki'],
  src:[['Smalltown Supersound: How much time…','https://www.smalltownsupersound.com/news/perila-how-much-time-it-is-between-you-and-me-lp-out-25th-of-june/'],['RA review','https://ra.co/reviews/34034'],['PopMatters review','https://www.popmatters.com/perilas-how-much-time-review'],['XLR8R: Perila signs to Smalltown Supersound','https://xlr8r.com/?p=139567'],['Post-Trash','https://post-trash.com/news/2025/4/14/perila-'],['Ableton: Processed Realities','https://www.ableton.com/en/blog/processed-realities-exploring-the-psychedelic-future-music-of-special-guest-dj-perila-and-ben-bondy/']]},
 
 {id:'takemura',name:'竹村延和',kana:'Nobukazu Takemura',group:'pre',meta:'京都　Childisc / Thrill Jockey　1990s–',
@@ -98,7 +98,7 @@ const ARTISTS=[
   '『Child\'s View』（1994）のクレジットには、プログラミング、キーボード、シンセ、サンプル、フルート、ターンテーブル、テープレコーダーが並ぶ。'],
  tools:'サンプラー、ターンテーブル、テープレコーダー（Child\'s View のクレジット）。MIDI 音源モジュールと SCRUB 操作（Water\'s Suite）。『Scope』の制作ツールは本人の発言が見つからず、Ableton フォーラムでは Max、Reaktor、AudioMulch などが推測されているだけ（未確認）。',
  ideas:['ノート PC のライブに疲れた理由を、こう話している。',{q:'I was stressed out in the past with live shows using computers, because the processes going on in the computer were not visible to the listeners.'},'そのため Assembler のライブはギターとシンセを弾き、電子音は少し、歌は Aki Tsuyuko が担当した（The Stranger、2003）。'],
- machines:['kiri','tenki','mebuki'],
+ machines:['kiri','tenki','mebuki','kosuri'],
  src:[['Extreme: Water\'s Suite（インタビュー掲載）','https://extrememusic.com.au/?p=345'],['a-musik: Water\'s Suite','https://www.a-musik.com/p/product/nobukazu-takemura-water-s-suite-cd-027222.html'],['The Stranger: Kyoto Treat (2003)','https://www.thestranger.com/seattle/kyoto-treat/Content?oid=13873'],['Thrill Jockey: Assembler','https://www.thrilljockey.com/products/assembler'],['Child\'s View（クレジット）','http://www.japanimprov.com/indies/bellissima/childsview.html'],['The Japan Times: The wandering laptop minstrel','https://www.japantimes.co.jp/culture/2003/04/27/music/the-wandering-laptop-minstrel'],['Bandcamp: Scope','https://nobukazutakemura.bandcamp.com/album/scope'],['Ableton Forum: Scope（推測のスレッド）','https://forum.ableton.com/viewtopic.php?t=2290']]},
 
 {id:'oval',name:'Oval',kana:'オヴァル（Markus Popp）',group:'pre',meta:'ドイツ　1990s–',
@@ -111,7 +111,7 @@ const ARTISTS=[
   'ovalprocess は個人のデスクトップ・オーディオのための対話的なオーサリング環境。ソフト、CD シリーズ、講義、3 つのインスタレーションからなり、2001 年の Prix Ars Electronica にノミネートされた。プログラムは Richard Ross（Sound on Sound）。'],
  tools:'マーカーで塗った CD、CD プレーヤー、ハードウェア・サンプラー、自作ソフト ovalprocess。',
  ideas:['誤作動そのものを楽器にする。そして、その手続きを他人も使えるソフトとして公開する。'],
- machines:['kizu'],
+ machines:['kizu','bake'],
  src:[['Disquiet: Popp Music (1997)','https://disquiet.com/1997/08/15/popp-music/'],['Bandcamp Daily: A Guide to Oval','https://daily.bandcamp.com/lists/oval-album-guide'],['Sound on Sound: Oval','https://www.soundonsound.com/people/oval-markus-popp'],['Ars Electronica: ovalprocess','https://webarchive.ars.electronica.art/festival2001/texte/ovalprocess_e.html'],['Cyclic Defrost: Markus Popp interview (2013)','https://www.cyclicdefrost.com/2013/11/markus-popp-interview-by-innerversitysound/']]},
 
 {id:'tone',name:'刀根康尚',kana:'Yasunao Tone（1935–2025）',group:'pre',meta:'東京 → ニューヨーク　フルクサス',
@@ -123,7 +123,7 @@ const ARTISTS=[
   'ライナーノーツでは、CD プレーヤーの誤り訂正システムを出し抜けるかを考えたと振り返る。準備した CD は同じ音をほとんど繰り返さず、制御はとても難しかった。テープは音高や音色だけでなく、回転の速度や向きまで変えたという。'],
  tools:'CD、CD プレーヤー、スコッチテープ（ピンホール）。',
  ideas:['機械の「正しく再生する仕組み」を出し抜く。制御できないこと自体を受け入れる。'],
- machines:['kizu'],
+ machines:['kizu','bake'],
  src:[['RA: 刀根康尚の訃報','https://ra.co/news/82922'],['Cabinet (2002)','https://cabinetmagazine.org/issues/7/cdinsert.php'],['AnOther: Yasunao Tone','https://www.anothermag.com/design-living/14750/yasunao-tone-region-of-paramedia-japanese-music-composer'],['Kaput: Mark Fell on Yasunao Tone','https://kaput-mag.com/stories_en/macaroni-synthesis-revisited-on-the-life-work-and-philosophy-of-yasunao-tone-1935-2025/']]},
 
 {id:'jelinek',name:'Jan Jelinek',kana:'ヤン・イェリネク',group:'pre',meta:'ベルリン　1990s–',
@@ -137,7 +137,7 @@ const ARTISTS=[
   '『Zwischen』では、ジジェクやデュシャンらのインタビューから沈黙や言いよどみだけを切り出し、あとから電子音を加えた（Tiny Mix Tapes）。'],
  tools:'Ensoniq ASR-10（サンプラー）とそのループ探し機能（レビューと販売店の解説による）。',
  ideas:['元の音楽が分からなくなるまで細かくすると、別の音楽が立ち上がる。言葉の内容ではなく、言葉の「間」を聴く。'],
- machines:['kiri','tenki'],
+ machines:['kiri','tenki','ni'],
  src:[['Brainwashed: Loop-Finding-Jazz-Records','https://media.brainwashed.com/index.php/reviews-easyblog/jan-jalinek-qloop-finding-jazz-recordsq'],['Debaser review','https://en.debaser.it/jan-jelinek/loop-finding-jazz-records/review'],['Turntable Lab: Loop-Finding-Jazz-Records','https://www.turntablelab.com/products/jan-jelinek-loop-finding-jazz-records-vinyl-2lp'],['Tiny Mix Tapes: Zwischen interview','https://www.tinymixtapes.com/features/jan-jelinek-zwischen']]},
 
 {id:'rabelais',name:'Akira Rabelais',kana:'アキラ・ラベレー',group:'pre',meta:'米国　自作ソフト Argeïphontes Lyre',
@@ -150,7 +150,7 @@ const ARTISTS=[
   'Lyre は Stephan Mathieu、Kim Cascone、Scanner、Terre Thaemlitz らも使った。'],
  tools:'Argeïphontes Lyre（自作）。',
  ideas:['素材について、こう語っている。',{q:'I didn\'t want to abstract it so much that it lost its essential quality.'}],
- machines:['mebuki','tsuioku'],
+ machines:['mebuki','tsuioku','bake'],
  src:[['Wikipedia: Akira Rabelais','https://en.wikipedia.org/wiki/Akira_Rabelais'],['Wikipedia: Spellewauerynsherde','https://en.wikipedia.org/wiki/Spellewauerynsherde'],['Bandcamp: Spellewauerynsherde','https://akirarabelais.bandcamp.com/album/spellewauerynsherde'],['Brainwashed review','https://brainwashed.com/index.php/reviews-easyblog/akira-rabelais-qspellewauerynsherdeq']]},
 
 {id:'jeck',name:'Philip Jeck',kana:'フィリップ・ジェック（1952–2022）',group:'pre',meta:'英国　ターンテーブル',
@@ -164,7 +164,7 @@ const ARTISTS=[
   '『Vinyl Requiem』（1993）は 180 台の Dansette とスライド・映写機による作品。'],
  tools:'Dansette などの古いプレーヤー、Casio SK-1、Sony のミニディスク（長いパッセージの再生）、Behringer のミキサー、Ibanez のベース、Boss のディレイ、Zoom のベース用ペダル（An Ark for the Listener のクレジット）。',
  ideas:['擦り切れたレコードの傷や歪みごと、その音の来歴として鳴らす。教えることはできない、とされるほど身体的なやり方。'],
- machines:['tenki','tsuioku'],
+ machines:['tenki','tsuioku','kosuri'],
  src:[['Wikipedia: Philip Jeck','https://en.wikipedia.org/wiki/Philip_Jeck'],['The Quietus: Remembering Philip Jeck','https://thequietus.com/?p=31319'],['XLR8R: Artist Tips','https://xlr8r.com/?p=103921'],['Touch: Loopholes','https://touch33.net/?p=173'],['RA: 訃報','https://ra.co/news/77032']]},
 
 {id:'fennesz',name:'Fennesz',kana:'フェネス（Christian Fennesz）',group:'pre',meta:'ウィーン　ギターとラップトップ',
@@ -178,7 +178,7 @@ const ARTISTS=[
   'Bozar のインタビューでは、ナイロン弦のギターを Max/MSP のパッチに通した即興の曲について、そのパッチはもう手元にないと話している。'],
  tools:'ギター、ラップトップ、Max/MSP（lloopp、ppooll）、Logic、Shure SM57、ギター・ペダル。',
  ideas:['Endless Summer や Venice はいつでもまた作れるが、なぜそうしたいのか、と問い返している（Lawrence English によるインタビュー）。'],
- machines:['mebuki','tsuioku'],
+ machines:['mebuki','tsuioku','hibiki'],
  src:[['Wikipedia: Fennesz','https://en.wikipedia.org/wiki/Fennesz'],['Wikipedia: Endless Summer','https://en.wikipedia.org/wiki/Endless_Summer_(Fennesz_album)'],['CDM: Fennesz at Mutek 2008','https://cdm.link/interview-geeking-out-with-fennesz-on-sound-and-performance/'],['Bozar: I\'m not finished, I\'m still curious','https://www.bozar.be/en/watch-read-listen/im-not-finished-im-still-curious'],['Cyclic Defrost: interview by Lawrence English','https://www.cyclicdefrost.com/2009/04/fennesz-interview-by-lawrence-english/']]},
 
 {id:'otomo',name:'大友良英',kana:'Otomo Yoshihide',group:'pre',meta:'東京　ターンテーブル・ギター',
@@ -191,7 +191,7 @@ const ARTISTS=[
   'レコードなしでターンテーブルを扱う方法は、そのままインスタレーションにつながった。2008 年の「without records」（青山泰知と）は 100 台を超えるポータブル・プレーヤーによる作品。'],
  tools:'自作ターンテーブル、古いポータブル・レコードプレーヤー。',
  ideas:['再生装置を、再生しないで鳴らす。演奏の身体性がそのまま展示の形になる。'],
- machines:['kizu','tenki'],
+ machines:['kizu','tenki','kosuri'],
  src:[['Tokion: Otomo Yoshihide interview part 1','https://tokion.jp/en/2024/02/28/interview-yoshihide-otomo-part1/'],['Tokion: part 2','https://tokion.jp/en/2024/02/28/interview-yoshihide-otomo-part2/'],['VICE: Playing turntables without records','https://www.vice.com/en/article/playing-music-and-turntables-without-records']]},
 
 {id:'rousay',name:'claire rousay',kana:'クレア・ラウジー',group:'edge',meta:'サンアントニオ出身　打楽器・作曲',
@@ -216,7 +216,7 @@ const ARTISTS=[
   'Jason Lescalleet との『Breadwinner』は家と敷地全体をスタジオとして扱った。『Softly Softly Copy Copy』は Tangerine Dream のライブ録音から、開演を待つ観客のざわめきだけを抜き出した。'],
  tools:'テープ操作、偶然性の手続き、家庭のフィールドレコーディング。',
  ideas:['The Shadow Ring の終わり頃、自分は「音楽を作る」のではなく「音を整理している」と気づいたという（Yale Union）。'],
- machines:['tsuioku','kiri'],
+ machines:['tsuioku','kiri','wa'],
  src:[['Blank Forms: Graham Lambkin, Solos','https://www.blankforms.org/publications/graham-lambkin-solos'],['Yale Union','https://yaleunion.org/?p=8854'],['4Columns','https://4columns.org/dayal-geeta/graham-lambkin'],['Tone Glow 042: Graham Lambkin','https://toneglow.substack.com/p/042-graham-lambkin']]},
 
 {id:'spaceafrika',name:'Space Afrika',kana:'スペース・アフリカ',group:'edge',meta:'マンチェスター　Joshua Inyang / Joshua Reid',
@@ -229,7 +229,7 @@ const ARTISTS=[
   '以前の作品について、自分たちで集めたフィールドレコーディング、感情的な音風景、ほつれたボイスノートを使ったと説明している。'],
  tools:'フィールドレコーディング、ボイスメモ、サンプル。',
  ideas:['アルバム名は Joshua Inyang の家族に由来し、北と南のマンチェスターを行き来する二人の日常と結びついている（CVLT Nation）。'],
- machines:['kiri','tsuioku'],
+ machines:['kiri','tsuioku','ni'],
  src:[['RA: Honest Labour','https://ra.co/reviews/34231'],['Crack: Space Afrika','https://crackmagazine.net/article/profiles/space-afrika/'],['CVLT Nation interview','https://cvltnation.com/no-limitations-in-sound-or-sight-cvlt-nation-interviews-space-afrika'],['Flood: Honest Labour','https://floodmagazine.com/92813/space-afrika-honest-labour/']]},
 
 {id:'klein',name:'Klein',kana:'クライン',group:'edge',meta:'サウス・ロンドン',
@@ -241,7 +241,7 @@ const ARTISTS=[
   'FACT（2017）は、猛烈に加工されたサンプルがギターの醜い轟音に溶け、壊れたピアノの和音が自分の周りを回り続ける、と書いた。'],
  tools:'携帯電話の録音。',
  ideas:['曲やアルバムが「何を意味するか」には関心がなく、書いて作る過程にこそ興味がある（Bandcamp Daily）。'],
- machines:['kiri','tenki'],
+ machines:['kiri','tenki','ni'],
  src:[['Something Curated','https://somethingcurated.com/2019/08/23/british-nigerian-composer-klein-makes-music-out-of-iphone-recordings-reality-tv-sound-bites'],['Bandcamp Daily: Harmattan interview','https://daily.bandcamp.com/features/klein-harmattan-interview'],['FACT: Klein','https://factmag.com/2017/01/25/fact-rated-klein-interview']]},
 
 {id:'muir',name:'Jake Muir',kana:'ジェイク・ミューア',group:'edge',meta:'ロサンゼルス出身・ベルリン拠点',
@@ -255,7 +255,7 @@ const ARTISTS=[
   '『Acclimation』では、忘れていた録音、かつて使えないと判断した録音を使い直した。'],
  tools:'サンプラー、グラニュラー処理、レコード・コレクション、フィールドレコーダー。',
  ideas:['アルバムごとに固有の概念と素材を持たせたい。サンプリングをしないプロジェクトもある（Passion Weiss）。'],
- machines:['mebuki','tenki'],
+ machines:['mebuki','tenki','wa'],
  src:[['Passion Weiss: An Interview With Jake Muir','https://passionweiss.com/2024/02/27/jake-muir-interview-bathhouse-blues'],['Seattle Weekly','https://seattleweekly.com/?p=5335'],['The Quietus: Unholy Apparitions','https://thequietus.com/?p=270281'],['RA: Lady\'s Mantle','https://nl.ra.co/reviews/22857']]},
 
 {id:'sugai',name:'SUGAI KEN',kana:'菅井謙',group:'edge',meta:'神奈川　RVNG Intl.',
@@ -269,7 +269,7 @@ const ARTISTS=[
   'ある曲では、録音中にわざとマイクに触れた。'],
  tools:'バイノーラル・マイク、ハイドロフォン（水中音）、トランジスタ・サチュレーター、アナログ・エコー、声にかけたビットクラッシャー（Ableton）。',
  ideas:['簡素で控えめな美しさ「渋い」を、環境録音と電子音の関係に持ち込む。'],
- machines:['tsuioku','mebuki'],
+ machines:['tsuioku','mebuki','hibiki'],
  src:[['Ableton: SUGAI KEN','https://www.ableton.com/en/blog/sugai-ken-the-shibui-of-field-recording-and-electronics/'],['Ableton（日本語）: 環境音と電子音の円熟サウンドスケッチ','https://ableton.com/ja/blog/sugai-ken-the-shibui-of-field-recording-and-electronics'],['FACT: UkabazUmorezU','https://factmag.com/2017/08/09/sugai-ken-album-ukabazumorezu-on-rvng-intl'],['The Quietus: Out Of Time','https://stage1.thequietus.com/?p=27281']]},
 
 {id:'kmru',name:'KMRU',kana:'カムル（Joseph Kamaru）',group:'edge',meta:'ナイロビ出身・ベルリン拠点',
@@ -282,7 +282,7 @@ const ARTISTS=[
   'ときに Max/MSP で、素材を直線的でない、型破りなやり方で処理する。'],
  tools:'Ableton Live、Push、Max/MSP、フィールドレコーダー。',
  ideas:['MusicRadar の見出しになった言葉。',{q:'I stopped buying sample packs and spent all my time outside recording sounds and taking them back to the studio.'}],
- machines:['mebuki','tsuioku'],
+ machines:['mebuki','tsuioku','hibiki'],
  src:[['MusicRadar: KMRU interview','https://musicradar.com/news/kmru-interview'],['Ableton: KMRU Spaces','https://www.ableton.com/blog/kmru-spaces/'],['A Closer Listen: Sound Propositions 019','https://acloserlisten.com/2020/08/20/sound-propositions-019-kmru/']]}
 ];
 
@@ -306,15 +306,15 @@ const LINKS=[
 ];
 
 const IDEAS=[
- {en:'error as material',t:'壊れを素材にする',p:'刀根康尚はテープの穴で CD の誤り訂正を出し抜き、Oval はマーカーで塗った CD の飛びをサンプラーに取り込んだ。どちらも「正しく再生する仕組み」の失敗を楽器にしている。刀根は、準備した CD がほとんど同じ音を繰り返さず、制御がとても難しかったと書いた。制御できなさを受け入れることが手法の一部になる。',a:['tone','oval','otomo','pontiac'],m:['kizu']},
- {en:'micro-loops & moiré',t:'1 秒の断片とモアレ',p:'Jan Jelinek はジャズから 1 秒ほどの断片を抜いて重ね、重なった模様のモアレに喩えた。元がジャズだと気づかない人が多かった。Ulla の『foam』も Jelinek 風のループと評され、Huerco S. はビートを捨てても切り離されたリズムのループを残した。素材が分からなくなる細かさまで切ると、別の音楽が立ち上がる。',a:['jelinek','ulla','huerco'],m:['kiri','tenki']},
- {en:'misusing tools',t:'道具を本来の使い方から外す',p:'Ben Bondy は何でも DJ ソフトに放り込み、手の届かない機材は解説動画の音を素材にする。Pontiac Streator の『Sone Glo』は VirtualDJ で作られたと報じられた。Philip Jeck は安いサンプラー Casio SK-1 と古いプレーヤーを使い、竹村延和は用意した MIDI を「SCRUB」でこすって DSP のような音を出した。道具の格や正しい使い方より、手触りが優先される。',a:['bondy','pontiac','jeck','takemura','jelinek'],m:['kiri','tenki']},
+ {en:'error as material',t:'壊れを素材にする',p:'刀根康尚はテープの穴で CD の誤り訂正を出し抜き、Oval はマーカーで塗った CD の飛びをサンプラーに取り込んだ。どちらも「正しく再生する仕組み」の失敗を楽器にしている。刀根は、準備した CD がほとんど同じ音を繰り返さず、制御がとても難しかったと書いた。制御できなさを受け入れることが手法の一部になる。',a:['tone','oval','otomo','pontiac'],m:['kizu','bake']},
+ {en:'micro-loops & moiré',t:'1 秒の断片とモアレ',p:'Jan Jelinek はジャズから 1 秒ほどの断片を抜いて重ね、重なった模様のモアレに喩えた。元がジャズだと気づかない人が多かった。Ulla の『foam』も Jelinek 風のループと評され、Huerco S. はビートを捨てても切り離されたリズムのループを残した。素材が分からなくなる細かさまで切ると、別の音楽が立ち上がる。',a:['jelinek','ulla','huerco'],m:['kiri','tenki','wa']},
+ {en:'misusing tools',t:'道具を本来の使い方から外す',p:'Ben Bondy は何でも DJ ソフトに放り込み、手の届かない機材は解説動画の音を素材にする。Pontiac Streator の『Sone Glo』は VirtualDJ で作られたと報じられた。Philip Jeck は安いサンプラー Casio SK-1 と古いプレーヤーを使い、竹村延和は用意した MIDI を「SCRUB」でこすって DSP のような音を出した。道具の格や正しい使い方より、手触りが優先される。',a:['bondy','pontiac','jeck','takemura','jelinek'],m:['kiri','tenki','kosuri']},
  {en:'recording as diary',t:'日記としての録音',p:'claire rousay は会話やタイプライターや留守電を素材にし、音楽を作るのは人とつながるためだと話す。Ulla は『Limitless Frame』に「自分を抱きしめるためにこの音楽を作った」という詩を添え、『Hometown Girl』では窓を開けて録った音を混ぜた。Perila はネットのない村で「時間」を録った。生活の時間がそのまま素材になる。',a:['rousay','ulla','perila','lambkin','klein'],m:['tsuioku']},
- {en:'organising, not making',t:'作るより、整理する',p:'Graham Lambkin は、自分は音楽を作るのではなく音を整理していると気づいたという。Space Afrika は「オーディオ・コラージュの単位」として声やサンプルを並べ、Klein は意味より作る過程に関心があると語る。Jelinek の『Zwischen』は、インタビューから沈黙と言いよどみだけを切り出した。',a:['lambkin','spaceafrika','klein','jelinek'],m:['kiri']},
- {en:'memory & wear',t:'記憶と風化',p:'Philip Jeck は擦り切れた古いレコードを鳴らし、Ulla の『Hometown Girl』は劣化したループのざらつきで評された。Akira Rabelais は見つけたカセットの歌を、本質を失うほどには抽象化したくなかったと言う。Jake Muir は一度使えないと判断した録音を使い直した。古さや傷は、音がどこから来たかの記録として残される。',a:['jeck','ulla','rabelais','muir'],m:['tsuioku']},
- {en:'environment & music',t:'環境音と音楽の距離',p:'SUGAI KEN は環境音と音楽を別々に処理し、アンビエンスにはコンプレッサーをかけない。KMRU はインスタレーションでは録音をあまり変えず、聴き手に周囲を意識させようとする。Ulla の『Limitless Frame』は木や機械の音をシンセと弦で包んだ。環境音をどこまで「音楽にする」かの加減が、作家ごとの署名になる。',a:['sugai','kmru','ulla'],m:['mebuki']},
- {en:'visible process',t:'見えるプロセス',p:'竹村延和は、コンピュータの中で起きていることが聴き手に見えないことに疲れ、Assembler のライブではギターとシンセを弾いた。Fennesz はギターを Max/MSP のパッチに通して弾き、大友良英は再生しないターンテーブルを身体で鳴らす。このサイトのマシンが再生位置と状態を画面に出しているのも、この問題への小さな答え。',a:['takemura','fennesz','otomo'],m:['tenki','kizu','mebuki','tsuioku','kiri']},
- {en:'scene as medium',t:'場としてのレーベル',p:'3XL は「前景のためのアンビエント」と呼ばれ、作家同士の共作と客演、自主リリースの併用が目立つ。Huerco S. は自分の名義を一度置いて West Mineral Ltd. を運営し、Ulla と Pontiac Streator を出した。サンプルを多用する作風はコミュニティ全体の特徴とされる。音の手法だけでなく、出し方も共有されている。',a:['sgdj','huerco','ulla','pontiac','bondy','perila'],m:[]},
+ {en:'organising, not making',t:'作るより、整理する',p:'Graham Lambkin は、自分は音楽を作るのではなく音を整理していると気づいたという。Space Afrika は「オーディオ・コラージュの単位」として声やサンプルを並べ、Klein は意味より作る過程に関心があると語る。Jelinek の『Zwischen』は、インタビューから沈黙と言いよどみだけを切り出した。',a:['lambkin','spaceafrika','klein','jelinek'],m:['kiri','ni']},
+ {en:'memory & wear',t:'記憶と風化',p:'Philip Jeck は擦り切れた古いレコードを鳴らし、Ulla の『Hometown Girl』は劣化したループのざらつきで評された。Akira Rabelais は見つけたカセットの歌を、本質を失うほどには抽象化したくなかったと言う。Jake Muir は一度使えないと判断した録音を使い直した。古さや傷は、音がどこから来たかの記録として残される。',a:['jeck','ulla','rabelais','muir'],m:['tsuioku','wa']},
+ {en:'environment & music',t:'環境音と音楽の距離',p:'SUGAI KEN は環境音と音楽を別々に処理し、アンビエンスにはコンプレッサーをかけない。KMRU はインスタレーションでは録音をあまり変えず、聴き手に周囲を意識させようとする。Ulla の『Limitless Frame』は木や機械の音をシンセと弦で包んだ。環境音をどこまで「音楽にする」かの加減が、作家ごとの署名になる。',a:['sugai','kmru','ulla'],m:['mebuki','hibiki']},
+ {en:'visible process',t:'見えるプロセス',p:'竹村延和は、コンピュータの中で起きていることが聴き手に見えないことに疲れ、Assembler のライブではギターとシンセを弾いた。Fennesz はギターを Max/MSP のパッチに通して弾き、大友良英は再生しないターンテーブルを身体で鳴らす。このサイトのマシンが再生位置と状態を画面に出しているのも、この問題への小さな答え。',a:['takemura','fennesz','otomo'],m:['tenki','kosuri','kizu']},
+ {en:'scene as medium',t:'場としてのレーベル',p:'3XL は「前景のためのアンビエント」と呼ばれ、作家同士の共作と客演、自主リリースの併用が目立つ。Huerco S. は自分の名義を一度置いて West Mineral Ltd. を運営し、Ulla と Pontiac Streator を出した。サンプルを多用する作風はコミュニティ全体の特徴とされる。音の手法だけでなく、出し方も共有されている。',a:['sgdj','huerco','ulla','pontiac','bondy','perila'],m:['kodama']},
 ];
 
 const TECHS=[
@@ -329,6 +329,12 @@ const TECHS=[
  {en:'voice memos',t:'声メモと会話の断片',w:'携帯で録った声や会話を、意味が聞き取れるかどうかの境目に置く。',s:['携帯で日常の会話、自分の声、楽器の練習を録っておく','意味が取れない程度に小さく、または刻んで重ねる','ピッチ補正やオートチューンを、声を楽器にするためにかける'],who:'claire rousay、Klein、Space Afrika',m:['tsuioku','kiri']},
  {en:'separate the field',t:'環境音を分けて扱う',w:'環境音と音楽を別々に作り、最後に出会わせる。',s:['環境音にはコンプレッサーをかけず、ゲインを手で管理する','鋭いピークのない部分を選ぶ','水中音はハイドロフォン、臨場感はバイノーラル・マイクで','電子音側はサチュレーターやアナログ・エコーで質感を作り、環境音と混ぜる'],who:'SUGAI KEN、KMRU',m:['mebuki']},
  {en:'without records',t:'レコードなしのターンテーブル',w:'針・トーンアーム・回転する台そのものの音、ハウリングを鳴らす。',s:['針とカートリッジを直接こする、叩く','モニターに近づけてフィードバックを起こし、アームの位置で音程を変える','古いポータブル・プレーヤーを複数台使う'],who:'大友良英、Philip Jeck',m:['kizu']},
+ {en:'databending',t:'データベンディング',w:'音のデータを、間違った読み方で読む。バイト順、ビット、符号、レート、チャンネルの解釈を崩す。',s:['音を 16 ビットの整数として扱う','上位と下位のバイトを入れ替える、ビットを XOR で反転する、符号ビットを読み違える','モノラルをステレオの交互データとして読む、44.1k の音を 48k として読む','数十 ms のブロックをときどき繰り返す（欠落の補間に失敗したように）'],who:'刀根康尚、Oval の発想の延長',m:['bake']},
+ {en:'phasing loops',t:'割り切れないループ',w:'長さの違うループを同時に回し、重なり方が変わり続けるようにする。',s:['同じ素材から 4〜8 本の断片を切る','各ループの周期を、黄金比などで割り切れない比にずらす','断片の後ろに沈黙を置く（沈黙も素材になる）','1 周ごとに少し小さく暗くし、ときどき近くを切り直す'],who:'Brian Eno のループ・システムとして知られる方法。Huerco S. や Ulla のループとも近い',m:['wa']},
+ {en:'resonating',t:'共鳴させる',w:'雨や声やノイズを、調律した共鳴器に通して和音にする。',s:['8 本ほどの 2 極レゾネーター（狭い帯域通過）を和音の音程に合わせる','帯域の広い入力（雨、雑踏、ノイズ）ほど和音がよく鳴る','減衰を長くするほど音程がはっきりし、入力の形は消えていく','根音をときどき動かし、滑らかに移す'],who:'SUGAI KEN、KMRU の環境音を別の角度から',m:['hibiki']},
+ {en:'scratch physics',t:'手とモーターのスクラッチ',w:'針の位置を、モーターの回転と手のバネで決める物理モデル。',s:['手がつかんでいる間は、目標の位置へバネで引っぱる（減衰つき）','離すとモーターのトルクで元の速度へ戻る','前後のストロークの戻りでフェーダーを切るとチャープになる','速度を一瞬大きく負にするとスピンバック'],who:'Philip Jeck、大友良英、竹村延和（SCRUB）',m:['kosuri']},
+ {en:'similarity walk',t:'似たもの同士をつなぐ',w:'短い断片の特徴を測り、似た断片へ歩く。目標をずらしていくと並べ替えになる。',s:['素材を 20〜300 ms の断片に切る','各断片の大きさ（RMS）と明るさ（ゼロ交差率）を測り、0〜1 に正規化する','次の断片は、候補のうち目標の特徴にいちばん近いものを選ぶ','目標を一歩ごとに少し明るく（暗く）すると、ゆっくりした並べ替えになる'],who:'Jan Jelinek、Space Afrika の断片の再配置として',m:['ni']},
+ {en:'dub throws',t:'ダブの投げ込み',w:'入力のごく一部だけをエコーに送り、残響を作曲の素材にする。',s:['ディレイへの送りを、拍の 1/4 ごとに確率で開く','ディレイタイムを拍の分割（1/4、3/8、1/2…）の間で跳ばし、滑らせて音程を曲げる','フィードバックにバンドパスと飽和を入れ、左右を交差させる','フリーズで入力を止め、エコーだけを回す'],who:'Ulla（foam）、3XL 周辺のダブ',m:['kodama']},
  {en:'scrubbing midi',t:'MIDI をこする',w:'用意した旋律や和声を MIDI データにし、再生位置を手でこすって即興する。',s:['音階・和声・旋律を前もって MIDI データにする（竹村延和の Water\'s Suite の方法）','再生せず、読み位置を手（コントローラー）で前後させて鳴らす','Max では [coll] や [seq] の読み位置をスライダーで動かすと近いことができる'],who:'竹村延和',m:['kiri']},
 ];
 

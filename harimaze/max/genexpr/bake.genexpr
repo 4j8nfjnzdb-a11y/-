@@ -1,0 +1,230 @@
+// harimaze / BAKE - databending
+// Reads the audio the way a broken decoder would: bytes swapped, bits
+// flipped (XOR mask), the sign bit misread, depth cut, mono read as
+// interleaved stereo, the wrong sample rate, blocks repeated, the read
+// head thrown to a wrong offset. Every so often the "file" rots and the
+// faults re-roll. No interpolation anywhere: raw sample reads.
+// in1  : trigger (rising edge re-rolls the faults now)
+// out1 : left    out2 : right
+// out3 : read position 0..1    out4 : number of active faults 0..6
+
+Buffer src("hz_bake_src");
+
+Param speed(1);
+Param rot(0.3);
+Param flip(0.3);
+Param byteswap(0.2);
+Param signerr(0.15);
+Param bits(16);
+Param srate(0.3);
+Param interleave(0.2);
+Param stutter(0.3);
+Param blocksize(40);
+Param jump(0.2);
+Param tame(0.3);
+Param level(0.6);
+
+History pos(0);
+History etimer(0);
+History mask(0);
+History fswap(0);
+History fsign(0);
+History finter(0);
+History rmul(1);
+History bcnt(0);
+History bstart(0);
+History flash(0);
+History trigprev(0);
+History lp1(0);
+History lp2(0);
+History dcx1(0);
+History dcy1(0);
+History dcx2(0);
+History dcy2(0);
+
+blen = max(dim(src), 2);
+ch2 = 0;
+if (channels(src) > 1) {
+	ch2 = 1;
+}
+pp = pos;
+et = etimer - 1;
+msk = mask;
+fsw = fswap;
+fsg = fsign;
+fil = finter;
+rm = rmul;
+bc = bcnt + 1;
+bs = bstart;
+fl = max(flash - 1, 0);
+trig = (in1 > 0.5) * (trigprev <= 0.5);
+nb = 1;
+k = 0;
+sv = 0;
+u = 0;
+hi = 0;
+a = 0;
+b = 0;
+xr = 0;
+pw = 1;
+q = 1;
+ia = 0;
+
+// rot: the faults re-roll
+if (et <= 0 || trig > 0) {
+	et = mstosamps(mix(9000, 120, clamp(rot, 0, 1)) * (0.4 + 1.2 * (noise() * 0.5 + 0.5)));
+	if (rot > 0.001 || trig > 0) {
+		msk = 0;
+		if (flip > 0.001) {
+			nb = 1 + floor(clamp(flip, 0, 1) * 15);
+			msk = floor((noise() * 0.5 + 0.5) * pow(2, nb));
+		}
+		fsw = (noise() * 0.5 + 0.5) < byteswap;
+		fsg = (noise() * 0.5 + 0.5) < signerr;
+		fil = (noise() * 0.5 + 0.5) < interleave;
+		rm = 1;
+		if ((noise() * 0.5 + 0.5) < srate) {
+			k = floor((noise() * 0.5 + 0.5) * 6);
+			rm = 0.5;
+			if (k == 1) {
+				rm = 2;
+			}
+			if (k == 2) {
+				rm = 0.91875;
+			}
+			if (k == 3) {
+				rm = 1.08844;
+			}
+			if (k == 4) {
+				rm = 0.75;
+			}
+			if (k == 5) {
+				rm = 1.5;
+			}
+		}
+		if ((noise() * 0.5 + 0.5) < jump) {
+			pp = floor((noise() * 0.5 + 0.5) * blen / 4096) * 4096;
+			fl = mstosamps(150);
+		}
+	}
+}
+
+// blocks: at each boundary the decoder may replay the block it just read
+if (bc >= max(mstosamps(blocksize), 16)) {
+	bc = 0;
+	if ((noise() * 0.5 + 0.5) < stutter) {
+		pp = bs;
+	} else {
+		bs = pp;
+	}
+}
+pp = wrap(pp + speed * rm, 0, blen);
+
+ix = floor(pp);
+xL = peek(src, ix, 0);
+xR = peek(src, ix, ch2);
+if (fil > 0.5) {
+	ia = wrap(ix * 2, 0, blen);
+	xL = peek(src, ia, 0);
+	xR = peek(src, wrap(ia + 1, 0, blen), 0);
+}
+q = pow(2, 16 - clamp(floor(bits), 1, 16));
+
+// left channel through the faults (16-bit integer view)
+sv = clamp(floor(xL * 32767), -32768, 32767);
+u = sv;
+if (u < 0) {
+	u = u + 65536;
+}
+if (fsw > 0.5) {
+	hi = floor(u / 256);
+	u = (u - hi * 256) * 256 + hi;
+}
+if (msk > 0) {
+	a = u;
+	b = msk;
+	xr = 0;
+	pw = 1;
+	for (k = 0; k < 16; k += 1) {
+		if ((a - 2 * floor(a / 2)) != (b - 2 * floor(b / 2))) {
+			xr = xr + pw;
+		}
+		a = floor(a / 2);
+		b = floor(b / 2);
+		pw = pw * 2;
+	}
+	u = xr;
+}
+if (fsg > 0.5) {
+	u = wrap(u + 32768, 0, 65536);
+}
+u = floor(u / q) * q;
+if (u >= 32768) {
+	u = u - 65536;
+}
+yL = u / 32768;
+
+// right channel, same faults
+sv = clamp(floor(xR * 32767), -32768, 32767);
+u = sv;
+if (u < 0) {
+	u = u + 65536;
+}
+if (fsw > 0.5) {
+	hi = floor(u / 256);
+	u = (u - hi * 256) * 256 + hi;
+}
+if (msk > 0) {
+	a = u;
+	b = msk;
+	xr = 0;
+	pw = 1;
+	for (k = 0; k < 16; k += 1) {
+		if ((a - 2 * floor(a / 2)) != (b - 2 * floor(b / 2))) {
+			xr = xr + pw;
+		}
+		a = floor(a / 2);
+		b = floor(b / 2);
+		pw = pw * 2;
+	}
+	u = xr;
+}
+if (fsg > 0.5) {
+	u = wrap(u + 32768, 0, 65536);
+}
+u = floor(u / q) * q;
+if (u >= 32768) {
+	u = u - 65536;
+}
+yR = u / 32768;
+
+// tame: a one-pole low-pass to take the edge off
+cut = mix(1, 0.06, clamp(tame, 0, 1));
+a1 = lp1 + (yL - lp1) * cut;
+a2 = lp2 + (yR - lp2) * cut;
+oL = a1 - dcx1 + 0.999 * dcy1;
+oR = a2 - dcx2 + 0.999 * dcy2;
+dcx1 = a1;
+dcy1 = oL;
+dcx2 = a2;
+dcy2 = oR;
+
+nf = (msk > 0) + (fsw > 0.5) + (fsg > 0.5) + (fil > 0.5) + (rm != 1) + (bits < 16);
+out1 = oL * level;
+out2 = oR * level;
+out3 = pp / blen;
+out4 = nf;
+
+pos = pp;
+etimer = et;
+mask = msk;
+fswap = fsw;
+fsign = fsg;
+finter = fil;
+rmul = rm;
+bcnt = bc;
+bstart = bs;
+flash = fl;
+trigprev = in1;
+lp1 = a1;
+lp2 = a2;

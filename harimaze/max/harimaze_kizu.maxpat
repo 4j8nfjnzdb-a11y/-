@@ -150,60 +150,6 @@
           "patching_rect": [
             24,
             174,
-            156,
-            22.0
-          ],
-          "outlettype": [
-            ""
-          ],
-          "text": "replace cherokee.aif",
-          "id": "obj-6"
-        }
-      },
-      {
-        "box": {
-          "maxclass": "message",
-          "numinlets": 2,
-          "numoutlets": 1,
-          "patching_rect": [
-            184,
-            174,
-            142,
-            22.0
-          ],
-          "outlettype": [
-            ""
-          ],
-          "text": "replace jongly.aif",
-          "id": "obj-7"
-        }
-      },
-      {
-        "box": {
-          "maxclass": "message",
-          "numinlets": 2,
-          "numoutlets": 1,
-          "patching_rect": [
-            330,
-            174,
-            135,
-            22.0
-          ],
-          "outlettype": [
-            ""
-          ],
-          "text": "replace anton.aif",
-          "id": "obj-8"
-        }
-      },
-      {
-        "box": {
-          "maxclass": "message",
-          "numinlets": 2,
-          "numoutlets": 1,
-          "patching_rect": [
-            469,
-            174,
             65,
             22.0
           ],
@@ -211,7 +157,7 @@
             ""
           ],
           "text": "replace",
-          "id": "obj-9"
+          "id": "obj-6"
         }
       },
       {
@@ -220,14 +166,14 @@
           "numinlets": 1,
           "numoutlets": 0,
           "patching_rect": [
-            527,
+            86,
             176,
-            120,
+            420,
             21.95
           ],
-          "text": "← ファイルを選ぶ",
+          "text": "← 音声ファイルを選ぶ（起動時は空。何も読み込みません）",
           "fontsize": 11.0,
-          "id": "obj-10"
+          "id": "obj-7"
         }
       },
       {
@@ -245,7 +191,7 @@
             "",
             ""
           ],
-          "id": "obj-11"
+          "id": "obj-8"
         }
       },
       {
@@ -262,7 +208,7 @@
           "text": "ここに音声ファイルを\nドロップ (wav / aif)",
           "fontsize": 10.5,
           "linecount": 2,
-          "id": "obj-12"
+          "id": "obj-9"
         }
       },
       {
@@ -281,7 +227,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-13"
+          "id": "obj-10"
         }
       },
       {
@@ -300,7 +246,7 @@
             230,
             22.0
           ],
-          "id": "obj-14"
+          "id": "obj-11"
         }
       },
       {
@@ -322,26 +268,7 @@
             "list",
             ""
           ],
-          "id": "obj-15"
-        }
-      },
-      {
-        "box": {
-          "maxclass": "newobj",
-          "text": "loadmess replace cherokee.aif",
-          "numinlets": 1,
-          "numoutlets": 1,
-          "outlettype": [
-            ""
-          ],
-          "patching_rect": [
-            354,
-            300,
-            217,
-            22.0
-          ],
-          "hidden": 1,
-          "id": "obj-16"
+          "id": "obj-12"
         }
       },
       {
@@ -360,7 +287,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-17"
+          "id": "obj-13"
         }
       },
       {
@@ -383,7 +310,7 @@
           "rounded": 8,
           "border": 0,
           "background": 1,
-          "id": "obj-18"
+          "id": "obj-14"
         }
       },
       {
@@ -400,7 +327,7 @@
           "text": "2  パラメータ PARAMETERS — 数字をドラッグ / ダブルクリックで入力",
           "fontsize": 12.0,
           "fontface": 1,
-          "id": "obj-19"
+          "id": "obj-15"
         }
       },
       {
@@ -417,7 +344,7 @@
           "text": "speed\n速度  -2〜2",
           "fontsize": 11.0,
           "linecount": 2,
-          "id": "obj-20"
+          "id": "obj-16"
         }
       },
       {
@@ -436,7 +363,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-21"
+          "id": "obj-17"
         }
       },
       {
@@ -458,7 +385,7 @@
           "maximum": 2.0,
           "numdecimalplaces": 3,
           "format": 6,
-          "id": "obj-22"
+          "id": "obj-18"
         }
       },
       {
@@ -477,7 +404,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-23"
+          "id": "obj-19"
         }
       },
       {
@@ -494,7 +421,7 @@
           "text": "damage\n損傷  0〜1",
           "fontsize": 11.0,
           "linecount": 2,
-          "id": "obj-24"
+          "id": "obj-20"
         }
       },
       {
@@ -513,7 +440,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-25"
+          "id": "obj-21"
         }
       },
       {
@@ -535,7 +462,7 @@
           "maximum": 1.0,
           "numdecimalplaces": 3,
           "format": 6,
-          "id": "obj-26"
+          "id": "obj-22"
         }
       },
       {
@@ -554,7 +481,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-27"
+          "id": "obj-23"
         }
       },
       {
@@ -571,7 +498,7 @@
           "text": "stick\n引っかかり  0〜1",
           "fontsize": 11.0,
           "linecount": 2,
-          "id": "obj-28"
+          "id": "obj-24"
         }
       },
       {
@@ -590,7 +517,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-29"
+          "id": "obj-25"
         }
       },
       {
@@ -612,7 +539,7 @@
           "maximum": 1.0,
           "numdecimalplaces": 3,
           "format": 6,
-          "id": "obj-30"
+          "id": "obj-26"
         }
       },
       {
@@ -631,7 +558,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-31"
+          "id": "obj-27"
         }
       },
       {
@@ -648,7 +575,7 @@
           "text": "skip\n飛び  0〜1",
           "fontsize": 11.0,
           "linecount": 2,
-          "id": "obj-32"
+          "id": "obj-28"
         }
       },
       {
@@ -667,7 +594,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-33"
+          "id": "obj-29"
         }
       },
       {
@@ -689,7 +616,7 @@
           "maximum": 1.0,
           "numdecimalplaces": 3,
           "format": 6,
-          "id": "obj-34"
+          "id": "obj-30"
         }
       },
       {
@@ -708,7 +635,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-35"
+          "id": "obj-31"
         }
       },
       {
@@ -725,7 +652,7 @@
           "text": "drop\n欠落  0〜1",
           "fontsize": 11.0,
           "linecount": 2,
-          "id": "obj-36"
+          "id": "obj-32"
         }
       },
       {
@@ -744,7 +671,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-37"
+          "id": "obj-33"
         }
       },
       {
@@ -766,7 +693,7 @@
           "maximum": 1.0,
           "numdecimalplaces": 3,
           "format": 6,
-          "id": "obj-38"
+          "id": "obj-34"
         }
       },
       {
@@ -785,7 +712,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-39"
+          "id": "obj-35"
         }
       },
       {
@@ -802,7 +729,7 @@
           "text": "zip\nジッ音  0〜1",
           "fontsize": 11.0,
           "linecount": 2,
-          "id": "obj-40"
+          "id": "obj-36"
         }
       },
       {
@@ -821,7 +748,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-41"
+          "id": "obj-37"
         }
       },
       {
@@ -843,7 +770,7 @@
           "maximum": 1.0,
           "numdecimalplaces": 3,
           "format": 6,
-          "id": "obj-42"
+          "id": "obj-38"
         }
       },
       {
@@ -862,7 +789,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-43"
+          "id": "obj-39"
         }
       },
       {
@@ -879,7 +806,7 @@
           "text": "sticklen\n断片 ms  10〜1000",
           "fontsize": 11.0,
           "linecount": 2,
-          "id": "obj-44"
+          "id": "obj-40"
         }
       },
       {
@@ -898,7 +825,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-45"
+          "id": "obj-41"
         }
       },
       {
@@ -920,7 +847,7 @@
           "maximum": 1000.0,
           "numdecimalplaces": 0,
           "format": 6,
-          "id": "obj-46"
+          "id": "obj-42"
         }
       },
       {
@@ -939,7 +866,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-47"
+          "id": "obj-43"
         }
       },
       {
@@ -956,7 +883,7 @@
           "text": "creep\nずれ  0〜1",
           "fontsize": 11.0,
           "linecount": 2,
-          "id": "obj-48"
+          "id": "obj-44"
         }
       },
       {
@@ -975,7 +902,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-49"
+          "id": "obj-45"
         }
       },
       {
@@ -997,7 +924,7 @@
           "maximum": 1.0,
           "numdecimalplaces": 3,
           "format": 6,
-          "id": "obj-50"
+          "id": "obj-46"
         }
       },
       {
@@ -1016,7 +943,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-51"
+          "id": "obj-47"
         }
       },
       {
@@ -1033,7 +960,7 @@
           "text": "crush\n劣化  0〜1",
           "fontsize": 11.0,
           "linecount": 2,
-          "id": "obj-52"
+          "id": "obj-48"
         }
       },
       {
@@ -1052,7 +979,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-53"
+          "id": "obj-49"
         }
       },
       {
@@ -1074,7 +1001,7 @@
           "maximum": 1.0,
           "numdecimalplaces": 3,
           "format": 6,
-          "id": "obj-54"
+          "id": "obj-50"
         }
       },
       {
@@ -1093,7 +1020,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-55"
+          "id": "obj-51"
         }
       },
       {
@@ -1110,7 +1037,7 @@
           "text": "click\nクリック  0〜1",
           "fontsize": 11.0,
           "linecount": 2,
-          "id": "obj-56"
+          "id": "obj-52"
         }
       },
       {
@@ -1129,7 +1056,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-57"
+          "id": "obj-53"
         }
       },
       {
@@ -1151,7 +1078,7 @@
           "maximum": 1.0,
           "numdecimalplaces": 3,
           "format": 6,
-          "id": "obj-58"
+          "id": "obj-54"
         }
       },
       {
@@ -1170,7 +1097,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-59"
+          "id": "obj-55"
         }
       },
       {
@@ -1187,7 +1114,7 @@
           "text": "level\n音量  0〜1",
           "fontsize": 11.0,
           "linecount": 2,
-          "id": "obj-60"
+          "id": "obj-56"
         }
       },
       {
@@ -1206,7 +1133,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-61"
+          "id": "obj-57"
         }
       },
       {
@@ -1228,7 +1155,7 @@
           "maximum": 1.0,
           "numdecimalplaces": 3,
           "format": 6,
-          "id": "obj-62"
+          "id": "obj-58"
         }
       },
       {
@@ -1247,7 +1174,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-63"
+          "id": "obj-59"
         }
       },
       {
@@ -1481,7 +1408,7 @@
               }
             ]
           },
-          "id": "obj-64"
+          "id": "obj-60"
         }
       },
       {
@@ -1498,7 +1425,7 @@
           "outlettype": [
             "bang"
           ],
-          "id": "obj-65"
+          "id": "obj-61"
         }
       },
       {
@@ -1516,7 +1443,7 @@
             56,
             22.0
           ],
-          "id": "obj-66"
+          "id": "obj-62"
         }
       },
       {
@@ -1532,7 +1459,7 @@
           ],
           "text": "● 今すぐ故障させる（in1 の立ち上がりでエラーを 1 回起こす）",
           "fontsize": 11.0,
-          "id": "obj-67"
+          "id": "obj-63"
         }
       },
       {
@@ -1555,7 +1482,7 @@
           "rounded": 8,
           "border": 0,
           "background": 1,
-          "id": "obj-68"
+          "id": "obj-64"
         }
       },
       {
@@ -1572,7 +1499,7 @@
           "text": "3  マシン MACHINE — gen~ をダブルクリックするとコードが見られます",
           "fontsize": 12.0,
           "fontface": 1,
-          "id": "obj-69"
+          "id": "obj-65"
         }
       },
       {
@@ -1590,7 +1517,7 @@
             60,
             22.0
           ],
-          "id": "obj-70"
+          "id": "obj-66"
         }
       },
       {
@@ -1608,7 +1535,7 @@
             60,
             22.0
           ],
-          "id": "obj-71"
+          "id": "obj-67"
         }
       },
       {
@@ -1627,7 +1554,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-72"
+          "id": "obj-68"
         }
       },
       {
@@ -1649,7 +1576,7 @@
           "maximum": 1.0,
           "numdecimalplaces": 2,
           "format": 6,
-          "id": "obj-73"
+          "id": "obj-69"
         }
       },
       {
@@ -1665,7 +1592,7 @@
           ],
           "text": "master",
           "fontsize": 11.0,
-          "id": "obj-74"
+          "id": "obj-70"
         }
       },
       {
@@ -1684,7 +1611,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-75"
+          "id": "obj-71"
         }
       },
       {
@@ -1704,7 +1631,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-76"
+          "id": "obj-72"
         }
       },
       {
@@ -1723,7 +1650,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-77"
+          "id": "obj-73"
         }
       },
       {
@@ -1737,7 +1664,7 @@
             45,
             45
           ],
-          "id": "obj-78"
+          "id": "obj-74"
         }
       },
       {
@@ -1754,7 +1681,7 @@
           "outlettype": [
             "float"
           ],
-          "id": "obj-79"
+          "id": "obj-75"
         }
       },
       {
@@ -1771,7 +1698,7 @@
           "outlettype": [
             "float"
           ],
-          "id": "obj-80"
+          "id": "obj-76"
         }
       },
       {
@@ -1787,7 +1714,7 @@
           ],
           "text": "← クリックで音を出す",
           "fontsize": 11.0,
-          "id": "obj-81"
+          "id": "obj-77"
         }
       },
       {
@@ -1805,7 +1732,7 @@
             ""
           ],
           "text": "open",
-          "id": "obj-82"
+          "id": "obj-78"
         }
       },
       {
@@ -1822,7 +1749,7 @@
           "outlettype": [
             "int"
           ],
-          "id": "obj-83"
+          "id": "obj-79"
         }
       },
       {
@@ -1840,7 +1767,7 @@
             90,
             22.0
           ],
-          "id": "obj-84"
+          "id": "obj-80"
         }
       },
       {
@@ -1857,7 +1784,7 @@
           "text": "録音: open で保存先 → トグルで開始/停止",
           "fontsize": 10.5,
           "linecount": 2,
-          "id": "obj-85"
+          "id": "obj-81"
         }
       },
       {
@@ -1875,7 +1802,7 @@
             90,
             22.0
           ],
-          "id": "obj-86"
+          "id": "obj-82"
         }
       },
       {
@@ -1893,7 +1820,7 @@
             90,
             22.0
           ],
-          "id": "obj-87"
+          "id": "obj-83"
         }
       },
       {
@@ -1913,7 +1840,7 @@
           "floatoutput": 1,
           "size": 1.0,
           "ignoreclick": 1,
-          "id": "obj-88"
+          "id": "obj-84"
         }
       },
       {
@@ -1930,7 +1857,7 @@
           "text": "読み取り位置 (out3)",
           "fontsize": 10.5,
           "linecount": 2,
-          "id": "obj-89"
+          "id": "obj-85"
         }
       },
       {
@@ -1951,7 +1878,7 @@
           "numdecimalplaces": 2,
           "format": 6,
           "ignoreclick": 1,
-          "id": "obj-90"
+          "id": "obj-86"
         }
       },
       {
@@ -1968,7 +1895,7 @@
           "text": "状態 (out4)\n0 再生 1 引っかかり\n2 欠落 3 ジッ 4 飛び",
           "fontsize": 10.5,
           "linecount": 3,
-          "id": "obj-91"
+          "id": "obj-87"
         }
       },
       {
@@ -1991,7 +1918,7 @@
           "rounded": 8,
           "border": 0,
           "background": 1,
-          "id": "obj-92"
+          "id": "obj-88"
         }
       },
       {
@@ -2008,7 +1935,7 @@
           "text": "プリセット PRESETS — ● を押す",
           "fontsize": 12.0,
           "fontface": 1,
-          "id": "obj-93"
+          "id": "obj-89"
         }
       },
       {
@@ -2027,7 +1954,7 @@
             22.0
           ],
           "hidden": 1,
-          "id": "obj-94"
+          "id": "obj-90"
         }
       },
       {
@@ -2044,7 +1971,7 @@
           "outlettype": [
             "bang"
           ],
-          "id": "obj-95"
+          "id": "obj-91"
         }
       },
       {
@@ -2061,7 +1988,7 @@
           "text": "新品 mint",
           "fontsize": 13.0,
           "fontface": 1,
-          "id": "obj-96"
+          "id": "obj-92"
         }
       },
       {
@@ -2077,7 +2004,7 @@
           ],
           "text": "傷なし。素の音源",
           "fontsize": 10.5,
-          "id": "obj-97"
+          "id": "obj-93"
         }
       },
       {
@@ -2096,7 +2023,7 @@
           ],
           "hidden": 1,
           "text": "; kizu_speed 1; kizu_damage 0; kizu_stick 0.6; kizu_skip 0.4; kizu_drop 0.25; kizu_zip 0.2; kizu_sticklen 120; kizu_creep 0.3; kizu_crush 0.4; kizu_click 0.5; kizu_level 0.8",
-          "id": "obj-98"
+          "id": "obj-94"
         }
       },
       {
@@ -2113,7 +2040,7 @@
           "outlettype": [
             "bang"
           ],
-          "id": "obj-99"
+          "id": "obj-95"
         }
       },
       {
@@ -2130,7 +2057,7 @@
           "text": "指紋 fingerprint",
           "fontsize": 13.0,
           "fontface": 1,
-          "id": "obj-100"
+          "id": "obj-96"
         }
       },
       {
@@ -2146,7 +2073,7 @@
           ],
           "text": "たまに引っかかる程度",
           "fontsize": 10.5,
-          "id": "obj-101"
+          "id": "obj-97"
         }
       },
       {
@@ -2165,7 +2092,7 @@
           ],
           "hidden": 1,
           "text": "; kizu_damage 0.2; kizu_stick 0.8; kizu_skip 0.2; kizu_drop 0.1; kizu_zip 0; kizu_sticklen 200; kizu_creep 0.2; kizu_crush 0.2; kizu_click 0.3",
-          "id": "obj-102"
+          "id": "obj-98"
         }
       },
       {
@@ -2182,7 +2109,7 @@
           "outlettype": [
             "bang"
           ],
-          "id": "obj-103"
+          "id": "obj-99"
         }
       },
       {
@@ -2199,7 +2126,7 @@
           "text": "マーカー marker",
           "fontsize": 13.0,
           "fontface": 1,
-          "id": "obj-104"
+          "id": "obj-100"
         }
       },
       {
@@ -2215,7 +2142,7 @@
           ],
           "text": "塗られた盤。短い断片がずれながら反復",
           "fontsize": 10.5,
-          "id": "obj-105"
+          "id": "obj-101"
         }
       },
       {
@@ -2234,7 +2161,7 @@
           ],
           "hidden": 1,
           "text": "; kizu_damage 0.6; kizu_stick 1; kizu_skip 0.3; kizu_drop 0.2; kizu_zip 0.4; kizu_sticklen 60; kizu_creep 0.5; kizu_crush 0.5; kizu_click 0.7",
-          "id": "obj-106"
+          "id": "obj-102"
         }
       },
       {
@@ -2251,7 +2178,7 @@
           "outlettype": [
             "bang"
           ],
-          "id": "obj-107"
+          "id": "obj-103"
         }
       },
       {
@@ -2268,7 +2195,7 @@
           "text": "テープの穴 pinholes",
           "fontsize": 13.0,
           "fontface": 1,
-          "id": "obj-108"
+          "id": "obj-104"
         }
       },
       {
@@ -2284,7 +2211,7 @@
           ],
           "text": "誤り訂正が破綻する。ほぼ制御不能",
           "fontsize": 10.5,
-          "id": "obj-109"
+          "id": "obj-105"
         }
       },
       {
@@ -2303,7 +2230,7 @@
           ],
           "hidden": 1,
           "text": "; kizu_damage 0.9; kizu_stick 0.5; kizu_skip 0.8; kizu_drop 0.5; kizu_zip 0.7; kizu_sticklen 25; kizu_creep 0.8; kizu_crush 0.8; kizu_click 1",
-          "id": "obj-110"
+          "id": "obj-106"
         }
       },
       {
@@ -2315,12 +2242,12 @@
             800,
             456,
             380,
-            101.7
+            117.64999999999999
           ],
-          "text": "使い方\n1. 右下の ezdac~（スピーカー）をクリックして DSP を ON\n2. プリセットの ● を押す（起動時は 1 番目が入ります）\n3. 数字をドラッグして変える。音源はドロップで差し替え\n同梱音源（jongly.aif など）は Max 付属のサンプルです。\n見つからない場合は自分のファイルをドロップしてください。",
+          "text": "使い方\n1. 音声ファイルをドロップ（または replace）\n2. ezdac~（スピーカー）をクリックして DSP を ON\n3. プリセットの ● を押す（起動時は 1 番目が入ります）\n4. 数字をドラッグして変える\n起動時は音源が空です。まず音声ファイルを\nドロップするか replace で選んでください。",
           "fontsize": 11.0,
-          "linecount": 6,
-          "id": "obj-111"
+          "linecount": 7,
+          "id": "obj-107"
         }
       }
     ],
@@ -2332,19 +2259,7 @@
             0
           ],
           "destination": [
-            "obj-14",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-7",
-            0
-          ],
-          "destination": [
-            "obj-14",
+            "obj-11",
             0
           ]
         }
@@ -2356,33 +2271,22 @@
             0
           ],
           "destination": [
-            "obj-14",
+            "obj-10",
             0
-          ]
+          ],
+          "hidden": 1
         }
       },
       {
         "patchline": {
           "source": [
-            "obj-9",
+            "obj-10",
             0
           ],
           "destination": [
-            "obj-14",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
             "obj-11",
             0
           ],
-          "destination": [
-            "obj-13",
-            0
-          ],
           "hidden": 1
         }
       },
@@ -2393,20 +2297,7 @@
             0
           ],
           "destination": [
-            "obj-14",
-            0
-          ],
-          "hidden": 1
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-16",
-            0
-          ],
-          "destination": [
-            "obj-14",
+            "obj-12",
             0
           ],
           "hidden": 1
@@ -2419,7 +2310,20 @@
             0
           ],
           "destination": [
-            "obj-15",
+            "obj-18",
+            0
+          ],
+          "hidden": 1
+        }
+      },
+      {
+        "patchline": {
+          "source": [
+            "obj-18",
+            0
+          ],
+          "destination": [
+            "obj-19",
             0
           ],
           "hidden": 1
@@ -2688,24 +2592,11 @@
       {
         "patchline": {
           "source": [
-            "obj-61",
+            "obj-19",
             0
           ],
           "destination": [
-            "obj-62",
-            0
-          ],
-          "hidden": 1
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-62",
-            0
-          ],
-          "destination": [
-            "obj-63",
+            "obj-60",
             0
           ],
           "hidden": 1
@@ -2718,7 +2609,7 @@
             0
           ],
           "destination": [
-            "obj-64",
+            "obj-60",
             0
           ],
           "hidden": 1
@@ -2731,7 +2622,7 @@
             0
           ],
           "destination": [
-            "obj-64",
+            "obj-60",
             0
           ],
           "hidden": 1
@@ -2744,7 +2635,7 @@
             0
           ],
           "destination": [
-            "obj-64",
+            "obj-60",
             0
           ],
           "hidden": 1
@@ -2757,7 +2648,7 @@
             0
           ],
           "destination": [
-            "obj-64",
+            "obj-60",
             0
           ],
           "hidden": 1
@@ -2770,7 +2661,7 @@
             0
           ],
           "destination": [
-            "obj-64",
+            "obj-60",
             0
           ],
           "hidden": 1
@@ -2783,7 +2674,7 @@
             0
           ],
           "destination": [
-            "obj-64",
+            "obj-60",
             0
           ],
           "hidden": 1
@@ -2796,7 +2687,7 @@
             0
           ],
           "destination": [
-            "obj-64",
+            "obj-60",
             0
           ],
           "hidden": 1
@@ -2809,7 +2700,7 @@
             0
           ],
           "destination": [
-            "obj-64",
+            "obj-60",
             0
           ],
           "hidden": 1
@@ -2822,7 +2713,7 @@
             0
           ],
           "destination": [
-            "obj-64",
+            "obj-60",
             0
           ],
           "hidden": 1
@@ -2835,7 +2726,7 @@
             0
           ],
           "destination": [
-            "obj-64",
+            "obj-60",
             0
           ],
           "hidden": 1
@@ -2844,20 +2735,31 @@
       {
         "patchline": {
           "source": [
-            "obj-63",
+            "obj-61",
             0
           ],
           "destination": [
-            "obj-64",
+            "obj-62",
             0
-          ],
-          "hidden": 1
+          ]
         }
       },
       {
         "patchline": {
           "source": [
-            "obj-65",
+            "obj-62",
+            0
+          ],
+          "destination": [
+            "obj-60",
+            0
+          ]
+        }
+      },
+      {
+        "patchline": {
+          "source": [
+            "obj-60",
             0
           ],
           "destination": [
@@ -2869,37 +2771,65 @@
       {
         "patchline": {
           "source": [
-            "obj-66",
-            0
-          ],
-          "destination": [
-            "obj-64",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-64",
-            0
-          ],
-          "destination": [
-            "obj-70",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-64",
+            "obj-60",
             1
+          ],
+          "destination": [
+            "obj-67",
+            0
+          ]
+        }
+      },
+      {
+        "patchline": {
+          "source": [
+            "obj-68",
+            0
+          ],
+          "destination": [
+            "obj-69",
+            0
+          ],
+          "hidden": 1
+        }
+      },
+      {
+        "patchline": {
+          "source": [
+            "obj-73",
+            0
+          ],
+          "destination": [
+            "obj-69",
+            0
+          ],
+          "hidden": 1
+        }
+      },
+      {
+        "patchline": {
+          "source": [
+            "obj-69",
+            0
           ],
           "destination": [
             "obj-71",
             0
-          ]
+          ],
+          "hidden": 1
+        }
+      },
+      {
+        "patchline": {
+          "source": [
+            "obj-71",
+            0
+          ],
+          "destination": [
+            "obj-72",
+            0
+          ],
+          "hidden": 1
         }
       },
       {
@@ -2909,8 +2839,8 @@
             0
           ],
           "destination": [
-            "obj-73",
-            0
+            "obj-66",
+            1
           ],
           "hidden": 1
         }
@@ -2918,12 +2848,12 @@
       {
         "patchline": {
           "source": [
-            "obj-77",
+            "obj-72",
             0
           ],
           "destination": [
-            "obj-73",
-            0
+            "obj-67",
+            1
           ],
           "hidden": 1
         }
@@ -2931,99 +2861,119 @@
       {
         "patchline": {
           "source": [
-            "obj-73",
+            "obj-66",
+            0
+          ],
+          "destination": [
+            "obj-74",
+            0
+          ]
+        }
+      },
+      {
+        "patchline": {
+          "source": [
+            "obj-67",
+            0
+          ],
+          "destination": [
+            "obj-74",
+            1
+          ]
+        }
+      },
+      {
+        "patchline": {
+          "source": [
+            "obj-66",
             0
           ],
           "destination": [
             "obj-75",
             0
-          ],
-          "hidden": 1
+          ]
         }
       },
       {
         "patchline": {
           "source": [
-            "obj-75",
+            "obj-67",
             0
           ],
           "destination": [
             "obj-76",
             0
-          ],
-          "hidden": 1
+          ]
         }
       },
       {
         "patchline": {
           "source": [
-            "obj-76",
-            0
-          ],
-          "destination": [
-            "obj-70",
-            1
-          ],
-          "hidden": 1
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-76",
-            0
-          ],
-          "destination": [
-            "obj-71",
-            1
-          ],
-          "hidden": 1
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-70",
-            0
-          ],
-          "destination": [
             "obj-78",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-71",
-            0
-          ],
-          "destination": [
-            "obj-78",
-            1
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-70",
-            0
-          ],
-          "destination": [
-            "obj-79",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-71",
             0
           ],
           "destination": [
             "obj-80",
+            0
+          ]
+        }
+      },
+      {
+        "patchline": {
+          "source": [
+            "obj-79",
+            0
+          ],
+          "destination": [
+            "obj-80",
+            0
+          ]
+        }
+      },
+      {
+        "patchline": {
+          "source": [
+            "obj-66",
+            0
+          ],
+          "destination": [
+            "obj-80",
+            0
+          ]
+        }
+      },
+      {
+        "patchline": {
+          "source": [
+            "obj-67",
+            0
+          ],
+          "destination": [
+            "obj-80",
+            1
+          ]
+        }
+      },
+      {
+        "patchline": {
+          "source": [
+            "obj-60",
+            2
+          ],
+          "destination": [
+            "obj-82",
+            0
+          ]
+        }
+      },
+      {
+        "patchline": {
+          "source": [
+            "obj-60",
+            3
+          ],
+          "destination": [
+            "obj-83",
             0
           ]
         }
@@ -3047,42 +2997,6 @@
             0
           ],
           "destination": [
-            "obj-84",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-70",
-            0
-          ],
-          "destination": [
-            "obj-84",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-71",
-            0
-          ],
-          "destination": [
-            "obj-84",
-            1
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-64",
-            2
-          ],
-          "destination": [
             "obj-86",
             0
           ]
@@ -3091,47 +3005,11 @@
       {
         "patchline": {
           "source": [
-            "obj-64",
-            3
-          ],
-          "destination": [
-            "obj-87",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-86",
+            "obj-91",
             0
           ],
           "destination": [
-            "obj-88",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-87",
-            0
-          ],
-          "destination": [
-            "obj-90",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-95",
-            0
-          ],
-          "destination": [
-            "obj-98",
+            "obj-94",
             0
           ],
           "hidden": 1
@@ -3140,7 +3018,20 @@
       {
         "patchline": {
           "source": [
+            "obj-90",
+            0
+          ],
+          "destination": [
             "obj-94",
+            0
+          ],
+          "hidden": 1
+        }
+      },
+      {
+        "patchline": {
+          "source": [
+            "obj-95",
             0
           ],
           "destination": [
@@ -3171,19 +3062,6 @@
           ],
           "destination": [
             "obj-106",
-            0
-          ],
-          "hidden": 1
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-107",
-            0
-          ],
-          "destination": [
-            "obj-110",
             0
           ],
           "hidden": 1

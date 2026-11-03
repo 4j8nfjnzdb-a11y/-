@@ -1,0 +1,158 @@
+// harimaze / WA - loop ensemble
+// Up to eight tape loops cut from one source. Each loop carries one
+// fragment and a stretch of silence, and each has its own deliberately
+// incommensurate period, so they drift in and out of phase and never line
+// up the same way twice. Every cycle a loop wears a little (quieter,
+// darker); sometimes it re-cuts a fresh fragment nearby and starts again.
+// in1  : trigger (rising edge re-cuts every loop now)
+// out1 : left    out2 : right
+// out3 : loop 1 read position 0..1    out4 : share of loops sounding 0..1
+
+Buffer src("hz_wa_src");
+Data lp(8, 7);
+
+Param voices(6);
+Param period(6000);
+Param spread(0.6);
+Param frag(1800);
+Param gap(1);
+Param pitchset(1);
+Param position(0.3);
+Param scatter(0.3);
+Param evolve(0.2);
+Param wear(0.2);
+Param soft(0.3);
+Param width(0.8);
+Param level(0.7);
+
+History inited(0);
+History trigprev(0);
+
+blen = max(dim(src), 2);
+ch2 = 0;
+if (channels(src) > 1) {
+	ch2 = 1;
+}
+nv = clamp(floor(voices), 1, 8);
+trig = (in1 > 0.5) * (trigprev <= 0.5);
+fr = max(mstosamps(frag), 64);
+sf = max(fr * clamp(soft, 0.01, 0.5), 16);
+sumL = 0;
+sumR = 0;
+act = 0;
+h0 = 0;
+i = 0;
+c = 0;
+st = 0;
+rt = 1;
+pn = 0.5;
+gn = 1;
+br = 1;
+fs = 0;
+kk = 0;
+pmul = 1;
+per = 1;
+recut = 0;
+semi = 0;
+ps = 0;
+r = 0;
+k = 0;
+v = 0;
+env = 0;
+rpos = 0;
+k0 = 0;
+k1 = 0;
+kf = 0;
+
+for (i = 0; i < 8; i += 1) {
+	c = peek(lp, i, 0) + 1;
+	st = peek(lp, i, 1);
+	rt = peek(lp, i, 2);
+	pn = peek(lp, i, 3);
+	gn = peek(lp, i, 4);
+	br = peek(lp, i, 5);
+	fs = peek(lp, i, 6);
+	// incommensurate periods: golden-ratio offsets per loop
+	kk = i * 0.6180339;
+	pmul = 1 + spread * ((kk - floor(kk)) * 1.7 + i * 0.05);
+	per = max(mstosamps(period), fr * (1 + gap)) * pmul;
+	recut = (inited < 0.5) + (trig > 0);
+	if (c >= per) {
+		c = 0;
+		gn = gn * (1 - wear * 0.05);
+		br = br * (1 - wear * 0.06);
+		if ((noise() * 0.5 + 0.5) < evolve) {
+			recut = 1;
+		}
+	}
+	if (recut > 0) {
+		st = wrap(position + scatter * noise() * 0.5, 0, 1) * blen;
+		ps = floor(pitchset);
+		r = noise() * 0.5 + 0.5;
+		semi = 0;
+		if (ps == 1) {
+			semi = (floor(r * 3) - 1) * 12;
+		}
+		if (ps == 2) {
+			k = floor(r * 4);
+			if (k == 1) {
+				semi = 7;
+			}
+			if (k == 2) {
+				semi = 12;
+			}
+			if (k == 3) {
+				semi = -5;
+			}
+		}
+		if (ps == 3) {
+			k = floor(r * 5);
+			semi = k * 7 - 12 * floor(k * 7 / 12);
+			if (noise() < -0.4) {
+				semi = semi - 12;
+			}
+		}
+		if (ps == 4) {
+			semi = floor(r * 5) - 2;
+		}
+		rt = pow(2, semi / 12);
+		pn = clamp(0.5 + width * noise() * 0.5, 0, 1);
+		gn = 1;
+		br = 1;
+		if (inited < 0.5) {
+			c = floor((noise() * 0.5 + 0.5) * per);
+		}
+	}
+	v = 0;
+	if (i < nv && c < fr) {
+		env = clamp(c / sf, 0, 1) * clamp((fr - c) / sf, 0, 1);
+		rpos = wrap(st + c * rt, 0, blen);
+		k0 = floor(rpos);
+		kf = rpos - k0;
+		k1 = wrap(k0 + 1, 0, blen);
+		v = (mix(peek(src, k0, 0), peek(src, k1, 0), kf) + mix(peek(src, k0, ch2), peek(src, k1, ch2), kf)) * 0.5 * env * gn;
+		act += 1;
+	}
+	fs = fs + (v - fs) * clamp(br, 0.03, 1);
+	sumL += fs * sqrt(1 - pn);
+	sumR += fs * sqrt(pn);
+	if (i == 0) {
+		h0 = wrap(st + c * rt, 0, blen) / blen;
+	}
+	poke(lp, c, i, 0);
+	poke(lp, st, i, 1);
+	poke(lp, rt, i, 2);
+	poke(lp, pn, i, 3);
+	poke(lp, gn, i, 4);
+	poke(lp, br, i, 5);
+	poke(lp, fs, i, 6);
+}
+
+nrm = 1 / sqrt(nv);
+out1 = sumL * nrm * level;
+out2 = sumR * nrm * level;
+out3 = h0;
+out4 = act / nv;
+
+inited = 1;
+trigprev = in1;

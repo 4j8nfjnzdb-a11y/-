@@ -29,9 +29,9 @@
         <div class="what">
           <a class="go" href="#artists"><b>人</b><strong>21 組の作家カード</strong><span>手法・道具・考え方・作品・出典</span></a>
           <a class="go" href="#ideas"><b>思想</b><strong>9 つの考え方</strong><span>壊れを素材に、1 秒の断片、日記としての録音…</span></a>
-          <a class="go" href="#techniques"><b>技法</b><strong>12 の手法と、そのやり方</strong><span>DAW でも Max でも試せる手順つき</span></a>
-          <a class="go" href="#lab"><b>実験室</b><strong>5 台のコラージュ・マシンをブラウザで</strong><span>Max パッチと同じ gen~ のコードがそのまま鳴ります</span></a>
-          <a class="go" href="#max"><b>Max</b><strong>Max/MSP パッチ 5 本をダウンロード</strong><span>天気・傷盤・芽吹・追憶・切貼</span></a>
+          <a class="go" href="#techniques"><b>技法</b><strong>18 の手法と、そのやり方</strong><span>DAW でも Max でも試せる手順つき</span></a>
+          <a class="go" href="#lab"><b>実験室</b><strong>11 台のコラージュ・マシンをブラウザで</strong><span>Max パッチと同じ gen~ のコードがそのまま鳴ります</span></a>
+          <a class="go" href="#max"><b>Max</b><strong>Max/MSP パッチ 11 本をダウンロード</strong><span>天気・傷盤・芽吹・追憶・切貼・化け・輪・響・擦・似・こだま</span></a>
         </div>
       </div>
       <div class="sheet">
@@ -95,7 +95,7 @@
       <div>
         <div class="eyebrow">laboratory</div>
         <h2 class="vh">実験室</h2>
-        <p class="lede">Max パッチの gen~ に入っているのと同じコードを、ブラウザで鳴らします。音源は内蔵のデモ音か、自分のファイル（ドロップでも可）。</p>
+        <p class="lede">Max パッチの gen~ に入っているのと同じコードを、ブラウザで鳴らします。起動時は音源が空です。自分のファイルを入れてください（ドロップでも可）。試しに鳴らすための合成音も選べます。</p>
       </div>
       <div class="mtabs" id="mtabs"></div>
       <div class="labgrid">
@@ -133,11 +133,11 @@
       <div>
         <div class="eyebrow">max/msp</div>
         <h2 class="vh">Max パッチ</h2>
-        <p class="lede">5 本とも gen~ のコードボックス 1 つが心臓部です。音源・パラメータ・プリセット・出力（音量・録音・位置と状態のモニター）だけのシンプルな構成で、in1 に信号を入れると外からイベントを起こせます。</p>
+        <p class="lede">11 本とも gen~ のコードボックス 1 つが心臓部です。起動時は音源が空で、自分のファイルを入れたときだけ鳴ります。音源・パラメータ・プリセット・出力（音量・録音・位置と状態のモニター）だけのシンプルな構成で、in1 に信号を入れると外からイベントを起こせます。</p>
       </div>
       <div class="sheet dl">
         <button class="play" id="dlzip"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M7 1h2v8l3-3 1.4 1.4L8 12.8 2.6 7.4 4 6l3 3zM2 13h12v2H2z"/></svg>パッチ一式をダウンロード（.zip）</button>
-        <span class="dlmsg" id="dlmsg">.maxpat ×5、GenExpr ソース、説明書（README）が入っています。Max 8.1 以降 / Max 9。</span>
+        <span class="dlmsg" id="dlmsg">.maxpat ×11、GenExpr ソース、説明書（README）が入っています。Max 8.1 以降 / Max 9。</span>
       </div>
       <div class="patches" id="patches"></div>
       <div class="sheet">
@@ -148,7 +148,7 @@
 gen~ out1 out2 → [*~] → ezdac~ / meter~ / sfrecord~       出力・メーター・録音
 gen~ out3 → [snapshot~] → slider                          再生位置（戻る・進むが見える）
 gen~ out4 → [snapshot~] → 数字                             状態（天気、故障の種類、morph など）</pre>
-        <p class="small" style="margin-top:10px">バッファ名と受信名はマシンごとに別なので、5 本を同時に開いて重ねられます。例えば kizu の out4 を tenki の in1 に入れると、CD が飛ぶたびにループの天気が変わります。</p>
+        <p class="small" style="margin-top:10px">バッファ名と受信名はマシンごとに別なので、11 本を同時に開いて重ねられます。例えば kizu の out4 を tenki の in1 に入れると、CD が飛ぶたびにループの天気が変わります。</p>
         <p class="small" style="margin-top:6px">検証: GenExpr は JavaScript に変換してオフラインで試験しています（数値が壊れない、音量が暴れない、各イベントが起きる、クリックしない、など）。Max 本体で開いての確認はまだです。エラーが出たらコンソールの文面を送ってください。</p>
       </div>
     </section>
@@ -165,7 +165,7 @@ gen~ out4 → [snapshot~] → 数字                             状態（天気
   </main>
 
   <footer>
-    <span>貼交 harimaze — サウンドコラージュの地図帳と 5 台のマシン</span>
+    <span>貼交 harimaze — サウンドコラージュの地図帳と 11 台のマシン</span>
     <span>記述は 2026 年 11 月時点の公開記事にもとづく</span>
   </footer>
 </div>

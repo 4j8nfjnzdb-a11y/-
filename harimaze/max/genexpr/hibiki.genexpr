@@ -1,0 +1,217 @@
+// harimaze / HIBIKI - resonator bank
+// The source excites eight tuned resonators. Whatever goes in (rain,
+// voices, noise, a whole song) comes out as a chord that rings, drifts
+// and changes. Freeze cuts the input and lets the resonators ring on.
+// in1, in2 : live input (used when source = 0)
+// out1 : left    out2 : right
+// out3 : input level 0..1    out4 : chord root offset in semitones
+
+Buffer feed("hz_hibiki_file");
+Data tab(48, 1);
+Data rs(8, 4);
+
+Param source(1);
+Param root(50);
+Param chord(2);
+Param spread(0.4);
+Param decay(4);
+Param detune(0.15);
+Param drift(0.2);
+Param changes(0.2);
+Param glide(400);
+Param bright(0.4);
+Param wet(0.8);
+Param freeze(0);
+Param level(0.7);
+
+History inited(0);
+History fpos(0);
+History xin1(0);
+History xin2(0);
+History xprev(0);
+History ienv(0);
+History oenv(0);
+History agc(1);
+History ro(0);
+History ctimer(48000);
+
+fl = max(dim(feed), 2);
+fch = 0;
+if (channels(feed) > 1) {
+	fch = 1;
+}
+
+// chord table: octaves, fifths, maj9, min11, pentatonic, harmonic series
+if (inited < 0.5) {
+	poke(tab, 0, 0, 0);
+	poke(tab, 0, 1, 0);
+	poke(tab, 12, 2, 0);
+	poke(tab, 12, 3, 0);
+	poke(tab, 24, 4, 0);
+	poke(tab, 24, 5, 0);
+	poke(tab, 36, 6, 0);
+	poke(tab, -12, 7, 0);
+	poke(tab, 0, 8, 0);
+	poke(tab, 7, 9, 0);
+	poke(tab, 12, 10, 0);
+	poke(tab, 19, 11, 0);
+	poke(tab, 24, 12, 0);
+	poke(tab, 31, 13, 0);
+	poke(tab, 36, 14, 0);
+	poke(tab, 43, 15, 0);
+	poke(tab, 0, 16, 0);
+	poke(tab, 4, 17, 0);
+	poke(tab, 7, 18, 0);
+	poke(tab, 11, 19, 0);
+	poke(tab, 14, 20, 0);
+	poke(tab, 16, 21, 0);
+	poke(tab, 19, 22, 0);
+	poke(tab, 23, 23, 0);
+	poke(tab, 0, 24, 0);
+	poke(tab, 3, 25, 0);
+	poke(tab, 7, 26, 0);
+	poke(tab, 10, 27, 0);
+	poke(tab, 14, 28, 0);
+	poke(tab, 17, 29, 0);
+	poke(tab, 19, 30, 0);
+	poke(tab, 22, 31, 0);
+	poke(tab, 0, 32, 0);
+	poke(tab, 2, 33, 0);
+	poke(tab, 4, 34, 0);
+	poke(tab, 7, 35, 0);
+	poke(tab, 9, 36, 0);
+	poke(tab, 12, 37, 0);
+	poke(tab, 14, 38, 0);
+	poke(tab, 16, 39, 0);
+	poke(tab, 0, 40, 0);
+	poke(tab, 12, 41, 0);
+	poke(tab, 19.02, 42, 0);
+	poke(tab, 24, 43, 0);
+	poke(tab, 27.86, 44, 0);
+	poke(tab, 31.02, 45, 0);
+	poke(tab, 33.69, 46, 0);
+	poke(tab, 36, 47, 0);
+}
+
+// input: file loop or live, pre-emphasised by bright
+fp = fpos;
+fi = floor(fp);
+x = (peek(feed, fi, 0) + peek(feed, fi, fch)) * 0.5;
+fp = wrap(fp + 1, 0, fl);
+if (source < 0.5) {
+	x = (in1 + in2) * 0.5;
+}
+dry = x;
+x = x + clamp(bright, 0, 1) * 2 * (x - xprev);
+xp = dry;
+if (freeze > 0.5) {
+	x = 0;
+}
+ie = ienv;
+ie = ie + (abs(dry) - ie) * 0.0005;
+
+// chord changes: the root moves within a small set of intervals
+rr = ro;
+ct = ctimer - 1;
+k = 0;
+if (ct <= 0) {
+	ct = mstosamps(mix(20000, 1200, clamp(changes, 0, 1)) * (0.6 + 0.8 * (noise() * 0.5 + 0.5)));
+	if (changes > 0.001) {
+		k = floor((noise() * 0.5 + 0.5) * 7);
+		rr = 0;
+		if (k == 1) {
+			rr = 5;
+		}
+		if (k == 2) {
+			rr = 7;
+		}
+		if (k == 3) {
+			rr = -2;
+		}
+		if (k == 4) {
+			rr = 3;
+		}
+		if (k == 5) {
+			rr = -5;
+		}
+		if (k == 6) {
+			rr = 2;
+		}
+	}
+}
+
+cs = clamp(floor(chord), 0, 5);
+tsec = clamp(decay, 0.05, 60);
+if (freeze > 0.5) {
+	tsec = 300;
+}
+rad = exp(-6.9078 / (tsec * samplerate));
+gco = 1 - exp(-1 / max(mstosamps(glide), 1));
+sumL = 0;
+sumR = 0;
+i = 0;
+y1 = 0;
+y2 = 0;
+fq = 0;
+dr = 0;
+oct = 0;
+m = 0;
+ft = 0;
+w = 0;
+y = 0;
+for (i = 0; i < 8; i += 1) {
+	y1 = peek(rs, i, 0);
+	y2 = peek(rs, i, 1);
+	fq = peek(rs, i, 2);
+	dr = peek(rs, i, 3);
+	dr = clamp(dr * 0.99999 + noise() * drift * 0.0004, -0.5, 0.5);
+	oct = floor(i * clamp(spread, 0, 1) * 0.5);
+	m = root + rr + peek(tab, cs * 8 + i, 0) + oct * 12 + detune * 0.3 * (2 * (i - 2 * floor(i / 2)) - 1) + dr;
+	ft = min(440 * pow(2, (m - 69) / 12), samplerate * 0.45);
+	if (fq <= 0) {
+		fq = ft;
+	}
+	fq = fq + (ft - fq) * gco;
+	w = twopi * fq / samplerate;
+	y = 2 * rad * cos(w) * y1 - rad * rad * y2 + (1 - rad) * (x - xin2);
+	if (i - 2 * floor(i / 2) < 0.5) {
+		sumL += y;
+		sumR += y * 0.35;
+	} else {
+		sumR += y;
+		sumL += y * 0.35;
+	}
+	poke(rs, y, i, 0);
+	poke(rs, y1, i, 1);
+	poke(rs, fq, i, 2);
+	poke(rs, dr, i, 3);
+}
+
+// automatic gain: long decays and frozen chords stay audible
+oe = oenv;
+pk = max(abs(sumL), abs(sumR));
+if (pk > oe) {
+	oe = oe + (pk - oe) * 0.01;
+} else {
+	oe = oe + (pk - oe) * 0.00005;
+}
+ga = agc;
+ga = ga + (clamp(0.3 / (oe + 0.0005), 0.2, 40) - ga) * 0.0005;
+rl = tanh(sumL * ga);
+rR = tanh(sumR * ga);
+wt = clamp(wet, 0, 1);
+out1 = (dry * (1 - wt) + rl * wt) * level;
+out2 = (dry * (1 - wt) + rR * wt) * level;
+out3 = clamp(ie * 4, 0, 1);
+out4 = rr;
+
+inited = 1;
+fpos = fp;
+xin2 = xin1;
+xin1 = x;
+xprev = xp;
+ienv = ie;
+oenv = oe;
+agc = ga;
+ro = rr;
+ctimer = ct;

@@ -1,0 +1,180 @@
+// harimaze / KOSURI - scrub hand
+// A record platter with a motor and a hand. The motor turns the record at
+// speed; the hand grabs it and pulls the needle toward a target through a
+// spring, so pitch follows the hand. Gestures play themselves: baby
+// scratch, chirp (fader closes on the return stroke), transformer (fader
+// stutters), spinback, drag. Turn grab on and move hand to scrub yourself.
+// in1  : trigger (rising edge starts a gesture now)
+// out1 : left    out2 : right
+// out3 : needle position 0..1
+// out4 : 0 motor, 1 baby, 2 chirp, 3 transformer, 4 spinback, 5 drag, 6 hand
+
+Buffer src("hz_kosuri_src");
+
+Param speed(1);
+Param torque(0.3);
+Param gesture(0.4);
+Param baby(0.5);
+Param chirp(0.3);
+Param transformer(0.3);
+Param spinback(0.2);
+Param drag(0.2);
+Param amount(250);
+Param hz(3);
+Param crackle(0.2);
+Param grab(0);
+Param hand(0.5);
+Param level(0.8);
+
+History ppos(0);
+History pvel(1);
+History gmode(0);
+History gtime(0);
+History gphase(0);
+History anchor(0);
+History fader(1);
+History etimer(48000);
+History crk(0);
+History trigprev(0);
+History dcx1(0);
+History dcy1(0);
+History dcx2(0);
+History dcy2(0);
+
+blen = max(dim(src), 2);
+ch2 = 0;
+if (channels(src) > 1) {
+	ch2 = 1;
+}
+pp = ppos;
+vv = pvel;
+gm = gmode;
+gtl = gtime - 1;
+ph = gphase;
+an = anchor;
+fd = fader;
+et = etimer - 1;
+trig = (in1 > 0.5) * (trigprev <= 0.5);
+manual = grab > 0.5;
+wsum = baby + chirp + transformer + spinback + drag;
+r = 0;
+
+// gesture engine (only while the hand is not on the record)
+if (manual < 0.5 && gm == 0 && (et <= 0 || trig > 0)) {
+	et = mstosamps(mix(9000, 400, clamp(gesture, 0, 1)) * (0.5 + (noise() * 0.5 + 0.5)));
+	if (wsum > 0.001 && (gesture > 0.001 || trig > 0)) {
+		r = (noise() * 0.5 + 0.5) * wsum;
+		gm = 5;
+		if (r < baby + chirp + transformer + spinback) {
+			gm = 4;
+		}
+		if (r < baby + chirp + transformer) {
+			gm = 3;
+		}
+		if (r < baby + chirp) {
+			gm = 2;
+		}
+		if (r < baby) {
+			gm = 1;
+		}
+		gtl = mstosamps(600 + 1800 * (noise() * 0.5 + 0.5));
+		if (gm == 4) {
+			gtl = mstosamps(250 + 350 * (noise() * 0.5 + 0.5));
+		}
+		ph = 0;
+		an = pp;
+	}
+}
+if (gm != 0) {
+	if (gtl <= 0 || manual > 0.5) {
+		gm = 0;
+	}
+}
+
+grip = 0;
+tgt = pp;
+mot = speed;
+tq = 0.0002 + clamp(torque, 0, 1) * 0.004;
+fdt = 1;
+ph = ph + clamp(hz, 0.1, 30) / samplerate;
+amp = mstosamps(amount);
+if (gm == 1) {
+	grip = 1;
+	tgt = an + amp * 0.5 * sin(twopi * ph);
+}
+if (gm == 2) {
+	grip = 1;
+	tgt = an + amp * 0.5 * sin(twopi * ph);
+	if (cos(twopi * ph) < 0) {
+		fdt = 0;
+	}
+}
+if (gm == 3) {
+	grip = 1;
+	tgt = an + amp * 0.5 * sin(twopi * ph * 0.5);
+	if (ph * 4 - floor(ph * 4) > 0.5) {
+		fdt = 0;
+	}
+}
+if (gm == 4) {
+	mot = speed * -8;
+	tq = 0.01;
+}
+if (gm == 5) {
+	mot = speed * 0.2;
+	tq = 0.00004;
+}
+if (manual > 0.5) {
+	grip = 1;
+	tgt = clamp(hand, 0, 1) * blen;
+}
+
+// platter physics: spring to the hand, or the motor's torque
+wn = twopi * 25 / samplerate;
+dd = wrap(tgt - pp, blen * -0.5, blen * 0.5);
+acc = grip * (wn * wn * dd - 1.6 * wn * vv) + (1 - grip) * tq * (mot - vv);
+vv = clamp(vv + acc, -16, 16);
+pp = wrap(pp + vv, 0, blen);
+fd = fd + (fdt - fd) * 0.02;
+
+i0 = floor(pp);
+fr = pp - i0;
+i1 = wrap(i0 + 1, 0, blen);
+sL = mix(peek(src, i0, 0), peek(src, i1, 0), fr) * fd;
+sR = mix(peek(src, i0, ch2), peek(src, i1, ch2), fr) * fd;
+
+// vinyl: clicks and hiss
+ck = crk * 0.55;
+if (noise() > 1 - clamp(crackle, 0, 1) * 0.0008) {
+	ck = ck + noise() * 0.6;
+}
+hs = noise() * clamp(crackle, 0, 1) * 0.008;
+sL = sL + ck + hs;
+sR = sR + ck * 0.8 - hs;
+
+yL = sL - dcx1 + 0.9995 * dcy1;
+yR = sR - dcx2 + 0.9995 * dcy2;
+dcx1 = sL;
+dcy1 = yL;
+dcx2 = sR;
+dcy2 = yR;
+
+st = gm;
+if (manual > 0.5) {
+	st = 6;
+}
+out1 = yL * level;
+out2 = yR * level;
+out3 = pp / blen;
+out4 = st;
+
+ppos = pp;
+pvel = vv;
+gmode = gm;
+gtime = gtl;
+gphase = ph;
+anchor = an;
+fader = fd;
+etimer = et;
+crk = ck;
+trigprev = in1;

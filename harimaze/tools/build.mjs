@@ -7,7 +7,7 @@ import { translate } from './genexpr.mjs';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const rd = (p) => readFileSync(join(ROOT, p), 'utf8');
-const KEYS = ['tenki', 'kizu', 'mebuki', 'tsuioku', 'kiri'];
+const KEYS = ['tenki', 'kizu', 'mebuki', 'tsuioku', 'kiri', 'bake', 'wa', 'hibiki', 'kosuri', 'ni', 'kodama'];
 
 // --- deflate zip with UTF-8 names ---
 const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
