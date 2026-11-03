@@ -32,9 +32,13 @@ button:disabled{cursor:default;opacity:.4}
 @media (max-width:960px){.main{grid-template-columns:minmax(0,1fr)}}
 .stageCol{display:flex;flex-direction:column;gap:12px;min-width:0;position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px)}
 @media (max-width:960px){.stageCol{position:static}}
-.stage{position:relative;display:flex;justify-content:center;align-items:center;background:#000;border-radius:4px;min-width:0}
+.stage{position:relative;display:flex;justify-content:center;align-items:center;background:#000;border-radius:4px;min-width:0;min-height:200px}
 #cv{display:block;width:auto;height:auto;max-width:100%;max-height:calc(100vh - 250px);background:#000;touch-action:manipulation;cursor:crosshair}
 @media (max-width:960px){#cv{max-height:62vh}}
+.empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:20px;text-align:center;color:var(--dim);font-size:13px}
+.empty b{font-family:var(--f-disp);font-weight:700;font-size:clamp(20px,3vw,28px);letter-spacing:.1em;color:var(--ink)}
+.empty p{margin:0;max-width:40ch;text-wrap:pretty}
+.stage.on .empty{background:rgba(91,107,255,.08);outline:1px dashed var(--acc);outline-offset:-10px}
 .recBadge{position:absolute;top:10px;left:10px;font-family:var(--f-mono);font-size:12px;letter-spacing:.08em;color:#fff;background:rgba(0,0,0,.6);padding:3px 9px;border-radius:4px;display:flex;align-items:center;gap:7px}
 .recBadge i{width:8px;height:8px;border-radius:50%;background:var(--rec);animation:blink 1s steps(2) infinite}
 @keyframes blink{50%{opacity:.2}}
@@ -106,13 +110,18 @@ select{padding:7px 9px;border-radius:7px;border:1px solid var(--line);background
 <div class="app">
   <header class="top">
     <h1>光条<small>kōjō</small></h1>
-    <p>写真や動画を素材にして、LED の壁に映す光の映像を作ります。素材の一行を引き伸ばして縞にし、一点へ終わりなく寄り、スリットでなぞり、明暗を色の層に置き換え、カットと明滅でつないでいきます。</p>
+    <p>写真や動画を素材にして、LED の壁に映す光の映像を作ります。素材の一行を引き伸ばして縞にし、一点へ終わりなく寄り、スリットでなぞり、明暗を色の層に置き換え、カットと明滅でつないでいきます。映像はすべて入れた素材からだけ作られます。</p>
   </header>
 
   <div class="main">
     <section class="stageCol" aria-label="映像">
       <div class="stage">
         <canvas id="cv" aria-label="生成中の映像。叩くとカット"></canvas>
+        <div class="empty" id="empty">
+          <b>素材を入れてください</b>
+          <p>写真や動画をここに落とすか、選んでください。素材の一行が光の帯になり、明るい点へ寄っていき、明暗が色の層になります。</p>
+          <button class="btn primary" id="emptyBtn" type="button">素材を選ぶ</button>
+        </div>
         <div class="recBadge" id="recBadge" hidden><i></i><span id="recTime">REC 0.0s</span></div>
       </div>
       <div class="now" id="now"></div>
@@ -138,12 +147,11 @@ select{padding:7px 9px;border-radius:7px;border:1px solid var(--line);background
     <aside class="panel" aria-label="操作">
       <section class="card">
         <h2>素材<span>material</span></h2>
-        <p class="sub">映像はすべて素材から作られます。写真・動画・音を入れてください。入れるまでは内蔵の生成素材で動きます。</p>
+        <p class="sub">映像はすべてここに入れた素材から作られます。写真・動画・音を入れてください。複数入れるとカットで行き来します。</p>
         <div class="drop" id="drop">ここにファイルを落とす<button class="btn primary" id="addBtn" type="button">素材を選ぶ</button></div>
         <input type="file" id="fileIn" accept="image/*,video/*,audio/*,.mp3,.wav,.m4a,.aif,.aiff,.mov" multiple hidden>
         <div class="mats" id="mats"></div>
         <label class="tog"><input type="checkbox" id="t-cycleMat">カットで素材を替える</label>
-        <label class="tog"><input type="checkbox" id="t-useBuiltin">自分の素材があっても内蔵素材を混ぜる</label>
         <div class="row" id="audioRow" hidden>
           <button class="btn" id="audioBtn" type="button">音を鳴らす</button>
           <span class="mono" id="audioName"></span>
@@ -201,7 +209,7 @@ select{padding:7px 9px;border-radius:7px;border:1px solid var(--line);background
       <section class="card">
         <h2>参照<span>sources</span></h2>
         <ul class="refs">
-          <li><b>ゲルハルト・リヒター《Strip》</b> 1990年のスキージ画《Abstraktes Bild 724-4》の画像を縦に分割し、鏡像にして反復することを12段繰り返し、細い帯を横に引き伸ばした連作。本『Patterns』では分割・鏡像・反復で左右対称の模様を作る。→「帯」「鏡」、内蔵のスキージ画素材。</li>
+          <li><b>ゲルハルト・リヒター《Strip》</b> 1990年のスキージ画《Abstraktes Bild 724-4》の画像を縦に分割し、鏡像にして反復することを12段繰り返し、細い帯を横に引き伸ばした連作。本『Patterns』では分割・鏡像・反復で左右対称の模様を作る。→「帯」「鏡」。</li>
           <li><b>松本俊夫『メタスタシス』（1971）</b> ナックのカラー・データ・システムで、映像の濃淡の段ごとに別の色相を当てた。→「色層」。</li>
           <li><b>松本俊夫『モナ・リザ』（1973）</b> スキャニメイトで画像を電子的に変形・合成し、モニターをフィルムで撮った。スキャニメイトは走査線の振れを発振器で曲げ、画面を帯に分けて別々に動かす。→「変形」。</li>
           <li><b>松本俊夫『アートマン』（1975）</b> 面をつけた人物を円周上の480の位置からコマ撮りし、回りを加速させる。→「周回」、カット直後の前後交互の明滅。</li>
@@ -229,7 +237,7 @@ const P={
   bpm:112, cut:.4, sub:1, layer:.12, fb:.25, flick:.05, flickRate:12, neg:.04,
   tint:0, sat:1.15, expo:1.1, contrast:1.05,
   bloom:.6, rgb:.1, grid:0, grain:.04,
-  react:.6, audioCut:true, cycleMat:true, useBuiltin:false, aspect:'16:9', q:720, dur:15
+  react:.6, audioCut:true, cycleMat:true, aspect:'16:9', q:720, dur:15
 };
 const SL={
   audio:[['react','音への反応','react',0,1.5,.01]],
@@ -492,37 +500,7 @@ function bindMat(prog,s,u0){bindT(prog,'uMat',s.tex,u0);bindT(prog,'uMatB',s.blu
 // ---------------- materials ----------------
 const mats=[];let curMat=null;
 const matReady=m=>m.kind==='video'?m.src.readyState>=2&&m.src.videoWidth>0:true;
-const userMats=()=>mats.filter(m=>!m.builtin);
-function pool(){const u=userMats();return u.length?(P.useBuiltin?mats:u):mats}
-function mkRng(seed){let s=seed>>>0||1;return()=>(s=(s*1664525+1013904223)>>>0)/4294967296}
-// a squeegee painting: colour laid down, then dragged across itself again and again
-function squeegee(cols,seed){
-  const W0=1400,H0=900,c=document.createElement('canvas');c.width=W0;c.height=H0;const x=c.getContext('2d');const r=mkRng(seed),pk=()=>cols[Math.floor(r()*cols.length)];
-  const g=x.createLinearGradient(0,0,W0,H0);g.addColorStop(0,pk());g.addColorStop(.5,pk());g.addColorStop(1,pk());x.fillStyle=g;x.fillRect(0,0,W0,H0);
-  for(let i=0;i<18;i++){x.globalAlpha=.6+r()*.4;x.fillStyle=pk();x.fillRect(r()*W0-80,0,30+r()*260,H0)}
-  for(let i=0;i<26;i++){x.globalAlpha=.4+r()*.6;x.fillStyle=pk();x.fillRect(r()*W0-200,r()*H0,120+r()*700,6+r()*140)}
-  for(let i=0;i<70;i++){const y=r()*H0,h=20+r()*300,dx=(r()-.5)*520,st=9;x.globalAlpha=.16+r()*.12;
-    for(let k=1;k<=st;k++)x.drawImage(c,0,y,W0,h,dx*k/st,y+(r()-.5)*5,W0,h)}
-  for(let i=0;i<24;i++){const xx=r()*W0,w=20+r()*240,dy=(r()-.5)*420,st=8;x.globalAlpha=.14+r()*.1;
-    for(let k=1;k<=st;k++)x.drawImage(c,xx,0,w,H0,xx+(r()-.5)*4,dy*k/st,w,H0)}
-  for(let i=0;i<60;i++){x.globalAlpha=.25+r()*.55;x.strokeStyle=pk();x.lineWidth=.6+r()*3.5;const y=r()*H0;x.beginPath();x.moveTo(-10,y);x.bezierCurveTo(W0*.3,y+(r()-.5)*40,W0*.7,y+(r()-.5)*40,W0+10,y+(r()-.5)*30);x.stroke()}
-  for(let i=0;i<30;i++){const y=r()*H0,h=4+r()*60;x.globalAlpha=.35;x.drawImage(c,0,y,W0,h,(r()-.5)*900,y,W0,h)}
-  x.globalAlpha=1;return c}
-// out-of-focus city lights: points of colour of every size, a few hard bars of LED
-function bokeh(seed){
-  const W0=1400,H0=900,c=document.createElement('canvas');c.width=W0;c.height=H0;const x=c.getContext('2d');const r=mkRng(seed);
-  x.fillStyle='#02030a';x.fillRect(0,0,W0,H0);x.globalCompositeOperation='lighter';
-  const cols=[[40,70,255],[255,60,170],[60,220,255],[255,190,90],[140,80,255],[255,255,255]];
-  for(let i=0;i<190;i++){const cx=r()*W0,cy=H0*(.15+.7*r()),rad=6+Math.pow(r(),2.2)*170,cc=cols[Math.floor(r()*cols.length)],a=.06+r()*.3;
-    const g=x.createRadialGradient(cx,cy,0,cx,cy,rad);g.addColorStop(0,`rgba(${cc},${a})`);g.addColorStop(.72,`rgba(${cc},${a*.8})`);g.addColorStop(1,`rgba(${cc},0)`);x.fillStyle=g;x.beginPath();x.arc(cx,cy,rad,0,7);x.fill()}
-  for(let i=0;i<9;i++){const bx=r()*W0,bw=3+r()*26,cc=cols[Math.floor(r()*cols.length)];const g=x.createLinearGradient(0,0,0,H0);g.addColorStop(0,`rgba(${cc},0)`);g.addColorStop(.5,`rgba(${cc},${.3+r()*.5})`);g.addColorStop(1,`rgba(${cc},0)`);x.fillStyle=g;x.fillRect(bx,0,bw,H0)}
-  x.globalCompositeOperation='source-over';return c}
-function addBuiltins(){
-  const defs=[['スキージ画・青',()=>squeegee(['#0a0d3d','#2337ff','#5b2bd6','#e8ecff','#0b0b12','#38b8ff','#ff3d9a'],7)],
-    ['スキージ画・朱',()=>squeegee(['#1a0402','#ff3a12','#ffb347','#7a1035','#f5ecd8','#10403a','#0b0b0b'],23)],
-    ['光の粒',()=>bokeh(5)]];
-  defs.forEach(([name,fn])=>{const src=fn();const m={kind:'canvas',src,name,builtin:true};analyse(m);mats.push(m)});
-}
+const pool=()=>mats;
 // a small look at the material: its colours and its brightest points
 function analyse(m){
   try{const s=document.createElement('canvas');const asp=(m.kind==='video'?m.src.videoWidth/m.src.videoHeight:m.src.width/m.src.height)||1;s.width=64;s.height=Math.max(8,Math.round(64/asp));
@@ -556,21 +534,27 @@ function addFile(f){
     im.onerror=()=>status(`「${f.name}」を画像として読めませんでした。JPEG か PNG で試してください。`,true);im.src=url;return}
   status(`「${f.name}」は扱えない形式です。写真・動画・音のファイルを入れてください。`,true);
 }
-function useMat(m){if(!m)return;curMat=m;if(P.pal==='material')setPalette('material');cut(true,m);renderMats()}
-function removeMat(m){const i=mats.indexOf(m);if(i<0)return;mats.splice(i,1);if(m.kind==='video')m.src.pause();if(m.url)URL.revokeObjectURL(m.url);if(curMat===m)useMat(pool()[0]);renderMats()}
+function useMat(m){if(!m)return;curMat=m;setEmpty(false);if(P.pal==='material')setPalette('material');cut(true,m);renderMats()}
+function removeMat(m){const i=mats.indexOf(m);if(i<0)return;mats.splice(i,1);if(m.kind==='video')m.src.pause();if(m.url)URL.revokeObjectURL(m.url);
+  if(!mats.length){curMat=null;A=B=null;slots.forEach(s=>s.mat=null);setEmpty(true)}
+  else if(curMat===m||(A&&A.slot.mat===m)||(B&&B.slot.mat===m)){useMat(mats[0]);B=A;tr.k=1;tr.dur=0}
+  slots.forEach(s=>{if(s.mat===m&&(!A||A.slot!==s))s.mat=null});renderMats()}
+function setEmpty(on){$('empty').hidden=!on;['cutBtn','burstBtn','diceBtn','recBtn','pngBtn'].forEach(id=>$(id).disabled=on||(id==='recBtn'&&mime===null));
+  if(on){$('now').textContent='';gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,W,H);gl.clearColor(0,0,0,1);gl.clear(gl.COLOR_BUFFER_BIT)}}
 function renderMats(){
   const box=$('mats');box.textContent='';
   mats.forEach(m=>{const b=document.createElement('button');b.type='button';b.className='mat';b.setAttribute('aria-current',m===curMat?'true':'false');b.title=m.name+'（押すとこの素材でカット）';
     let th;if(m.kind==='video'){th=document.createElement('video');th.src=m.url;th.muted=true;th.playsInline=true;th.preload='metadata'}else{th=document.createElement('canvas');th.width=160;th.height=Math.round(160*m.src.height/m.src.width);th.getContext('2d').drawImage(m.src,0,0,th.width,th.height)}
-    b.append(th);const k=document.createElement('span');k.className='k';k.textContent=m.builtin?'内蔵':m.kind==='video'?'動画':'写真';b.append(k);
-    if(!m.builtin){const x=document.createElement('button');x.type='button';x.className='x';x.textContent='×';x.setAttribute('aria-label',m.name+'を外す');x.onclick=e=>{e.stopPropagation();removeMat(m)};b.append(x)}
+    b.append(th);const k=document.createElement('span');k.className='k';k.textContent=m.kind==='video'?'動画':'写真';b.append(k);
+    const x=document.createElement('button');x.type='button';x.className='x';x.textContent='×';x.setAttribute('aria-label',m.name+'を外す');x.onclick=e=>{e.stopPropagation();removeMat(m)};b.append(x);
     b.onclick=()=>useMat(m);box.append(b)});
 }
-$('addBtn').onclick=()=>$('fileIn').click();
+$('addBtn').onclick=()=>$('fileIn').click();$('emptyBtn').onclick=()=>$('fileIn').click();
 $('fileIn').onchange=e=>{[...e.target.files].forEach(addFile);e.target.value=''};
 const drop=$('drop');
-['dragenter','dragover'].forEach(t=>document.addEventListener(t,e=>{e.preventDefault();drop.classList.add('on')}));
-['dragleave','drop'].forEach(t=>document.addEventListener(t,e=>{e.preventDefault();if(t==='drop'||!e.relatedTarget)drop.classList.remove('on')}));
+const stage=document.querySelector('.stage');
+['dragenter','dragover'].forEach(t=>document.addEventListener(t,e=>{e.preventDefault();drop.classList.add('on');stage.classList.add('on')}));
+['dragleave','drop'].forEach(t=>document.addEventListener(t,e=>{e.preventDefault();if(t==='drop'||!e.relatedTarget){drop.classList.remove('on');stage.classList.remove('on')}}));
 document.addEventListener('drop',e=>{[...(e.dataTransfer?.files||[])].forEach(addFile)});
 
 // ---------------- audio ----------------
@@ -748,7 +732,7 @@ function togglePlay(){playing=!playing;$('playBtn').setAttribute('aria-pressed',
 $('playBtn').onclick=togglePlay;
 $('cutBtn').onclick=()=>cut(true);
 $('burstBtn').onclick=()=>{cut(true);tr.mode=3;tr.t=0;tr.dur=rnd(.4,.8);tr.k=0};
-cv.addEventListener('pointerdown',()=>cut(true));
+cv.addEventListener('pointerdown',()=>{if(curMat)cut(true)});
 document.addEventListener('keydown',e=>{if(e.target.closest('input,select,textarea'))return;if(e.code==='Space'){e.preventDefault();cut(true)}});
 const fmt=(k,v)=>k==='bpm'||k==='flickRate'?String(Math.round(v)):v.toFixed(2);
 function buildSliders(){Object.entries(SL).forEach(([g,list])=>{const box=$('g-'+g);list.forEach(([k,ja,en,mn,mx,stp])=>{
@@ -769,14 +753,14 @@ function syncChips(){document.querySelectorAll('[data-op]').forEach(b=>b.setAttr
   document.querySelectorAll('[data-tr]').forEach(b=>b.setAttribute('aria-pressed',String(P.trans.has(b.dataset.tr))));
   document.querySelectorAll('[data-pal]').forEach(b=>b.setAttribute('aria-pressed',String(P.pal===b.dataset.pal)));
   const sw=$('matSw');if(sw&&curMat&&curMat.pal){const c=curMat.pal.map(v=>`rgb(${v.map(x=>Math.round(x*255)).join(',')})`);sw.style.background=`linear-gradient(135deg,${c[1]},${c[2]},${c[3]})`}}
-const SELS=['sub','aspect','q','dur'],TOGS=['audioCut','cycleMat','useBuiltin','palCycle'];
+const SELS=['sub','aspect','q','dur'],TOGS=['audioCut','cycleMat','palCycle'];
 function syncUI(){Object.values(SL).flat().forEach(([k])=>paint(k));SELS.forEach(k=>$('s-'+k).value=String(P[k]));TOGS.forEach(k=>$('t-'+k).checked=!!P[k]);syncChips()}
-SELS.forEach(k=>$('s-'+k).onchange=e=>{const v=e.target.value;P[k]=k==='aspect'?v:+v;if(k==='aspect'||k==='q')resize()});
+SELS.forEach(k=>$('s-'+k).onchange=e=>{const v=e.target.value;P[k]=k==='aspect'?v:+v;if(k==='aspect'||k==='q'){resize();if(!curMat)setEmpty(true)}});
 TOGS.forEach(k=>$('t-'+k).onchange=e=>{P[k]=e.target.checked});
 const BASE={warp:.5,flickRate:12,tint:0,rgb:.1,grid:0,grain:.04,layer:.12,fb:.25};
 function applyPreset(cfg,nm){Object.assign(P,BASE);
   Object.entries(cfg).forEach(([k,v])=>{if(k==='ops')P.ops=new Set(v);else if(k==='trans')P.trans=new Set(v);else if(k!=='pal')P[k]=v});
-  setPalette(cfg.pal||'material');syncUI();if(nm){cut(true);status(`「${nm}」にしました。`)}}
+  setPalette(cfg.pal||'material');syncUI();if(nm){cut(true);status(curMat?`「${nm}」にしました。`:`「${nm}」にしました。素材を入れると始まります。`)}}
 $('diceBtn').onclick=()=>{
   const ok=OPS.map(o=>o[0]);const ms=ok.filter(()=>Math.random()<.35);P.ops=new Set(ms.length?ms:[pick(ok)]);
   const ts=TRS.map(t=>t[0]).filter(()=>Math.random()<.5);P.trans=new Set(ts.length?ts:['cut']);
@@ -784,8 +768,8 @@ $('diceBtn').onclick=()=>{
     neg:rnd(0,.2),tint:Math.random()<.3?rnd(.2,.8):0,sat:rnd(.9,1.5),expo:rnd(.9,1.35),contrast:rnd(.9,1.35),bloom:rnd(.3,1.2),rgb:rnd(0,.35)});
   setPalette(Math.random()<.5?'material':pick(Object.keys(PALS)));syncUI();cut(true);status('おまかせで組み直しました。気に入らなければもう一度押してください。')};
 
-buildSliders();buildChips();addBuiltins();curMat=mats[0];
-applyPreset(PRESETS[0][1]);resize();renderMats();cut(true,curMat);
+buildSliders();buildChips();
+applyPreset(PRESETS[0][1]);resize();renderMats();setEmpty(true);
 requestAnimationFrame(t=>{last=t;requestAnimationFrame(frame)});
 })();
 </script>
