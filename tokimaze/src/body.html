@@ -1,0 +1,99 @@
+<div class="app" id="app">
+  <canvas id="cv" aria-label="液体の皿。指でなぞると絵具を垂らしたり混ぜたりできます"></canvas>
+  <div id="ring" class="ring" hidden></div>
+  <div id="fail" class="fail" hidden>
+    <b>この端末では描けませんでした</b>
+    <p id="failMsg">WebGL2 と浮動小数点の描画に対応したブラウザで開いてください。</p>
+  </div>
+
+  <header class="top">
+    <div class="brand">
+      <h1>溶き混ぜ</h1>
+      <span class="sub">Tokimaze</span>
+    </div>
+    <div class="actions">
+      <button id="autoBtn" class="chip" aria-pressed="true" title="触っていない間、ひとりでに描き続けます"><i></i>ひとりでに</button>
+      <button id="snapBtn" class="ibtn" title="静止画を保存" aria-label="静止画を保存">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="3"/><circle cx="12" cy="12.5" r="3.6"/><path d="M8.5 6l1.4-2h4.2l1.4 2"/></svg>
+      </button>
+      <button id="recBtn" class="ibtn rec" title="録画" aria-label="録画" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.5"/></svg>
+        <span id="recTime" class="recTime" hidden>0:00</span>
+      </button>
+      <button id="setBtn" class="ibtn" title="設定" aria-label="設定" aria-expanded="false" aria-controls="sheet">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <section id="sheet" class="sheet" hidden aria-label="設定">
+    <div class="sheetHead">
+      <b>皿と液体</b>
+      <button id="sheetClose" class="ibtn" aria-label="閉じる"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+
+    <div class="group">
+      <div class="label">はじめの状態</div>
+      <div class="seg" id="startSeg" role="radiogroup" aria-label="はじめの状態">
+        <button data-v="dark" role="radio">黒い皿に水</button>
+        <button data-v="whiteLayer" role="radio">白い絵具を敷く</button>
+        <button data-v="blackLayer" role="radio">黒い絵具を敷く</button>
+        <button data-v="light" role="radio">白い皿に水</button>
+      </div>
+      <button id="resetBtn" class="wide">この状態からやり直す</button>
+    </div>
+
+    <div class="group">
+      <div class="label">流れ</div>
+      <label class="sl" for="sDamp"><span>粘り</span><input id="sDamp" type="range" min="0" max="1" step="0.01" value="0.25"><output id="oDamp"></output></label>
+      <label class="sl" for="sCurl"><span>渦</span><input id="sCurl" type="range" min="0" max="1" step="0.01" value="0.34"><output id="oCurl"></output></label>
+      <label class="sl" for="sSpin"><span>回転台</span><input id="sSpin" type="range" min="-1" max="1" step="0.01" value="0"><output id="oSpin"></output></label>
+    </div>
+
+    <div class="group">
+      <div class="label">傾き</div>
+      <div class="tiltRow">
+        <div id="tilt" class="tilt" role="slider" aria-label="皿の傾き" aria-valuetext="水平" tabindex="0"><i id="tiltKnob"></i></div>
+        <div class="tiltSide">
+          <p>丸をずらすと皿が傾き、絵具の多いところが低い方へ流れます。</p>
+          <button id="levelBtn" class="small">水平に戻す</button>
+          <label class="check" id="motionWrap" hidden><input type="checkbox" id="motionChk"> スマホの傾きを使う</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="label">レンズ</div>
+      <label class="sl" for="sBlur"><span>ピント</span><input id="sBlur" type="range" min="0" max="1" step="0.01" value="0.3"><output id="oBlur"></output></label>
+      <label class="sl" for="sGloss"><span>光沢</span><input id="sGloss" type="range" min="0" max="1" step="0.01" value="0.62"><output id="oGloss"></output></label>
+      <label class="sl" for="sRelief"><span>厚み</span><input id="sRelief" type="range" min="0" max="1" step="0.01" value="0.5"><output id="oRelief"></output></label>
+    </div>
+
+    <div class="group">
+      <div class="label">画質</div>
+      <div class="seg" id="qSeg" role="radiogroup" aria-label="画質">
+        <button data-v="0" role="radio">軽い</button>
+        <button data-v="1" role="radio">標準</button>
+        <button data-v="2" role="radio">精細</button>
+      </div>
+    </div>
+
+    <p class="note">色は光の三原色ではなく絵具として混ざります。青と黄は緑に、赤と青は紫になります（Kubelka–Munk 理論。混色モデルは spectral.js を参考にしています）。アルコールは粘りの弱い液体として濃い絵具の中へ枝分かれしながら入り込み、泡は下の絵具を押しのけて網目を残します。</p>
+  </section>
+
+  <footer class="dock">
+    <div class="palRow">
+      <button id="setName" class="setName" title="色の組を切り替える"><span id="setLabel">絵具箱</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg></button>
+      <div id="pal" class="pal" role="radiogroup" aria-label="色"></div>
+    </div>
+    <div id="tools" class="tools" role="radiogroup" aria-label="道具"></div>
+    <div class="sizeRow">
+      <label for="size" class="sizeLab">大きさ</label>
+      <input id="size" type="range" min="0.5" max="2" step="0.01" value="1">
+      <p id="hint" class="hint"></p>
+    </div>
+  </footer>
+  <input id="colorIn" type="color" value="#3a86ff" tabindex="-1" aria-hidden="true">
+</div>

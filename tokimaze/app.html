@@ -1,0 +1,2010 @@
+<title>Tokimaze 溶き混ぜ</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600&family=Zen+Maru+Gothic:wght@400;500;700&display=swap">
+<style>
+/* Layout: the dish fills the screen like a macro camera feed; the title floats top-left,
+   camera actions top-right, and a glass dock at the bottom holds colour wells and tools.
+   Deliberately single-theme dark: liquid colour is judged against a dark surround. */
+:root{
+  --bg:#060708; --glass:rgba(12,13,16,.66); --glass-hi:rgba(26,27,32,.82);
+  --ink:#ece8e1; --dim:#a7a6a3; --faint:#6d6c6a; --line:rgba(236,232,225,.13);
+  --light:#f3e7d3; --light-ink:#1a1610; --rec:#ff4a3d;
+  --f-disp:"Shippori Mincho B1","Hiragino Mincho ProN","Yu Mincho",serif;
+  --f-ui:"Zen Maru Gothic","Hiragino Maru Gothic ProN","Hiragino Sans",system-ui,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;background:var(--bg);color:var(--ink)}
+body{margin:0;font-family:var(--f-ui);font-size:14px;line-height:1.5;-webkit-tap-highlight-color:transparent;overflow:hidden;overscroll-behavior:none}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;-webkit-user-select:none;user-select:none}
+:focus-visible{outline:2px solid var(--light);outline-offset:2px}
+
+.app{position:fixed;inset:0;overflow:hidden;background:var(--bg)}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:crosshair}
+.ring{position:absolute;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;pointer-events:none;
+  border:1px dashed rgba(243,231,211,.45);box-shadow:0 0 0 1px rgba(0,0,0,.25) inset;transition:opacity .2s}
+.fail{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:24px;text-align:center;color:var(--dim)}
+.fail b{font-family:var(--f-disp);font-size:22px;color:var(--ink);font-weight:600}
+.fail p{margin:0;max-width:34ch}
+
+/* ---- top bar */
+.top{position:absolute;left:0;right:0;top:0;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
+  padding-top:calc(env(safe-area-inset-top,0px) + 12px);padding-bottom:28px;
+  padding-left:max(16px, env(safe-area-inset-left,0px));padding-right:max(16px, env(safe-area-inset-right,0px));
+  background:linear-gradient(rgba(6,7,8,.55),rgba(6,7,8,0));pointer-events:none}
+.top>*{pointer-events:auto}
+.brand{display:flex;align-items:baseline;gap:10px;min-width:0;text-shadow:0 1px 12px rgba(0,0,0,.6)}
+.brand h1{margin:0;white-space:nowrap;font-family:var(--f-disp);font-weight:600;font-size:26px;letter-spacing:.14em;line-height:1.1}
+.brand .sub{font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--dim)}
+.actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.ibtn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:40px;height:40px;padding:0 10px;border-radius:20px;
+  border:1px solid var(--line);background:var(--glass);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+.ibtn svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.ibtn:hover{border-color:rgba(236,232,225,.3)}
+.ibtn.rec svg circle{fill:var(--rec);stroke:none}
+.ibtn.rec[aria-pressed="true"]{background:rgba(255,74,61,.2);border-color:rgba(255,74,61,.6)}
+.ibtn.rec[aria-pressed="true"] svg circle{animation:blink 1s steps(2) infinite}
+.recTime{font-size:12px;font-variant-numeric:tabular-nums;letter-spacing:.04em}
+@keyframes blink{50%{opacity:.25}}
+.chip{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 14px 0 12px;border-radius:20px;border:1px solid var(--line);background:var(--glass);
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);font-size:13px;white-space:nowrap}
+.chip i{width:9px;height:9px;border-radius:50%;background:var(--faint);transition:background .2s, box-shadow .2s}
+.chip[aria-pressed="true"] i{background:var(--light);box-shadow:0 0 10px rgba(243,231,211,.8)}
+.chip[aria-pressed="true"]{border-color:rgba(243,231,211,.35)}
+
+/* ---- toast */
+.toast{position:absolute;left:50%;top:calc(env(safe-area-inset-top,0px) + 70px);transform:translate(-50%,-6px);max-width:min(92vw,460px);
+  padding:9px 16px;border-radius:12px;background:var(--glass-hi);border:1px solid var(--line);font-size:13px;text-align:center;
+  opacity:0;pointer-events:none;transition:opacity .25s, transform .25s;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.toast.err{border-color:rgba(255,74,61,.5)}
+
+/* ---- dock */
+.dock{position:absolute;left:0;right:0;bottom:0;display:flex;flex-direction:column;gap:8px;
+  padding-top:30px;padding-bottom:calc(env(safe-area-inset-bottom,0px) + 10px);
+  padding-left:max(12px, env(safe-area-inset-left,0px));padding-right:max(12px, env(safe-area-inset-right,0px));
+  background:linear-gradient(rgba(6,7,8,0),rgba(6,7,8,.62) 38%);pointer-events:none}
+.dock>*{pointer-events:auto}
+.palRow{display:flex;align-items:center;gap:8px;min-width:0;max-width:760px;width:100%;margin:0 auto}
+.setName{flex:0 0 auto;display:inline-flex;align-items:center;gap:2px;height:36px;padding:0 6px 0 12px;border-radius:18px;border:1px solid var(--line);background:var(--glass);font-size:12.5px;white-space:nowrap;
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+.setName svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8}
+.pal{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;padding:4px 2px;min-width:0;flex:1}
+.pal::-webkit-scrollbar{display:none}
+.well{flex:0 0 auto;position:relative;width:34px;height:34px;border-radius:50%;border:none;padding:0;background:var(--c);
+  box-shadow:0 0 0 1px rgba(255,255,255,.14) inset, 0 2px 8px rgba(0,0,0,.45);transition:transform .15s}
+.well::after{content:"";position:absolute;inset:-5px;border-radius:50%;border:2px solid transparent;transition:border-color .15s}
+.well[aria-checked="true"]::after{border-color:var(--light)}
+.well[aria-checked="true"]{transform:scale(1.06)}
+.well.special{background:var(--c);display:flex;align-items:center;justify-content:center}
+.well.water{background:radial-gradient(circle at 35% 30%,rgba(255,255,255,.55),rgba(160,190,220,.12) 45%,rgba(30,40,55,.5));}
+.well.ferro{background:radial-gradient(circle at 35% 30%,#8a8f99 0 6%,#16181c 22%,#020203 70%)}
+.well.mica{background:conic-gradient(from 30deg,#f6d38a,#fff3cf,#d8a64a,#fbe3a8,#c99236,#f6d38a);}
+.well.add{background:var(--glass);border:1px dashed rgba(236,232,225,.4);box-shadow:none;font-size:20px;line-height:1;color:var(--dim)}
+.tools{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;max-width:760px;width:100%;margin:0 auto;padding:2px}
+.tools::-webkit-scrollbar{display:none}
+.tool{flex:1 0 auto;min-width:58px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 6px 6px;border-radius:14px;border:1px solid var(--line);background:var(--glass);
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);font-size:11.5px;color:var(--dim);white-space:nowrap}
+.tool svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.tool[aria-checked="true"]{background:var(--light);color:var(--light-ink);border-color:transparent}
+.sizeRow{display:flex;align-items:center;gap:10px;max-width:760px;width:100%;margin:0 auto;padding:0 4px;min-width:0}
+.sizeLab{font-size:11.5px;color:var(--dim);white-space:nowrap}
+#size{width:110px;flex:0 0 auto}
+.hint{margin:0;font-size:11.5px;color:var(--dim);min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:opacity .4s}
+input[type=range]{accent-color:var(--light);height:22px}
+#colorIn{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;left:50%;bottom:120px}
+
+/* ---- settings sheet */
+.sheet{position:absolute;right:max(12px, env(safe-area-inset-right,0px));top:calc(env(safe-area-inset-top,0px) + 62px);width:min(360px, calc(100vw - 24px));
+  max-height:calc(100% - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px) - 200px);overflow-y:auto;overscroll-behavior:contain;
+  padding:14px 16px 16px;border-radius:18px;background:var(--glass-hi);border:1px solid var(--line);
+  -webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);display:flex;flex-direction:column;gap:16px;z-index:5}
+.sheetHead{display:flex;align-items:center;justify-content:space-between}
+.sheetHead b{font-family:var(--f-disp);font-weight:600;font-size:17px;letter-spacing:.1em}
+.sheetHead .ibtn{min-width:34px;height:34px;padding:0}
+.group{display:flex;flex-direction:column;gap:8px}
+.label{font-size:11px;letter-spacing:.18em;color:var(--faint)}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+#qSeg{grid-template-columns:1fr 1fr 1fr}
+.seg button{padding:8px 6px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.03);font-size:12.5px}
+.seg button[aria-checked="true"]{background:var(--light);color:var(--light-ink);border-color:transparent}
+.wide{padding:9px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.05);font-size:13px}
+.wide.confirm{background:rgba(255,74,61,.18);border-color:rgba(255,74,61,.55)}
+.small{align-self:flex-start;padding:6px 10px;border-radius:9px;border:1px solid var(--line);background:rgba(255,255,255,.05);font-size:12px}
+.sl{display:grid;grid-template-columns:4.2em minmax(0,1fr) 3.2em;align-items:center;gap:8px;font-size:13px}
+.sl input{width:100%;min-width:0}
+.sl output{font-size:11.5px;color:var(--dim);text-align:right;font-variant-numeric:tabular-nums}
+.tiltRow{display:flex;gap:14px;align-items:center}
+.tilt{position:relative;flex:0 0 auto;width:104px;height:104px;border-radius:50%;border:1px solid var(--line);touch-action:none;
+  background:radial-gradient(circle,rgba(255,255,255,.07),rgba(255,255,255,.01) 70%);cursor:grab}
+.tilt::before,.tilt::after{content:"";position:absolute;background:var(--line)}
+.tilt::before{left:50%;top:10px;bottom:10px;width:1px}
+.tilt::after{top:50%;left:10px;right:10px;height:1px}
+.tilt i{position:absolute;left:50%;top:50%;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;background:var(--light);box-shadow:0 2px 10px rgba(0,0,0,.5);z-index:1}
+.tiltSide{display:flex;flex-direction:column;gap:8px;min-width:0}
+.tiltSide p{margin:0;font-size:12px;color:var(--dim);text-wrap:pretty}
+.check{display:flex;align-items:center;gap:6px;font-size:12.5px}
+.note{margin:0;font-size:11.5px;line-height:1.7;color:var(--faint);text-wrap:pretty}
+
+@media (max-width:420px){
+  .top{gap:8px}
+  .brand h1{font-size:21px;letter-spacing:.1em}
+  .brand .sub{display:none}
+  .actions{gap:6px}
+  .chip{padding:0 10px 0 9px;font-size:12px;gap:6px}
+  .ibtn{min-width:36px;height:36px;padding:0 8px}
+  .chip{height:36px}
+  .tools{gap:4px}
+  .tool{flex:1 1 0;min-width:0;font-size:9.5px;letter-spacing:-.03em;padding:6px 0 5px;overflow:hidden}
+  .tool svg{width:22px;height:22px}
+  .well{width:31px;height:31px}
+  #size{width:84px}
+}
+@media (prefers-reduced-motion:reduce){ .toast,.well,.chip i{transition:none} .ibtn.rec[aria-pressed="true"] svg circle{animation:none} }
+
+</style>
+<div class="app" id="app">
+  <canvas id="cv" aria-label="液体の皿。指でなぞると絵具を垂らしたり混ぜたりできます"></canvas>
+  <div id="ring" class="ring" hidden></div>
+  <div id="fail" class="fail" hidden>
+    <b>この端末では描けませんでした</b>
+    <p id="failMsg">WebGL2 と浮動小数点の描画に対応したブラウザで開いてください。</p>
+  </div>
+
+  <header class="top">
+    <div class="brand">
+      <h1>溶き混ぜ</h1>
+      <span class="sub">Tokimaze</span>
+    </div>
+    <div class="actions">
+      <button id="autoBtn" class="chip" aria-pressed="true" title="触っていない間、ひとりでに描き続けます"><i></i>ひとりでに</button>
+      <button id="snapBtn" class="ibtn" title="静止画を保存" aria-label="静止画を保存">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="3"/><circle cx="12" cy="12.5" r="3.6"/><path d="M8.5 6l1.4-2h4.2l1.4 2"/></svg>
+      </button>
+      <button id="recBtn" class="ibtn rec" title="録画" aria-label="録画" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.5"/></svg>
+        <span id="recTime" class="recTime" hidden>0:00</span>
+      </button>
+      <button id="setBtn" class="ibtn" title="設定" aria-label="設定" aria-expanded="false" aria-controls="sheet">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <section id="sheet" class="sheet" hidden aria-label="設定">
+    <div class="sheetHead">
+      <b>皿と液体</b>
+      <button id="sheetClose" class="ibtn" aria-label="閉じる"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+
+    <div class="group">
+      <div class="label">はじめの状態</div>
+      <div class="seg" id="startSeg" role="radiogroup" aria-label="はじめの状態">
+        <button data-v="dark" role="radio">黒い皿に水</button>
+        <button data-v="whiteLayer" role="radio">白い絵具を敷く</button>
+        <button data-v="blackLayer" role="radio">黒い絵具を敷く</button>
+        <button data-v="light" role="radio">白い皿に水</button>
+      </div>
+      <button id="resetBtn" class="wide">この状態からやり直す</button>
+    </div>
+
+    <div class="group">
+      <div class="label">流れ</div>
+      <label class="sl" for="sDamp"><span>粘り</span><input id="sDamp" type="range" min="0" max="1" step="0.01" value="0.25"><output id="oDamp"></output></label>
+      <label class="sl" for="sCurl"><span>渦</span><input id="sCurl" type="range" min="0" max="1" step="0.01" value="0.34"><output id="oCurl"></output></label>
+      <label class="sl" for="sSpin"><span>回転台</span><input id="sSpin" type="range" min="-1" max="1" step="0.01" value="0"><output id="oSpin"></output></label>
+    </div>
+
+    <div class="group">
+      <div class="label">傾き</div>
+      <div class="tiltRow">
+        <div id="tilt" class="tilt" role="slider" aria-label="皿の傾き" aria-valuetext="水平" tabindex="0"><i id="tiltKnob"></i></div>
+        <div class="tiltSide">
+          <p>丸をずらすと皿が傾き、絵具の多いところが低い方へ流れます。</p>
+          <button id="levelBtn" class="small">水平に戻す</button>
+          <label class="check" id="motionWrap" hidden><input type="checkbox" id="motionChk"> スマホの傾きを使う</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="label">レンズ</div>
+      <label class="sl" for="sBlur"><span>ピント</span><input id="sBlur" type="range" min="0" max="1" step="0.01" value="0.3"><output id="oBlur"></output></label>
+      <label class="sl" for="sGloss"><span>光沢</span><input id="sGloss" type="range" min="0" max="1" step="0.01" value="0.62"><output id="oGloss"></output></label>
+      <label class="sl" for="sRelief"><span>厚み</span><input id="sRelief" type="range" min="0" max="1" step="0.01" value="0.5"><output id="oRelief"></output></label>
+    </div>
+
+    <div class="group">
+      <div class="label">画質</div>
+      <div class="seg" id="qSeg" role="radiogroup" aria-label="画質">
+        <button data-v="0" role="radio">軽い</button>
+        <button data-v="1" role="radio">標準</button>
+        <button data-v="2" role="radio">精細</button>
+      </div>
+    </div>
+
+    <p class="note">色は光の三原色ではなく絵具として混ざります。青と黄は緑に、赤と青は紫になります（Kubelka–Munk 理論。混色モデルは spectral.js を参考にしています）。アルコールは粘りの弱い液体として濃い絵具の中へ枝分かれしながら入り込み、泡は下の絵具を押しのけて網目を残します。</p>
+  </section>
+
+  <footer class="dock">
+    <div class="palRow">
+      <button id="setName" class="setName" title="色の組を切り替える"><span id="setLabel">絵具箱</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg></button>
+      <div id="pal" class="pal" role="radiogroup" aria-label="色"></div>
+    </div>
+    <div id="tools" class="tools" role="radiogroup" aria-label="道具"></div>
+    <div class="sizeRow">
+      <label for="size" class="sizeLab">大きさ</label>
+      <input id="size" type="range" min="0.5" max="2" step="0.01" value="1">
+      <p id="hint" class="hint"></p>
+    </div>
+  </footer>
+  <input id="colorIn" type="color" value="#3a86ff" tabindex="-1" aria-hidden="true">
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// Pigment colour — Kubelka–Munk mixing in six spectral bands.
+//
+// The reflectance model follows spectral.js by Ronald van Wijnen (MIT License,
+// https://github.com/rvanwijnen/spectral.js): an sRGB colour becomes a reflectance
+// spectrum built from seven base spectra, each band gets KS = (1-R)^2 / 2R, and
+// colours mix by a luminance-weighted average of KS. Here the 38-sample spectra
+// are averaged into six bands so a pixel's whole pigment state fits two RGBA
+// textures, and the band -> linear RGB matrix was least-squares fitted against
+// the full 38-band mix (mean ΔE_OK ≈ 0.3 on random two-colour mixes).
+//
+// A pixel stores, per band b, Σ w·KS_b plus Σ w and Σ amount, where
+// w = amount · luminance · tinting². Every quantity is linear in amount, so the
+// fluid solver can advect and interpolate it freely and interpolation *is*
+// pigment mixing: blue and yellow make green, not grey.
+// ---------------------------------------------------------------------------
+const KM = (() => {
+  const BASE = {W:[1.00115,1.00065,0.999792,1.00018,1.00052,1.00054],C:[0.971187,0.988054,0.993388,0.439755,0.0166191,0.0145161],M:[0.990491,0.753807,0.0309595,0.582949,0.968866,0.972261],Y:[0.0214208,0.254816,0.964106,0.986234,0.984848,0.984704],R:[0.0308801,0.0123975,0.00654588,0.560412,0.983607,0.985684],G:[0.0097428,0.247493,0.968695,0.417323,0.0315831,0.0281468],B:[0.979043,0.746027,0.0355853,0.0139663,0.0155993,0.0157636]};
+  const BAND_Y = [0.00144892,0.0931575,0.495909,0.357169,0.0517704,0.000545408];
+  const B2RGB = [[0.0933675,-0.172951,0.859612],[-0.132224,0.183284,0.222326],[-0.16987,0.922475,-0.0528979],[0.413681,0.178076,-0.00401051],[2.27984,-2.73577,-1.18011],[-1.48706,2.62584,1.15398]];
+  const RMIN = 0.002;
+  const unc = x => x > 0.04045 ? ((x + 0.055) / 1.055) ** 2.4 : x / 12.92;
+  const cmp = x => x > 0.0031308 ? 1.055 * x ** (1 / 2.4) - 0.055 : x * 12.92;
+  const hexToRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255);
+  const rgbToHex = c => '#' + c.map(x => Math.round(255 * Math.min(1, Math.max(0, x))).toString(16).padStart(2, '0')).join('');
+  const ks = R => (1 - R) * (1 - R) / (2 * R);
+  const km = k => 1 + k - Math.sqrt(k * k + 2 * k);
+
+  function bandsOf(hex) {
+    let l = hexToRgb(hex).map(unc);
+    const w = Math.min(...l);
+    l = l.map(x => x - w);
+    const c = {
+      W: w, C: Math.min(l[1], l[2]), M: Math.min(l[0], l[2]), Y: Math.min(l[0], l[1]),
+      R: Math.max(0, Math.min(l[0] - l[2], l[0] - l[1])),
+      G: Math.max(0, Math.min(l[1] - l[2], l[1] - l[0])),
+      B: Math.max(0, Math.min(l[2] - l[1], l[2] - l[0])),
+    };
+    const R = [0, 1, 2, 3, 4, 5].map(i => Math.max(RMIN, Object.keys(c).reduce((s, k) => s + c[k] * BASE[k][i], 0)));
+    const lum = Math.max(1e-4, R.reduce((s, x, i) => s + x * BAND_Y[i], 0));
+    return { R, ks: R.map(ks), lum };
+  }
+
+  // Per unit of paint: the two texels a splat adds (w·KS0..3) and (w·KS4, w·KS5, w, 1).
+  function pigment(hex, tint = 1) {
+    const b = bandsOf(hex);
+    const w = b.lum * tint * tint;
+    return {
+      c0: [w * b.ks[0], w * b.ks[1], w * b.ks[2], w * b.ks[3]],
+      c1: [w * b.ks[4], w * b.ks[5], w, 1],
+    };
+  }
+
+  // CPU mix for previews: list of [hex, amount, tint].
+  function mix(list) {
+    let W = 0; const acc = [0, 0, 0, 0, 0, 0];
+    for (const [hex, amt, tint = 1] of list) {
+      const b = bandsOf(hex), w = amt * b.lum * tint * tint;
+      W += w; for (let i = 0; i < 6; i++) acc[i] += w * b.ks[i];
+    }
+    const R = acc.map(a => km(a / W));
+    const lin = [0, 1, 2].map(c => R.reduce((s, x, i) => s + x * B2RGB[i][c], 0));
+    return rgbToHex(lin.map(x => cmp(Math.max(0, x))));
+  }
+
+  const rgb01 = hex => hexToRgb(hex);
+  const lin01 = hex => hexToRgb(hex).map(unc);
+  return { pigment, mix, B2RGB, rgb01, lin01, rgbToHex };
+})();
+
+// ---------------------------------------------------------------------------
+// GLSL. Coordinates: vUv in [0,1]^2; "domain" units are vUv * (aspect, 1), so
+// one unit is the height of the dish and distances are isotropic.
+// Velocities are stored in domain units per second.
+// ---------------------------------------------------------------------------
+const SH = (() => {
+  const v3 = r => `vec3(${r.map(x => x.toFixed(6)).join(',')})`;
+  const MAXB = 96, MAXI = 6;
+
+  const VS = `#version 300 es
+in vec2 aPos;
+out vec2 vUv;
+void main(){ vUv = aPos*0.5+0.5; gl_Position = vec4(aPos,0.0,1.0); }`;
+
+  const HEAD = `#version 300 es
+precision highp float;
+precision highp sampler2D;
+in vec2 vUv;
+`;
+
+  const LIB = `
+float hash12(vec2 p){ vec3 p3 = fract(vec3(p.xyx)*0.1031); p3 += dot(p3, p3.yzx+33.33); return fract((p3.x+p3.y)*p3.z); }
+float vnoise(vec2 p){ vec2 i=floor(p), f=fract(p); vec2 u=f*f*(3.0-2.0*f);
+  return mix(mix(hash12(i),hash12(i+vec2(1,0)),u.x), mix(hash12(i+vec2(0,1)),hash12(i+vec2(1,1)),u.x), u.y); }
+float fbm(vec2 p){ float s=0.0, a=0.5; for(int i=0;i<4;i++){ s+=a*vnoise(p); p=p*2.03+17.1; a*=0.5; } return s; }
+float segD2(vec2 p, vec2 a, vec2 b, out vec2 d){ vec2 pa=p-a, ba=b-a; float h=clamp(dot(pa,ba)/max(dot(ba,ba),1e-10),0.0,1.0); d=pa-ba*h; return dot(d,d); }
+float inb(vec2 uv){ return step(0.0,uv.x)*step(uv.x,1.0)*step(0.0,uv.y)*step(uv.y,1.0); }
+`;
+
+  // Six-band Kubelka–Munk -> linear RGB, and the shared look of the paint layer.
+  const PAINT = `
+uniform sampler2D uD0, uD1, uAux;
+uniform vec3 uDish;
+uniform float uOpac;
+float KMr(float k){ k=max(k,0.0); return 1.0 + k - sqrt(k*k + 2.0*k); }
+vec3 pigmentRGB(vec4 d0, vec4 d1){
+  float W = max(d1.z, 1e-6);
+  vec3 c = KMr(d0.x/W)*${v3(KM.B2RGB[0])} + KMr(d0.y/W)*${v3(KM.B2RGB[1])} + KMr(d0.z/W)*${v3(KM.B2RGB[2])}
+         + KMr(d0.w/W)*${v3(KM.B2RGB[3])} + KMr(d1.x/W)*${v3(KM.B2RGB[4])} + KMr(d1.y/W)*${v3(KM.B2RGB[5])};
+  return clamp(c, 0.0, 1.0);
+}
+const vec3 FERRO = vec3(0.004,0.004,0.006);
+vec3 baseAt(vec2 uv, out float A, out vec4 ax){
+  vec4 d0 = texture(uD0, uv), d1 = texture(uD1, uv);
+  ax = texture(uAux, uv);
+  A = max(d1.w, 0.0);
+  float al = 1.0 - exp(-uOpac*A);
+  vec3 c = d1.z > 1e-5 ? pigmentRGB(d0, d1) : uDish;
+  c = mix(uDish, c, al);
+  return mix(c, FERRO, smoothstep(0.22, 0.55, ax.z));
+}
+// A dark studio with two soft windows: flat liquid stays dark, slopes catch light.
+float softRect(vec3 r, vec3 L, vec3 U, vec3 V, vec2 size){
+  float d = dot(r, L); if (d <= 0.0) return 0.0;
+  vec2 q = abs(vec2(dot(r,U), dot(r,V))/d);
+  vec2 e = 1.0 - smoothstep(size*0.55, size, q);
+  return e.x*e.y;
+}
+vec3 env(vec3 r){
+  vec3 c = mix(vec3(0.010,0.011,0.014), vec3(0.05,0.052,0.06), smoothstep(0.95, 0.2, r.z));
+  vec3 L1 = normalize(vec3(-0.50, 0.55, 0.67));
+  vec3 U1 = normalize(cross(L1, vec3(0,0,1))); vec3 V1 = cross(U1, L1);
+  c += 3.0*softRect(r, L1, U1, V1, vec2(0.42, 0.30))*vec3(1.0,0.97,0.93);
+  vec3 L2 = normalize(vec3(0.62,-0.35,0.70));
+  vec3 U2 = normalize(cross(L2, vec3(0,0,1))); vec3 V2 = cross(U2, L2);
+  c += 1.1*softRect(r, L2, U2, V2, vec2(0.65, 0.07))*vec3(0.82,0.9,1.0);
+  return c;
+}
+vec3 toSRGB(vec3 c){ c = max(c, 0.0); return mix(c*12.92, 1.055*pow(c, vec3(1.0/2.4)) - 0.055, step(0.0031308, c)); }
+`;
+
+  const FS = {};
+
+  // Splats are batched: up to 16 per pass, so a burst of input costs one pass.
+  FS.splatVel = HEAD + LIB + `
+out vec4 o;
+uniform sampler2D uVel;
+uniform int uN;
+uniform vec4 uV0[16], uV1[16], uV2[16];
+uniform float uAspect;
+void main(){
+  vec2 p = vUv*vec2(uAspect,1.0);
+  vec2 v = texture(uVel, vUv).xy;
+  for (int i=0;i<16;i++){
+    if (i>=uN) break;
+    vec4 s0 = uV0[i], s1 = uV1[i];
+    vec2 d; float x = segD2(p, s0.xy, s0.zw, d)/s1.x;
+    if (x > 12.0) continue;
+    float g = exp(-x);
+    vec2 n = d/sqrt(s1.x);
+    v += g*(uV2[i].xy + s1.y*n + s1.z*vec2(-n.y, n.x));
+  }
+  o = vec4(v, 0.0, 1.0);
+}`;
+
+  FS.splatPaint = HEAD + LIB + `
+layout(location=0) out vec4 o0; layout(location=1) out vec4 o1; layout(location=2) out vec4 o2;
+uniform sampler2D uD0, uD1, uAux;
+uniform int uN;
+uniform vec4 uS0[16], uS1[16], uC0[16], uC1[16], uAdd[16];
+uniform float uAspect;
+void main(){
+  vec2 p = vUv*vec2(uAspect,1.0);
+  vec4 d0 = texture(uD0, vUv), d1 = texture(uD1, vUv), ax = texture(uAux, vUv);
+  for (int i=0;i<16;i++){
+    if (i>=uN) break;
+    vec4 s0 = uS0[i], s1 = uS1[i];
+    vec2 d; float x = segD2(p, s0.xy, s0.zw, d)/s1.x;
+    if (x > 12.0) continue;
+    float g = mix(exp(-x), 1.0 - smoothstep(0.5, 1.0, sqrt(x)), s1.z);
+    float k = s1.y*g;
+    vec4 add = uAdd[i]*g;
+    add.w *= smoothstep(0.62, 0.95, hash12(floor(p*700.0) + s1.w))*4.0;
+    d0 += uC0[i]*k; d1 += uC1[i]*k; ax += add;
+  }
+  o0 = d0; o1 = d1; o2 = max(ax, 0.0);
+}`;
+
+  FS.fill = HEAD + LIB + `
+layout(location=0) out vec4 o0; layout(location=1) out vec4 o1; layout(location=2) out vec4 o2;
+uniform float uAspect, uAmt, uVar, uSeed;
+uniform vec4 uC0, uC1;
+void main(){
+  vec2 p = vUv*vec2(uAspect,1.0);
+  float a = uAmt*(1.0 + uVar*(fbm(p*9.0 + uSeed) - 0.5));
+  o0 = uC0*a; o1 = uC1*a; o2 = vec4(0.0);
+}`;
+
+  FS.copyPaint = HEAD + `
+layout(location=0) out vec4 o0; layout(location=1) out vec4 o1; layout(location=2) out vec4 o2;
+uniform sampler2D uD0, uD1, uAux;
+void main(){ o0 = texture(uD0, vUv); o1 = texture(uD1, vUv); o2 = texture(uAux, vUv); }`;
+
+  FS.copy = HEAD + `
+out vec4 o; uniform sampler2D uT;
+void main(){ o = texture(uT, vUv); }`;
+
+  // Mobility K (inverse viscosity) and volume source q for the film flow.
+  FS.kq = HEAD + LIB + `
+out vec4 o;
+uniform sampler2D uD1, uAux, uSurf;
+uniform vec4 uBub[${MAXB}]; uniform int uNB;
+uniform vec4 uIce[${MAXI}]; uniform int uNI;
+uniform float uKp, uKw, uKa, uShear, uNoise, uQs, uQm, uAspect, uKf, uH;
+uniform vec4 uMag;
+void main(){
+  float A = max(texture(uD1, vUv).w, 0.0);
+  vec4 ax = texture(uAux, vUv);
+  float s = ax.x;
+  float K = mix(uKw, uKp, A/(A + 0.25));
+  float fs = s/(s + A + 0.06);
+  K = mix(K, uKa, fs);
+  K *= 1.0 + uShear*length(texture(uSurf, vUv).xy);
+  vec2 p = vUv*vec2(uAspect,1.0);
+  // uneven ground only matters where alcohol is spreading: it seeds the branches
+  K *= max(0.15, 1.0 + uNoise*smoothstep(0.05, 0.4, fs)*(vnoise(p*55.0) + 0.6*vnoise(p*140.0) - 0.8));
+  float q = uQs*ax.y + uQm*s;
+  float Ac = min(A + ax.z, 1.5);
+  for (int i=0;i<${MAXB};i++){ if(i>=uNB) break; vec4 b=uBub[i]; vec2 dd=p-b.xy; float r2=dot(dd,dd)/(b.z*b.z); if(r2<1.0) q += b.w*(1.0-r2)*Ac; }
+  for (int i=0;i<${MAXI};i++){ if(i>=uNI) break; vec4 c=uIce[i]; vec2 dd=p-c.xy; float r2=dot(dd,dd)/(c.z*c.z); if(r2<1.0) q += c.w*(1.0-r2)*(0.25+Ac); }
+  // magnetic pull on the ferrofluid, as a body force inside the film flow (Hele-Shaw ferrofluid)
+  vec2 F = vec2(0.0);
+  if (uMag.z > 0.0){ vec2 dm = p - uMag.xy; float B = uMag.z*exp(-dot(dm,dm)/uMag.w); F = uKf*min(ax.z, 1.5)*(-2.0*dm/uMag.w)*B*uH; }
+  o = vec4(max(K, 0.02), q, F);
+}`;
+
+  // Darcy (Hele-Shaw) pressure: div(K grad p) = -q, p = 0 beyond the edge.
+  FS.darcy = HEAD + LIB + `
+out vec4 o;
+uniform sampler2D uP, uKQ;
+uniform vec2 uTexel;
+void main(){
+  vec4 c = texture(uKQ, vUv); float Ki = c.x;
+  vec2 l=vUv-vec2(uTexel.x,0.0), r=vUv+vec2(uTexel.x,0.0), t=vUv+vec2(0.0,uTexel.y), b=vUv-vec2(0.0,uTexel.y);
+  vec4 L = texture(uKQ,l), R = texture(uKQ,r), T = texture(uKQ,t), Bq = texture(uKQ,b);
+  float kl=0.5*(Ki+L.x), kr=0.5*(Ki+R.x), kt=0.5*(Ki+T.x), kb=0.5*(Ki+Bq.x);
+  float fdiv = kr*0.5*(c.z+R.z) - kl*0.5*(c.z+L.z) + kt*0.5*(c.w+T.w) - kb*0.5*(c.w+Bq.w);
+  float p = (kl*texture(uP,l).x*inb(l) + kr*texture(uP,r).x*inb(r) + kt*texture(uP,t).x*inb(t) + kb*texture(uP,b).x*inb(b) + c.y - fdiv)/(kl+kr+kt+kb);
+  o = vec4(p, 0.0, 0.0, 1.0);
+}`;
+
+  // Film (surface) velocity: Darcy push + Marangoni pull away from solvent + spin-off.
+  FS.surf = HEAD + LIB + `
+out vec4 o;
+uniform sampler2D uP, uKQ, uAux, uD1;
+uniform vec2 uTexel;
+uniform float uH, uSpin2, uAspect;
+void main(){
+  vec4 c = texture(uKQ, vUv); float K = c.x;
+  vec2 l=vUv-vec2(uTexel.x,0.0), r=vUv+vec2(uTexel.x,0.0), t=vUv+vec2(0.0,uTexel.y), b=vUv-vec2(0.0,uTexel.y);
+  float pc=texture(uP,vUv).x, pl=texture(uP,l).x*inb(l), pr=texture(uP,r).x*inb(r), pt=texture(uP,t).x*inb(t), pb=texture(uP,b).x*inb(b);
+  vec4 L = texture(uKQ,l), R = texture(uKQ,r), T = texture(uKQ,t), Bq = texture(uKQ,b);
+  float kl=0.5*(K+L.x), kr=0.5*(K+R.x), kt=0.5*(K+T.x), kb=0.5*(K+Bq.x);
+  // face fluxes, the same discretisation the solver used, so velocity and squeeze agree
+  float Fr = kr*(-(pr-pc) + 0.5*(c.z+R.z)), Fl = kl*(-(pc-pl) + 0.5*(c.z+L.z));
+  float Ft = kt*(-(pt-pc) + 0.5*(c.w+T.w)), Fb = kb*(-(pc-pb) + 0.5*(c.w+Bq.w));
+  vec2 u = 0.5*vec2(Fr+Fl, Ft+Fb)*uH;
+  float divD = (Fr-Fl) + (Ft-Fb);
+  // Explicit film terms, with their divergence counted so paint is conserved:
+  // the slide down a tilted dish and the turntable's spin-off, both ~ thickness.
+  float A = max(texture(uD1, vUv).w, 0.0);
+  float Al = min(max(texture(uD1,l).w,0.0),1.5), Ar = min(max(texture(uD1,r).w,0.0),1.5), At = min(max(texture(uD1,t).w,0.0),1.5), Ab = min(max(texture(uD1,b).w,0.0),1.5);
+  float Ah = min(A, 1.5);
+  vec2 gA = vec2(Ar-Al, At-Ab)/(2.0*uH);
+  vec2 rr = (vUv-0.5)*vec2(uAspect,1.0);
+  u += uSpin2*rr*Ah;
+  divD += uSpin2*(2.0*Ah + dot(rr, gA));
+  float m = length(u); if (m > 0.9) u *= 0.9/m;
+  o = vec4(u, divD, 1.0);
+}`;
+
+  FS.forces = HEAD + `
+out vec4 o;
+uniform sampler2D uVel, uSurf, uAux, uD1;
+uniform vec2 uTexel;
+uniform float uDt, uAspect, uKelvin, uSpin, uSpinDrag, uCouple, uDamp;
+uniform vec4 uMag;
+uniform vec2 uGrav;
+void main(){
+  vec2 v = texture(uVel, vUv).xy;
+  vec2 p = vUv*vec2(uAspect,1.0);
+  vec4 ax = texture(uAux, vUv);
+  // Kelvin force on the ferrofluid, f*grad(B). Only its curl moves an incompressible liquid,
+  // and the split 1/2(f*grad(B) - B*grad(f)) has that same curl with far less divergence for
+  // the projection to cancel, so the ferrofluid is neither crushed to a point nor blown up.
+  if (uMag.z > 0.0){
+    vec2 dm=p-uMag.xy; float B=uMag.z*exp(-dot(dm,dm)/uMag.w);
+    vec2 tx = vec2(uTexel.x, 0.0), ty = vec2(0.0, uTexel.y);
+    float fc = min(ax.z, 1.5);
+    vec2 gf = vec2(min(texture(uAux,vUv+tx).z,1.5) - min(texture(uAux,vUv-tx).z,1.5), min(texture(uAux,vUv+ty).z,1.5) - min(texture(uAux,vUv-ty).z,1.5))/(2.0*uTexel.y);
+    v += uDt*uKelvin*0.5*(fc*(-2.0*dm/uMag.w)*B - B*gf);
+  }
+  float A = max(texture(uD1, vUv).w, 0.0);
+  v += uDt*uGrav*(min(A, 3.0) + 2.5*min(ax.z,1.5));
+  if (uSpin != 0.0){ vec2 r=p-vec2(0.5*uAspect,0.5); v += (uSpin*vec2(-r.y,r.x) - v)*(1.0-exp(-uDt*uSpinDrag)); }
+  v += uCouple*uDt*texture(uSurf, vUv).xy;
+  v *= exp(-uDt*uDamp);
+  o = vec4(v, 0.0, 1.0);
+}`;
+
+  FS.curl = HEAD + `
+out vec4 o; uniform sampler2D uVel; uniform vec2 uTexel;
+void main(){
+  float L=texture(uVel,vUv-vec2(uTexel.x,0.0)).y, R=texture(uVel,vUv+vec2(uTexel.x,0.0)).y;
+  float T=texture(uVel,vUv+vec2(0.0,uTexel.y)).x, B=texture(uVel,vUv-vec2(0.0,uTexel.y)).x;
+  o = vec4(0.5*(R-L-T+B), 0.0, 0.0, 1.0);
+}`;
+
+  FS.vorticity = HEAD + `
+out vec4 o; uniform sampler2D uVel, uCurl; uniform vec2 uTexel; uniform float uCurlK, uDt;
+void main(){
+  float L=texture(uCurl,vUv-vec2(uTexel.x,0.0)).x, R=texture(uCurl,vUv+vec2(uTexel.x,0.0)).x;
+  float T=texture(uCurl,vUv+vec2(0.0,uTexel.y)).x, B=texture(uCurl,vUv-vec2(0.0,uTexel.y)).x, C=texture(uCurl,vUv).x;
+  vec2 f = 0.5*vec2(abs(T)-abs(B), abs(R)-abs(L));
+  f /= length(f) + 1e-5;
+  f *= uCurlK*C; f.y = -f.y;
+  vec2 v = clamp(texture(uVel,vUv).xy + f*uDt, -4.0, 4.0);
+  o = vec4(v, 0.0, 1.0);
+}`;
+
+  FS.divergence = HEAD + `
+out vec4 o; uniform sampler2D uVel; uniform vec2 uTexel;
+void main(){
+  vec2 C = texture(uVel,vUv).xy;
+  float L=texture(uVel,vUv-vec2(uTexel.x,0.0)).x, R=texture(uVel,vUv+vec2(uTexel.x,0.0)).x;
+  float T=texture(uVel,vUv+vec2(0.0,uTexel.y)).y, B=texture(uVel,vUv-vec2(0.0,uTexel.y)).y;
+  if (vUv.x-uTexel.x < 0.0) L = -C.x;
+  if (vUv.x+uTexel.x > 1.0) R = -C.x;
+  if (vUv.y+uTexel.y > 1.0) T = -C.y;
+  if (vUv.y-uTexel.y < 0.0) B = -C.y;
+  o = vec4(0.5*(R-L+T-B), 0.0, 0.0, 1.0);
+}`;
+
+  FS.pressure = HEAD + `
+out vec4 o; uniform sampler2D uP, uDiv; uniform vec2 uTexel;
+void main(){
+  float L=texture(uP,vUv-vec2(uTexel.x,0.0)).x, R=texture(uP,vUv+vec2(uTexel.x,0.0)).x;
+  float T=texture(uP,vUv+vec2(0.0,uTexel.y)).x, B=texture(uP,vUv-vec2(0.0,uTexel.y)).x;
+  o = vec4((L+R+T+B - texture(uDiv,vUv).x)*0.25, 0.0, 0.0, 1.0);
+}`;
+
+  FS.gradSub = HEAD + `
+out vec4 o; uniform sampler2D uP, uVel; uniform vec2 uTexel;
+void main(){
+  float L=texture(uP,vUv-vec2(uTexel.x,0.0)).x, R=texture(uP,vUv+vec2(uTexel.x,0.0)).x;
+  float T=texture(uP,vUv+vec2(0.0,uTexel.y)).x, B=texture(uP,vUv-vec2(0.0,uTexel.y)).x;
+  o = vec4(texture(uVel,vUv).xy - 0.5*vec2(R-L, T-B), 0.0, 1.0);
+}`;
+
+  FS.scale = HEAD + `
+out vec4 o; uniform sampler2D uT; uniform float uK;
+void main(){ o = texture(uT, vUv)*uK; }`;
+
+  FS.advectVel = HEAD + `
+out vec4 o; uniform sampler2D uVel, uSurf; uniform float uDt, uAspect;
+void main(){
+  vec2 asp = vec2(uAspect,1.0);
+  vec2 u = texture(uVel,vUv).xy + 0.5*texture(uSurf,vUv).xy;
+  vec2 back = vUv - uDt*u/asp;
+  o = vec4(texture(uVel, back).xy, 0.0, 1.0);
+}`;
+
+  // Paint transport: RK2 backtrace, Catmull-Rom sampling clamped to the 2x2
+  // neighbourhood (keeps filaments sharp without ringing), compression where the
+  // film flow converges or spreads, and the ferrofluid's own drift to the magnet.
+  FS.advectPaint = HEAD + `
+layout(location=0) out vec4 o0; layout(location=1) out vec4 o1; layout(location=2) out vec4 o2;
+uniform sampler2D uVel, uSurf, uD0, uD1, uAux;
+uniform vec2 uDyeSize, uSimTexel;
+uniform float uDt, uAspect, uH, uEvap, uPushDecay, uFerroMob, uSharp, uSpread, uCrisp;
+uniform vec4 uMag;
+// Catmull-Rom (5 taps) plus the bilinear value and 2x2 range at the same spot.
+vec4 cr(sampler2D t, vec2 uv, out vec4 lin, out vec4 mn, out vec4 mx){
+  vec2 sp = uv*uDyeSize; vec2 tc = floor(sp - 0.5) + 0.5; vec2 f = sp - tc;
+  vec2 w0 = f*(-0.5 + f*(1.0 - 0.5*f)), w1 = 1.0 + f*f*(-2.5 + 1.5*f), w2 = f*(0.5 + f*(2.0 - 1.5*f)), w3 = f*f*(-0.5 + 0.5*f);
+  vec2 w12 = w1 + w2; vec2 t0 = (tc - 1.0)/uDyeSize, t3 = (tc + 2.0)/uDyeSize, t12 = (tc + w2/w12)/uDyeSize;
+  vec4 r = texture(t, vec2(t12.x, t0.y))*(w12.x*w0.y) + texture(t, vec2(t0.x, t12.y))*(w0.x*w12.y)
+         + texture(t, t12)*(w12.x*w12.y) + texture(t, vec2(t3.x, t12.y))*(w3.x*w12.y) + texture(t, vec2(t12.x, t3.y))*(w12.x*w3.y);
+  r /= (w12.x*w0.y + w0.x*w12.y + w12.x*w12.y + w3.x*w12.y + w12.x*w3.y);
+  ivec2 sz = ivec2(uDyeSize) - 1; ivec2 i0 = clamp(ivec2(tc - 0.5), ivec2(0), sz), i1 = clamp(i0 + 1, ivec2(0), sz);
+  vec4 a = texelFetch(t, i0, 0), b = texelFetch(t, ivec2(i1.x, i0.y), 0), c = texelFetch(t, ivec2(i0.x, i1.y), 0), d = texelFetch(t, i1, 0);
+  vec2 fc = clamp(f, 0.0, 1.0);
+  lin = mix(mix(a, b, fc.x), mix(c, d, fc.x), fc.y);
+  mn = min(min(a,b),min(c,d)); mx = max(max(a,b),max(c,d));
+  return r;
+}
+vec4 sharp(sampler2D t, vec2 uv){ vec4 l, mn, mx; vec4 r = cr(t, uv, l, mn, mx); return mix(l, clamp(r, mn, mx), uCrisp); }
+vec2 vel(vec2 uv){ return texture(uVel, uv).xy + texture(uSurf, uv).xy; }
+// ferrofluid drift up the magnet's field gradient, capped, and stopping where it is already piled up
+vec2 ferroDrift(vec2 uv){
+  vec2 dm = uv*vec2(uAspect,1.0) - uMag.xy; float B = uMag.z*exp(-dot(dm,dm)/uMag.w);
+  vec2 uf = uFerroMob*(-2.0*dm/uMag.w)*B;
+  float sp = length(uf); if (sp > 0.3) uf *= 0.3/sp;
+  return uf*(1.0 - smoothstep(1.3, 2.6, texture(uAux, uv).z));
+}
+void main(){
+  vec2 asp = vec2(uAspect,1.0);
+  vec2 mid = vUv - 0.5*uDt*vel(vUv)/asp;
+  vec2 u = vel(mid);
+  vec2 back = vUv - uDt*u/asp;
+  // squeeze = the film's divergence plus whatever the bulk projection left over
+  vec2 l=vUv-vec2(uSimTexel.x,0.0), r=vUv+vec2(uSimTexel.x,0.0), t=vUv+vec2(0.0,uSimTexel.y), b=vUv-vec2(0.0,uSimTexel.y);
+  float dvb = (texture(uVel,r).x - texture(uVel,l).x + texture(uVel,t).y - texture(uVel,b).y)/(2.0*uH);
+  float dv = texture(uSurf, back).z + dvb;
+  float comp = exp(-uDt*clamp(dv, -6.0, 6.0));
+  // pigment: one choice of weights for both textures, so the ratio sum(w*KS)/sum(w) stays a true mix
+  vec4 l1, n1, x1, l0, n0, x0;
+  vec4 c1 = cr(uD1, back, l1, n1, x1), c0 = cr(uD0, back, l0, n0, x0);
+  bool ok = all(greaterThanEqual(c1.zw, n1.zw*0.98 - 1e-4)) && all(lessThanEqual(c1.zw, x1.zw*1.02 + 1e-4));
+  float kc = ok ? uCrisp : 0.0;
+  vec4 d0 = mix(l0, c0, kc), d1 = mix(l1, c1, kc);
+  vec4 ax = sharp(uAux, back);
+  // ferrofluid: immiscible, pulled up the field gradient
+  vec2 p = vUv*asp;
+  float fe = ax.z, fcomp = comp;
+  vec2 bf = back;
+  if (uMag.z > 0.0 && uFerroMob > 0.0){
+    vec2 uf = ferroDrift(vUv);
+    bf = vUv - uDt*(u + uf)/asp;
+    fe = sharp(uAux, bf).z;
+    // the pull's own squeeze, measured on the same field (it stops where the mound is full)
+    vec2 ex = vec2(2.0/uDyeSize.x, 0.0), ey = vec2(0.0, 2.0/uDyeSize.y);
+    float divf = (ferroDrift(vUv+ex).x - ferroDrift(vUv-ex).x)/(2.0*ex.x*uAspect) + (ferroDrift(vUv+ey).y - ferroDrift(vUv-ey).y)/(2.0*ey.y);
+    fcomp *= exp(-uDt*clamp(divf, -8.0, 8.0));
+  }
+  fe *= fcomp;
+  // excess ferrofluid relaxes outward, thin traces bead up
+  vec2 e = 1.5/uDyeSize;
+  float eL = max(texture(uAux, bf-vec2(e.x,0.0)).z-1.0,0.0), eR = max(texture(uAux, bf+vec2(e.x,0.0)).z-1.0,0.0);
+  float eT = max(texture(uAux, bf+vec2(0.0,e.y)).z-1.0,0.0), eB = max(texture(uAux, bf-vec2(0.0,e.y)).z-1.0,0.0);
+  fe += uDt*uSpread*(eL+eR+eT+eB - 4.0*max(fe-1.0,0.0));
+  fe += uDt*uSharp*fe*(1.0-min(fe,1.0))*(fe-0.3);
+  fe = clamp(fe, 0.0, 12.0);
+  o0 = max(d0*comp, 0.0);
+  o1 = max(d1*comp, 0.0);
+  o2 = vec4(max(ax.x*comp*exp(-uDt*uEvap), 0.0), max(ax.y*exp(-uDt*uPushDecay), 0.0), fe, max(ax.w*comp, 0.0));
+}`;
+
+  FS.display = HEAD + LIB + PAINT + `
+out vec4 o;
+uniform vec2 uDyeTexel;
+uniform float uAspect, uTime, uGloss, uRelief, uRefr;
+uniform vec4 uMag;
+uniform vec4 uIce[${MAXI}]; uniform vec4 uIceB[${MAXI}]; uniform int uNI;
+float spikes(vec2 p){
+  float k = 6.2831853/0.016;
+  float s = cos(k*p.x) + cos(k*(0.5*p.x + 0.8660254*p.y)) + cos(k*(-0.5*p.x + 0.8660254*p.y));
+  return pow(clamp((s + 1.5)/4.5, 0.0, 1.0), 5.0);
+}
+float hAt(vec2 uv){
+  float A = max(texture(uD1, uv).w, 0.0);
+  vec4 ax = texture(uAux, uv);
+  float fm = smoothstep(0.15, 0.7, ax.z);
+  float h = uRelief*(min(A, 3.0) + 1.4*fm + 0.6*min(ax.z, 2.5));
+  if (uMag.z > 0.01){
+    vec2 p = uv*vec2(uAspect,1.0); vec2 dm = p - uMag.xy;
+    float B = uMag.z*exp(-dot(dm,dm)/(uMag.w*1.6));
+    h += uRelief*9.0*fm*B*spikes(p)*min(ax.z, 2.0);
+  }
+  return h;
+}
+float sdBox(vec2 p, float b, float r){ vec2 q = abs(p) - b + r; return length(max(q,0.0)) + min(max(q.x,q.y),0.0) - r; }
+void main(){
+  vec2 asp = vec2(uAspect,1.0);
+  vec2 p = vUv*asp;
+  // ---- ice cubes (top view): refraction through a bevelled block
+  float im = 0.0, ith = 0.0, ihm = 1e-4, iseed = 0.0, icloud = 0.0; vec3 inor = vec3(0,0,1); vec2 il = vec2(0.0);
+  for (int i=0;i<${MAXI};i++){
+    if (i>=uNI) break;
+    vec4 a = uIce[i], b = uIceB[i];
+    vec2 d = p - a.xy; float c = cos(a.w), s = sin(a.w);
+    vec2 l = vec2(c*d.x + s*d.y, -s*d.x + c*d.y);
+    float wob = 0.12*a.z*(vnoise(l*30.0/max(a.z,0.01) + b.z) - 0.5);
+    float dist = sdBox(l, a.z, b.x) + wob;
+    if (dist < 0.003){
+      float bev = max(a.z*0.42, 0.004);
+      float t = clamp(-dist/bev, 0.0, 1.0);
+      float hh = b.y*(t*t*(3.0-2.0*t));
+      float e = 0.0012;
+      vec2 g = vec2(sdBox(l+vec2(e,0.0),a.z,b.x) - sdBox(l-vec2(e,0.0),a.z,b.x), sdBox(l+vec2(0.0,e),a.z,b.x) - sdBox(l-vec2(0.0,e),a.z,b.x))/(2.0*e);
+      g = vec2(c*g.x - s*g.y, s*g.x + c*g.y);
+      float dh = b.y*6.0*t*(1.0-t)/bev;
+      vec2 nn = g*dh;
+      // melting surface: shallow ripples on the top face
+      vec2 rp = l*24.0/max(a.z,0.01) + b.z;
+      nn += 0.25*vec2(vnoise(rp+vec2(0.6,0.0)) - vnoise(rp-vec2(0.6,0.0)), vnoise(rp+vec2(0.0,0.6)) - vnoise(rp-vec2(0.0,0.6)));
+      float m = (1.0 - smoothstep(-0.0012, 0.0012, dist))*b.w;
+      if (m > im){ im = m; ith = hh; ihm = max(b.y, 1e-4); iseed = b.z; inor = normalize(vec3(nn, 1.0)); il = l/max(a.z,0.001); icloud = 1.0 - smoothstep(0.0, 0.9, length(l)/max(a.z,0.001)); }
+    }
+  }
+  vec2 uv = vUv;
+  if (im > 0.0) uv -= inor.xy*(0.02 + ith*1.6)/asp;
+  // ---- the paint film: relief, refraction, gloss
+  vec2 e = uDyeTexel*2.5;
+  float hl = hAt(uv-vec2(e.x,0.0)), hr = hAt(uv+vec2(e.x,0.0)), ht = hAt(uv+vec2(0.0,e.y)), hb = hAt(uv-vec2(0.0,e.y));
+  vec2 g = vec2(hr-hl, ht-hb)/(2.0*e*asp);
+  vec3 n = normalize(vec3(-g, 1.0));
+  vec2 uv2 = uv - n.xy*uRefr/asp;
+  float A; vec4 ax;
+  vec3 col = baseAt(uv2, A, ax);
+  col *= 0.84 + 0.16*clamp(dot(n, normalize(vec3(-0.4,0.5,0.75)))/0.75, 0.0, 1.5);
+  float fm = smoothstep(0.22, 0.55, ax.z);
+  float F0 = mix(0.05, 0.3, fm);
+  float F = F0 + (1.0-F0)*pow(1.0 - n.z, 5.0);
+  vec3 R = reflect(vec3(0.0,0.0,-1.0), n);
+  vec3 ev = env(R);
+  // ferrofluid: a black mirror, only the windows show in it
+  vec3 spec = mix(ev, max(ev - 0.08, 0.0)*1.3, fm)*F*uGloss;
+  // mica / glitter: flakes ride the flow, each glints at its own moment
+  float mi = ax.w;
+  if (mi > 0.02){
+    float ph = hash12(floor(uv2*vec2(1.0/uDyeTexel.x, 1.0/uDyeTexel.y)*0.5));
+    float tw = pow(0.5 + 0.5*sin(mi*70.0 + uTime*3.0 + ph*40.0), 10.0);
+    float fl = smoothstep(0.35, 1.4, mi);
+    vec3 tint = mix(vec3(1.0,0.78,0.42), 0.6 + 0.4*cos(6.2831*(ph + vec3(0.0,0.33,0.67))), 0.35);
+    col = mix(col, col*0.85 + tint*0.18, smoothstep(0.1, 1.2, mi)*0.35);
+    spec += tint*fl*tw*3.2*step(0.55, ph);
+  }
+  col += spec;
+  // ---- ice on top
+  if (im > 0.0){
+    vec3 ice = col*vec3(0.88,0.95,1.02);
+    float cl = icloud*(0.35 + 0.65*fbm(il*3.0 + iseed));
+    ice = mix(ice, vec3(0.78,0.86,0.92), 0.16*cl);
+    float edge = 1.0 - smoothstep(0.0, 0.45, ith/ihm);
+    ice += vec3(0.55,0.62,0.7)*edge*edge*0.35;
+    float cracks = smoothstep(0.03, 0.0, abs(fbm(il*2.2 + iseed*1.7) - 0.5))*icloud;
+    ice += vec3(0.35,0.4,0.45)*cracks*0.5;
+    float Fi = 0.04 + 0.96*pow(1.0 - inor.z, 5.0);
+    ice += env(reflect(vec3(0.0,0.0,-1.0), inor))*Fi*uGloss*2.6;
+    col = mix(col, ice, im);
+  }
+  o = vec4(toSRGB(col), 1.0);
+}`;
+
+  const BUB_VS = `#version 300 es
+in vec2 aPos; in vec4 aB; in vec4 aC;
+uniform float uAspect;
+out vec2 vQ; out vec4 vB; out vec4 vC;
+void main(){
+  float k = (1.12 + 0.7*aC.z);
+  vQ = aPos*k; vB = aB; vC = aC;
+  vec2 w = aB.xy + aPos*aB.z*k;
+  vec2 uv = w/vec2(uAspect,1.0);
+  gl_Position = vec4(uv*2.0-1.0, 0.0, 1.0);
+}`;
+
+  FS.bubble = `#version 300 es
+precision highp float;
+precision highp sampler2D;
+in vec2 vQ; in vec4 vB; in vec4 vC;
+` + LIB + PAINT + `
+out vec4 o;
+uniform float uAspect, uTime, uGloss;
+float fringe(float opd, float lam, float bw){
+  float ph = 6.2831853*opd/lam, dph = 3.14159265*opd*bw/(lam*lam);
+  float sx = dph > 1e-3 ? sin(dph)/dph : 1.0;
+  return 0.5 - 0.5*cos(ph)*sx;
+}
+vec3 thinFilm(float d, float cosi){
+  float cost = sqrt(1.0 - (1.0 - cosi*cosi)/(1.33*1.33));
+  float opd = 2.0*1.33*d*cost;
+  vec3 c = fringe(opd,405.0,55.0)*${v3(KM.B2RGB[0])} + fringe(opd,465.0,65.0)*${v3(KM.B2RGB[1])} + fringe(opd,535.0,60.0)*${v3(KM.B2RGB[2])}
+         + fringe(opd,595.0,60.0)*${v3(KM.B2RGB[3])} + fringe(opd,660.0,65.0)*${v3(KM.B2RGB[4])} + fringe(opd,720.0,55.0)*${v3(KM.B2RGB[5])};
+  return max(c, 0.0);
+}
+void main(){
+  float pop = vC.z, al = vC.w;
+  float rr = dot(vQ, vQ), r = sqrt(rr);
+  if (pop > 0.0){
+    float ring = smoothstep(0.1, 0.0, abs(r - (1.0 + 0.7*pop)))*(1.0 - pop);
+    float dots = step(0.82, hash12(floor(vQ*9.0) + vC.x*31.0))*smoothstep(1.0+0.7*pop, 0.6*pop, r)*(1.0-pop);
+    float a = clamp(ring*0.55 + dots*0.5, 0.0, 1.0)*al;
+    o = vec4(vec3(0.92,0.95,1.0)*a, a); return;
+  }
+  if (r > 1.0){
+    // meniscus: a soft dark collar where the film meets the paint
+    float m = smoothstep(1.12, 1.0, r)*0.32*al;
+    o = vec4(vec3(0.0), m); return;
+  }
+  float z = sqrt(max(1.0 - rr, 0.0));
+  vec3 n = vec3(vQ, z);
+  vec2 w = vB.xy + vQ*vB.z*0.8;
+  float A; vec4 ax;
+  vec3 under = baseAt(w/vec2(uAspect,1.0), A, ax);
+  float t = uTime*0.22 + vC.x*13.0;
+  vec2 sw = vQ*1.9 + vec2(sin(t + vQ.y*2.6), cos(t*0.83 + vQ.x*2.9))*0.45;
+  float d = vC.y*(0.45 + 0.75*vnoise(sw*1.6 + t*0.7) + 0.35*rr) + 15.0;
+  vec3 film = thinFilm(d, z);
+  float F = 0.04 + 0.96*pow(1.0 - z, 5.0);
+  vec3 col = under*(0.96 - 0.3*F) + film*(0.03 + 0.5*F);
+  col += env(reflect(vec3(0.0,0.0,-1.0), n))*F*uGloss*0.9;
+  col = mix(col, col*0.6 + film*0.35, smoothstep(0.88, 1.0, r)*0.6);
+  float a = (1.0 - smoothstep(0.965, 1.0, r))*al;
+  o = vec4(toSRGB(col)*a, a);
+}`;
+
+  FS.post = HEAD + LIB + `
+out vec4 o;
+uniform sampler2D uComp;
+uniform vec2 uRes, uFocus;
+uniform float uBlur, uBloom, uTime, uAspect, uVig, uGrain;
+void main(){
+  vec2 d = (vUv - uFocus)*vec2(uAspect,1.0);
+  float coc = uBlur*smoothstep(0.1, 0.8, length(d));
+  float px = coc*uRes.y;
+  vec3 col;
+  if (px < 0.8){ col = texture(uComp, vUv).rgb; }
+  else {
+    float lod = max(0.0, log2(px/5.0));
+    col = textureLod(uComp, vUv, lod).rgb*0.4; float ws = 0.4;
+    for (int i=0;i<10;i++){
+      float a = float(i)*2.39996323, rr = sqrt((float(i)+0.5)/10.0);
+      vec2 off = vec2(cos(a), sin(a))*rr*coc/vec2(uAspect,1.0);
+      col += textureLod(uComp, vUv + off, lod).rgb; ws += 1.0;
+    }
+    col /= ws;
+  }
+  vec3 b = textureLod(uComp, vUv, 3.0).rgb*0.45 + textureLod(uComp, vUv, 5.0).rgb*0.55;
+  col += uBloom*max(b - 0.88, 0.0)*2.6;
+  vec2 v = (vUv - 0.5)*vec2(uAspect,1.0)/max(uAspect, 1.0);
+  col *= mix(1.0, 0.6, smoothstep(0.3, 0.95, length(v)*1.25)*uVig);
+  col += (hash12(vUv*uRes + fract(uTime*7.13)*311.0) - 0.5)*uGrain;
+  o = vec4(col, 1.0);
+}`;
+
+  FS.readback = HEAD + `
+out vec4 o;
+uniform sampler2D uVel, uSurf, uD1, uAux;
+void main(){
+  vec2 u = texture(uVel, vUv).xy + texture(uSurf, vUv).xy;
+  o = vec4(clamp(u/3.0*0.5 + 0.5, 0.0, 1.0), clamp(texture(uD1, vUv).w/3.0, 0.0, 1.0), clamp(texture(uAux, vUv).z, 0.0, 1.0));
+}`;
+
+  return { VS, BUB_VS, FS, MAXB, MAXI };
+})();
+
+// ---------------------------------------------------------------------------
+// Liquid: the WebGL2 engine. Two velocity fields share the work:
+//  - the bulk flow (incompressible, swirls, carries momentum: stirring, combs,
+//    magnet and tilt forces, the turntable), solved with a pressure projection;
+//  - the film flow (compressible, no memory): a Darcy/Hele-Shaw push from drops,
+//    bubbles and ice, with mobility set by what is there (alcohol is runny, paint
+//    is thick, so alcohol fingers into paint), plus a Marangoni pull away from
+//    solvent and the turntable's spin-off. Paint piles up where it converges.
+// ---------------------------------------------------------------------------
+class Liquid {
+  constructor(canvas) {
+    this.canvas = canvas;
+    const gl = canvas.getContext('webgl2', { alpha: false, antialias: false, depth: false, stencil: false, premultipliedAlpha: false, preserveDrawingBuffer: false, powerPreference: 'high-performance' });
+    if (!gl) throw new Error('webgl2');
+    this.gl = gl;
+    const hasF = gl.getExtension('EXT_color_buffer_float');
+    const hasH = gl.getExtension('EXT_color_buffer_half_float');
+    if (!hasF && !hasH) throw new Error('float-targets');
+    gl.getExtension('OES_texture_float_linear');
+    this.time = 0;
+    this.quality = 1;
+    this.params = {
+      damp: 0.9, curl: 10, kp: 1.0, kw: 5.0, ka: 45, shear: 2.0, noise: 1.5, qs: 4.0, qm: 3.0, pdKeep: 0.9, slide: 0.12, couple: 2.2,
+      evap: 0.1, pushDecay: 3.2, ferroMob: 0.0, kelvin: 0.0, kf: 400, sharp: 2.2, spread: 1.4, crisp: 0.85,
+      spin: 0, spinDrag: 0.7, spin2: 0, grav: [0, 0], opac: 2.6, gloss: 9, relief: 0.0042, refr: 0.012,
+      blur: 0.0, bloom: 0.5, vig: 1.0, grain: 0.018, dish: [0.006, 0.006, 0.008], pressIters: 22, darcyIters: 26,
+    };
+    this.focus = [0.5, 0.5];
+    this.focusT = [0.5, 0.5];
+    this.mag = [0, 0, 0, 0.004];
+    this.queue = [];
+    this.bubbleData = new Float32Array(SH.MAXB * 8);
+    this.nBubbles = 0;
+    this.kqBub = new Float32Array(SH.MAXB * 4); this.nKqBub = 0;
+    this.ice = new Float32Array(SH.MAXI * 4); this.iceB = new Float32Array(SH.MAXI * 4); this.iceQ = new Float32Array(SH.MAXI * 4); this.nIce = 0;
+    this._build();
+  }
+
+  // ---- programs ---------------------------------------------------------
+  _compile(type, src) {
+    const gl = this.gl, s = gl.createShader(type);
+    gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+      const log = gl.getShaderInfoLog(s);
+      console.error(log, src.split('\n').map((l, i) => (i + 1) + ': ' + l).join('\n'));
+      throw new Error('shader: ' + log);
+    }
+    return s;
+  }
+  _program(vs, fs) {
+    const gl = this.gl, p = gl.createProgram();
+    gl.attachShader(p, this._compile(gl.VERTEX_SHADER, vs));
+    gl.attachShader(p, this._compile(gl.FRAGMENT_SHADER, fs));
+    gl.bindAttribLocation(p, 0, 'aPos');
+    gl.bindAttribLocation(p, 1, 'aB');
+    gl.bindAttribLocation(p, 2, 'aC');
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error('link: ' + gl.getProgramInfoLog(p));
+    const u = {}, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+    for (let i = 0; i < n; i++) {
+      const info = gl.getActiveUniform(p, i);
+      const name = info.name.replace(/\[0\]$/, '');
+      u[name] = { loc: gl.getUniformLocation(p, info.name), type: info.type, size: info.size };
+    }
+    return { p, u };
+  }
+  _build() {
+    const gl = this.gl;
+    this.prog = {};
+    for (const k of Object.keys(SH.FS)) this.prog[k] = this._program(k === 'bubble' ? SH.BUB_VS : SH.VS, SH.FS[k]);
+    this.quadBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+    this.vao = gl.createVertexArray();
+    gl.bindVertexArray(this.vao);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    // bubbles: instanced quads
+    this.bubVao = gl.createVertexArray();
+    gl.bindVertexArray(this.bubVao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuf);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    this.bubBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.bubBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, this.bubbleData.byteLength, gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 32, 0); gl.vertexAttribDivisor(1, 1);
+    gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 32, 16); gl.vertexAttribDivisor(2, 1);
+    gl.bindVertexArray(null);
+  }
+
+  // ---- textures & framebuffers -------------------------------------------
+  _tex(w, h, half = true, mip = false) {
+    const gl = this.gl, t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, mip ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    if (half) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, gl.HALF_FLOAT, null);
+    else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    return t;
+  }
+  _fbo(texs, w, h) {
+    const gl = this.gl, fb = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+    texs.forEach((t, i) => gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0 + i, gl.TEXTURE_2D, t, 0));
+    gl.drawBuffers(texs.map((_, i) => gl.COLOR_ATTACHMENT0 + i));
+    const st = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+    if (st !== gl.FRAMEBUFFER_COMPLETE) throw new Error('fbo ' + st);
+    gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+    return { fb, t: texs, w, h };
+  }
+  _single(w, h, half = true) { return this._fbo([this._tex(w, h, half)], w, h); }
+  _double(w, h, n = 1) {
+    const mk = () => this._fbo(Array.from({ length: n }, () => this._tex(w, h)), w, h);
+    const d = { read: mk(), write: mk(), swap() { const x = this.read; this.read = this.write; this.write = x; } };
+    return d;
+  }
+  _free(f) { if (!f) return; const gl = this.gl; if (f.read) { this._free(f.read); this._free(f.write); return; } f.t.forEach(t => gl.deleteTexture(t)); gl.deleteFramebuffer(f.fb); }
+
+  resize(cssW, cssH, dpr) {
+    const gl = this.gl;
+    const Q = [{ sim: 104, dye: 400, dpr: 1 }, { sim: 136, dye: 600, dpr: 1.6 }, { sim: 176, dye: 860, dpr: 2 }][this.quality];
+    const r = Math.min(dpr, Q.dpr);
+    const cw = Math.max(2, Math.round(cssW * r)), ch = Math.max(2, Math.round(cssH * r));
+    const aspect = cssW / cssH;
+    const dims = base => aspect >= 1 ? [Math.round(base * aspect), base] : [base, Math.round(base / aspect)];
+    const [sw, sh] = dims(Q.sim), [dw, dh] = dims(Q.dye);
+    const simChanged = !this.vel || sw !== this.sw || sh !== this.sh;
+    const dyeChanged = !this.paint || dw !== this.dw || dh !== this.dh;
+    this.canvas.width = cw; this.canvas.height = ch;
+    this.cw = cw; this.ch = ch; this.aspect = aspect;
+    if (simChanged) {
+      const old = this.vel;
+      this.sw = sw; this.sh = sh;
+      this.vel = this._double(sw, sh);
+      if (old) { this._run('copy', this.vel.write, { uT: old.read.t[0] }); this.vel.swap(); }
+      [this.pres, this.pd, this.kqF, this.surf, this.divF, this.curlF].forEach(f => this._free(f));
+      this._free(old);
+      this.pres = this._double(sw, sh); this.pd = this._double(sw, sh);
+      this.kqF = this._single(sw, sh); this.surf = this._single(sw, sh);
+      this.divF = this._single(sw, sh); this.curlF = this._single(sw, sh);
+      const rh = 36, rw = Math.max(8, Math.round(36 * aspect));
+      this._free(this.rb);
+      this.rb = this._single(rw, rh, false);
+      this.rbData = new Uint8Array(rw * rh * 4); this.rbW = rw; this.rbH = rh; this.rbReady = false;
+      if (this.pbo) gl.deleteBuffer(this.pbo);
+      this.pbo = gl.createBuffer(); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, this.pbo); gl.bufferData(gl.PIXEL_PACK_BUFFER, rw * rh * 4, gl.STREAM_READ); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+      this.sync = null;
+    }
+    if (dyeChanged) {
+      const old = this.paint;
+      this.dw = dw; this.dh = dh;
+      this.paint = this._double(dw, dh, 3);
+      if (old) { this._run('copyPaint', this.paint.write, { uD0: old.read.t[0], uD1: old.read.t[1], uAux: old.read.t[2] }); this.paint.swap(); this._free(old); }
+    }
+    if (!this.comp || this.comp.w !== cw || this.comp.h !== ch) {
+      this._free(this.comp);
+      this.comp = this._fbo([this._tex(cw, ch, false, true)], cw, ch);
+    }
+  }
+
+  // ---- running a pass --------------------------------------------------------
+  _run(name, target, vals, vao) {
+    const gl = this.gl, P = this.prog[name];
+    gl.useProgram(P.p);
+    if (target) { gl.bindFramebuffer(gl.FRAMEBUFFER, target.fb); gl.viewport(0, 0, target.w, target.h); }
+    else { gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, this.cw, this.ch); }
+    let unit = 0;
+    for (const k in vals) {
+      const u = P.u[k]; if (!u) continue;
+      const v = vals[k];
+      switch (u.type) {
+        case gl.SAMPLER_2D: gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, v); gl.uniform1i(u.loc, unit++); break;
+        case gl.FLOAT: gl.uniform1f(u.loc, v); break;
+        case gl.INT: gl.uniform1i(u.loc, v); break;
+        case gl.FLOAT_VEC2: gl.uniform2fv(u.loc, v); break;
+        case gl.FLOAT_VEC3: gl.uniform3fv(u.loc, v); break;
+        case gl.FLOAT_VEC4: gl.uniform4fv(u.loc, v); break;
+      }
+    }
+    if (vao) return;
+    gl.bindVertexArray(this.vao);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+
+  // ---- inputs (queued, applied at the start of the next step) -----------------
+  // a, b: segment ends in domain units; r: radius (domain)
+  splatVel(a, b, r, force, radial = 0, swirl = 0) { this.queue.push({ k: 'v', a, b, r, force, radial, swirl }); }
+  splatPaint(a, b, r, pig, amt, add, hard = 0.6) { this.queue.push({ k: 'p', a, b, r, pig, amt, add, hard }); }
+  fill(pig, amt, variation = 0.12) { this.queue.push({ k: 'f', pig, amt, variation }); }
+
+  _applyQueue() {
+    const asp = this.aspect, q = this.queue;
+    const V = this._vb || (this._vb = { v0: new Float32Array(64), v1: new Float32Array(64), v2: new Float32Array(64) });
+    const S = this._sb || (this._sb = { s0: new Float32Array(64), s1: new Float32Array(64), c0: new Float32Array(64), c1: new Float32Array(64), add: new Float32Array(64) });
+    let nv = 0, np = 0;
+    const flushV = () => {
+      if (!nv) return;
+      this._run('splatVel', this.vel.write, { uVel: this.vel.read.t[0], uN: nv, uV0: V.v0, uV1: V.v1, uV2: V.v2, uAspect: asp });
+      this.vel.swap(); nv = 0;
+    };
+    const flushP = () => {
+      if (!np) return;
+      const P = this.paint.read.t;
+      this._run('splatPaint', this.paint.write, { uD0: P[0], uD1: P[1], uAux: P[2], uN: np, uS0: S.s0, uS1: S.s1, uC0: S.c0, uC1: S.c1, uAdd: S.add, uAspect: asp });
+      this.paint.swap(); np = 0;
+    };
+    const Z = [0, 0, 0, 0];
+    for (const s of q) {
+      if (s.k === 'v') {
+        const o = nv * 4;
+        V.v0.set([s.a[0], s.a[1], s.b[0], s.b[1]], o);
+        V.v1.set([s.r * s.r, s.radial, s.swirl, 0], o);
+        V.v2.set([s.force[0], s.force[1], 0, 0], o);
+        if (++nv === 16) flushV();
+      } else if (s.k === 'p') {
+        const o = np * 4;
+        S.s0.set([s.a[0], s.a[1], s.b[0], s.b[1]], o);
+        S.s1.set([s.r * s.r, s.amt, s.hard, Math.random() * 100], o);
+        S.c0.set(s.pig ? s.pig.c0 : Z, o); S.c1.set(s.pig ? s.pig.c1 : Z, o); S.add.set(s.add || Z, o);
+        if (++np === 16) flushP();
+      } else if (s.k === 'f') {
+        flushP();
+        this._run('fill', this.paint.write, { uAspect: asp, uAmt: s.amt, uVar: s.variation, uSeed: Math.random() * 50, uC0: s.pig ? s.pig.c0 : Z, uC1: s.pig ? s.pig.c1 : Z });
+        this.paint.swap();
+        flushV(); this._run('scale', this.vel.write, { uT: this.vel.read.t[0], uK: 0 }); this.vel.swap();
+        this._run('scale', this.pd.write, { uT: this.pd.read.t[0], uK: 0 }); this.pd.swap();
+      }
+    }
+    flushV(); flushP();
+    q.length = 0;
+  }
+
+  setBubbles(list, aspect) {
+    // list: [{x,y,r,life,seed,thick,pop,alpha,press}]
+    const n = Math.min(list.length, SH.MAXB);
+    const d = this.bubbleData, k = this.kqBub;
+    let m = 0;
+    for (let i = 0; i < n; i++) {
+      const b = list[i], o = i * 8;
+      d[o] = b.x; d[o + 1] = b.y; d[o + 2] = b.r; d[o + 3] = b.life; d[o + 4] = b.seed; d[o + 5] = b.thick; d[o + 6] = b.pop; d[o + 7] = b.alpha;
+      if (b.pop <= 0 && b.press > 0) { k[m * 4] = b.x; k[m * 4 + 1] = b.y; k[m * 4 + 2] = b.r * 0.92; k[m * 4 + 3] = b.press; m++; }
+    }
+    this.nBubbles = n; this.nKqBub = m;
+  }
+  setIce(list) {
+    const n = Math.min(list.length, SH.MAXI);
+    for (let i = 0; i < n; i++) {
+      const c = list[i], o = i * 4;
+      this.ice.set([c.x, c.y, c.s, c.rot], o);
+      this.iceB.set([c.round, c.h, c.seed, c.alpha], o);
+      this.iceQ.set([c.x, c.y, c.s * 1.55, c.q], o);
+    }
+    this.nIce = n;
+  }
+
+  // ---- one simulation step ------------------------------------------------------
+  step(dt) {
+    const gl = this.gl, P = this.params, asp = this.aspect;
+    this.time += dt;
+    gl.disable(gl.BLEND);
+    this._applyQueue();
+    const simTexel = [1 / this.sw, 1 / this.sh], H = 1 / this.sh;
+    const paint = () => this.paint.read.t;
+    // film flow
+    this._run('kq', this.kqF, {
+      uD1: paint()[1], uAux: paint()[2], uSurf: this.surf.t[0], uBub: this.kqBub, uNB: this.nKqBub, uIce: this.iceQ, uNI: this.nIce,
+      uKp: P.kp, uKw: P.kw, uKa: P.ka, uShear: P.shear, uNoise: P.noise, uQs: P.qs, uQm: P.qm, uAspect: asp, uKf: P.kf, uH: 1 / this.sh, uMag: this.mag,
+    });
+    // let old push fade, so the film only moves while something is pushing
+    this._run('scale', this.pd.write, { uT: this.pd.read.t[0], uK: P.pdKeep }); this.pd.swap();
+    const iters = this.mag[2] > 0.01 ? Math.max(P.darcyIters, 80) : P.darcyIters;
+    for (let i = 0; i < iters; i++) {
+      this._run('darcy', this.pd.write, { uP: this.pd.read.t[0], uKQ: this.kqF.t[0], uTexel: simTexel });
+      this.pd.swap();
+    }
+    this._run('surf', this.surf, { uP: this.pd.read.t[0], uKQ: this.kqF.t[0], uAux: paint()[2], uD1: paint()[1], uTexel: simTexel, uH: H, uSpin2: P.spin2, uAspect: asp });
+    // bulk flow
+    this._run('forces', this.vel.write, {
+      uVel: this.vel.read.t[0], uSurf: this.surf.t[0], uAux: paint()[2], uD1: paint()[1], uDt: dt, uAspect: asp, uTexel: simTexel,
+      uMag: this.mag, uKelvin: P.kelvin, uGrav: P.grav, uSpin: P.spin, uSpinDrag: P.spinDrag, uCouple: P.couple, uDamp: P.damp,
+    });
+    this.vel.swap();
+    if (P.curl > 0) {
+      this._run('curl', this.curlF, { uVel: this.vel.read.t[0], uTexel: simTexel });
+      this._run('vorticity', this.vel.write, { uVel: this.vel.read.t[0], uCurl: this.curlF.t[0], uTexel: simTexel, uCurlK: P.curl, uDt: dt });
+      this.vel.swap();
+    }
+    this._run('divergence', this.divF, { uVel: this.vel.read.t[0], uTexel: simTexel });
+    this._run('scale', this.pres.write, { uT: this.pres.read.t[0], uK: 0.8 }); this.pres.swap();
+    for (let i = 0; i < P.pressIters; i++) {
+      this._run('pressure', this.pres.write, { uP: this.pres.read.t[0], uDiv: this.divF.t[0], uTexel: simTexel });
+      this.pres.swap();
+    }
+    this._run('gradSub', this.vel.write, { uP: this.pres.read.t[0], uVel: this.vel.read.t[0], uTexel: simTexel });
+    this.vel.swap();
+    this._run('advectVel', this.vel.write, { uVel: this.vel.read.t[0], uSurf: this.surf.t[0], uDt: dt, uAspect: asp });
+    this.vel.swap();
+    // paint
+    this._run('advectPaint', this.paint.write, {
+      uVel: this.vel.read.t[0], uSurf: this.surf.t[0], uD0: paint()[0], uD1: paint()[1], uAux: paint()[2],
+      uDyeSize: [this.dw, this.dh], uSimTexel: simTexel, uDt: dt, uAspect: asp, uH: H,
+      uEvap: P.evap, uPushDecay: P.pushDecay, uFerroMob: P.ferroMob, uSharp: P.sharp, uSpread: P.spread, uCrisp: P.crisp, uMag: this.mag,
+    });
+    this.paint.swap();
+  }
+
+  // ---- drawing -------------------------------------------------------------------
+  render() {
+    const gl = this.gl, P = this.params, asp = this.aspect, T = this.paint.read.t;
+    this.focus[0] += (this.focusT[0] - this.focus[0]) * 0.05;
+    this.focus[1] += (this.focusT[1] - this.focus[1]) * 0.05;
+    gl.disable(gl.BLEND);
+    this._run('display', this.comp, {
+      uD0: T[0], uD1: T[1], uAux: T[2], uDish: P.dish, uOpac: P.opac, uDyeTexel: [1 / this.dw, 1 / this.dh], uAspect: asp, uTime: this.time,
+      uGloss: P.gloss, uRelief: P.relief, uRefr: P.refr, uMag: this.mag, uIce: this.ice, uIceB: this.iceB, uNI: this.nIce,
+    });
+    if (this.nBubbles) {
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.bubBuf);
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.bubbleData, 0, this.nBubbles * 8);
+      this._run('bubble', this.comp, { uD0: T[0], uD1: T[1], uAux: T[2], uDish: P.dish, uOpac: P.opac, uAspect: asp, uTime: this.time, uGloss: P.gloss }, true);
+      gl.bindVertexArray(this.bubVao);
+      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.nBubbles);
+      gl.bindVertexArray(null);
+      gl.disable(gl.BLEND);
+    }
+    gl.bindTexture(gl.TEXTURE_2D, this.comp.t[0]);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    this._run('post', null, {
+      uComp: this.comp.t[0], uRes: [this.cw, this.ch], uFocus: this.focus, uBlur: P.blur, uBloom: P.bloom, uTime: this.time, uAspect: asp, uVig: P.vig, uGrain: P.grain,
+    });
+  }
+
+  // ---- slow CPU view of the flow (for bubbles, ice and the auto painter) ------------
+  readback() {
+    const gl = this.gl;
+    if (this.sync) {
+      const st = gl.getSyncParameter(this.sync, gl.SYNC_STATUS);
+      if (st !== gl.SIGNALED) return;
+      gl.deleteSync(this.sync); this.sync = null;
+      gl.bindBuffer(gl.PIXEL_PACK_BUFFER, this.pbo);
+      gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, this.rbData);
+      gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+      this.rbReady = true;
+    }
+    const T = this.paint.read.t;
+    this._run('readback', this.rb, { uVel: this.vel.read.t[0], uSurf: this.surf.t[0], uD1: T[1], uAux: T[2] });
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, this.pbo);
+    gl.readPixels(0, 0, this.rbW, this.rbH, gl.RGBA, gl.UNSIGNED_BYTE, 0);
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+    this.sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+  }
+  // sample the CPU view at a domain point: [vx, vy, amount, ferro]
+  sample(x, y) {
+    if (!this.rbReady) return [0, 0, 1, 0];
+    const W = this.rbW, Hh = this.rbH, d = this.rbData;
+    const fx = Math.min(W - 1.001, Math.max(0, x / this.aspect * W - 0.5)), fy = Math.min(Hh - 1.001, Math.max(0, y * Hh - 0.5));
+    const ix = Math.floor(fx), iy = Math.floor(fy), tx = fx - ix, ty = fy - iy;
+    const out = [0, 0, 0, 0];
+    for (let c = 0; c < 4; c++) {
+      const g = (i, j) => d[((iy + j) * W + ix + i) * 4 + c] / 255;
+      out[c] = (g(0, 0) * (1 - tx) + g(1, 0) * tx) * (1 - ty) + (g(0, 1) * (1 - tx) + g(1, 1) * tx) * ty;
+    }
+    return [(out[0] - 0.5) * 6, (out[1] - 0.5) * 6, out[2] * 3, out[3]];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// World: things that float on the liquid and are tracked on the CPU —
+// soap bubbles (thin-film colour, drift, merge, coarsen, thin out and pop) and
+// ice cubes (melt, drift, push meltwater). Plus the magnet under the dish.
+// ---------------------------------------------------------------------------
+const rnd = (a = 1, b) => b === undefined ? Math.random() * a : a + Math.random() * (b - a);
+
+class World {
+  constructor(liq) {
+    this.liq = liq;
+    this.bubbles = [];
+    this.ice = [];
+    this.mag = { on: false, x: 0, y: 0, s: 0 };
+    this.convT = 0;
+  }
+  get aspect() { return this.liq.aspect; }
+
+  // ---- bubbles -------------------------------------------------------
+  spawnBubbles(x, y, n, spread, sizeK = 1) {
+    for (let i = 0; i < n; i++) {
+      if (this.bubbles.length >= SH.MAXB) {
+        const old = this.bubbles.find(b => b.pop <= 0);
+        if (old) this.pop(old, true); else break;
+      }
+      const a = rnd(Math.PI * 2), d = spread * Math.sqrt(Math.random());
+      const r = Math.min(0.09, (0.008 + 0.034 * Math.pow(Math.random(), 1.8)) * sizeK);
+      this.bubbles.push({
+        x: x + Math.cos(a) * d, y: y + Math.sin(a) * d, r, vx: 0, vy: 0, life: 0, max: rnd(9, 46),
+        seed: Math.random(), thick0: rnd(700, 1250), thick: 900, pop: 0, alpha: 0, press: 2.6,
+      });
+    }
+  }
+  bubbleAt(x, y) {
+    for (let i = this.bubbles.length - 1; i >= 0; i--) {
+      const b = this.bubbles[i];
+      if (b.pop <= 0 && (b.x - x) ** 2 + (b.y - y) ** 2 < b.r * b.r) return b;
+    }
+    return null;
+  }
+  pop(b, quiet = false) {
+    if (b.pop > 0) return;
+    b.pop = 1e-4;
+    if (quiet) return;
+    const p = [b.x, b.y];
+    this.liq.splatVel(p, p, b.r * 1.4, [0, 0], 0.5 + b.r * 6, 0);
+    this.liq.splatPaint(p, p, b.r * 0.9, null, 0, [0.15, 0.9, 0, 0], 0.5);
+  }
+
+  // ---- ice -------------------------------------------------------------
+  addIce(x, y, size = 1) {
+    if (this.ice.length >= SH.MAXI) this.ice.shift();
+    const s0 = Math.min(0.11, rnd(0.045, 0.065) * size);
+    this.ice.push({ x, y, s0, s: s0, rot: rnd(-0.6, 0.6), vr: rnd(-0.12, 0.12), vx: 0, vy: 0, melt: 0, T: rnd(38, 60), seed: rnd(100), alpha: 0, grab: null });
+  }
+  iceAt(x, y) {
+    for (let i = this.ice.length - 1; i >= 0; i--) {
+      const c = this.ice[i];
+      if (Math.abs(c.x - x) < c.s * 1.25 && Math.abs(c.y - y) < c.s * 1.25) return c;
+    }
+    return null;
+  }
+
+  update(dt) {
+    const liq = this.liq, A = this.aspect;
+    // magnet
+    const m = this.mag;
+    m.s += ((m.on ? 1 : 0) - m.s) * (1 - Math.exp(-dt * (m.on ? 7 : 4)));
+    liq.mag = [m.x, m.y, m.s > 0.004 ? m.s : 0, 0.0065];
+
+    // bubbles
+    const B = this.bubbles;
+    for (const b of B) {
+      b.life += dt;
+      if (b.pop > 0) { b.pop += dt / 0.2; continue; }
+      b.alpha = Math.min(1, b.alpha + dt * 5);
+      if (b.life > b.max) { this.pop(b); continue; }
+      const s = liq.sample(b.x, b.y);
+      const k = 1 - Math.exp(-dt * 4);
+      b.vx += (s[0] * 0.9 - b.vx) * k;
+      b.vy += (s[1] * 0.9 - b.vy) * k;
+      const f = Math.max(0, 1 - b.life / b.max);
+      b.thick = 18 + b.thick0 * Math.pow(f, 0.85);
+    }
+    for (let i = 0; i < B.length; i++) {
+      const a = B[i]; if (a.pop > 0) continue;
+      for (let j = i + 1; j < B.length; j++) {
+        const b = B[j]; if (b.pop > 0) continue;
+        let dx = b.x - a.x, dy = b.y - a.y; const d = Math.hypot(dx, dy) || 1e-6, rs = a.r + b.r;
+        if (d >= rs) continue;
+        if (d < 0.32 * rs && Math.random() < dt * 3) {
+          // merge: the bigger one swallows the other (area is kept)
+          const [big, small] = a.r >= b.r ? [a, b] : [b, a];
+          big.r = Math.min(0.12, Math.sqrt(big.r * big.r + small.r * small.r));
+          small.pop = 1e-4; continue;
+        }
+        // packed foam: push apart, and gas seeps from the small one into the big one
+        const ov = (rs * 0.94 - d); dx /= d; dy /= d;
+        if (ov > 0) {
+          const wa = b.r * b.r / (a.r * a.r + b.r * b.r), wb = 1 - wa;
+          a.x -= dx * ov * wa * 0.5; a.y -= dy * ov * wa * 0.5;
+          b.x += dx * ov * wb * 0.5; b.y += dy * ov * wb * 0.5;
+        }
+        const [big, small] = a.r >= b.r ? [a, b] : [b, a];
+        const dr = dt * 0.00018 * (1 / small.r - 1 / big.r);
+        small.r -= dr; big.r = Math.sqrt(big.r * big.r + 2 * small.r * dr);
+        if (small.r < 0.005) small.pop = 1e-4;
+      }
+    }
+    for (const b of B) {
+      if (b.pop > 0) continue;
+      b.x += b.vx * dt; b.y += b.vy * dt;
+      if (b.x < b.r) { b.x = b.r; b.vx = Math.abs(b.vx) * 0.3; }
+      if (b.x > A - b.r) { b.x = A - b.r; b.vx = -Math.abs(b.vx) * 0.3; }
+      if (b.y < b.r) { b.y = b.r; b.vy = Math.abs(b.vy) * 0.3; }
+      if (b.y > 1 - b.r) { b.y = 1 - b.r; b.vy = -Math.abs(b.vy) * 0.3; }
+    }
+    this.bubbles = B.filter(b => b.pop < 1);
+    liq.setBubbles(this.bubbles.map(b => ({ x: b.x, y: b.y, r: b.r, life: b.life, seed: b.seed, thick: b.thick, pop: b.pop, alpha: b.alpha, press: b.press * b.alpha })));
+
+    // ice
+    this.convT += dt;
+    const conv = this.convT > 0.22; if (conv) this.convT = 0;
+    for (const c of this.ice) {
+      c.melt = Math.min(1, c.melt + dt / c.T);
+      c.alpha = c.melt >= 1 ? Math.max(0, c.alpha - dt * 0.8) : Math.min(1, c.alpha + dt * 4);
+      c.s = c.s0 * Math.pow(1 - c.melt * 0.92, 0.75);
+      if (c.grab) {
+        c.vx = (c.grab[0] - c.x) / Math.max(dt, 1e-3); c.vy = (c.grab[1] - c.y) / Math.max(dt, 1e-3);
+        c.x = c.grab[0]; c.y = c.grab[1];
+      } else {
+        const s = liq.sample(c.x, c.y), k = 1 - Math.exp(-dt * 0.9);
+        c.vx += (s[0] * 0.6 - c.vx) * k; c.vy += (s[1] * 0.6 - c.vy) * k;
+        c.x = Math.min(A - c.s, Math.max(c.s, c.x + c.vx * dt));
+        c.y = Math.min(1 - c.s, Math.max(c.s, c.y + c.vy * dt));
+      }
+      c.rot += c.vr * dt;
+      if (conv && c.alpha > 0.2 && c.melt < 1) {
+        // cold meltwater sinks in fingers: small swirls around the edge
+        const a = rnd(Math.PI * 2), d = c.s * rnd(1.0, 1.6);
+        const p = [c.x + Math.cos(a) * d, c.y + Math.sin(a) * d];
+        liq.splatVel(p, p, c.s * 0.5, [Math.cos(a) * 0.06, Math.sin(a) * 0.06], 0, rnd(-0.12, 0.12));
+      }
+    }
+    this.ice = this.ice.filter(c => c.alpha > 0 || c.melt < 1);
+    liq.setIce(this.ice.map(c => ({
+      x: c.x, y: c.y, s: c.s, rot: c.rot, round: c.s * (0.16 + 0.7 * c.melt), h: 0.02 * Math.pow(1 - c.melt, 0.5) + 0.002,
+      seed: c.seed, alpha: c.alpha, q: c.melt < 1 ? 0.9 * (0.35 + c.melt) * c.alpha : 0,
+    })));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Tools. A stroke is {x,y,px,py,vx,vy,t,dist,swatch,size}; positions in domain
+// units. The same functions serve fingers and the auto painter.
+// ---------------------------------------------------------------------------
+const TOOLS = {
+  paint: {
+    name: '垂らす', hint: '押すと絵具が落ちて広がる。押し続けると注ぎ続け、なぞると線になる。',
+    begin(app, s) { app.drop(s, 2.6, 0.032); },
+    hold(app, s, dt) { app.drop(s, 7 * dt, 0.028 * (1 + 0.2 * Math.min(s.t, 3)), dt); },
+    move(app, s, dt) {
+      const d = Math.hypot(s.x - s.px, s.y - s.py);
+      app.trail(s, Math.min(1.6, d * 30), 0.018);
+      app.liq.splatVel([s.px, s.py], [s.x, s.y], 0.03 * s.size, [s.vx * 0.3, s.vy * 0.3]);
+    },
+  },
+  stir: {
+    name: '混ぜる', hint: 'なぞった方へ液体が流れる。速く動かすと渦が生まれる。',
+    move(app, s) { app.liq.splatVel([s.px, s.py], [s.x, s.y], 0.042 * s.size, [s.vx * 0.9, s.vy * 0.9]); },
+  },
+  comb: {
+    name: '櫛', hint: '七本の歯で引く。墨流しのように縞が並ぶ。',
+    move(app, s) {
+      const l = Math.hypot(s.vx, s.vy); if (l < 1e-4) return;
+      const nx = -s.vy / l, ny = s.vx / l, gap = 0.034 * s.size;
+      for (let k = -3; k <= 3; k++) {
+        const ox = nx * gap * k, oy = ny * gap * k;
+        app.liq.splatVel([s.px + ox, s.py + oy], [s.x + ox, s.y + oy], 0.0075 * s.size, [s.vx * 1.15, s.vy * 1.15]);
+      }
+    },
+  },
+  alcohol: {
+    name: 'アルコール', hint: '絵具を押しのけて穴を開け、枝分かれして広がる。色を選ぶとアルコールインクになる。',
+    begin(app, s) { app.alcohol(s, 1, 0.03); },
+    hold(app, s, dt) { app.alcohol(s, 1.6 * dt, 0.022, dt); },
+    move(app, s) { const d = Math.hypot(s.x - s.px, s.y - s.py); app.alcohol(s, Math.min(1, d * 12), 0.015, 0, true); },
+  },
+  bubble: {
+    name: '泡', hint: '泡を浮かべる。泡は絵具を押しのけ、薄くなって弾ける。泡を押すと割れる。',
+    begin(app, s) {
+      const b = app.world.bubbleAt(s.x, s.y);
+      if (b) { s.popping = true; app.world.pop(b); return; }
+      app.world.spawnBubbles(s.x, s.y, Math.round(7 + 7 * s.size), 0.045 * s.size, s.size);
+      app.liq.splatPaint([s.x, s.y], [s.x, s.y], 0.05 * s.size, null, 0, [0.35, 0.5, 0, 0], 0.3);
+      s.acc = 0;
+    },
+    move(app, s) {
+      if (s.popping) { const b = app.world.bubbleAt(s.x, s.y); if (b) app.world.pop(b); return; }
+      s.acc = (s.acc || 0) + Math.hypot(s.x - s.px, s.y - s.py);
+      while (s.acc > 0.03) { s.acc -= 0.03; app.world.spawnBubbles(s.x, s.y, 2, 0.015, s.size * 0.8); }
+    },
+  },
+  ice: {
+    name: '氷', hint: '氷を置く。溶けた水が絵具を押しのけ、冷たい筋が流れる。氷はつかんで動かせる。',
+    begin(app, s) {
+      const c = app.world.iceAt(s.x, s.y);
+      if (c) { s.ice = c; c.grab = [s.x, s.y]; return; }
+      app.world.addIce(s.x, s.y, s.size);
+    },
+    move(app, s) { if (s.ice) { s.ice.grab = [s.x, s.y]; app.liq.splatVel([s.px, s.py], [s.x, s.y], s.ice.s * 1.2, [s.vx * 0.5, s.vy * 0.5]); } },
+    end(app, s) { if (s.ice) s.ice.grab = null; },
+  },
+  magnet: {
+    name: '磁石', hint: '皿の下から磁石を当てる。磁性流体が寄ってきて棘が立つ。先に磁性流体を垂らしておく。',
+    begin(app, s) { const m = app.world.mag; m.on = true; m.x = s.x; m.y = s.y; },
+    move(app, s) { const m = app.world.mag; m.x = s.x; m.y = s.y; },
+    end(app) { app.world.mag.on = false; },
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Auto painter: when nobody is touching, it keeps the dish alive with the same
+// tools a hand would use — pours, concentric drops, alcohol, stirs, combs,
+// bubbles, a magnet sweep, an ice cube now and then.
+// ---------------------------------------------------------------------------
+class AutoPainter {
+  constructor(app) { this.app = app; this.on = true; this.wait = 0.4; this.idle = 0; this.gest = []; this.recent = []; }
+  touch() { this.idle = 0; }
+  update(dt, userActive) {
+    if (userActive) this.idle = 0; else this.idle += dt;
+    for (const g of this.gest) this._advance(g, dt);
+    this.gest = this.gest.filter(g => !g.done);
+    if (!this.on || this.idle < 3.5) return;
+    this.wait -= dt;
+    if (this.wait <= 0 && this.gest.length < 2) { this.wait = rnd(1.1, 3.6); this._launch(); }
+  }
+  _pt(m = 0.12) { const A = this.app.liq.aspect; return [rnd(m * Math.min(A, 1), A - m * Math.min(A, 1)), rnd(m, 1 - m)]; }
+  _color() {
+    const cols = this.app.colorSwatches();
+    let i; do { i = Math.floor(Math.random() * cols.length); } while (this.recent.includes(i) && cols.length > 3 && Math.random() < 0.85);
+    this.recent.push(i); if (this.recent.length > 2) this.recent.shift();
+    return cols[i];
+  }
+  _go(tool, swatch, path, dur, size = 1) { this.gest.push({ tool, swatch, path, dur, t: 0, size, s: null }); }
+  _launch() {
+    const A = this.app.liq.aspect, w = this.app.world;
+    const pick = Math.random();
+    const hasFerro = this.app.ferroUsed;
+    if (pick < 0.3) {
+      const p = this._pt(); this._go('paint', this._color(), () => p, rnd(0.2, 1.6), rnd(0.8, 1.5));
+    } else if (pick < 0.42) {
+      // concentric drops, one into the other
+      const p = this._pt(0.2), n = 2 + Math.floor(rnd(3));
+      for (let i = 0; i < n; i++) setTimeout(() => this._go('paint', this._color(), () => p, rnd(0.35, 0.8), rnd(0.8, 1.3)), i * 650);
+    } else if (pick < 0.56) {
+      const p = this._pt(0.15);
+      if (Math.random() < 0.35) {
+        const q = this._pt(0.15); this._go('alcohol', Math.random() < 0.5 ? this._color() : this.app.waterSwatch(), t => [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t], rnd(0.8, 1.6));
+      } else this._go('alcohol', Math.random() < 0.6 ? this._color() : this.app.waterSwatch(), () => p, rnd(0.1, 0.7), rnd(0.8, 1.4));
+    } else if (pick < 0.74) {
+      const c = this._pt(0.25), r = rnd(0.08, 0.28), a0 = rnd(6.28), turn = rnd(1.2, 4) * (Math.random() < 0.5 ? -1 : 1);
+      this._go('stir', null, t => [c[0] + Math.cos(a0 + turn * t) * r * (1 - 0.4 * t), c[1] + Math.sin(a0 + turn * t) * r * (1 - 0.4 * t)], rnd(1.0, 2.4), rnd(0.8, 1.4));
+    } else if (pick < 0.8) {
+      const horiz = Math.random() < 0.5, y = rnd(0.3, 0.7), x = rnd(0.3, 0.7) * A, dir = Math.random() < 0.5 ? -1 : 1;
+      this._go('comb', null, t => horiz ? [A * (dir > 0 ? 0.08 + 0.84 * t : 0.92 - 0.84 * t), y] : [x, dir > 0 ? 0.08 + 0.84 * t : 0.92 - 0.84 * t], rnd(1.6, 2.6), rnd(0.7, 1.1));
+    } else if (pick < 0.88) {
+      const p = this._pt(0.2); this._go('bubble', null, () => p, 0.05, rnd(0.7, 1.3));
+    } else if (pick < 0.95) {
+      if (!hasFerro) { const p = this._pt(0.25); this._go('paint', this.app.ferroSwatch(), () => p, rnd(0.6, 1.1), 1); }
+      else {
+        const c = this._pt(0.3), r = rnd(0.05, 0.18), a0 = rnd(6.28);
+        this._go('magnet', null, t => [c[0] + Math.cos(a0 + t * 5) * r, c[1] + Math.sin(a0 + t * 5) * r], rnd(2.5, 4.5));
+      }
+    } else if (w.ice.length < 2) {
+      const p = this._pt(0.2); this._go('ice', null, () => p, 0.05, rnd(0.8, 1.2));
+    }
+  }
+  _advance(g, dt) {
+    const app = this.app, T = TOOLS[g.tool];
+    g.t += dt;
+    const u = Math.min(1, g.t / g.dur), [x, y] = g.path(u);
+    if (!g.s) {
+      g.s = { x, y, px: x, py: y, vx: 0, vy: 0, t: 0, swatch: g.swatch, size: g.size, auto: true };
+      app.focusOn(x, y);
+      T.begin && T.begin(app, g.s);
+      return;
+    }
+    const s = g.s;
+    s.px = s.x; s.py = s.y; s.x = x; s.y = y; s.t += dt;
+    s.vx = (s.x - s.px) / Math.max(dt, 1e-3); s.vy = (s.y - s.py) / Math.max(dt, 1e-3);
+    if (Math.hypot(s.x - s.px, s.y - s.py) > 1e-4) T.move && T.move(app, s, dt);
+    else T.hold && T.hold(app, s, dt);
+    if (u >= 1) { T.end && T.end(app, s); g.done = true; }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The app: palette, tools, fingers, settings, saving.
+// ---------------------------------------------------------------------------
+(() => {
+const $ = id => document.getElementById(id);
+const inViewer = !!(window.claude && typeof window.claude.use === 'function');
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('tokimaze:' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('tokimaze:' + k, JSON.stringify(v)); } catch (e) {} },
+};
+
+// ---- colour sets ------------------------------------------------------------
+const SETS = [
+  { name: '絵具箱', colors: [['白', '#F2F0EA', 0.9], ['レモン', '#F6D21A', 1], ['朱', '#E4462A', 1.1], ['紅', '#C2185B', 1.25], ['群青', '#23389C', 1.2], ['ターコイズ', '#00897E', 1.2], ['黄土', '#C88B2E', 0.95], ['黒', '#141414', 1]] },
+  { name: '三原色', colors: [['シアン', '#00A0E0', 1.1], ['マゼンタ', '#E4007F', 1.1], ['イエロー', '#FFE100', 1], ['白', '#FFFFFF', 0.9], ['黒', '#111111', 1]] },
+  { name: '夜の色', colors: [['桃', '#FF2D8A', 1], ['電気の青', '#2F5BFF', 1.1], ['ライム', '#A8F02A', 1], ['橙', '#FF7A00', 1], ['菫', '#8A2BE2', 1.15], ['水色', '#2FD8F5', 1], ['白', '#FFFFFF', 0.85]] },
+  { name: '岩絵具', colors: [['群青', '#1F3C88', 1.1], ['緑青', '#1B7F5C', 1.1], ['辰砂', '#C1352D', 1.1], ['石黄', '#E8B520', 1], ['紫水晶', '#7B4A9E', 1.1], ['胡粉', '#F4F0E6', 0.9], ['墨', '#1A1A1A', 1]] },
+];
+const SPECIAL = [
+  { kind: 'water', name: '水', cls: 'water' },
+  { kind: 'ferro', name: '磁性流体', cls: 'ferro' },
+  { kind: 'mica', name: 'ラメ', cls: 'mica' },
+];
+const ICONS = {
+  paint: '<path d="M12 3c3.5 4.6 5.5 7.8 5.5 10.3A5.5 5.5 0 0 1 6.5 13.3C6.5 10.8 8.5 7.6 12 3z"/><path d="M9.6 14.2a2.6 2.6 0 0 0 2.4 2.3"/>',
+  stir: '<path d="M4 12c2-4 5-6 8-6s6 2.5 6 6-3 5-5.5 5S9 15.5 9 13.5 10.5 10.5 12.5 10.5"/>',
+  comb: '<path d="M4 6h16"/><path d="M6 6v12M9.2 6v12M12.4 6v12M15.6 6v12M18.8 6v12"/>',
+  alcohol: '<path d="M12 12l0 0"/><path d="M12 12l-6-4M12 12l7-3M12 12l-2 8M12 12l6 6M12 12l-7 4"/><path d="M6 8l-2-3M6 8L3 9M19 9l2-3M18 18l1 3M18 18l3 0M5 16l-2 2"/>',
+  bubble: '<circle cx="9" cy="10" r="5"/><circle cx="16.5" cy="15" r="3.5"/><circle cx="16" cy="6" r="1.8"/><path d="M6.5 8.2a3 3 0 0 1 2.2-1.6"/>',
+  ice: '<path d="M5 8.5L12 5l7 3.5v7L12 19l-7-3.5z"/><path d="M5 8.5L12 12l7-3.5M12 12v7"/>',
+  magnet: '<path d="M6 4v8a6 6 0 0 0 12 0V4"/><path d="M6 8h3M15 8h3"/><path d="M9 4v8a3 3 0 0 0 6 0V4"/>',
+};
+
+// ---- engine ------------------------------------------------------------------
+const cv = $('cv');
+let liq;
+try { liq = new Liquid(cv); }
+catch (e) {
+  $('fail').hidden = false;
+  if (String(e.message).startsWith('shader') || String(e.message).startsWith('link')) $('failMsg').textContent = '描画の準備に失敗しました：' + e.message.slice(0, 160);
+  console.error(e);
+  return;
+}
+const world = new World(liq);
+
+const app = {
+  liq, world,
+  tool: store.get('tool', 'paint'),
+  set: Math.min(SETS.length - 1, store.get('set', 0)),
+  custom: store.get('custom', []),
+  sel: store.get('sel', 'c:4'),
+  size: 1,
+  ferroUsed: false,
+  swatches: [],
+  colorSwatches() { return this.swatches.filter(s => s.kind === 'paint'); },
+  waterSwatch() { return { kind: 'water' }; },
+  ferroSwatch() { return { kind: 'ferro' }; },
+  focusOn(x, y) { liq.focusT = [x / liq.aspect, y]; },
+  current() { return this.swatches.find(s => s.id === this.sel) || this.swatches[0]; },
+  // amt is paint thickness added at the centre; the puddle then levels out by itself
+  drop(s, amt, r, dt = 0) {
+    const sw = s.swatch, R = r * s.size, p = [s.x, s.y];
+    // the push spreads the puddle (pressure-solved, so the paint is conserved); amount keeps it ~1 thick
+    const push = dt ? 4.5 * dt : 1.1;
+    if (sw.kind === 'paint') liq.splatPaint(p, p, R, sw.pig, amt, [0, push, 0, 0], 1);
+    else if (sw.kind === 'water') liq.splatPaint(p, p, R, null, 0, [0, dt ? 4 * dt : 1.4, 0, 0], 0.7);
+    else if (sw.kind === 'ferro') { liq.splatPaint(p, p, R * 0.75, null, 0, [0, 0, Math.min(amt, 1.2) * 0.9, 0], 0.9); this.ferroUsed = true; }
+    else if (sw.kind === 'mica') liq.splatPaint(p, p, R, null, 0, [0, push, 0, amt * 0.8], 0.4);
+  },
+  trail(s, amt, r) {
+    const sw = s.swatch, R = r * s.size, a = [s.px, s.py], b = [s.x, s.y];
+    if (sw.kind === 'paint') liq.splatPaint(a, b, R, sw.pig, amt, [0, 0.05 * amt, 0, 0], 0.6);
+    else if (sw.kind === 'water') liq.splatPaint(a, b, R, null, 0, [0, 0.8 * amt, 0, 0], 0.5);
+    else if (sw.kind === 'ferro') { liq.splatPaint(a, b, R * 0.8, null, 0, [0, 0.05 * amt, amt * 0.9, 0], 0.7); this.ferroUsed = true; }
+    else if (sw.kind === 'mica') liq.splatPaint(a, b, R, null, 0, [0, 0.05 * amt, 0, amt * 0.8], 0.4);
+  },
+  alcohol(s, amt, r, dt = 0, trail = false) {
+    const sw = s.swatch, R = r * s.size, a = trail ? [s.px, s.py] : [s.x, s.y], b = [s.x, s.y];
+    const ink = sw.kind === 'paint' ? sw.pig : null;
+    const k = this.alcK || 5;
+    const push = k * (trail ? 0.6 * amt : (dt ? 3.5 * dt : 1.7));
+    liq.splatPaint(a, b, R, ink, ink ? amt * 0.35 : 0, [k * 1.15 * amt, push, sw.kind === 'ferro' ? amt * 0.6 : 0, sw.kind === 'mica' ? amt : 0], 0.95);
+  },
+};
+
+// ---- palette ----------------------------------------------------------------
+function buildSwatches() {
+  const set = SETS[app.set];
+  const list = set.colors.map(([name, hex, tint], i) => ({ id: 'c:' + i, kind: 'paint', name, hex, tint, pig: KM.pigment(hex, tint) }));
+  app.custom.forEach((hex, i) => list.push({ id: 'u:' + i, kind: 'paint', name: '選んだ色', hex, tint: 1, pig: KM.pigment(hex, 1) }));
+  SPECIAL.forEach(s => list.push({ id: 's:' + s.kind, ...s }));
+  app.swatches = list;
+  if (!list.some(s => s.id === app.sel)) app.sel = list[0].id;
+}
+function renderPalette() {
+  buildSwatches();
+  $('setLabel').textContent = SETS[app.set].name;
+  const pal = $('pal'); pal.textContent = '';
+  for (const s of app.swatches) {
+    const b = document.createElement('button');
+    b.className = 'well' + (s.kind !== 'paint' ? ' special ' + s.cls : '');
+    if (s.kind === 'paint') b.style.setProperty('--c', s.hex);
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-checked', String(s.id === app.sel));
+    b.setAttribute('aria-label', s.name);
+    b.title = s.name;
+    b.onclick = () => { app.sel = s.id; store.set('sel', app.sel); renderPalette(); toast(swatchNote(s)); };
+    pal.append(b);
+  }
+  const add = document.createElement('button');
+  add.className = 'well add'; add.textContent = '+'; add.title = '色を足す'; add.setAttribute('aria-label', '色を足す');
+  add.onclick = () => { const ci = $('colorIn'); try { ci.showPicker ? ci.showPicker() : ci.click(); } catch (e) { ci.click(); } };
+  pal.append(add);
+}
+function swatchNote(s) {
+  if (s.kind === 'water') return '水：絵具を押しのけて薄める。アルコールで使うと透明なアルコールになる。';
+  if (s.kind === 'ferro') return '磁性流体：水と混ざらない黒い液体。磁石で動かせる。';
+  if (s.kind === 'mica') return 'ラメ：流れに乗ってきらめく雲母の粉。';
+  const others = app.colorSwatches().filter(o => o.id !== s.id && o.kind === 'paint');
+  const o = others.find(c => c.name !== '白' && c.name !== '黒' && c.name !== '胡粉' && c.name !== '墨') || others[0];
+  if (!o) return s.name;
+  return `${s.name}　—　${o.name}と混ぜると ${KM.mix([[s.hex, 1, s.tint], [o.hex, 1, o.tint]])}`;
+}
+$('colorIn').addEventListener('change', e => {
+  app.custom = [...app.custom, e.target.value].slice(-4);
+  store.set('custom', app.custom);
+  app.sel = 'u:' + (app.custom.length - 1); store.set('sel', app.sel);
+  renderPalette();
+});
+$('setName').onclick = () => { app.set = (app.set + 1) % SETS.length; store.set('set', app.set); app.sel = 'c:0'; renderPalette(); toast(`色の組：${SETS[app.set].name}`); };
+
+// ---- tools ------------------------------------------------------------------
+function renderTools() {
+  const box = $('tools'); box.textContent = '';
+  for (const k of Object.keys(TOOLS)) {
+    const b = document.createElement('button');
+    b.className = 'tool'; b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', String(k === app.tool));
+    b.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[k]}</svg><span>${TOOLS[k].name}</span>`;
+    b.onclick = () => { app.tool = k; store.set('tool', k); renderTools(); showHint(); };
+    box.append(b);
+  }
+}
+let hintTimer = 0;
+function showHint() {
+  const h = $('hint'); h.textContent = TOOLS[app.tool].hint; h.style.opacity = 1;
+  clearTimeout(hintTimer); hintTimer = setTimeout(() => { h.style.opacity = 0.0; }, 6000);
+}
+$('size').addEventListener('input', e => { app.size = +e.target.value; });
+
+// ---- toast ------------------------------------------------------------------
+let toastTimer = 0;
+function toast(msg, err = false) {
+  const t = $('toast'); t.textContent = msg; t.classList.toggle('err', err); t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), err ? 4200 : 2600);
+}
+
+// ---- fingers -----------------------------------------------------------------
+const strokes = new Map();
+function toDomain(e) {
+  const r = cv.getBoundingClientRect();
+  return [(e.clientX - r.left) / r.width * liq.aspect, 1 - (e.clientY - r.top) / r.height];
+}
+cv.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+  const [x, y] = toDomain(e);
+  const s = { id: e.pointerId, x, y, px: x, py: y, nx: x, ny: y, vx: 0, vy: 0, t: 0, swatch: app.current(), size: app.size, tool: app.tool, cx: e.clientX, cy: e.clientY };
+  strokes.set(e.pointerId, s);
+  auto.touch();
+  app.focusOn(x, y);
+  const T = TOOLS[s.tool]; T.begin && T.begin(app, s);
+  if (s.tool === 'magnet') placeRing(e.clientX, e.clientY, true);
+  if (!hinted) { hinted = true; store.set('hinted', true); }
+});
+cv.addEventListener('pointermove', e => {
+  const s = strokes.get(e.pointerId); if (!s) return;
+  const [x, y] = toDomain(e); s.nx = x; s.ny = y; s.cx = e.clientX; s.cy = e.clientY;
+  if (s.tool === 'magnet') placeRing(e.clientX, e.clientY, true);
+});
+function endStroke(e) {
+  const s = strokes.get(e.pointerId); if (!s) return;
+  strokes.delete(e.pointerId);
+  const T = TOOLS[s.tool]; T.end && T.end(app, s);
+  if (s.tool === 'magnet') placeRing(0, 0, false);
+}
+cv.addEventListener('pointerup', endStroke);
+cv.addEventListener('pointercancel', endStroke);
+cv.addEventListener('lostpointercapture', endStroke);
+cv.addEventListener('contextmenu', e => e.preventDefault());
+function placeRing(x, y, on) {
+  const r = $('ring'); r.hidden = !on;
+  if (on) { const b = cv.getBoundingClientRect(); r.style.left = (x - b.left) + 'px'; r.style.top = (y - b.top) + 'px'; }
+}
+function processStrokes(dt) {
+  for (const s of strokes.values()) {
+    const T = TOOLS[s.tool];
+    s.px = s.x; s.py = s.y; s.x = s.nx; s.y = s.ny; s.t += dt;
+    const ivx = (s.x - s.px) / dt, ivy = (s.y - s.py) / dt, k = 1 - Math.exp(-dt * 18);
+    s.vx += (ivx - s.vx) * k; s.vy += (ivy - s.vy) * k;
+    if (Math.hypot(s.x - s.px, s.y - s.py) > 1e-4) { T.move && T.move(app, s, dt); app.focusOn(s.x, s.y); }
+    else { s.vx *= 0.7; s.vy *= 0.7; T.hold && T.hold(app, s, dt); }
+  }
+}
+
+// ---- auto painter ------------------------------------------------------------
+const auto = new AutoPainter(app);
+auto.on = store.get('auto', true);
+function syncAuto() { $('autoBtn').setAttribute('aria-pressed', String(auto.on)); }
+$('autoBtn').onclick = () => { auto.on = !auto.on; store.set('auto', auto.on); syncAuto(); toast(auto.on ? 'ひとりでに：触っていない間、皿がひとりでに描き続けます。' : 'ひとりでに：止めました。'); };
+syncAuto();
+
+// ---- settings ----------------------------------------------------------------
+const P = liq.params;
+const START = {
+  dark: { dish: '#050506', fill: null },
+  whiteLayer: { dish: '#050506', fill: '#F2F0EA' },
+  blackLayer: { dish: '#0b0b0d', fill: '#121212' },
+  light: { dish: '#EAE7E1', fill: null },
+};
+let startMode = store.get('start', 'dark');
+if (!START[startMode]) startMode = 'dark';
+function segSync(id, v) { for (const b of $(id).children) b.setAttribute('aria-checked', String(b.dataset.v === String(v))); }
+$('startSeg').onclick = e => { const b = e.target.closest('button'); if (!b) return; startMode = b.dataset.v; store.set('start', startMode); segSync('startSeg', startMode); };
+segSync('startSeg', startMode);
+let resetArm = 0;
+$('resetBtn').onclick = () => {
+  const b = $('resetBtn');
+  if (!resetArm) { resetArm = setTimeout(() => { resetArm = 0; b.classList.remove('confirm'); b.textContent = 'この状態からやり直す'; }, 3000); b.classList.add('confirm'); b.textContent = 'もう一度押すと今の絵が消えます'; return; }
+  clearTimeout(resetArm); resetArm = 0; b.classList.remove('confirm'); b.textContent = 'この状態からやり直す';
+  startScene(startMode, false);
+  toast('はじめからにしました。');
+};
+function startScene(mode, seed) {
+  const m = START[mode];
+  P.dish = KM.lin01(m.dish);
+  world.bubbles.forEach(b => b.pop = 1); world.ice.length = 0; app.ferroUsed = false;
+  liq.fill(m.fill ? KM.pigment(m.fill, 1) : null, m.fill ? 1.0 : 0, 0.14);
+  intro = [];
+  if (seed) seedScene();
+}
+const sliders = {
+  sDamp: [v => { P.damp = 0.25 + 2.6 * v; }, v => Math.round(v * 100)],
+  sCurl: [v => { P.curl = 30 * v; }, v => Math.round(v * 100)],
+  sSpin: [v => { P.spin = v * 2.4; P.spin2 = v * v * 0.55; }, v => v === 0 ? '止' : (v > 0 ? '左' : '右') + Math.round(Math.abs(v) * 100)],
+  sBlur: [v => { P.blur = 0.024 * v * v; }, v => Math.round(v * 100)],
+  sGloss: [v => { P.gloss = 14 * v; }, v => Math.round(v * 100)],
+  sRelief: [v => { P.relief = 0.0045 * v; }, v => Math.round(v * 100)],
+};
+for (const [id, [fn, fmt]] of Object.entries(sliders)) {
+  const el = $(id), out = $('o' + id.slice(1));
+  const saved = store.get(id, null); if (saved !== null) el.value = saved;
+  const apply = () => { const v = +el.value; fn(v); out.textContent = fmt(v); };
+  el.addEventListener('input', () => { apply(); store.set(id, +el.value); });
+  apply();
+}
+function openSheet(on) { $('sheet').hidden = !on; $('setBtn').setAttribute('aria-expanded', String(on)); }
+$('setBtn').onclick = () => openSheet($('sheet').hidden);
+$('sheetClose').onclick = () => openSheet(false);
+
+// tilt pad
+const G = 0.55;
+let tilt = [0, 0], motionOn = false;
+function setTilt(x, y) {
+  const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; }
+  tilt = [x, y];
+  $('tiltKnob').style.transform = `translate(${x * 40}px, ${-y * 40}px)`;
+  P.grav = [x * G, y * G];
+  $('tilt').setAttribute('aria-valuetext', l < 0.02 ? '水平' : `傾き ${Math.round(Math.min(1, l) * 100)}`);
+}
+(() => {
+  const pad = $('tilt'); let drag = false;
+  const at = e => { const r = pad.getBoundingClientRect(); setTilt((e.clientX - r.left - r.width / 2) / 40, -(e.clientY - r.top - r.height / 2) / 40); };
+  pad.addEventListener('pointerdown', e => { drag = true; pad.setPointerCapture(e.pointerId); at(e); motionOn = false; $('motionChk').checked = false; });
+  pad.addEventListener('pointermove', e => { if (drag) at(e); });
+  pad.addEventListener('pointerup', () => { drag = false; });
+  pad.addEventListener('keydown', e => {
+    const d = { ArrowLeft: [-0.1, 0], ArrowRight: [0.1, 0], ArrowUp: [0, 0.1], ArrowDown: [0, -0.1] }[e.key];
+    if (d) { e.preventDefault(); setTilt(tilt[0] + d[0], tilt[1] + d[1]); }
+  });
+})();
+$('levelBtn').onclick = () => { setTilt(0, 0); motionOn = false; $('motionChk').checked = false; };
+if (window.DeviceOrientationEvent && !inViewer) {
+  $('motionWrap').hidden = false;
+  $('motionChk').addEventListener('change', async e => {
+    if (!e.target.checked) { motionOn = false; setTilt(0, 0); return; }
+    try {
+      if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+        const r = await DeviceOrientationEvent.requestPermission();
+        if (r !== 'granted') throw new Error('denied');
+      }
+      motionOn = true; toast('スマホを傾けると、絵具が低い方へ流れます。');
+    } catch (err) { e.target.checked = false; toast('傾きセンサーを使えませんでした。丸をずらして傾けてください。', true); }
+  });
+  window.addEventListener('deviceorientation', e => {
+    if (!motionOn || e.beta === null) return;
+    const rad = Math.PI / 180;
+    setTilt(Math.sin((e.gamma || 0) * rad) * 1.6, -Math.sin((e.beta || 0) * rad) * 1.6);
+  });
+}
+setTilt(0, 0);
+
+// quality
+let quality = store.get('q', Math.min(screen.width, screen.height) < 600 ? 1 : 2);
+segSync('qSeg', quality);
+$('qSeg').onclick = e => { const b = e.target.closest('button'); if (!b) return; quality = +b.dataset.v; store.set('q', quality); segSync('qSeg', quality); liq.quality = quality; resize(true); };
+liq.quality = quality;
+
+// ---- size --------------------------------------------------------------------
+function resize() {
+  const r = cv.getBoundingClientRect();
+  liq.resize(Math.max(1, r.width), Math.max(1, r.height), window.devicePixelRatio || 1);
+}
+let resizeT = 0;
+window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(resize, 120); });
+cv.addEventListener('webglcontextlost', e => { e.preventDefault(); $('fail').hidden = false; $('failMsg').textContent = '描画が止まりました。ページを読み込み直してください。'; });
+
+// ---- saving -------------------------------------------------------------------
+function stamp() { const d = new Date(), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`; }
+async function deliver(name, blob) {
+  if (inViewer) {
+    const dl = await window.claude.use('downloads');
+    if (!dl) throw new Error('この表示ではファイルを保存できません。');
+    try { await dl.save({ filename: name, data: blob }); return `${name} を保存しました。`; }
+    catch (e) {
+      const c = e && e.code;
+      if (c === 'declined') return '保存をやめました。';
+      if (c === 'rate_limited') throw new Error('保存の確認がまだ開いています。閉じてからもう一度押してください。');
+      throw new Error('この表示ではファイルを保存できません。');
+    }
+  }
+  const url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = name; document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  return `${name} を書き出しました。`;
+}
+let snapWanted = false;
+$('snapBtn').onclick = () => { snapWanted = true; };
+function doSnap() {
+  cv.toBlob(async b => {
+    if (!b) { toast('静止画を作れませんでした。', true); return; }
+    try { toast(await deliver(`tokimaze-${stamp()}.png`, b)); } catch (e) { toast(e.message, true); }
+  }, 'image/png');
+}
+function pickMime() {
+  if (!window.MediaRecorder || !cv.captureStream) return null;
+  for (const m of ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']) {
+    try { if (MediaRecorder.isTypeSupported(m)) return m; } catch (e) {}
+  }
+  return '';
+}
+let mime = pickMime(), rec = null, recChunks = [], recStart = 0, recTick = 0;
+if (mime === null) $('recBtn').hidden = true;
+$('recBtn').onclick = () => rec ? stopRec() : startRec();
+function startRec() {
+  let r;
+  try {
+    const stream = cv.captureStream(30);
+    r = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 12e6 } : { videoBitsPerSecond: 12e6 });
+  } catch (e) { toast('録画を始められませんでした。', true); return; }
+  rec = r; recChunks = [];
+  r.ondataavailable = e => { if (e.data && e.data.size) recChunks.push(e.data); };
+  r.onstop = async () => {
+    const type = r.mimeType || mime || 'video/webm', ext = type.includes('mp4') ? 'mp4' : 'webm';
+    const blob = new Blob(recChunks, { type });
+    if (blob.size < 4096) { toast('録画が空でした。画面を表示したまま、もう一度録ってください。', true); return; }
+    try { toast(await deliver(`tokimaze-${stamp()}.${ext}`, blob)); } catch (e) { toast(e.message, true); }
+  };
+  r.start(500); recStart = performance.now();
+  $('recBtn').setAttribute('aria-pressed', 'true'); $('recTime').hidden = false;
+  recTick = setInterval(() => { const s = Math.floor((performance.now() - recStart) / 1000); $('recTime').textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }, 250);
+  toast('録画しています。もう一度押すと止めて保存します。');
+}
+function stopRec() {
+  const r = rec; rec = null; clearInterval(recTick);
+  $('recBtn').setAttribute('aria-pressed', 'false'); $('recTime').hidden = true; $('recTime').textContent = '0:00';
+  try { r.stop(); } catch (e) {}
+}
+
+// ---- opening scene: played live in the first seconds, so the dish is moving at once ----
+let intro = [];
+function seedScene() {
+  const A = liq.aspect, cols = app.colorSwatches().filter(s => !/^(白|黒|胡粉|墨)$/.test(s.name));
+  const pick = i => cols[i % cols.length];
+  const mk = (x, y, sw, size = 1) => ({ x, y, px: x, py: y, vx: 0, vy: 0, t: 0, swatch: sw, size });
+  const pour = (t, u, v, sw, dur, size) => intro.push({ t, dur, s: mk(u * A, v, sw, size), tool: 'paint' });
+  const spots = [[0.3, 0.68], [0.7, 0.6], [0.48, 0.38], [0.22, 0.28], [0.8, 0.24], [0.56, 0.84]];
+  spots.forEach(([u, v], i) => pour(i * 0.12, u, v, pick(i * 2 + 1), 0.55, 1.05));
+  [0, 1, 2].forEach(k => pour(1.0 + k * 0.45, 0.48, 0.38, pick(k + 2), 0.3, 0.95));
+  intro.push({ t: 2.3, dur: 1.6, tool: 'stir', s: mk(0.7 * A, 0.52, null, 1.2), path: u => [(0.5 + 0.2 * Math.cos(u * 2.6)) * A, 0.52 + 0.17 * Math.sin(u * 2.6)] });
+  intro.push({ t: 3.6, dur: 0.3, tool: 'alcohol', s: mk(0.34 * A, 0.56, { kind: 'water' }, 1.1) });
+  intro.push({ t: 4.4, dur: 0.05, tool: 'bubble', s: mk(0.72 * A, 0.36, null, 1.1) });
+}
+function playIntro(dt) {
+  for (const g of intro) {
+    if (g.done) continue;
+    g.t -= dt; if (g.t > 0) continue;
+    const T = TOOLS[g.tool], s = g.s;
+    if (!g.started) { g.started = true; g.el = 0; if (g.path) { const [x, y] = g.path(0); s.x = s.px = x; s.y = s.py = y; } T.begin && T.begin(app, s); continue; }
+    g.el += dt; s.t += dt;
+    const u = Math.min(1, g.el / g.dur);
+    if (g.path) { const [x, y] = g.path(u); s.px = s.x; s.py = s.y; s.x = x; s.y = y; s.vx = (x - s.px) / dt; s.vy = (y - s.py) / dt; T.move && T.move(app, s, dt); }
+    else T.hold && T.hold(app, s, dt);
+    if (u >= 1) { T.end && T.end(app, s); g.done = true; }
+  }
+  if (intro.length && intro.every(g => g.done)) intro = [];
+}
+
+// ---- main loop ------------------------------------------------------------------
+let hinted = store.get('hinted', false);
+renderPalette(); renderTools();
+resize();
+startScene(startMode, true);
+showHint();
+if (!hinted) setTimeout(() => toast('下の道具と色を選んで、皿に触れてください。'), 900);
+
+let last = performance.now(), frameNo = 0;
+app.manual = false;
+// deterministic stepping for tests: app.tick(frames, dt)
+app.tick = (n, dt = 1 / 30) => {
+  for (let i = 0; i < n; i++) {
+    processStrokes(dt); if (intro.length) playIntro(dt);
+    auto.update(dt, strokes.size > 0 || intro.length > 0); world.update(dt); liq.step(dt);
+    if (i % 3 === 0) liq.readback();
+  }
+};
+function frame(now) {
+  let dt = (now - last) / 1000; last = now;
+  if (app.manual) { liq.render(); requestAnimationFrame(frame); return; }
+  if (!(dt > 0)) dt = 1 / 60;
+  dt = Math.min(dt, 1 / 24);
+  processStrokes(dt);
+  if (intro.length) playIntro(dt);
+  auto.update(dt, strokes.size > 0 || intro.length > 0);
+  world.update(dt);
+  liq.step(dt);
+  liq.render();
+  if (snapWanted) { snapWanted = false; doSnap(); }
+  if (++frameNo % 3 === 0) liq.readback();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+app.auto = auto; app.startScene = startScene; app.strokes = strokes;
+window.__tokimaze = app;
+})();
+
+</script>
