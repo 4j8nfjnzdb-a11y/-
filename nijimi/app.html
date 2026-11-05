@@ -1,0 +1,783 @@
+<title>滲み Nijimi</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a light table. The pool (fluid canvas) stays in view on the left with the tools and the paint wells under it;
+   the right column says how colours become sound. On a phone everything stacks, pool first.
+   Single dark theme on purpose: paint and light are judged against a dark surround, as in a projected live painting. */
+:root{
+  --bg:#07080c; --panel:#0f1118; --ink:#ebe8e1; --dim:#a2a6b3; --faint:#646a7c;
+  --line:rgba(214,220,240,.10); --line2:rgba(214,220,240,.24);
+  --milk:#efe9dc; --milk-ink:#16141b; --rec:#ff4a4a;
+  --f-disp:"Shippori Mincho","Hiragino Mincho ProN","Yu Mincho",serif;
+  --f-body:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.6;-webkit-tap-highlight-color:transparent}
+button,input,output{font:inherit;color:inherit}
+button{cursor:pointer}
+button:disabled{cursor:default;opacity:.4}
+:focus-visible{outline:2px solid var(--milk);outline-offset:2px}
+.mono{font-family:var(--f-mono);font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+.app{max-width:1480px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:18px 40px;display:flex;flex-direction:column;gap:14px}
+.top{display:flex;align-items:flex-end;gap:6px 26px;flex-wrap:wrap}
+.top h1{margin:0;display:flex;align-items:baseline;gap:12px;font-family:var(--f-disp);font-weight:800;font-size:clamp(42px,7vw,66px);line-height:1.05;letter-spacing:.04em}
+.top h1 .ttl{text-shadow:-.06em .03em .3em rgba(46,107,255,.65),.07em -.02em .34em rgba(255,46,110,.5),.01em .08em .42em rgba(31,217,189,.4)}
+.top h1 small{font-family:var(--f-mono);font-weight:400;font-size:12px;letter-spacing:.32em;color:var(--dim)}
+.top p{margin:0;color:var(--dim);max-width:64ch;flex:1 1 300px;min-width:0;text-wrap:pretty}
+.main{display:grid;grid-template-columns:minmax(0,1fr) 384px;gap:20px;align-items:start}
+@media (max-width:1000px){.main{grid-template-columns:minmax(0,1fr)}}
+.stageCol{display:flex;flex-direction:column;gap:10px;min-width:0}
+@media (min-width:1001px){.stageCol{position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px)}}
+.bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:7px 13px;border-radius:8px;border:1px solid var(--line);background:var(--panel);font-size:13.5px;line-height:1.3;white-space:nowrap}
+.btn:hover:not(:disabled){border-color:var(--line2)}
+.btn.primary{background:var(--milk);color:var(--milk-ink);border-color:transparent;font-weight:700}
+.btn[aria-pressed="true"]:not(.primary):not(.rec){background:rgba(239,233,220,.14);border-color:var(--line2)}
+.btn.rec{border-color:rgba(255,74,74,.45)}
+.btn.rec .dot{width:9px;height:9px;border-radius:50%;background:var(--rec)}
+.btn.rec[aria-pressed="true"]{background:var(--rec);color:#fff;border-color:transparent}
+.btn.rec[aria-pressed="true"] .dot{background:#fff;animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:.2}}
+.stage{position:relative;height:clamp(300px,56vh,640px);border-radius:10px;overflow:hidden;background:#000;box-shadow:0 0 0 1px var(--line)}
+@supports (height:1svh){.stage{height:clamp(300px,56svh,640px)}}
+@media (min-width:1001px){.stage{height:max(420px,calc(100vh - 340px))}}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#ov{touch-action:none;cursor:crosshair}
+.stage.dragging{outline:2px dashed var(--milk);outline-offset:-8px}
+.empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center;background:radial-gradient(ellipse at 50% 45%,rgba(20,24,40,.5),rgba(4,5,8,.92) 70%)}
+.empty b{font-family:var(--f-disp);font-weight:800;font-size:clamp(24px,4vw,34px);letter-spacing:.1em}
+.empty p{margin:0;max-width:40ch;color:var(--dim);font-size:13px;text-wrap:pretty}
+.empty .row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.empty .dots{display:flex;gap:7px}
+.empty .dots i{width:11px;height:11px;border-radius:52% 48% 46% 54%/55% 45% 55% 45%;opacity:.9}
+.hint{position:absolute;left:30px;right:12px;bottom:8px;font-size:12px;color:rgba(235,232,225,.75);pointer-events:none;text-shadow:0 1px 3px rgba(0,0,0,.9);text-wrap:pretty}
+.meter{position:absolute;top:7px;right:10px;font-size:11.5px;color:rgba(235,232,225,.7);pointer-events:none;text-shadow:0 1px 3px rgba(0,0,0,.9);white-space:nowrap}
+.stage.milk .hint,.stage.milk .meter{color:rgba(22,20,28,.78);text-shadow:0 1px 2px rgba(255,255,255,.75)}
+.glerr{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;color:var(--dim)}
+.tools{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
+.tool{display:flex;flex-direction:column;align-items:center;gap:0;padding:7px 2px 6px;border-radius:9px;border:1px solid var(--line);background:var(--panel);min-width:0}
+.tool b{font-family:var(--f-disp);font-weight:800;font-size:24px;line-height:1.1}
+.tool span{font-size:11px;color:var(--dim);white-space:nowrap}
+.tool[aria-checked="true"]{background:var(--milk);color:var(--milk-ink);border-color:transparent}
+.tool[aria-checked="true"] span{color:#4c4853}
+.pal{display:flex;gap:8px;overflow-x:auto;padding:6px 4px 4px;scrollbar-width:thin;min-width:0}
+.well{flex:0 0 auto;width:70px;display:flex;flex-direction:column;align-items:center;gap:5px;background:none;border:0;padding:0;border-radius:8px}
+.blob{width:54px;height:54px;border-radius:52% 48% 46% 54%/55% 45% 55% 45%;background:radial-gradient(circle at 34% 30%,rgba(255,255,255,.55),transparent 34%),var(--c);box-shadow:0 0 22px -6px var(--c),inset 0 -7px 12px rgba(0,0,0,.35);display:grid;place-items:center;transition:transform .15s}
+.blob canvas{width:40px;height:16px;opacity:.7}
+.well[aria-pressed="true"] .blob{outline:2px solid var(--ink);outline-offset:4px;transform:scale(1.05)}
+.wn{font-size:11.5px;max-width:70px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dim)}
+.well[aria-pressed="true"] .wn{color:var(--ink)}
+.well.add .blob{background:none;border:1px dashed var(--line2);box-shadow:none;color:var(--dim);font-size:22px;font-family:var(--f-mono)}
+.selbar{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);min-width:0}
+.selbar .sw{width:14px;height:14px;border-radius:50%;background:var(--c);box-shadow:0 0 10px var(--c);flex:0 0 auto}
+.selbar .nm{font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:16ch}
+.selbar .acts{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap}
+.selbar .btn{padding:5px 10px;font-size:12.5px}
+.msg{margin:0;min-height:1.6em;color:var(--dim);font-size:12.5px}
+.side{display:flex;flex-direction:column;gap:12px;min-width:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 14px 16px;display:flex;flex-direction:column;gap:11px;min-width:0}
+.card h2{margin:0;font-family:var(--f-disp);font-weight:800;font-size:19px;letter-spacing:.06em;display:flex;align-items:baseline;gap:10px;text-wrap:balance}
+.card h2 span{font-family:var(--f-mono);font-weight:400;font-size:10.5px;letter-spacing:.22em;color:var(--faint)}
+.note{margin:0;color:var(--dim);font-size:12.5px;line-height:1.65;text-wrap:pretty}
+.sl{display:flex;flex-direction:column;gap:1px;min-width:0}
+.slh{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:13px}
+.slh output{color:var(--dim);font-family:var(--f-mono);font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
+input[type=range]{width:100%;accent-color:var(--milk);min-width:0;margin:3px 0}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 16px}
+@media (max-width:420px){.grid2{grid-template-columns:minmax(0,1fr)}}
+.toggles{display:flex;flex-direction:column;gap:6px}
+.tg{display:grid;grid-template-columns:auto minmax(0,1fr);gap:1px 10px;text-align:left;padding:8px 10px;border-radius:9px;border:1px solid var(--line);background:transparent;align-items:start}
+.tg .box{grid-row:span 2;width:16px;height:16px;border-radius:4px;border:1.5px solid var(--line2);margin-top:3px;display:grid;place-items:center;font-size:11px;line-height:1;color:var(--milk-ink)}
+.tg[aria-pressed="true"]{border-color:var(--line2);background:rgba(239,233,220,.05)}
+.tg[aria-pressed="true"] .box{background:var(--milk);border-color:var(--milk)}
+.tg[aria-pressed="true"] .box::after{content:"✓"}
+.tg b{font-weight:700;font-size:13.5px}
+.tg small{color:var(--dim);font-size:12px;line-height:1.55}
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.seg button{border:0;background:transparent;padding:8px 6px;font-size:13.5px;white-space:nowrap}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--milk);color:var(--milk-ink);font-weight:700}
+.chk{display:flex;align-items:center;gap:8px;font-size:13px}
+.chk input{width:16px;height:16px;accent-color:var(--milk)}
+.readout{display:flex;align-items:center;gap:10px}
+.readout .bar2{flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,.08);overflow:hidden}
+.readout .bar2 i{display:block;height:100%;width:0;background:linear-gradient(90deg,#8d8a7c,#3d3a33)}
+.foot{color:var(--faint);font-size:12px;margin:0}
+@media (max-width:600px){.top p{display:none}.top h1{font-size:40px}.bar .btn{padding:6px 10px;font-size:13px}.app{gap:10px;padding-block:12px 32px}}
+@media (prefers-reduced-motion:reduce){.blob{transition:none}}
+</style>
+
+<div class="app">
+  <header class="top">
+    <h1><span class="ttl">滲み</span><small>NIJIMI</small></h1>
+    <p>音を一つずつ絵具にして、水面に垂らします。色が重なったところでは音も混ざり、渦は音高を曲げ、泡は音を細かな粒にし、氷は音を凍らせ、磁石は脈を打たせます。どの粒がいつ鳴るかは確率で決まります。</p>
+  </header>
+
+  <div class="main">
+    <section class="stageCol" aria-label="水面と道具">
+      <div class="bar">
+        <button class="btn primary" id="play" type="button" aria-pressed="false">▶ 音を出す</button>
+        <button class="btn" id="auto" type="button" aria-pressed="false">自動で描く</button>
+        <button class="btn" id="wash" type="button">洗い流す</button>
+        <button class="btn rec" id="rec" type="button" aria-pressed="false"><i class="dot"></i><span id="recLabel">録画</span></button>
+      </div>
+      <div class="stage" id="stage">
+        <canvas id="gl"></canvas>
+        <canvas id="ov" aria-label="水面。選んだ道具で絵具を垂らしたり、かき回したりします"></canvas>
+        <div class="hint" id="hint"></div>
+        <div class="meter mono" id="meter" aria-live="off">粒 0 / 秒</div>
+        <div class="empty" id="empty">
+          <div class="dots" aria-hidden="true"><i style="background:#8a5cff"></i><i style="background:#2e6bff"></i><i style="background:#ff2e6e"></i><i style="background:#ffb21c"></i><i style="background:#1fd9bd"></i></div>
+          <b>音を絵具にする</b>
+          <p>音声ファイルを入れると、その音の明るさに合った色の絵具になります（8つまで）。水面に垂らして混ぜると、色の重なり方どおりに音が混ざります。</p>
+          <div class="row">
+            <button class="btn primary" id="openBtn" type="button">音声ファイルを入れる</button>
+            <button class="btn" id="testBtn" type="button">試しの音を6つ使う</button>
+          </div>
+          <p class="mono">ファイルはここに落としても入ります</p>
+        </div>
+        <div class="glerr" id="glerr" hidden>この端末では水面を描けません。WebGL2 と浮動小数点の描画が使えるブラウザで開いてください。</div>
+      </div>
+      <div class="tools" id="tools" role="radiogroup" aria-label="道具"></div>
+      <div class="pal" id="pal" aria-label="絵具"></div>
+      <div class="selbar" id="selbar" hidden></div>
+      <p class="msg" id="msg" role="status"></p>
+    </section>
+
+    <aside class="side" id="side">
+      <section class="card">
+        <h2>混ざり方<span>MIX</span></h2>
+        <p class="note">二色が重なった所では、多い方を主、少ない方を従として音を合わせます。オンにした方法の中から、粒ごとに確率で一つが選ばれます。</p>
+        <div class="toggles" id="modes"></div>
+        <div id="sl-mix"></div>
+        <p class="mono" id="morphStat">変身・浸透の音は、色が初めて出会ったときに作ります</p>
+      </section>
+      <section class="card">
+        <h2>聴き方<span>LISTEN</span></h2>
+        <div class="seg" id="listen"></div>
+        <p class="note" id="listenNote"></p>
+        <div id="sl-listen"></div>
+        <p class="note">縦の位置が音の中の位置（上が始まり、下が終わり）、横の位置が左右の定位になります。</p>
+      </section>
+      <section class="card">
+        <h2>出現<span>CHANCE</span></h2>
+        <div class="grid2" id="sl-chance"></div>
+        <label class="chk"><input type="checkbox" id="scale"> 音高を五音音階に寄せる</label>
+      </section>
+      <section class="card">
+        <h2>粒<span>GRAIN</span></h2>
+        <div class="grid2" id="sl-grain"></div>
+      </section>
+      <section class="card">
+        <h2>響き<span>SPACE</span></h2>
+        <div class="grid2" id="sl-fx"></div>
+        <label class="chk"><input type="checkbox" id="murk"> 色が濁るほど音もこもる</label>
+        <div class="readout"><span class="mono">濁り</span><span class="bar2"><i id="murkBar"></i></span><span class="mono" id="murkVal">0%</span></div>
+      </section>
+      <section class="card">
+        <h2>水面<span>FLUID</span></h2>
+        <div class="seg" id="ground"></div>
+        <div class="grid2" id="sl-fluid"></div>
+        <button class="btn" id="reset" type="button">設定を初めに戻す</button>
+      </section>
+      <p class="foot">中山晃子さんの Alive Painting に着想を得た、音のための絵具遊びです。</p>
+    </aside>
+  </div>
+  <input type="file" id="fileIn" multiple hidden>
+</div>
+
+<script>
+(()=>{
+'use strict';
+const $=id=>document.getElementById(id);
+const clamp=(x,a,b)=>x<a?a:x>b?b:x;
+const rnd=Math.random;
+const gauss=()=>{let u=0;while(!u)u=rnd();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*rnd())};
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const msg=t=>{$('msg').textContent=t};
+
+/* ---------------- settings ---------------- */
+const DEF={tool:'drop',listen:'drift',needles:3,scan:8,modes:{share:true,blend:true,morph:true,cross:false,ring:false},edge:14,
+  density:24,prob:85,irr:70,posj:12,pitchj:0,rev:8,rare:30,scale:false,
+  size:180,pitch:0,bend:5,motion:45,
+  verb:38,delay:16,vol:80,murk:true,
+  amount:55,dry:24,visc:16,curl:16,bpm:92,ground:'ink'};
+let S=loadS();
+function loadS(){try{const o=JSON.parse(localStorage.getItem('nijimi.v1')||'null');if(o)return Object.assign({},DEF,o,{modes:Object.assign({},DEF.modes,o.modes||{})})}catch(e){}return JSON.parse(JSON.stringify(DEF))}
+let saveT=0;function saveS(){clearTimeout(saveT);saveT=setTimeout(()=>{try{localStorage.setItem('nijimi.v1',JSON.stringify(S))}catch(e){}},300)}
+
+const pct=v=>v+'%';
+const SL={
+  mix:[['edge','境目の鋭さ',5,40,1,v=>(v/10).toFixed(1)+(v<10?'（よく混ざる）':v>24?'（主が勝つ）':'')]],
+  listen:[['needles','針の数',1,6,1,v=>v+' 本'],['scan','走査の一往復',2,30,1,v=>v+' 秒']],
+  chance:[['density','密度',2,80,1,v=>v+' 粒/秒'],['prob','鳴る確率',0,100,1,pct],['irr','間隔の揺らぎ',0,100,1,v=>v?v+'%':'等間隔'],['posj','位置の揺らぎ',0,100,1,pct],['pitchj','音高の揺らぎ',0,12,1,v=>'±'+v+' 半音'],['rev','逆再生の確率',0,100,1,pct],['rare','稀な出来事',0,100,1,v=>v?'1分に約'+(v*.12).toFixed(1)+'回':'起きない']],
+  grain:[['size','粒の長さ',20,800,5,v=>v+' ms'],['pitch','音高',-24,24,1,v=>(v>0?'+':'')+v+' 半音'],['bend','渦で曲がる量',0,12,1,v=>'最大 '+v+' 半音'],['motion','動きで鳴る',0,100,1,pct]],
+  fx:[['verb','滲み（残響）',0,100,1,pct],['delay','残像（反復）',0,100,1,pct],['vol','音量',0,100,1,pct]],
+  fluid:[['amount','絵具の量',10,100,1,pct],['dry','乾く速さ',0,100,1,pct],['visc','粘り',0,100,1,pct],['curl','渦の立ちやすさ',0,60,1,v=>v],['bpm','磁石の脈',40,180,1,v=>v+' BPM']]
+};
+const MODES=[['share','粒の交換','色の割合を確率にして、粒ごとにどちらか一方の音を選ぶ'],['blend','重ね','両方の音を、色の割合どおりの音量で重ねる'],['morph','変身','二つのスペクトルを対数で補間した、どちらでもない中間の音'],['cross','浸透','主の音の細部に、従の音の響きの形（スペクトル包絡）を染み込ませる'],['ring','干渉','二つの波を掛け合わせる（リング変調）。金属的なうなりが出る']];
+const LISTEN=[['drift','漂う','流れに乗って浮かぶ針が、真下の色を聴きます。絵具のない所に来た針は黙ります。'],['scan','走査','縦の線が左右に往復し、線の上にある色を聴きます。絵がそのまま楽譜になります。'],['cloud','全体','水面全体から確率で場所を選びます。絵具の多い所、動いている所ほど鳴りやすくなります。']];
+const TOOLS=[['drop','滴','垂らす','タップで選んだ絵具を一滴。なぞると点々と続きます。'],['pour','流','流す','なぞった線に沿って絵具を流し込みます。指先の下の音も鳴ります。'],['swirl','渦','かき回す','絵具を足さずにかき回します。押さえたままだと渦が育ち、渦の中の音高が曲がります。'],['foam','泡','泡立てる','押さえた所に泡が立ち、絵具を押しのけて小部屋を作ります。泡の中の音は細かな粒になります。'],['ice','氷','凍らせる','氷を置くと、その下の流れと音が凍ります。溶けるにつれ音が沈みます。氷を押すと割れます。'],['mag','磁','磁石','磁石を置くと、脈に合わせて絵具を吸い寄せ、音が拍を刻みます。磁石を押すと外れます。']];
+// Eight paints, ordered from dark-sounding to bright-sounding; a sound gets the free colour nearest its brightness.
+const COLORS=[['菫','#8a5cff'],['瑠璃','#2e6bff'],['紅','#ff2e6e'],['朱','#ff5b21'],['山吹','#ffb21c'],['萌黄','#b5ee34'],['青碧','#1fd9bd'],['銀鼠','#b9c0cf']];
+const hexRGB=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)/255);
+
+/* ---------------- WebGL fluid ---------------- */
+const stage=$('stage'),cv=$('gl'),ov=$('ov'),octx=ov.getContext('2d');
+const gl=cv.getContext('webgl2',{alpha:false,depth:false,stencil:false,antialias:false,preserveDrawingBuffer:false});
+let FMT=null;
+if(gl){
+  gl.getExtension('EXT_color_buffer_float');gl.getExtension('EXT_color_buffer_half_float');
+  const lin=gl.getExtension('OES_texture_float_linear');
+  if(testFmt(gl.RGBA16F,gl.HALF_FLOAT))FMT={i:gl.RGBA16F,t:gl.HALF_FLOAT};
+  else if(lin&&testFmt(gl.RGBA32F,gl.FLOAT))FMT={i:gl.RGBA32F,t:gl.FLOAT};
+}
+let GLOK=!!(gl&&FMT);
+function testFmt(i,t){const tx=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,tx);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);gl.texImage2D(gl.TEXTURE_2D,0,i,4,4,0,gl.RGBA,t,null);const fb=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,fb);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,tx,0);const ok=gl.checkFramebufferStatus(gl.FRAMEBUFFER)===gl.FRAMEBUFFER_COMPLETE;gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.deleteFramebuffer(fb);gl.deleteTexture(tx);return ok}
+
+const VS=`#version 300 es
+precision highp float;
+layout(location=0) in vec2 aPos;
+uniform vec2 uTexel;
+out vec2 vUv,vL,vR,vT,vB;
+void main(){vUv=aPos*.5+.5;vL=vUv-vec2(uTexel.x,0.);vR=vUv+vec2(uTexel.x,0.);vT=vUv+vec2(0.,uTexel.y);vB=vUv-vec2(0.,uTexel.y);gl_Position=vec4(aPos,0.,1.);}`;
+const FH=`#version 300 es
+precision highp float;precision highp sampler2D;
+in vec2 vUv,vL,vR,vT,vB;out vec4 o;
+`;
+const FS={
+scale:`uniform sampler2D uT;uniform vec4 uMul;void main(){o=texture(uT,vUv)*uMul;}`,
+splat:`uniform sampler2D uT;uniform vec4 uVal;uniform vec2 uP;uniform float uR,uAsp,uSharp,uMax;
+void main(){vec2 d=vUv-uP;d.x*=uAsp;float g=exp(-pow(max(dot(d,d)/uR,1e-9),uSharp));o=min(texture(uT,vUv)+uVal*g,vec4(uMax));}`,
+vortex:`uniform sampler2D uT;uniform vec2 uP;uniform float uR,uAsp,uS;
+void main(){vec2 d=vUv-uP;d.x*=uAsp;float g=exp(-dot(d,d)/uR);vec2 v=vec2(-d.y,d.x)*uS*g/sqrt(uR);o=texture(uT,vUv)+vec4(v,0.,0.);}`,
+adv:`uniform sampler2D uVel,uSrc;uniform vec2 uVT;uniform float uDt,uDiss;
+void main(){vec2 c=vUv-uDt*texture(uVel,vUv).xy*uVT;o=texture(uSrc,c)/(1.+uDiss*uDt);}`,
+div:`uniform sampler2D uVel;uniform vec4 uSrc[16];uniform int uN;uniform float uAsp;
+void main(){float L=texture(uVel,vL).x,R=texture(uVel,vR).x,T=texture(uVel,vT).y,B=texture(uVel,vB).y;vec2 C=texture(uVel,vUv).xy;
+if(vL.x<0.)L=-C.x;if(vR.x>1.)R=-C.x;if(vT.y>1.)T=-C.y;if(vB.y<0.)B=-C.y;
+float s=0.;for(int i=0;i<16;i++){if(i>=uN)break;vec4 q=uSrc[i];vec2 d=vUv-q.xy;d.x*=uAsp;s+=q.w*exp(-dot(d,d)/q.z);}
+o=vec4(.5*(R-L+T-B)-s,0.,0.,1.);}`,
+curl:`uniform sampler2D uVel;void main(){float L=texture(uVel,vL).y,R=texture(uVel,vR).y,T=texture(uVel,vT).x,B=texture(uVel,vB).x;o=vec4(.5*(R-L-T+B),0.,0.,1.);}`,
+vort:`uniform sampler2D uVel,uCurl;uniform float uCurlS,uDt;
+void main(){float L=texture(uCurl,vL).x,R=texture(uCurl,vR).x,T=texture(uCurl,vT).x,B=texture(uCurl,vB).x,C=texture(uCurl,vUv).x;
+vec2 f=.5*vec2(abs(T)-abs(B),abs(R)-abs(L));f/=length(f)+1e-4;f*=uCurlS*C;f.y*=-1.;
+vec2 v=texture(uVel,vUv).xy+f*uDt;o=vec4(clamp(v,-1000.,1000.),0.,1.);}`,
+press:`uniform sampler2D uP,uDiv;void main(){float L=texture(uP,vL).x,R=texture(uP,vR).x,T=texture(uP,vT).x,B=texture(uP,vB).x;o=vec4((L+R+B+T-texture(uDiv,vUv).x)*.25,0.,0.,1.);}`,
+grad:`uniform sampler2D uP,uVel;void main(){float L=texture(uP,vL).x,R=texture(uP,vR).x,T=texture(uP,vT).x,B=texture(uP,vB).x;o=vec4(texture(uVel,vUv).xy-vec2(R-L,T-B),0.,1.);}`,
+mask:`uniform sampler2D uT;uniform vec4 uM[16];uniform int uN;uniform float uAsp;
+void main(){float m=0.;for(int i=0;i<16;i++){if(i>=uN)break;vec4 q=uM[i];vec2 d=vUv-q.xy;d.x*=uAsp;m=max(m,q.w*(1.-smoothstep(q.z*.7,q.z,length(d))));}o=texture(uT,vUv)*(1.-m);}`,
+disp:`uniform sampler2D uD0,uD1;uniform vec3 uCol[8];uniform vec3 uLg[8];uniform vec3 uBg;uniform float uMilk;
+float tt(vec2 p){vec4 a=texture(uD0,p),b=texture(uD1,p);return dot(a,vec4(1.))+dot(b,vec4(1.));}
+float hash(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
+void main(){
+ vec4 a=max(texture(uD0,vUv),0.),b=max(texture(uD1,vUv),0.);
+ float t=dot(a,vec4(1.))+dot(b,vec4(1.));
+ vec3 s=a.x*uCol[0]+a.y*uCol[1]+a.z*uCol[2]+a.w*uCol[3]+b.x*uCol[4]+b.y*uCol[5]+b.z*uCol[6]+b.w*uCol[7];
+ vec3 lg=a.x*uLg[0]+a.y*uLg[1]+a.z*uLg[2]+a.w*uLg[3]+b.x*uLg[4]+b.y*uLg[5]+b.z*uLg[6]+b.w*uLg[7];
+ float iv=1./max(t,1e-4);
+ float mx=max(max(max(a.x,a.y),max(a.z,a.w)),max(max(b.x,b.y),max(b.z,b.w)));
+ float pur=clamp(mx*iv,0.,1.);
+ vec3 avg=s*iv,geo=exp(lg*iv);
+ float al=1.-exp(-t*2.6);
+ float dx=tt(vR)-tt(vL),dy=tt(vT)-tt(vB);
+ vec3 n=normalize(vec3(-dx*2.4,-dy*2.4,1.));
+ vec3 L=normalize(vec3(-.45,.55,.7));
+ float df=clamp(dot(n,L),0.,1.);
+ float sp=pow(clamp(dot(reflect(-L,n),vec3(0.,0.,1.)),0.,1.),30.);
+ float edge=clamp(length(vec2(dx,dy))*1.6,0.,1.);
+ vec3 col;
+ if(uMilk<.5){
+   vec3 m=mix(avg,geo,.35)*mix(.55,1.,pur);
+   col=mix(uBg,m*(.74+.46*df),al);
+   col+=m*edge*.42*al;
+   col+=vec3(sp)*.34*al;
+ }else{
+   vec3 m=mix(geo,avg,.25)*mix(.68,1.,pur);
+   col=uBg*mix(vec3(1.),m*(.8+.32*df),al);
+   col-=(1.-m)*edge*.2*al;
+   col+=vec3(sp)*.24*al;
+ }
+ col+=(hash(gl_FragCoord.xy)-.5)/255.;
+ o=vec4(clamp(col,0.,1.),1.);
+}`,
+probeC:`uniform sampler2D uT;uniform vec2 uO;void main(){vec4 s=texture(uT,vUv-uO)+texture(uT,vUv+vec2(uO.x,-uO.y))+texture(uT,vUv+vec2(-uO.x,uO.y))+texture(uT,vUv+uO);o=clamp(s*.125,0.,1.);}`,
+probeV:`uniform sampler2D uVel,uCurl;void main(){vec2 v=texture(uVel,vUv).xy;float c=texture(uCurl,vUv).x;o=vec4(clamp(.5+v/1200.,0.,1.),clamp(.5+c/600.,0.,1.),1.);}`
+};
+const P={};
+let vel,press,divF,curlF,d0,d1,pc0,pc1,pv,DPR=1;
+const G={w:0,h:0,c:null,tot:null,vx:null,vy:null,cu:null,cdf:null,b0:null,b1:null,b2:null,murk:0,any:false};
+
+function compile(type,src){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(s));return s}
+function buildGL(){
+  const vs=compile(gl.VERTEX_SHADER,VS);
+  for(const k in FS){const p=gl.createProgram();gl.attachShader(p,vs);gl.attachShader(p,compile(gl.FRAGMENT_SHADER,FH+FS[k]));gl.linkProgram(p);if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(p));
+    const u={},n=gl.getProgramParameter(p,gl.ACTIVE_UNIFORMS);for(let i=0;i<n;i++){const inf=gl.getActiveUniform(p,i);u[inf.name.replace(/\[0\]$/,'')]=gl.getUniformLocation(p,inf.name)}P[k]={p,u}}
+  const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,-1,1,1,-1,1,1]),gl.STATIC_DRAW);gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);gl.enableVertexAttribArray(0);
+}
+function mkFBO(w,h,i,t,f){gl.activeTexture(gl.TEXTURE0);const tex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,tex);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,f);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,f);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);gl.texImage2D(gl.TEXTURE_2D,0,i,w,h,0,gl.RGBA,t,null);
+  const fb=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,fb);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,tex,0);gl.viewport(0,0,w,h);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
+  return{tex,fb,w,h,tx:1/w,ty:1/h,bind(u){gl.activeTexture(gl.TEXTURE0+u);gl.bindTexture(gl.TEXTURE_2D,tex);return u},free(){gl.deleteTexture(tex);gl.deleteFramebuffer(fb)}}}
+function mkDouble(w,h,f){let a=mkFBO(w,h,FMT.i,FMT.t,f),b=mkFBO(w,h,FMT.i,FMT.t,f);return{w,h,tx:1/w,ty:1/h,get read(){return a},get write(){return b},swap(){const t=a;a=b;b=t},free(){a.free();b.free()}}}
+function blit(t){if(t){gl.bindFramebuffer(gl.FRAMEBUFFER,t.fb);gl.viewport(0,0,t.w,t.h)}else{gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,gl.drawingBufferWidth,gl.drawingBufferHeight)}gl.drawArrays(gl.TRIANGLE_STRIP,0,4)}
+function U(k){gl.useProgram(P[k].p);return P[k].u}
+const isSmall=()=>Math.min(innerWidth,innerHeight)<700;
+function dims(short){const a=cv.width/cv.height;return a>=1?[Math.round(short*a),short]:[short,Math.round(short/a)]}
+function resample(old,nw){if(!old)return;const u=U('scale');gl.uniform2f(u.uTexel,0,0);gl.uniform4f(u.uMul,1,1,1,1);gl.uniform1i(u.uT,old.read.bind(0));blit(nw.read);old.free()}
+function initFBOs(){
+  const [sw,sh]=dims(isSmall()?112:128),[dw,dh]=dims(isSmall()?400:560);
+  const nv=mkDouble(sw,sh,gl.LINEAR),n0=mkDouble(dw,dh,gl.LINEAR),n1=mkDouble(dw,dh,gl.LINEAR);
+  resample(vel,nv);resample(d0,n0);resample(d1,n1);vel=nv;d0=n0;d1=n1;
+  if(press){press.free();divF.free();curlF.free();pc0.free();pc1.free();pv.free()}
+  press=mkDouble(sw,sh,gl.NEAREST);divF=mkFBO(sw,sh,FMT.i,FMT.t,gl.NEAREST);curlF=mkFBO(sw,sh,FMT.i,FMT.t,gl.NEAREST);
+  let [gw,gh]=dims(24);gw=Math.min(gw,64);gh=Math.min(gh,64);
+  pc0=mkFBO(gw,gh,gl.RGBA8,gl.UNSIGNED_BYTE,gl.NEAREST);pc1=mkFBO(gw,gh,gl.RGBA8,gl.UNSIGNED_BYTE,gl.NEAREST);pv=mkFBO(gw,gh,gl.RGBA8,gl.UNSIGNED_BYTE,gl.NEAREST);
+  const n=gw*gh;Object.assign(G,{w:gw,h:gh,c:new Float32Array(n*8),tot:new Float32Array(n),vx:new Float32Array(n),vy:new Float32Array(n),cu:new Float32Array(n),cdf:new Float32Array(n),b0:new Uint8Array(n*4),b1:new Uint8Array(n*4),b2:new Uint8Array(n*4)});
+}
+function fit(){const r=stage.getBoundingClientRect();const d=Math.min(window.devicePixelRatio||1,2);const W=Math.max(8,Math.round(r.width*d)),H=Math.max(8,Math.round(r.height*d));if(cv.width===W&&cv.height===H)return false;cv.width=ov.width=W;cv.height=ov.height=H;DPR=d;return true}
+const asp=()=>cv.width/cv.height;
+
+function splatDye(slot,u,v,amt,r,sharp){const D=slot<4?d0:d1,val=[0,0,0,0];val[slot%4]=amt;const q=U('splat');gl.uniform2f(q.uTexel,D.tx,D.ty);gl.uniform1i(q.uT,D.read.bind(0));gl.uniform4fv(q.uVal,val);gl.uniform2f(q.uP,u,v);gl.uniform1f(q.uR,r);gl.uniform1f(q.uAsp,asp());gl.uniform1f(q.uSharp,sharp);gl.uniform1f(q.uMax,3);blit(D.write);D.swap()}
+function splatVel(u,v,dx,dy,r){const q=U('splat');gl.uniform2f(q.uTexel,vel.tx,vel.ty);gl.uniform1i(q.uT,vel.read.bind(0));gl.uniform4f(q.uVal,dx,dy,0,0);gl.uniform2f(q.uP,u,v);gl.uniform1f(q.uR,r);gl.uniform1f(q.uAsp,asp());gl.uniform1f(q.uSharp,1);gl.uniform1f(q.uMax,1e5);blit(vel.write);vel.swap()}
+function vortex(u,v,s,r){const q=U('vortex');gl.uniform2f(q.uTexel,vel.tx,vel.ty);gl.uniform1i(q.uT,vel.read.bind(0));gl.uniform2f(q.uP,u,v);gl.uniform1f(q.uR,r);gl.uniform1f(q.uAsp,asp());gl.uniform1f(q.uS,s);blit(vel.write);vel.swap()}
+function scaleTex(D,m){const q=U('scale');gl.uniform2f(q.uTexel,0,0);gl.uniform1i(q.uT,D.read.bind(0));gl.uniform4fv(q.uMul,m);blit(D.write);D.swap()}
+const SRC=new Float32Array(64),MSK=new Float32Array(64);
+function maskTex(D,list){if(!list.length)return;const q=U('mask');MSK.fill(0);const n=Math.min(16,list.length);for(let i=0;i<n;i++)MSK.set(list[i],i*4);gl.uniform2f(q.uTexel,D.tx,D.ty);gl.uniform1i(q.uT,D.read.bind(0));gl.uniform4fv(q.uM,MSK);gl.uniform1i(q.uN,n);gl.uniform1f(q.uAsp,asp());blit(D.write);D.swap()}
+
+function step(dt,sources,velMasks,dyeMasks){
+  let q=U('curl');gl.uniform2f(q.uTexel,vel.tx,vel.ty);gl.uniform1i(q.uVel,vel.read.bind(0));blit(curlF);
+  q=U('vort');gl.uniform2f(q.uTexel,vel.tx,vel.ty);gl.uniform1i(q.uVel,vel.read.bind(0));gl.uniform1i(q.uCurl,curlF.bind(1));gl.uniform1f(q.uCurlS,S.curl);gl.uniform1f(q.uDt,dt);blit(vel.write);vel.swap();
+  maskTex(vel,velMasks);
+  q=U('div');gl.uniform2f(q.uTexel,vel.tx,vel.ty);gl.uniform1i(q.uVel,vel.read.bind(0));SRC.fill(0);const n=Math.min(16,sources.length);for(let i=0;i<n;i++)SRC.set(sources[i],i*4);gl.uniform4fv(q.uSrc,SRC);gl.uniform1i(q.uN,n);gl.uniform1f(q.uAsp,asp());blit(divF);
+  scaleTex(press,[.8,.8,.8,.8]);
+  q=U('press');gl.uniform2f(q.uTexel,vel.tx,vel.ty);gl.uniform1i(q.uDiv,divF.bind(1));for(let i=0;i<20;i++){gl.uniform1i(q.uP,press.read.bind(0));blit(press.write);press.swap()}
+  q=U('grad');gl.uniform2f(q.uTexel,vel.tx,vel.ty);gl.uniform1i(q.uP,press.read.bind(0));gl.uniform1i(q.uVel,vel.read.bind(1));blit(vel.write);vel.swap();
+  q=U('adv');gl.uniform2f(q.uTexel,0,0);gl.uniform2f(q.uVT,vel.tx,vel.ty);gl.uniform1f(q.uDt,dt);
+  gl.uniform1f(q.uDiss,.05+S.visc/100*2.4);gl.uniform1i(q.uVel,vel.read.bind(0));gl.uniform1i(q.uSrc,vel.read.bind(1));blit(vel.write);vel.swap();
+  gl.uniform1f(q.uDiss,Math.pow(S.dry/100,1.5)*.8);
+  for(const D of [d0,d1]){gl.uniform1i(q.uVel,vel.read.bind(0));gl.uniform1i(q.uSrc,D.read.bind(1));blit(D.write);D.swap()}
+  maskTex(d0,dyeMasks);maskTex(d1,dyeMasks);
+}
+const CU=new Float32Array(24),LG=new Float32Array(24);
+function display(){
+  const milk=S.ground==='milk';
+  for(let k=0;k<8;k++){const p=SLOT[k];const c=p?p.rgb:[0,0,0];for(let j=0;j<3;j++){CU[k*3+j]=c[j];LG[k*3+j]=Math.log(Math.max(.02,c[j]))}}
+  const q=U('disp');gl.uniform2f(q.uTexel,d0.tx,d0.ty);gl.uniform1i(q.uD0,d0.read.bind(0));gl.uniform1i(q.uD1,d1.read.bind(1));gl.uniform3fv(q.uCol,CU);gl.uniform3fv(q.uLg,LG);
+  if(milk)gl.uniform3f(q.uBg,.925,.912,.878);else gl.uniform3f(q.uBg,.016,.019,.03);gl.uniform1f(q.uMilk,milk?1:0);blit(null);
+}
+function probe(){
+  let q=U('probeC');gl.uniform2f(q.uTexel,0,0);gl.uniform2f(q.uO,.25/G.w,.25/G.h);
+  gl.uniform1i(q.uT,d0.read.bind(0));blit(pc0);gl.readPixels(0,0,G.w,G.h,gl.RGBA,gl.UNSIGNED_BYTE,G.b0);
+  gl.uniform1i(q.uT,d1.read.bind(0));blit(pc1);gl.readPixels(0,0,G.w,G.h,gl.RGBA,gl.UNSIGNED_BYTE,G.b1);
+  q=U('probeV');gl.uniform2f(q.uTexel,0,0);gl.uniform1i(q.uVel,vel.read.bind(0));gl.uniform1i(q.uCurl,curlF.bind(1));blit(pv);gl.readPixels(0,0,G.w,G.h,gl.RGBA,gl.UNSIGNED_BYTE,G.b2);
+  const n=G.w*G.h,mo=S.motion/100;let acc=0,mw=0,ms=0;
+  for(let i=0;i<n;i++){
+    let t=0,H=0;
+    for(let k=0;k<4;k++){const a=G.b0[i*4+k]/127.5,b=G.b1[i*4+k]/127.5;G.c[i*8+k]=a;G.c[i*8+4+k]=b;t+=a+b}
+    G.tot[i]=t;G.vx[i]=(G.b2[i*4]/255-.5)*1200;G.vy[i]=(G.b2[i*4+1]/255-.5)*1200;G.cu[i]=(G.b2[i*4+2]/255-.5)*600;
+    let w=0;
+    if(t>.035){
+      const sp=Math.min(1,Math.hypot(G.vx[i],G.vy[i])/250);
+      w=Math.pow(t,.7)*(1-mo+mo*(.12+1.3*sp));
+      let t2=0;for(let k=0;k<8;k++){const p=G.c[i*8+k]/t;if(p>.06)t2+=p}for(let k=0;k<8;k++){const p=G.c[i*8+k]/t;if(p>.06){const q=p/t2;H-=q*Math.log(q)}}
+      mw+=t;ms+=t*Math.min(1,H/Math.LN2);
+    }
+    acc+=w;G.cdf[i]=acc;
+  }
+  G.any=acc>0;G.murk=mw>0?ms/mw:0;
+}
+
+/* ---------------- paints ---------------- */
+const PAINTS=[],SLOT=new Array(8).fill(null);let selP=null,pid=0,SR=44100;
+const byId=id=>PAINTS.find(p=>p.id===id);
+function loudest(x,len){const blk=Math.floor(SR/4),nb=Math.floor(x.length/blk),e=new Float64Array(nb);for(let b=0;b<nb;b++){let s=0;for(let i=b*blk;i<(b+1)*blk;i++)s+=x[i]*x[i];e[b]=s}const w=Math.floor(len/blk);let best=0,cur=0,bi=0;for(let b=0;b<nb;b++){cur+=e[b];if(b>=w)cur-=e[b-w];if(b>=w-1&&cur>best){best=cur;bi=b-w+1}}return x.slice(bi*blk,bi*blk+len)}
+function centroid(x){const re=new Float64Array(N),im=new Float64Array(N);let num=0,den=0;const fr=Math.max(1,Math.min(24,Math.floor(x.length/N)));for(let f=0;f<fr;f++){const st=Math.floor((x.length-N)*(fr>1?f/(fr-1):0));for(let n=0;n<N;n++){re[n]=(x[st+n]||0)*WIN[n];im[n]=0}fft(re,im,false);for(let k=1;k<K;k++){const m=Math.hypot(re[k],im[k]);num+=m*k*SR/N;den+=m}}return den?num/den:1000}
+function addPaint(name,data){
+  if(PAINTS.length>=8){msg('絵具は8つまでです。どれかを取り除いてから足してください。');return null}
+  let trimmed=false;if(data.length>SR*8){data=loudest(data,Math.floor(SR*8));trimmed=true}
+  let pk=0;for(let i=0;i<data.length;i++){const a=Math.abs(data[i]);if(a>pk)pk=a}
+  if(pk<1e-5){msg(`「${name}」は無音のようです。`);return null}
+  const g=.92/pk;for(let i=0;i<data.length;i++)data[i]*=g;
+  const buf=ctx.createBuffer(1,data.length,SR);buf.getChannelData(0).set(data);
+  const cen=centroid(data);
+  const want=clamp(Math.round(Math.log2(cen/300)/Math.log2(6000/300)*7),0,7);
+  const used=new Set(PAINTS.map(p=>p.ci));let ci=want,bd=99;for(let i=0;i<8;i++){if(used.has(i))continue;const d=Math.abs(i-want)+(i<want?.1:0);if(d<bd){bd=d;ci=i}}
+  const slot=SLOT.indexOf(null);
+  const pk2=new Float32Array(40);const step=data.length/40;for(let i=0;i<40;i++){let m=0;for(let j=Math.floor(i*step);j<Math.floor((i+1)*step);j+=4){const a=Math.abs(data[j]);if(a>m)m=a}pk2[i]=m}
+  const p={id:++pid,name,buf,mono:data,dur:data.length/SR,cen,ci,slot,rgb:hexRGB(COLORS[ci][1]),hex:COLORS[ci][1],peaks:pk2,an:null};
+  PAINTS.push(p);SLOT[slot]=p;if(!selP)selP=p;
+  if(trimmed)msg(`「${name}」は8秒より長いので、いちばん鳴っている8秒を使います。`);
+  renderPal();return p;
+}
+function removePaint(p){
+  const i=PAINTS.indexOf(p);if(i<0)return;PAINTS.splice(i,1);SLOT[p.slot]=null;
+  if(GLOK){const m=[1,1,1,1];m[p.slot%4]=0;scaleTex(p.slot<4?d0:d1,m)}
+  for(const k of [...MC.keys()])if(k.split('|').slice(1,3).includes(String(p.id)))MC.delete(k);
+  if(selP===p)selP=PAINTS[0]||null;renderPal();
+}
+function spreadColors(list){if(list.length<2)return;const others=new Set(PAINTS.filter(p=>!list.includes(p)).map(p=>p.ci));const pick=[1,2,6,4,0,7,3,5].filter(i=>!others.has(i)).slice(0,list.length).sort((a,b)=>a-b);[...list].sort((a,b)=>a.cen-b.cen).forEach((p,i)=>{p.ci=pick[i];p.rgb=hexRGB(COLORS[p.ci][1]);p.hex=COLORS[p.ci][1]})}
+function recolor(p){const used=new Set(PAINTS.map(q=>q.ci));for(let s=1;s<=8;s++){const c=(p.ci+s)%8;if(!used.has(c)||c===p.ci){p.ci=c;break}}p.rgb=hexRGB(COLORS[p.ci][1]);p.hex=COLORS[p.ci][1];renderPal()}
+
+/* ---------------- spectral morph (offline STFT, built on demand) ---------------- */
+const N=1024,H=256,K=N/2+1,WIN=new Float64Array(N).map((_,n)=>.5-.5*Math.cos(2*Math.PI*n/N));
+const TW=(()=>{const c=new Float64Array(N/2),s=new Float64Array(N/2);for(let i=0;i<N/2;i++){c[i]=Math.cos(2*Math.PI*i/N);s[i]=Math.sin(2*Math.PI*i/N)}return{c,s}})();
+function fft(re,im,inv){const n=re.length;for(let i=1,j=0;i<n;i++){let bit=n>>1;for(;j&bit;bit>>=1)j^=bit;j^=bit;if(i<j){let t=re[i];re[i]=re[j];re[j]=t;t=im[i];im[i]=im[j];im[j]=t}}
+  for(let len=2;len<=n;len<<=1){const h=len>>1,st=n/len;for(let i=0;i<n;i+=len)for(let k=0;k<h;k++){const wr=TW.c[k*st],wi=inv?TW.s[k*st]:-TW.s[k*st];const a=i+k,b=a+h;const xr=re[b]*wr-im[b]*wi,xi=re[b]*wi+im[b]*wr;re[b]=re[a]-xr;im[b]=im[a]-xi;re[a]+=xr;im[a]+=xi}}
+  if(inv)for(let i=0;i<n;i++){re[i]/=n;im[i]/=n}}
+function* analyze(p){if(p.an)return p.an;const x=p.mono,len=x.length,F=Math.ceil(len/H)+1;const mag=new Float32Array(F*K),ph=new Float32Array(F*K),re=new Float64Array(N),im=new Float64Array(N);let s=0;for(let i=0;i<len;i++)s+=x[i]*x[i];
+  for(let f=0;f<F;f++){const st=f*H-N/2;for(let n=0;n<N;n++){const i=st+n;re[n]=i>=0&&i<len?x[i]*WIN[n]:0;im[n]=0}fft(re,im,false);const o=f*K;for(let k=0;k<K;k++){mag[o+k]=Math.hypot(re[k],im[k]);ph[o+k]=Math.atan2(im[k],re[k])}if((f&31)===31)yield}
+  p.an={F,len,mag,ph,rms:Math.sqrt(s/Math.max(1,len))};return p.an}
+function smooth(src,dst,w){let acc=0;const c=new Float64Array(K+1);for(let k=0;k<K;k++){acc+=src[k];c[k+1]=acc}for(let k=0;k<K;k++){const a=Math.max(0,k-w),b=Math.min(K,k+w+1);dst[k]=(c[b]-c[a])/(b-a)}}
+function* morphJob(j){
+  const A=byId(j.a),B=byId(j.b);if(!A||!B)return;
+  const a=yield* analyze(A),b=yield* analyze(B);if(!byId(j.a)||!byId(j.b))return;
+  const F=a.F,Fb=b.F,gB=a.rms/Math.max(1e-6,b.rms),out=new Float32Array(F*H+N),re=new Float64Array(N),im=new Float64Array(N);
+  const la=new Float64Array(K),lb=new Float64Array(K),ea=new Float64Array(K),eb=new Float64Array(K);
+  for(let f=0;f<F;f++){
+    const fb=Math.min(Fb-1,Math.floor(f*Fb/F)),oa=f*K,ob=fb*K;
+    if(j.m==='morph'){const r=j.q;for(let k=0;k<K;k++){const m=Math.exp((1-r)*Math.log(a.mag[oa+k]+1e-7)+r*Math.log(b.mag[ob+k]*gB+1e-7)),ph=a.ph[oa+k];re[k]=m*Math.cos(ph);im[k]=m*Math.sin(ph)}}
+    else{for(let k=0;k<K;k++){la[k]=Math.log(a.mag[oa+k]+1e-7);lb[k]=Math.log(b.mag[ob+k]*gB+1e-7)}smooth(la,ea,10);smooth(lb,eb,10);for(let k=0;k<K;k++){const m=a.mag[oa+k]*Math.exp(j.q*(eb[k]-ea[k])),ph=a.ph[oa+k];re[k]=m*Math.cos(ph);im[k]=m*Math.sin(ph)}}
+    for(let k=1;k<N/2;k++){re[N-k]=re[k];im[N-k]=-im[k]}im[0]=0;im[N/2]=0;
+    fft(re,im,true);const st=f*H-N/2;for(let n=0;n<N;n++){const i=st+n;if(i>=0)out[i]+=re[n]*WIN[n]/1.5}
+    if((f&31)===31)yield;
+  }
+  const len=a.len;let s=0,pk=0;for(let i=0;i<len;i++){s+=out[i]*out[i]}const rms=Math.sqrt(s/len);const g=Math.min(8,a.rms/Math.max(1e-6,rms));for(let i=0;i<len;i++){out[i]*=g;const v=Math.abs(out[i]);if(v>pk)pk=v}
+  if(pk>.98){const h=.98/pk;for(let i=0;i<len;i++)out[i]*=h}
+  const buf=ctx.createBuffer(1,len,SR);buf.getChannelData(0).set(out.subarray(0,len));MC.set(j.k,buf);
+  let bytes=0;for(const b of MC.values())bytes+=b.length*4;for(const k of MC.keys()){if(bytes<36e6||MC.size<4)break;bytes-=MC.get(k).length*4;MC.delete(k)}
+}
+const MC=new Map(),MQ=[],MQS=new Set();let mBusy=false,mGen=null,mCur=null;
+function getMorph(m,A,B,q){const k=`${m}|${A.id}|${B.id}|${q}`;const b=MC.get(k);if(b)return b;if(!MQS.has(k)){MQS.add(k);MQ.push({k,m,a:A.id,b:B.id,q});if(!mBusy){mBusy=true;setTimeout(runM,0)}}return null}
+function runM(){const t0=performance.now();while(performance.now()-t0<9){if(!mGen){mCur=MQ.shift();if(!mCur){mBusy=false;updMorph();return}mGen=morphJob(mCur)}if(mGen.next().done){MQS.delete(mCur.k);mGen=null}}updMorph();setTimeout(runM,10)}
+function updMorph(){const n=MQ.length+(mGen?1:0);$('morphStat').textContent=n?`変身・浸透の音を作っています（残り ${n}）`:MC.size?`変身・浸透の音 ${MC.size} 種類を用意済み`:'変身・浸透の音は、色が初めて出会ったときに作ります'}
+
+/* ---------------- audio ---------------- */
+let ctx=null,bus,murkF,gate,out,verbIn,dlyIn,dly,active=0,playing=false,userStopped=false,schedT=0;
+const MAXV=72;
+function makeIR(){const len=Math.floor(SR*3.1),b=ctx.createBuffer(2,len,SR);for(let c=0;c<2;c++){const d=b.getChannelData(c);let y=0;for(let i=0;i<len;i++){const t=i/len,a=.92-.75*t;y+=a*((rnd()*2-1)-y);d[i]=i<SR*.012?0:y*Math.pow(1-t,2.2)}}return b}
+function ensureAudio(){
+  if(ctx){if(ctx.state!=='running')ctx.resume().catch(()=>{});return ctx}
+  try{if(navigator.audioSession)navigator.audioSession.type='playback'}catch(e){}
+  const AC=window.AudioContext||window.webkitAudioContext;ctx=new AC();SR=ctx.sampleRate;
+  bus=ctx.createGain();murkF=ctx.createBiquadFilter();murkF.type='lowpass';murkF.frequency.value=18000;murkF.Q.value=.4;
+  gate=ctx.createGain();gate.gain.value=0;
+  verbIn=ctx.createGain();const conv=ctx.createConvolver();conv.buffer=makeIR();
+  dlyIn=ctx.createGain();dly=ctx.createDelay(2);const fb=ctx.createGain();fb.gain.value=.42;const lp=ctx.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2600;
+  const comp=ctx.createDynamicsCompressor();comp.threshold.value=-12;comp.knee.value=8;comp.ratio.value=6;comp.attack.value=.004;comp.release.value=.25;
+  out=ctx.createGain();
+  bus.connect(murkF);murkF.connect(gate);murkF.connect(verbIn);verbIn.connect(conv);conv.connect(gate);
+  murkF.connect(dlyIn);dlyIn.connect(dly);dly.connect(lp);lp.connect(fb);fb.connect(dly);lp.connect(gate);
+  gate.connect(comp);comp.connect(out);out.connect(ctx.destination);
+  applyFx();schedT=setInterval(tick,25);
+  if(ctx.state!=='running')ctx.resume().catch(()=>{});
+  return ctx;
+}
+function applyFx(){if(!ctx)return;const t=ctx.currentTime;verbIn.gain.setTargetAtTime(Math.pow(S.verb/100,1.3)*1.2,t,.05);dlyIn.gain.setTargetAtTime(S.delay/100*.8,t,.05);dly.delayTime.setTargetAtTime(Math.min(1.9,60/S.bpm*.75),t,.1);out.gain.setTargetAtTime(Math.pow(S.vol/100,1.5)*1.4,t,.05)}
+function setPlaying(on){ensureAudio();playing=on;const t=ctx.currentTime;gate.gain.cancelScheduledValues(t);gate.gain.setTargetAtTime(on?1:0,t,.06);$('play').textContent=on?'■ 止める':'▶ 音を出す';$('play').setAttribute('aria-pressed',on);if(on&&!PAINTS.length)msg('絵具がまだありません。音声ファイルを入れるか、試しの音を使ってください。')}
+const clock=()=>ctx?ctx.currentTime:performance.now()/1000;
+
+const revCache=new WeakMap();
+function revOf(b){let r=revCache.get(b);if(r)return r;r=ctx.createBuffer(1,b.length,b.sampleRate);const s=b.getChannelData(0),d=r.getChannelData(0),n=s.length;for(let i=0;i<n;i++)d[i]=s[n-1-i];revCache.set(b,r);return r}
+function mkSrc(buf,t,p,rev){const b=rev?revOf(buf):buf;const s=ctx.createBufferSource();s.buffer=b;s.playbackRate.value=p.rate;const span=p.dur*p.rate;let off=clamp(p.pos,0,1)*Math.max(0,b.duration-span);if(rev)off=Math.max(0,b.duration-span-off);s.start(t,off);s.stop(t+p.dur+.03);return s}
+function mkEnv(t,p){const g=ctx.createGain(),d=p.dur,a=Math.max(.003,d*p.shape),r=Math.max(.006,d*(1-p.shape)*.85);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(p.amp,t+a);if(d-r>a)g.gain.setValueAtTime(p.amp,t+d-r);g.gain.linearRampToValueAtTime(0,t+d);let n=g;if(ctx.createStereoPanner){n=ctx.createStereoPanner();n.pan.value=clamp(p.pan,-1,1);g.connect(n)}n.connect(bus);return[g,n]}
+function done(nodes){active--;for(const n of nodes){try{n.disconnect()}catch(e){}}}
+function playBuf(buf,t,p){if(active>=MAXV||p.amp<.002)return false;active++;const s=mkSrc(buf,t,p,p.rev),[g,n]=mkEnv(t,p);s.connect(g);s.onended=()=>done([s,g,n]);return true}
+function playRing(A,B,t,p,m){if(active>=MAXV)return false;active++;const sa=mkSrc(A,t,p,p.rev),sb=mkSrc(B,t,p,false),[g,n]=mkEnv(t,p),dg=ctx.createGain(),rg=ctx.createGain(),bg=ctx.createGain();dg.gain.value=1-m*.75;rg.gain.value=0;bg.gain.value=m*2.6;sa.connect(dg);dg.connect(g);sa.connect(rg);rg.connect(g);sb.connect(bg);bg.connect(rg.gain);sa.onended=()=>done([sa,sb,dg,rg,bg,g,n]);return true}
+
+function mixOf(c){const gm=S.edge/10,o=[];let sum=0;for(let k=0;k<8;k++){const p=SLOT[k],w=G.c[c*8+k];if(!p||w<.012)continue;const x=Math.pow(w,gm);o.push({p,w:x});sum+=x}if(!sum)return o;for(const q of o)q.w/=sum;o.sort((a,b)=>b.w-a.w);return o}
+function playMix(t,mix,p,force){
+  const A=mix[0];
+  if(mix.length<2||mix[1].w<.08)return playBuf(A.p.buf,t,p)?'solo':'';
+  const B=mix[1],r=B.w/(A.w+B.w);
+  const en=MODES.map(m=>m[0]).filter(m=>S.modes[m]);
+  let m=force||en[Math.floor(rnd()*en.length)]||'share';
+  if(m==='share'){let x=rnd(),pick=mix[mix.length-1];for(const q of mix){x-=q.w;if(x<=0){pick=q;break}}return playBuf(pick.p.buf,t,p)?m:''}
+  if(m==='morph'||m==='cross'){const q=m==='morph'?(r<.27?.2:r<.42?.35:.5):(r<.3?.5:1);const b=getMorph(m,A.p,B.p,q);if(b)return playBuf(b,t,p)?m:'';m='blend'}
+  if(m==='ring')return playRing(A.p.buf,B.p.buf,t,p,Math.min(1,r*2))?m:'';
+  const ok=playBuf(A.p.buf,t,{...p,amp:p.amp*Math.cos(r*Math.PI/2)});playBuf(B.p.buf,t,{...p,amp:p.amp*Math.sin(r*Math.PI/2)});return ok?'blend':'';
+}
+const PENTA=[0,2,4,7,9,12];
+function snap(s){const o=Math.floor(s/12)*12,r=s-o;let b=0,bd=99;for(const q of PENTA){const d=Math.abs(r-q);if(d<bd){bd=d;b=q}}return o+b}
+const cellAt=(u,v)=>clamp(Math.floor(v*G.h),0,G.h-1)*G.w+clamp(Math.floor(u*G.w),0,G.w-1);
+function iceAt(u,v){const a=asp();for(const ic of ices){if(Math.hypot((u-ic.u)*a,v-ic.v)<ic.r*ic.k)return ic}return null}
+function foamAt(u,v){const a=asp();for(const b of bubbles){if(Math.hypot((u-b.u)*a,v-b.v)<b.rad*2.2)return b}return null}
+function voiceAt(t,u,v,o={}){
+  if(!ctx||!G.c||!PAINTS.length)return false;
+  const c=cellAt(u,v),tot=G.tot[c];if(tot<.035)return false;
+  const mix=mixOf(c);if(!mix.length)return false;
+  const sp=Math.min(1,Math.hypot(G.vx[c],G.vy[c])/260),mo=S.motion/100;
+  let amp=Math.min(1,Math.sqrt(tot))*(1-mo+mo*(.18+.82*sp))*1.5/Math.sqrt(1+S.density*S.size/1000*.45);
+  let dur=S.size/1000*(.75+rnd()*.5),pos=1-v+gauss()*S.posj/100*.22,semi=S.pitch+clamp(G.cu[c]/160,-1,1)*S.bend+(S.pitchj?(rnd()*2-1)*S.pitchj:0),shape=.38,kind='';
+  const ice=iceAt(u,v),foam=foamAt(u,v);
+  if(foam){dur=.012+rnd()*.04;semi+=3+rnd()*10;shape=.1;amp*=.9;kind='foam'}
+  if(ice){pos=ice.pos+gauss()*.004;dur*=1.6;semi-=(1-ice.life)*3.5;shape=.5;kind='ice'}
+  if(o.dur)dur=o.dur;if(o.semi)semi+=o.semi;if(o.shape!=null)shape=o.shape;if(o.amp)amp*=o.amp;if(o.pos!=null)pos=o.pos;
+  if(S.scale)semi=snap(semi);
+  const p={pos:clamp(pos,0,1),dur,rate:Math.pow(2,semi/12),amp,pan:(u*2-1)*.8,shape,rev:o.rev!=null?o.rev:rnd()*100<S.rev};
+  const m=playMix(t,mix,p,o.mode);
+  if(m){flash(t,u,v,mix,m,kind,dur);counts.push(t)}
+  return !!m;
+}
+
+/* ---------------- scheduling ---------------- */
+let nextT=0,magT=0,beatI=0,lastTick=0,needleI=0;const counts=[];
+function interval(rate){const b=1/rate,ir=S.irr/100;return b*((1-ir)+ir*-Math.log(1-rnd()))}
+function scanX(t){const ph=(t%S.scan)/S.scan;return ph<.5?ph*2:2-ph*2}
+function pickCell(){if(!G.any)return -1;const tot=G.cdf[G.cdf.length-1],x=rnd()*tot;let lo=0,hi=G.cdf.length-1;while(lo<hi){const m=(lo+hi)>>1;if(G.cdf[m]<x)lo=m+1;else hi=m}return lo}
+function pickInColumn(cx){let s=0;const w=[];for(let y=0;y<G.h;y++){const t=G.tot[y*G.w+cx];const v=t>.035?t:0;s+=v;w.push(s)}if(s<.05)return -1;const x=rnd()*s;let y=0;while(w[y]<x)y++;return y}
+function tick(){
+  if(!ctx)return;const now=ctx.currentTime,ahead=now+.12,dt=Math.min(.2,now-lastTick);lastTick=now;
+  if(!playing||!PAINTS.length){nextT=now;magT=now;return}
+  if(nextT<now)nextT=now+.005;
+  while(nextT<ahead){const t=nextT;nextT+=interval(S.density);if(rnd()*100>=S.prob)continue;
+    if(S.listen==='drift'){if(!needles.length)continue;const n=needles[needleI++%needles.length];voiceAt(t,n.u,n.v)}
+    else if(S.listen==='scan'){const x=scanX(t),cx=clamp(Math.floor(x*G.w),0,G.w-1),cy=pickInColumn(cx);if(cy>=0)voiceAt(t,x,(cy+rnd())/G.h)}
+    else{const c=pickCell();if(c>=0)voiceAt(t,(c%G.w+rnd())/G.w,(Math.floor(c/G.w)+rnd())/G.h)}}
+  for(const pt of ptrs.values()){if(pt.tool!=='pour'&&pt.tool!=='swirl')continue;if(pt.next<now)pt.next=now;while(pt.next<ahead){voiceAt(pt.next,pt.u,pt.v);pt.next+=interval(Math.max(5,S.density*.5))}}
+  for(const ic of ices){if(ic.next<now)ic.next=now+.01;while(ic.next<ahead){const t=ic.next;ic.next+=interval(Math.max(3,S.density*.3));if(rnd()*100<S.prob)voiceAt(t,ic.u+gauss()*ic.r*.2/asp(),ic.v+gauss()*ic.r*.2)}}
+  const beat=60/S.bpm/2;if(magT<now)magT=Math.ceil(now/beat)*beat;
+  while(magT<ahead){const t=magT,acc=beatI%4===0;for(const m of mags){m.kicks.push([t,acc?1:.55]);if(acc||rnd()*100<S.prob*.8)voiceAt(t,m.u,m.v,{dur:.05+rnd()*.1,shape:.04,amp:acc?1.25:.8})}magT+=beat;beatI++}
+  if(S.rare&&rnd()<S.rare/100*.2*dt)rareEvent(now+.05);
+  if(S.murk){const f=17000*Math.pow(1-G.murk*.9,3)+450;murkF.frequency.setTargetAtTime(f,now,.25)}else murkF.frequency.setTargetAtTime(19000,now,.2);
+}
+function rareEvent(t){const c=pickCell();if(c<0)return;const u=(c%G.w+.5)/G.w,v=(Math.floor(c/G.w)+.5)/G.h,ty=rnd();
+  if(ty<.4)voiceAt(t,u,v,{dur:1.2+rnd()*1.8,shape:.4,amp:1.6});
+  else if(ty<.75){const n=8+Math.floor(rnd()*12),acc=rnd()<.5;let tt=t;for(let i=0;i<n;i++){voiceAt(tt,u+gauss()*.02,v+gauss()*.02,{dur:.04+rnd()*.06,shape:.1,semi:(acc?i:n-i)*.6,amp:1.2});tt+=acc?.16*Math.pow(.86,i):.04*Math.pow(1.12,i)}}
+  else voiceAt(t,u,v,{dur:1.6+rnd()*1.2,shape:.92,rev:true,amp:1.5});
+  events.push({t,u,v,c:SLOT.find(p=>p)?.hex||'#fff'});
+}
+
+/* ---------------- bodies on the water ---------------- */
+const drops=[],bubbles=[],ices=[],mags=[],needles=[],flashes=[],events=[],gests=[],ptrs=new Map();
+const amt=()=>.5+S.amount/100*1.3;
+function doDrop(p,u,v,size=1,sound=true){
+  if(!p||!GLOK)return;const r=.0011*(.6+S.amount/100)*size;
+  splatDye(p.slot,u,v,amt()*1.25,r,2.2);drops.push({u,v,R:r*2.6,s:11*size,life:1});
+  if(sound&&ctx&&playing){const t=ctx.currentTime+.01;playBuf(p.buf,t,{pos:clamp(1-v,0,1),dur:.45+rnd()*.4,rate:Math.pow(2,S.pitch/12),amp:.7,pan:(u*2-1)*.8,shape:.03,rev:false});flash(t,u,v,[{p}],'solo','drop',.5);counts.push(t);
+    for(let i=0;i<2+Math.floor(rnd()*3);i++)setTimeout(()=>{if(ctx)voiceAt(ctx.currentTime+.01,u+gauss()*.03,v+gauss()*.03,{dur:.06+rnd()*.12,shape:.1})},120+rnd()*380)}
+}
+function addBubble(u,v){const rad=.008+rnd()*.022;bubbles.push({u,v,rad,R:rad*rad*1.4,s:20+rnd()*26,life:1,dur:.45+rnd()*.5});
+  if(ctx&&playing&&rnd()<.55){const t=ctx.currentTime+.2+rnd()*.4;voiceAt(t,u,v,{dur:.015+rnd()*.03,semi:5+rnd()*14,shape:.05,amp:.8})}}
+function addIce(u,v){if(ices.length>=4)ices.shift();const pts=[];const n=7+Math.floor(rnd()*3);for(let i=0;i<n;i++)pts.push([i/n*Math.PI*2+rnd()*.5,.75+rnd()*.35]);
+  const ic={u,v,r:.065,k:1,life:1,pos:clamp(1-v,0,1),pts,next:0,born:clock()};ices.push(ic);
+  if(ctx&&playing)voiceAt(ctx.currentTime+.01,u,v,{dur:1.1,shape:.6,amp:1.2})}
+function breakIce(ic){ices.splice(ices.indexOf(ic),1);if(ctx&&playing){const t=ctx.currentTime+.01;for(let i=0;i<7;i++)voiceAt(t+i*.035+rnd()*.02,ic.u+gauss()*.02,ic.v+gauss()*.02,{dur:.02+rnd()*.03,semi:12+rnd()*12,shape:.05,amp:1.1})}
+  for(let i=0;i<6;i++)bubbles.push({u:ic.u+gauss()*.02,v:ic.v+gauss()*.02,rad:.006+rnd()*.01,R:.00008,s:30,life:1,dur:.4,shard:true})}
+function addMag(u,v){if(mags.length>=3)mags.shift();mags.push({u,v,kicks:[],env:0,phase:rnd()*6});if(ctx&&playing)voiceAt(ctx.currentTime+.01,u,v,{dur:.18,semi:-12,shape:.03,amp:1.3})}
+function hitBody(list,u,v,rad){const a=asp();return list.find(b=>Math.hypot((u-b.u)*a,v-b.v)<(rad||b.r*b.k||.05))}
+function setNeedles(){while(needles.length<S.needles)needles.push({u:.2+rnd()*.6,v:.2+rnd()*.6,trail:[],quiet:0});needles.length=S.needles}
+
+function pourSeg(p,u0,v0,u1,v1){const a=asp(),dx=(u1-u0)*a,dy=v1-v0,d=Math.hypot(dx,dy),n=Math.max(1,Math.ceil(d/.012));for(let i=1;i<=n;i++){const k=i/n,u=u0+(u1-u0)*k,v=v0+(v1-v0)*k;splatDye(p.slot,u,v,amt()*.4/Math.sqrt(n),.0006*(.6+S.amount/100),1)}splatVel(u1,v1,dx*5200,dy*5200,.0022)}
+function swirlAt(u,v,du,dv,sign,dt){const a=asp();if(du||dv)splatVel(u,v,du*a*6200,dv*6200,.004);vortex(u,v,sign*1100*dt,.006)}
+
+function frameBodies(dt,now){
+  const src=[],vm=[],dm=[];const a=asp();
+  for(let i=drops.length-1;i>=0;i--){const d=drops[i];d.life-=dt*2.4;if(d.life<=0){drops.splice(i,1);continue}src.push([d.u,d.v,d.R,d.s*d.life])}
+  for(let i=bubbles.length-1;i>=0;i--){const b=bubbles[i];b.life-=dt/b.dur;if(b.life<=0){bubbles.splice(i,1);continue}if(!b.shard){src.push([b.u,b.v,b.R,b.s*Math.max(0,b.life-.3)/.7]);dm.push([b.u,b.v,b.rad*.8,.07*b.life])}}
+  for(let i=ices.length-1;i>=0;i--){const ic=ices[i];ic.life-=dt/24;if(ic.life<=0){ices.splice(i,1);continue}ic.k=.35+.65*ic.life;vm.push([ic.u,ic.v,ic.r*ic.k,.93]);if(ic.life<.8){src.push([ic.u,ic.v,Math.pow(ic.r*ic.k,2)*1.3,10*(1-ic.life)]);dm.push([ic.u,ic.v,ic.r*ic.k*1.15,.006])}}
+  for(const m of mags){while(m.kicks.length&&m.kicks[0][0]<=now){const k=m.kicks.shift();m.env=Math.max(m.env,k[1])}m.env*=Math.exp(-dt*7);src.push([m.u,m.v,.0035,-(8+70*m.env)])}
+  src.sort((x,y)=>Math.abs(y[3])-Math.abs(x[3]));dm.sort((x,y)=>y[3]-x[3]);
+  return[src.slice(0,16),vm.slice(0,16),dm.slice(0,16)];
+}
+function runGests(now,dt){for(let i=gests.length-1;i>=0;i--){const g=gests[i],k=Math.min(1,(now-g.t0)/g.dur);if(k<0)continue;const p=byId(g.pid);
+  if(g.type==='pour'&&p){const q=bez(g.pts,k);if(g.last)pourSeg(p,g.last[0],g.last[1],q[0],q[1]);g.last=q}
+  else if(g.type==='swirl'){const ang=g.a0+k*g.turn,u=g.u+Math.cos(ang)*g.rad/asp(),v=g.v+Math.sin(ang)*g.rad;swirlAt(u,v,(u-(g.lu??u)),(v-(g.lv??v)),g.sign,dt);g.lu=u;g.lv=v}
+  else if(g.type==='foam'){g.acc=(g.acc||0)+dt*16;while(g.acc>1){g.acc--;addBubble(g.u+gauss()*.05/asp(),g.v+gauss()*.05)}}
+  if(k>=1)gests.splice(i,1)}}
+function bez(p,k){const m=1-k;return[m*m*p[0][0]+2*m*k*p[1][0]+k*k*p[2][0],m*m*p[0][1]+2*m*k*p[1][1]+k*k*p[2][1]]}
+
+let autoT=0;
+function autoStep(){if(!autoOn)return;if(PAINTS.length&&GLOK){const r=rnd(),p=PAINTS[Math.floor(rnd()*PAINTS.length)],now=performance.now()/1000,R=()=>.12+rnd()*.76;
+  if(r<.34)doDrop(p,R(),R(),.6+rnd()*.9);
+  else if(r<.54)gests.push({type:'pour',pid:p.id,t0:now,dur:.5+rnd()*.8,pts:[[R(),R()],[R(),R()],[R(),R()]]});
+  else if(r<.74)gests.push({type:'swirl',t0:now,dur:.8+rnd()*1.2,u:R(),v:R(),rad:.04+rnd()*.08,a0:rnd()*6.28,turn:(2+rnd()*4)*(rnd()<.5?-1:1),sign:rnd()<.5?-1:1});
+  else if(r<.86)gests.push({type:'foam',t0:now,dur:.5+rnd()*.7,u:R(),v:R()});
+  else if(r<.93){if(ices.length<3)addIce(R(),R());else breakIce(ices[0])}
+  else{if(mags.length<2)addMag(R(),R());else mags.shift()}}
+  autoT=setTimeout(autoStep,550+rnd()*1900)}
+let autoOn=false;
+
+function updNeedles(dt){
+  if(S.listen!=='drift'||!G.c)return;
+  for(const n of needles){const c=cellAt(n.u,n.v);n.u+=(G.vx[c]/vel.w)*dt+gauss()*.012*dt;n.v+=(G.vy[c]/vel.h)*dt+gauss()*.012*dt;
+    if(n.u<.01||n.u>.99){n.u=clamp(n.u,.01,.99)}if(n.v<.01||n.v>.99){n.v=clamp(n.v,.01,.99)}
+    n.trail.push([n.u,n.v]);if(n.trail.length>26)n.trail.shift();
+    if(G.tot[c]<.035){n.quiet+=dt;if(n.quiet>2.2&&G.any&&rnd()<dt*1.5){const k=pickCell();if(k>=0){n.u=(k%G.w+rnd())/G.w;n.v=(Math.floor(k/G.w)+rnd())/G.h;n.trail=[];n.quiet=0}}}else n.quiet=0}
+}
+function flash(t,u,v,mix,mode,kind,dur){flashes.push({t,u,v,c:mix[0].p.hex,c2:mix[1]?mix[1].p.hex:null,mode,kind,d:Math.min(.6,Math.max(.18,dur))});if(flashes.length>160)flashes.splice(0,flashes.length-160)}
+
+/* ---------------- overlay drawing ---------------- */
+function drawOv(now){
+  const W=ov.width,Hh=ov.height,d=DPR,a=asp(),X=u=>u*W,Y=v=>(1-v)*Hh,milk=S.ground==='milk';
+  const fg=milk?'rgba(20,18,26,':'rgba(240,237,230,';
+  octx.clearRect(0,0,W,Hh);
+  if(!PAINTS.length)return;
+  octx.font=`${10*d}px "IBM Plex Mono",monospace`;octx.fillStyle=fg+'.35)';octx.textBaseline='top';octx.fillText('始',7*d,7*d);octx.textBaseline='bottom';octx.fillText('終',7*d,Hh-7*d);
+  if(S.listen==='scan'){const x=X(scanX(now));const g=octx.createLinearGradient(x-14*d,0,x+14*d,0);g.addColorStop(0,fg+'0)');g.addColorStop(.5,fg+'.16)');g.addColorStop(1,fg+'0)');octx.fillStyle=g;octx.fillRect(x-14*d,0,28*d,Hh);octx.fillStyle=fg+'.7)';octx.fillRect(x-.5*d,0,1*d,Hh)}
+  for(const b of bubbles){const r=b.rad*Hh*(1+(1-b.life)*.7);octx.strokeStyle=fg+(.42*b.life).toFixed(3)+')';octx.lineWidth=(b.shard?1.4:.9)*d;octx.beginPath();if(b.shard){octx.moveTo(X(b.u)-r,Y(b.v));octx.lineTo(X(b.u)+r,Y(b.v)-r*.6)}else octx.arc(X(b.u),Y(b.v),r,0,Math.PI*2);octx.stroke()}
+  for(const ic of ices){const cx=X(ic.u),cy=Y(ic.v),R=ic.r*ic.k*Hh;octx.beginPath();ic.pts.forEach(([an,rr],i)=>{const x=cx+Math.cos(an)*R*rr,y=cy+Math.sin(an)*R*rr;i?octx.lineTo(x,y):octx.moveTo(x,y)});octx.closePath();
+    octx.fillStyle=milk?'rgba(150,190,220,.22)':'rgba(205,232,255,.16)';octx.fill();octx.strokeStyle=milk?'rgba(70,110,140,.6)':'rgba(225,242,255,.62)';octx.lineWidth=1.2*d;octx.stroke();
+    octx.strokeStyle=milk?'rgba(70,110,140,.25)':'rgba(225,242,255,.22)';octx.beginPath();for(let i=0;i<ic.pts.length;i+=2){const [an,rr]=ic.pts[i];octx.moveTo(cx+R*.12,cy-R*.1);octx.lineTo(cx+Math.cos(an)*R*rr,cy+Math.sin(an)*R*rr)}octx.stroke()}
+  for(const m of mags){const cx=X(m.u),cy=Y(m.v),r0=8*d,n=18;m.phase+=.004;octx.fillStyle=milk?'rgba(14,13,18,.92)':'rgba(214,220,232,.85)';
+    for(let i=0;i<n;i++){const an=i/n*Math.PI*2+m.phase,len=(3+15*m.env*(.6+.4*Math.sin(i*2.3+m.phase*9)))*d,w=.16;octx.beginPath();octx.moveTo(cx+Math.cos(an-w)*r0,cy+Math.sin(an-w)*r0);octx.lineTo(cx+Math.cos(an)*(r0+len),cy+Math.sin(an)*(r0+len));octx.lineTo(cx+Math.cos(an+w)*r0,cy+Math.sin(an+w)*r0);octx.fill()}
+    octx.beginPath();octx.arc(cx,cy,r0,0,Math.PI*2);octx.fillStyle=milk?'#141218':'#0a0b10';octx.fill();octx.strokeStyle=fg+'.75)';octx.lineWidth=1.2*d;octx.stroke()}
+  for(let i=flashes.length-1;i>=0;i--){const f=flashes[i];const k=(now-f.t)/f.d;if(k>1){flashes.splice(i,1);continue}if(k<0)continue;
+    const x=X(f.u),y=Y(f.v),r=(f.kind==='drop'?6+k*30:f.kind==='foam'?1.5+k*4:2.5+k*11)*d;octx.globalAlpha=(1-k)*.9;octx.lineWidth=1.3*d;
+    if(f.mode==='morph'||f.mode==='cross'){octx.fillStyle=f.c;octx.beginPath();octx.arc(x,y,r*.55,0,Math.PI*2);octx.fill();octx.strokeStyle=f.c2||f.c;octx.beginPath();octx.arc(x,y,r,0,Math.PI*2);octx.stroke()}
+    else if(f.mode==='ring'){octx.setLineDash([2*d,2*d]);octx.strokeStyle=f.c;octx.beginPath();octx.arc(x,y,r,0,Math.PI*2);octx.stroke();octx.setLineDash([])}
+    else if(f.mode==='blend'){octx.strokeStyle=f.c;octx.beginPath();octx.arc(x,y,r,0,Math.PI*2);octx.stroke();octx.strokeStyle=f.c2||f.c;octx.beginPath();octx.arc(x,y,r*.6,0,Math.PI*2);octx.stroke()}
+    else{octx.strokeStyle=f.c;octx.beginPath();octx.arc(x,y,r,0,Math.PI*2);octx.stroke()}
+    octx.globalAlpha=1}
+  for(let i=events.length-1;i>=0;i--){const e=events[i],k=(now-e.t)/1.6;if(k>1){events.splice(i,1);continue}if(k<0)continue;octx.globalAlpha=(1-k)*.7;octx.strokeStyle=e.c;octx.lineWidth=1.5*d;octx.beginPath();octx.arc(X(e.u),Y(e.v),(10+k*70)*d,0,Math.PI*2);octx.stroke();octx.globalAlpha=1}
+  if(S.listen==='drift')for(const n of needles){if(n.trail.length>1){octx.strokeStyle=fg+'.22)';octx.lineWidth=1*d;octx.beginPath();n.trail.forEach(([u,v],i)=>i?octx.lineTo(X(u),Y(v)):octx.moveTo(X(u),Y(v)));octx.stroke()}
+    const x=X(n.u),y=Y(n.v),q=n.quiet>0;octx.strokeStyle=fg+(q?'.35)':'.9)');octx.lineWidth=1.3*d;octx.beginPath();octx.arc(x,y,6*d,0,Math.PI*2);octx.stroke();octx.beginPath();octx.moveTo(x-10*d,y);octx.lineTo(x-7*d,y);octx.moveTo(x+7*d,y);octx.lineTo(x+10*d,y);octx.moveTo(x,y-10*d);octx.lineTo(x,y-7*d);octx.moveTo(x,y+7*d);octx.lineTo(x,y+10*d);octx.stroke()}
+}
+
+/* ---------------- main loop ---------------- */
+let lastF=performance.now(),fc=0,resizeDue=true,recCv=null,recCx=null;
+function frame(ts){
+  requestAnimationFrame(frame);
+  const dt=Math.min(.033,Math.max(.001,(ts-lastF)/1000));lastF=ts;
+  if(!GLOK)return;
+  if(resizeDue){resizeDue=false;if(fit())initFBOs()}
+  const pnow=performance.now()/1000,now=clock();
+  runGests(pnow,dt);
+  for(const pt of ptrs.values()){if(pt.tool==='swirl')swirlAt(pt.u,pt.v,0,0,pt.sign,dt);if(pt.tool==='foam'){pt.acc+=dt*18;while(pt.acc>1){pt.acc--;addBubble(pt.u+gauss()*.035/asp(),pt.v+gauss()*.035)}}}
+  const [src,vm,dm]=frameBodies(dt,now);
+  step(dt,src,vm,dm);display();
+  if(++fc%3===0)probe();
+  updNeedles(dt);drawOv(now);
+  if(recCx){recCx.drawImage(cv,0,0,recCv.width,recCv.height);recCx.drawImage(ov,0,0,recCv.width,recCv.height)}
+  if(fc%15===0)updMeter(now);
+}
+function updMeter(now){while(counts.length&&counts[0]<now-1)counts.shift();$('meter').textContent=`粒 ${counts.length} / 秒`+(active?` · 鳴っている ${active}`:'');const m=Math.round(G.murk*100);$('murkVal').textContent=m+'%';$('murkBar').style.width=m+'%'}
+
+/* ---------------- pointer input ---------------- */
+function uvOf(e){const r=ov.getBoundingClientRect();return[clamp((e.clientX-r.left)/r.width,0,1),clamp(1-(e.clientY-r.top)/r.height,0,1)]}
+ov.addEventListener('pointerdown',e=>{
+  if(!GLOK)return;e.preventDefault();ensureAudio();if(!playing&&!userStopped)setPlaying(true);
+  if(!PAINTS.length){msg('先に絵具（音）を入れてください。');return}
+  const[u,v]=uvOf(e),tool=S.tool;
+  if(tool==='ice'){const hit=hitBody(ices,u,v);if(hit)breakIce(hit);else addIce(u,v);return}
+  if(tool==='mag'){const hit=hitBody(mags,u,v,.05);if(hit)mags.splice(mags.indexOf(hit),1);else addMag(u,v);return}
+  try{ov.setPointerCapture(e.pointerId)}catch(_){}
+  const pt={tool,u,v,pu:u,pv:v,lu:u,lv:v,sign:1,acc:0,next:0,turn:0};ptrs.set(e.pointerId,pt);
+  if(tool==='drop')doDrop(selP,u,v,1);
+  if(tool==='pour'&&selP)splatDye(selP.slot,u,v,amt()*.8,.0009*(.6+S.amount/100),1.4);
+  if(tool==='foam')for(let i=0;i<3;i++)addBubble(u+gauss()*.02,v+gauss()*.02);
+});
+ov.addEventListener('pointermove',e=>{const pt=ptrs.get(e.pointerId);if(!pt)return;const[u,v]=uvOf(e);const du=u-pt.u,dv=v-pt.v;
+  if(pt.tool==='drop'){if(Math.hypot((u-pt.lu)*asp(),v-pt.lv)>.06){doDrop(selP,u,v,.55+rnd()*.4);pt.lu=u;pt.lv=v}}
+  else if(pt.tool==='pour'&&selP)pourSeg(selP,pt.u,pt.v,u,v);
+  else if(pt.tool==='swirl'){const cr=(pt.du||0)*dv-(pt.dv||0)*du;if(Math.abs(cr)>1e-7)pt.sign=cr>0?1:-1;swirlAt(u,v,du,dv,pt.sign,0);pt.du=du;pt.dv=dv}
+  pt.u=u;pt.v=v});
+const endPtr=e=>{ptrs.delete(e.pointerId);if(ctx&&ctx.state!=='running')ctx.resume().catch(()=>{})};
+document.addEventListener('touchend',()=>{if(ctx&&ctx.state!=='running')ctx.resume().catch(()=>{})},{passive:true});
+ov.addEventListener('pointerup',endPtr);ov.addEventListener('pointercancel',endPtr);ov.addEventListener('lostpointercapture',endPtr);
+
+/* ---------------- files ---------------- */
+function toMono(b){const n=b.length,c=b.numberOfChannels,o=new Float32Array(n);for(let k=0;k<c;k++){const d=b.getChannelData(k);for(let i=0;i<n;i++)o[i]+=d[i]/c}return o}
+function decodeWith(c,ab){return new Promise((res,rej)=>{const p=c.decodeAudioData(ab,res,rej);if(p&&p.catch)p.catch(rej)})}
+async function addFiles(files){
+  ensureAudio();const list=[...files];let added=0;const batch=[];
+  for(const f of list){if(PAINTS.length>=8){msg('絵具は8つまでです。どれかを取り除いてから足してください。');break}
+    msg(`「${f.name}」を読み込んでいます…`);
+    try{const ab=await(f.arrayBuffer?f.arrayBuffer():new Response(f).arrayBuffer());const copy=ab.slice(0);let b;
+      try{b=await decodeWith(ctx,ab)}catch(e){const OAC=window.OfflineAudioContext||window.webkitOfflineAudioContext;if(!OAC)throw e;b=await decodeWith(new OAC(1,SR,SR),copy)}
+      let mono=toMono(b);if(b.sampleRate!==SR){const r=b.sampleRate/SR,n=Math.floor(mono.length/r),o=new Float32Array(n);for(let i=0;i<n;i++)o[i]=mono[Math.floor(i*r)];mono=o}
+      const p=addPaint(f.name.replace(/\.[^.]+$/,''),mono);if(p){added++;batch.push(p);selP=p;openingDrop(p)}
+    }catch(e){msg(`「${f.name}」を読み込めませんでした。音声ファイルでないか、このブラウザが読めない形式です。`)}}
+  if(added){if(batch.length===PAINTS.length)spreadColors(batch);renderPal();if(!userStopped)setPlaying(true);if(!$('msg').textContent.includes('8秒'))msg(`${added} つの音を絵具にしました。水面に垂らしてみてください。`)}
+}
+function openingDrop(p){setTimeout(()=>doDrop(p,.2+rnd()*.6,.22+rnd()*.56,1.3,false),60+rnd()*500)}
+$('openBtn').onclick=()=>$('fileIn').click();
+$('fileIn').addEventListener('change',e=>{if(e.target.files.length)addFiles(e.target.files);e.target.value=''});
+['dragenter','dragover'].forEach(ev=>document.addEventListener(ev,e=>{if(e.dataTransfer&&[...e.dataTransfer.types].includes('Files')){e.preventDefault();stage.classList.add('dragging')}}));
+document.addEventListener('dragleave',e=>{if(e.target===document.documentElement||!e.relatedTarget)stage.classList.remove('dragging')});
+document.addEventListener('drop',e=>{if(!e.dataTransfer||!e.dataTransfer.files.length)return;e.preventDefault();stage.classList.remove('dragging');addFiles(e.dataTransfer.files)});
+
+/* ---------------- test sounds ---------------- */
+function rng(seed){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function bp(){let x1=0,x2=0,y1=0,y2=0,b0=0,b2=0,a1=0,a2=0;return{set(f,q,sr){const w=2*Math.PI*f/sr,al=Math.sin(w)/(2*q),a0=1+al;b0=al/a0;b2=-al/a0;a1=-2*Math.cos(w)/a0;a2=(1-al)/a0},run(x){const y=b0*x+b2*x2-a1*y1-a2*y2;x2=x1;x1=x;y2=y1;y1=y;return y}}}
+const TESTS=[
+ ['鐘',sr=>{const R=rng(3),n=Math.floor(sr*3.6),x=new Float32Array(n),f0=311;for(const[r,a,d]of[[.56,.45,3.4],[1,1,2.6],[2,.42,1.6],[2.76,.5,1.3],[5.4,.28,.7],[8.93,.16,.4],[11.3,.08,.25]]){const w=2*Math.PI*f0*r/sr;for(let i=0;i<n;i++)x[i]+=a*Math.sin(w*i)*Math.exp(-i/sr/d)}for(let i=0;i<sr*.004;i++)x[i]+=(R()*2-1)*.6*(1-i/(sr*.004));return x}],
+ ['声',sr=>{const R=rng(5),n=Math.floor(sr*3.6),x=new Float32Array(n),F=[bp(),bp(),bp()];let ph=0;const V=[[800,1150,2900],[450,800,2830],[350,2000,2800]];for(let i=0;i<n;i++){const t=i/sr;if(i%64===0){const k=t/3.6*2,a=Math.min(1,Math.floor(k)),f=k-a,A=V[a],B=V[a+1];for(let j=0;j<3;j++)F[j].set(A[j]+(B[j]-A[j])*f,j?12:8,sr)}const f0=165*(1+.012*Math.sin(2*Math.PI*5.2*t)+.04*t/3.6);ph+=f0/sr;if(ph>1)ph-=1;const src=(ph*2-1)+(R()*2-1)*.04;const env=Math.min(1,t/.25)*Math.min(1,(3.6-t)/.5);x[i]=(F[0].run(src)+F[1].run(src)*.7+F[2].run(src)*.35)*env}return x}],
+ ['水滴',sr=>{const R=rng(9),n=Math.floor(sr*3.6),x=new Float32Array(n);for(let d=0;d<20;d++){const t0=Math.floor(R()*(n-sr*.15)),f0=500+R()*1500,a=.4+R()*.6;let ph=0;for(let i=0;i<sr*.14&&t0+i<n;i++){const tt=i/sr,f=f0*(1+1.3*(1-Math.exp(-tt/.012)));ph+=2*Math.PI*f/sr;x[t0+i]+=a*Math.sin(ph)*Math.exp(-tt/.024)}}return x}],
+ ['弦',sr=>{const R=rng(11),n=Math.floor(sr*3.6),x=new Float32Array(n);[[196,0],[246.94,.45],[293.66,.9],[392,1.5],[329.63,2.1],[246.94,2.7]].forEach(([f,t])=>{const L=Math.round(sr/f),b=new Float32Array(L).map(()=>R()*2-1),t0=Math.floor(t*sr);let j=0;for(let i=0;i<sr*1.5&&t0+i<n;i++){const nx=(j+1)%L,v=b[j];b[j]=.5*(b[j]+b[nx])*.997;x[t0+i]+=v*.5;j=nx}});return x}],
+ ['息',sr=>{const R=rng(13),n=Math.floor(sr*3.6),x=new Float32Array(n),f=bp(),g=bp();for(let i=0;i<n;i++){const t=i/sr;if(i%64===0){const c=t<1.7?500+1700*t/1.7:2200-1400*(t-1.8)/1.8;f.set(Math.max(300,c),1.3,sr);g.set(Math.max(300,c)*2.1,3,sr)}const e=t<1.7?Math.sin(Math.PI*t/1.7):t>1.8?Math.sin(Math.PI*(t-1.8)/1.8):0;const s=R()*2-1;x[i]=(f.run(s)+g.run(s)*.4)*e*e}return x}],
+ ['低音',sr=>{const n=Math.floor(sr*3.6),x=new Float32Array(n),fs=[55,55.4,82.3,110.25],ph=[0,0,0,0];let y=0;for(let i=0;i<n;i++){const t=i/sr;let s=0;for(let k=0;k<4;k++){ph[k]+=fs[k]/sr;if(ph[k]>1)ph[k]-=1;s+=ph[k]*2-1}const fc=250+600*(.5+.5*Math.sin(2*Math.PI*.4*t-1.5)),a=1-Math.exp(-2*Math.PI*fc/sr);y+=a*(s*.3-y);x[i]=y*Math.min(1,t/.3)*Math.min(1,(3.6-t)/.6)}return x}]
+];
+$('testBtn').onclick=()=>{ensureAudio();if(!userStopped)setPlaying(true);let k=0;const batch=[];for(const[name,f]of TESTS){if(PAINTS.length>=8)break;const p=addPaint('試し: '+name,f(SR));if(p){batch.push(p);setTimeout(()=>doDrop(p,.15+rnd()*.7,.18+rnd()*.64,1.3,false),120+k*260);k++}}spreadColors(batch);selP=PAINTS[0];renderPal();msg('試しの音を6つ絵具にしました。道具を選んで水面に触れてください。')};
+
+/* ---------------- recording ---------------- */
+let rec=null,recDest=null,recChunks=[],recTick=0,recStart=0,DL=null,DLP=null;
+if(window.claude&&typeof window.claude.use==='function'){DLP=window.claude.use('downloads').then(x=>{DL=x;return x}).catch(()=>null)}
+async function saveBlob(blob,name){const dl=DL||(DLP?await DLP:null);
+  if(dl){try{await dl.save({filename:name,data:blob});msg(`「${name}」を保存しました。`)}catch(e){const c=e&&e.code;msg(c==='declined'?'保存を取りやめました。':c==='rate_limited'?'保存の確認が開いています。少し待ってからもう一度。':'この表示ではファイルを保存できません。')}return}
+  if(DLP){msg('この表示ではファイルを保存できません。');return}
+  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);msg(`「${name}」を書き出しました。`)}
+function toggleRec(){
+  ensureAudio();if(rec){rec.stop();return}
+  if(!window.MediaRecorder||!ctx.createMediaStreamDestination){msg('このブラウザは録画に対応していません。');return}
+  if(!recDest){recDest=ctx.createMediaStreamDestination();out.connect(recDest)}
+  let stream=recDest.stream,types=[['audio/webm;codecs=opus','webm'],['audio/webm','webm'],['audio/mp4','mp4']],video=false;
+  if(GLOK&&cv.captureStream){recCv=document.createElement('canvas');const sc=Math.min(1,1280/Math.max(cv.width,cv.height));recCv.width=Math.round(cv.width*sc/2)*2;recCv.height=Math.round(cv.height*sc/2)*2;recCx=recCv.getContext('2d');
+    try{const vs=recCv.captureStream(30);stream=new MediaStream([...vs.getVideoTracks(),...recDest.stream.getAudioTracks()]);types=[['video/mp4;codecs=avc1.42E01E,mp4a.40.2','mp4'],['video/webm;codecs=vp9,opus','webm'],['video/webm;codecs=vp8,opus','webm'],['video/webm','webm'],['video/mp4','mp4']];video=true}catch(e){recCv=recCx=null}}
+  const t=types.find(([m])=>MediaRecorder.isTypeSupported(m));if(!t){recCv=recCx=null;msg('このブラウザで使える録画形式がありません。');return}
+  try{rec=new MediaRecorder(stream,{mimeType:t[0]})}catch(e){recCv=recCx=null;msg('録画を始められませんでした。');return}
+  recChunks=[];rec.ondataavailable=e=>{if(e.data&&e.data.size)recChunks.push(e.data)};
+  rec.onstop=()=>{const blob=new Blob(recChunks,{type:t[0]});rec=null;recCv=recCx=null;clearInterval(recTick);$('rec').setAttribute('aria-pressed','false');$('recLabel').textContent='録画';$('rec').title='';
+    const d=new Date(),p=n=>String(n).padStart(2,'0');if(blob.size)saveBlob(blob,`nijimi-${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.${t[1]}`)};
+  rec.start(1000);recStart=Date.now();$('rec').setAttribute('aria-pressed','true');
+  recTick=setInterval(()=>{const s=Math.floor((Date.now()-recStart)/1000);$('recLabel').textContent=`保存 ${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`},500);$('recLabel').textContent='保存 0:00';$('rec').title='押すと録画を止めて保存します';
+  if(!video)msg('この端末では映像を録れないため、音だけを録ります。');
+  if(!playing)setPlaying(true);
+}
+
+/* ---------------- UI ---------------- */
+function renderTools(){$('tools').innerHTML=TOOLS.map(([k,c,l])=>`<button class="tool" type="button" role="radio" data-t="${k}" aria-checked="${S.tool===k}" title="${l}"><b>${c}</b><span>${l}</span></button>`).join('');
+  $('tools').querySelectorAll('.tool').forEach(b=>b.onclick=()=>{S.tool=b.dataset.t;saveS();renderTools()});const t=TOOLS.find(x=>x[0]===S.tool);$('hint').textContent=t?`${t[1]}　${t[3]}`:''}
+function renderPal(){
+  const pal=$('pal');pal.innerHTML='';
+  for(const p of PAINTS){const b=document.createElement('button');b.type='button';b.className='well';b.setAttribute('aria-pressed',p===selP);b.style.setProperty('--c',p.hex);b.title=`${p.name}（${COLORS[p.ci][0]}）`;
+    b.innerHTML=`<span class="blob"><canvas width="80" height="32"></canvas></span><span class="wn">${esc(p.name.replace(/^試し: /,''))}</span>`;b.onclick=()=>{selP=p;renderPal();if(S.tool!=='drop'&&S.tool!=='pour'){S.tool='drop';renderTools()}};
+    const c=b.querySelector('canvas').getContext('2d');c.fillStyle='rgba(10,10,16,.75)';for(let i=0;i<40;i++){const h=Math.max(1,p.peaks[i]*30);c.fillRect(i*2,16-h/2,1.4,h)}pal.append(b)}
+  if(PAINTS.length<8){const b=document.createElement('button');b.type='button';b.className='well add';b.innerHTML='<span class="blob">＋</span><span class="wn">音を足す</span>';b.onclick=()=>$('fileIn').click();pal.append(b)}
+  $('empty').hidden=PAINTS.length>0||!GLOK;$('hint').hidden=$('meter').hidden=!PAINTS.length;
+  const sb=$('selbar');if(!selP){sb.hidden=true;return}sb.hidden=false;sb.style.setProperty('--c',selP.hex);
+  const cen=selP.cen>=1000?(selP.cen/1000).toFixed(1)+' kHz':Math.round(selP.cen)+' Hz';
+  sb.innerHTML=`<i class="sw"></i><span class="nm">${esc(selP.name)}</span><span class="mono">${COLORS[selP.ci][0]} · ${selP.dur.toFixed(1)} 秒 · 明るさ ${cen}</span><span class="acts"><button class="btn" type="button" id="aud">試聴</button><button class="btn" type="button" id="rcl">色を替える</button><button class="btn" type="button" id="rmv">取り除く</button></span>`;
+  $('aud').onclick=()=>{ensureAudio();if(!playing)setPlaying(true);playBuf(selP.buf,ctx.currentTime+.01,{pos:0,dur:Math.min(selP.dur,6),rate:1,amp:.7,pan:0,shape:.01,rev:false})};
+  $('rcl').onclick=()=>recolor(selP);$('rmv').onclick=()=>{const n=selP.name;removePaint(selP);msg(`「${n}」を取り除きました。水面からもその色が消えます。`)};
+}
+function sliderHTML([k,l,mn,mx,st]){return`<div class="sl"><div class="slh"><label for="s-${k}">${l}</label><output id="o-${k}" for="s-${k}"></output></div><input type="range" id="s-${k}" min="${mn}" max="${mx}" step="${st}" value="${S[k]}"></div>`}
+function buildSliders(){for(const g in SL){const host=$('sl-'+g);host.innerHTML=SL[g].map(sliderHTML).join('');for(const d of SL[g]){const[k,,,,,fmt]=d,inp=$('s-'+k);const show=()=>{$('o-'+k).textContent=fmt(S[k])};show();inp.oninput=()=>{S[k]=+inp.value;show();saveS();onChange(k)}}}}
+function onChange(k){if(['verb','delay','vol','bpm'].includes(k))applyFx();if(k==='needles')setNeedles()}
+function renderModes(){$('modes').innerHTML=MODES.map(([k,t,d])=>`<button class="tg" type="button" data-m="${k}" aria-pressed="${!!S.modes[k]}"><span class="box"></span><b>${t}</b><small>${d}</small></button>`).join('');
+  $('modes').querySelectorAll('.tg').forEach(b=>b.onclick=()=>{const k=b.dataset.m;S.modes[k]=!S.modes[k];if(!MODES.some(m=>S.modes[m[0]]))S.modes.share=true;saveS();renderModes()})}
+function renderSeg(id,list,key,cb){$(id).innerHTML=list.map(([k,t])=>`<button type="button" data-k="${k}" aria-pressed="${S[key]===k}">${t}</button>`).join('');$(id).querySelectorAll('button').forEach(b=>b.onclick=()=>{S[key]=b.dataset.k;saveS();renderSeg(id,list,key,cb);cb&&cb()})}
+function renderListen(){renderSeg('listen',LISTEN,'listen',renderListen);const l=LISTEN.find(x=>x[0]===S.listen);$('listenNote').textContent=l[2];$('s-needles').closest('.sl').hidden=S.listen!=='drift';$('s-scan').closest('.sl').hidden=S.listen!=='scan'}
+function bindChecks(){for(const k of ['scale','murk']){const c=$(k);c.checked=!!S[k];c.onchange=()=>{S[k]=c.checked;saveS()}}}
+const groundCls=()=>stage.classList.toggle('milk',S.ground==='milk');
+function buildUI(){renderTools();buildSliders();renderModes();renderListen();renderSeg('ground',[['ink','墨の水面'],['milk','乳白の水面']],'ground',groundCls);groundCls();bindChecks();renderPal();setNeedles()}
+
+$('play').onclick=()=>{ensureAudio();userStopped=playing;setPlaying(!playing)};
+$('auto').onclick=()=>{autoOn=!autoOn;$('auto').setAttribute('aria-pressed',autoOn);$('auto').title=autoOn?'押すと自動の描き手が止まります':'';clearTimeout(autoT);if(autoOn){ensureAudio();if(!playing&&!userStopped)setPlaying(true);if(!PAINTS.length)msg('自動で描くには絵具が要ります。音を入れるか、試しの音を使ってください。');autoStep()}};
+$('wash').onclick=()=>{if(GLOK){scaleTex(d0,[0,0,0,0]);scaleTex(d1,[0,0,0,0]);scaleTex(vel,[0,0,0,0])}drops.length=bubbles.length=ices.length=mags.length=gests.length=0;msg('水面を洗い流しました。')};
+$('rec').onclick=toggleRec;
+$('reset').onclick=()=>{const keep=S.tool;S=JSON.parse(JSON.stringify(DEF));S.tool=keep;saveS();buildUI();applyFx();msg('設定を初めに戻しました。')};
+document.addEventListener('keydown',e=>{if(e.target.closest&&e.target.closest('input,textarea'))return;const i='123456'.indexOf(e.key);if(i>=0){S.tool=TOOLS[i][0];saveS();renderTools()}else if(e.key===' '&&e.target===document.body){e.preventDefault();$('play').click()}});
+new ResizeObserver(()=>{resizeDue=true}).observe(stage);
+
+buildUI();
+if(GLOK){try{buildGL();fit();initFBOs()}catch(e){console.error(e);GLOK=false;$('glerr').hidden=false;$('empty').hidden=true}}else{$('glerr').hidden=false;$('empty').hidden=true}
+cv.addEventListener('webglcontextlost',e=>{e.preventDefault();$('glerr').textContent='描画が止まりました。ページを開き直してください。';$('glerr').hidden=false});
+requestAnimationFrame(frame);
+})();
+</script>
