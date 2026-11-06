@@ -78,6 +78,10 @@ h1,h2,h3{text-wrap:balance;margin:0}
 .srcrow{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .srcrow .fname{font-size:12px;color:var(--dim);min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .srcrow .chipb[aria-pressed="true"]{border-color:var(--c);color:var(--c);font-weight:700}
+.mixline{min-height:1.4em}
+.wave{cursor:pointer}
+details.more summary{cursor:pointer;font-size:12.5px;color:var(--dim);padding:2px 0}
+details.more[open] summary{margin-bottom:6px}
 
 /* horizontal sliders */
 .sliders{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 14px}

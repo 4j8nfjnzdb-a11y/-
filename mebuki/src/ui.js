@@ -12,67 +12,71 @@ const hz=f=>f>=1000?(f/1000).toFixed(f>=10000?0:1)+'k':Math.round(f)+'';
 const db=v=>v<0.001?'-∞':(20*Math.log10(v)).toFixed(1)+' dB';
 
 // ---------- control specs ----------
-const GRAIN=[
-  {k:'position',l:'位置',min:0,max:1,f:v=>v.toFixed(2)},
-  {k:'scan',l:'時間の流れ',min:-1,max:1,f:v=>Math.abs(v)<0.002?'静止':(v>0?'+':'')+v.toFixed(2)+'×'},
-  {k:'spray',l:'散り',min:0,max:1,f:pct},
-  {k:'density',l:'密度',min:0.5,max:120,log:1,f:v=>(v<10?v.toFixed(1):Math.round(v))+'/秒'},
-  {k:'size',l:'粒の長さ',min:10,max:1500,log:1,f:v=>Math.round(v)+' ms'},
-  {k:'pitch',l:'音高',min:-24,max:24,f:v=>(v>0?'+':'')+v.toFixed(1)+' 半音'},
-  {k:'pspray',l:'音高の散り',min:0,max:12,f:v=>'±'+v.toFixed(1)},
-  {k:'rev',l:'逆再生',min:0,max:1,f:pct},
-  {k:'width',l:'広がり',min:0,max:1,f:pct},
-  {k:'shape',l:'粒の形',min:0,max:1,f:v=>v<0.04?'なめらか':(v>0.96?'打撃':pct(v))},
+// 変化: each starts from the original file and changes it more the further it moves.
+const CHANGE=[
+  {k:'speed',l:'速度',min:-2,max:2,ctr:1,f:v=>Math.abs(v)<0.005?'止まる':v.toFixed(2)+'×'},
+  {k:'stretch',l:'伸ばし',min:0,max:1,f:v=>v<0.005?'—':(v>0.995?'止まる':(1/(1-v)).toFixed(1)+'倍遅く')},
+  {k:'grain',l:'粒化',min:0,max:1,f:v=>v<0.005?'—':pct(v)},
+  {k:'pitch',l:'音高',min:-12,max:12,ctr:0,f:v=>Math.abs(v)<0.05?'—':(v>0?'+':'')+v.toFixed(1)+' 半音'},
+  {k:'pspray',l:'音高の散り',min:0,max:12,f:v=>v<0.05?'—':'±'+v.toFixed(1)},
+  {k:'rev',l:'逆再生',min:0,max:1,f:v=>v<0.005?'—':pct(v)},
 ];
 const FX=[
-  {k:'tone',l:'フィルター',min:-1,max:1,bi:1,f:v=>Math.abs(v)<0.02?'off':(v<0?'LP '+hz(20000*Math.pow(2,v*7.4)):'HP '+hz(20*Math.pow(2,v*8.2)))},
-  {k:'res',l:'共鳴',min:0,max:1,f:pct},
-  {k:'drive',l:'歪み',min:0,max:1,f:pct},
-  {k:'crush',l:'劣化',min:0,max:1,f:pct},
-  {k:'wow',l:'揺れ',min:0,max:1,f:pct},
-  {k:'dsend',l:'ディレイ送り',min:0,max:1,f:pct},
-  {k:'rsend',l:'残響送り',min:0,max:1,f:pct},
+  {k:'tone',l:'フィルタ',min:-1,max:1,ctr:0,f:v=>Math.abs(v)<0.02?'—':(v<0?'LP '+hz(20000*Math.pow(2,v*7.4)):'HP '+hz(20*Math.pow(2,v*8.2)))},
+  {k:'drive',l:'歪み',min:0,max:1,f:v=>v<0.005?'—':pct(v)},
+  {k:'crush',l:'劣化',min:0,max:1,f:v=>v<0.005?'—':pct(v)},
+  {k:'wow',l:'揺れ',min:0,max:1,f:v=>v<0.005?'—':pct(v)},
+  {k:'comb',l:'響き',min:0,max:1,f:v=>v<0.005?'—':pct(v)},
+  {k:'dsend',l:'ディレイ送り',min:0,max:1,f:v=>v<0.005?'—':pct(v)},
+  {k:'rsend',l:'残響送り',min:0,max:1,f:v=>v<0.005?'—':pct(v)},
+];
+const DETAIL=[
+  {k:'size',l:'粒の長さ',min:20,max:400,log:1,f:v=>Math.round(v)+' ms'},
+  {k:'dmul',l:'粒の密度',min:0.25,max:3,log:1,f:v=>v.toFixed(2)+'×'},
+  {k:'shape',l:'粒の形',min:0,max:1,f:v=>v<0.04?'なめらか':(v>0.96?'打撃':pct(v))},
+  {k:'res',l:'フィルターの鋭さ',min:0,max:1,f:pct},
 ];
 const LEVEL={k:'level',l:'音量',min:0,max:1.5,f:db};
 const PAN={k:'pan',l:'定位',min:-1,max:1,f:v=>Math.abs(v)<0.02?'中央':(v<0?'L ':'R ')+Math.round(Math.abs(v)*100)};
+const TWIDTH={k:'width',l:'広がり',min:0,max:2,f:v=>Math.abs(v-1)<0.01?'そのまま':pct(v)};
 const MORPH_F=[
-  {k:'bloom',l:'揺らぎ',min:0,max:1,f:pct},
+  {k:'bloom',l:'揺らぎ',min:0,max:1,f:v=>v<0.005?'—':pct(v)},
   {k:'brate',l:'揺らぎの速さ',min:0,max:1,f:pct},
-  {k:'smear',l:'にじみ',min:0,max:0.98,f:pct},
-  {k:'shift',l:'ずらし',min:-1,max:1,bi:1,f:v=>{const b=Math.round(v*40);return b?(b>0?'+':'')+Math.round(b*47)+' Hz':'off'}},
+  {k:'smear',l:'にじみ',min:0,max:0.98,f:v=>v<0.005?'—':pct(v)},
+  {k:'shift',l:'ずらし',min:-1,max:1,ctr:0,f:v=>{const b=Math.round(v*40);return b?(b>0?'+':'')+Math.round(b*47)+' Hz':'—'}},
 ];
 const MASTER_TONE=[
-  {k:'tone',l:'フィルター',min:-1,max:1,bi:1,f:FX[0].f},{k:'res',l:'共鳴',min:0,max:1,f:pct},
-  {k:'drive',l:'歪み',min:0,max:1,f:pct},{k:'crush',l:'劣化',min:0,max:1,f:pct},
+  {k:'tone',l:'フィルタ',min:-1,max:1,ctr:0,f:FX[0].f},
+  {k:'drive',l:'歪み',min:0,max:1,f:FX[1].f},{k:'crush',l:'劣化',min:0,max:1,f:FX[2].f},
 ];
 const MASTER_DELAY=[
-  {k:'dtime',l:'時間',min:0.02,max:2.5,log:1,f:v=>Math.round(v*1000)+' ms'},{k:'dfb',l:'繰り返し',min:0,max:0.97,f:pct},
-  {k:'ddamp',l:'暗さ',min:0,max:0.98,f:pct},{k:'dret',l:'量',min:0,max:1,f:pct},
+  {k:'damt',l:'量',min:0,max:1,f:v=>v<0.005?'—':pct(v)},{k:'dtime',l:'時間',min:0.02,max:2.5,log:1,f:v=>Math.round(v*1000)+' ms'},
+  {k:'dfb',l:'繰り返し',min:0,max:0.97,f:pct},{k:'ddamp',l:'暗さ',min:0,max:0.98,f:pct},
 ];
 const MASTER_REV=[
-  {k:'rsize',l:'大きさ',min:0,max:1,f:pct},{k:'rdamp',l:'暗さ',min:0,max:0.95,f:pct},{k:'rret',l:'量',min:0,max:1,f:pct},
+  {k:'ramt',l:'量',min:0,max:1,f:v=>v<0.005?'—':pct(v)},{k:'rsize',l:'大きさ',min:0,max:1,f:pct},{k:'rdamp',l:'暗さ',min:0,max:0.95,f:pct},
 ];
-const WIDTH={k:'width',l:'ステレオ幅',min:0,max:2,f:v=>pct(v)};
+const WIDTH={k:'width',l:'ステレオ幅',min:0,max:2,f:v=>Math.abs(v-1)<0.01?'そのまま':pct(v)};
 const MLEVEL={k:'level',l:'全体の音量',min:0,max:1.2,f:db};
 const MODES=[
-  ['配分','grains','粒の出どころの比率。左端は A の粒だけ、右端は B の粒だけ。間では両方の粒がまばらに混ざり、A の中に B が芽を出す。'],
-  ['混合','blend','A と B をそのまま等パワーで混ぜる。粒はどちらも全開。'],
+  ['混合','mix','A と B をそのまま重ねる。真ん中では両方とも元の音量。左へ寄せると A だけ、右へ寄せると B だけになる。'],
+  ['配分','exchange','両トラックの粒が、A と B どちらのファイルから音を取るかを確率で決める。左端はどちらも A の素材、右端はどちらも B の素材。間では A の中に B が芽を出す（このときは両トラックとも粒になる）。'],
   ['音色','spectral','スペクトルを幾何平均で混ぜる。真ん中では A でも B でもない音色になる。'],
   ['交差','cross','B の細かい構造（音程やざらつき）を、A のスペクトルの形でかたどる。左端で A の形、右端で B のまま。'],
   ['掛合','ring','A と B を掛け算する（リング変調）。右へ行くほど掛け算だけになり、どちらにもない音程が生まれる。'],
 ];
 
 // ---------- state ----------
-const DEF={a:Object.assign({},DSP.TRACK_DEF),b:Object.assign({},DSP.TRACK_DEF,{position:0.5,scan:-0.02}),m:Object.assign({},DSP.MORPH_DEF),x:Object.assign({},DSP.MASTER_DEF)};
+const DEF={a:Object.assign({},DSP.TRACK_DEF),b:Object.assign({},DSP.TRACK_DEF),m:Object.assign({},DSP.MORPH_DEF),x:Object.assign({},DSP.MASTER_DEF)};
 const ST=JSON.parse(JSON.stringify(DEF));
-try{const s=JSON.parse(localStorage.getItem('mebuki.state')||'null');if(s)for(const g in ST)for(const k in ST[g])if(s[g]&&typeof s[g][k]==='number')ST[g][k]=s[g][k]}catch(e){}
+try{const s=JSON.parse(localStorage.getItem('mebuki.v2')||'null');if(s)for(const g in ST)for(const k in ST[g])if(s[g]&&typeof s[g][k]==='number')ST[g][k]=s[g][k]}catch(e){}
 const CTL=new Map();
 let saveT=0;
 function setParam(g,k,v,silent){
   ST[g][k]=v;send({t:'p',k:`${g}.${k}`,v});
   const u=CTL.get(`${g}.${k}`);if(u)u.forEach(f=>f(v));
   if(g==='m'&&k==='mode')updateModeDesc();
-  if(!silent){clearTimeout(saveT);saveT=setTimeout(()=>{try{localStorage.setItem('mebuki.state',JSON.stringify(ST))}catch(e){}},400)}
+  if(!silent){clearTimeout(saveT);saveT=setTimeout(()=>{try{localStorage.setItem('mebuki.v2',JSON.stringify(ST))}catch(e){}},400)}
 }
 function reg(key,f){if(!CTL.has(key))CTL.set(key,[]);CTL.get(key).push(f)}
 const toN=(s,v)=>s.log?Math.log(v/s.min)/Math.log(s.max/s.min):(v-s.min)/(s.max-s.min);
@@ -81,9 +85,9 @@ const fromN=(s,n)=>s.log?s.min*Math.pow(s.max/s.min,n):s.min+(s.max-s.min)*n;
 // ---------- components ----------
 function fader(g,s,opt={}){
   const w=document.createElement('div');w.className='fd';
-  w.innerHTML=`<div class="ft${opt.tall?' tall':''}" role="slider" tabindex="0" aria-label="${esc(s.l)}"><div class="rail"></div>${s.bi?'<div class="zero"></div>':''}<div class="fill"></div><div class="knob"></div></div><span class="fl">${esc(s.l)}</span><output class="fv"></output>`;
+  w.innerHTML=`<div class="ft${opt.tall?' tall':''}" role="slider" tabindex="0" aria-label="${esc(s.l)}"><div class="rail"></div>${s.ctr!==undefined?'<div class="zero"></div>':''}<div class="fill"></div><div class="knob"></div></div><span class="fl">${esc(s.l)}</span><output class="fv"></output>`;
   const ft=w.querySelector('.ft'),fill=w.querySelector('.fill'),knob=w.querySelector('.knob'),zero=w.querySelector('.zero'),out=w.querySelector('output');
-  const KH=14,z=s.bi?toN(s,0):0;
+  const KH=14,z=s.ctr!==undefined?toN(s,s.ctr):0;
   if(zero)zero.style.top=`calc(${(1-z)*100}% - ${(1-z)*KH}px + ${KH/2}px)`;
   const draw=v=>{
     const n=clamp(toN(s,v),0,1);
@@ -127,24 +131,30 @@ function toggle(g,k,label){
 function buildTrack(g){
   const el=$(g==='a'?'trkA':'trkB'),N=g==='a'?['A','地','ground']:['B','芽','sprout'];
   el.innerHTML=`<div class="sh"><span class="badge">${N[0]}</span><h2><small>track ${N[0]} · ${N[2]}</small>${N[1]}</h2>
-      <div class="acts"><button class="ibtn" data-act="dice">ダイス</button><button class="ibtn" data-act="reset">初期化</button></div></div>
-    <div class="sec"><h3>音源</h3><div class="wave" id="wave-${g}"><canvas id="cv-${g}" aria-label="トラック ${N[0]} の波形と粒"></canvas><div class="drop" hidden>ここにドロップ</div></div><div class="srcrow" id="src-${g}"></div></div>
-    <div class="sec"><h3>粒</h3><div class="sliders" id="gr-${g}"></div><div class="btnrow" id="tg-${g}"></div></div>
+      <div class="acts"><button class="ibtn" data-act="dice">ダイス</button><button class="ibtn" data-act="reset">元に戻す</button></div></div>
+    <div class="sec"><h3>音源</h3><div class="wave" id="wave-${g}"><canvas id="cv-${g}" aria-label="トラック ${N[0]} の波形。押した位置から再生"></canvas><div class="drop" hidden>ここにドロップ</div></div>
+      <div class="srcrow" id="src-${g}"></div><div class="mixline mono" id="mix-${g}"></div></div>
+    <div class="sec"><h3>変化 — 0 なら元の音のまま</h3><div class="bank" id="ch-${g}"></div><div class="btnrow" id="tg-${g}"></div></div>
     <div class="sec"><h3>効果</h3><div class="bank" id="fx-${g}"></div></div>
-    <div class="sec"><h3>出力</h3><div class="outrow"><div id="lv-${g}"></div><div class="meter"><i id="mt-${g}"></i></div><div class="side"><div id="pan-${g}"></div><div class="btnrow" id="ms-${g}"></div></div></div></div>`;
-  GRAIN.forEach(s=>$(`gr-${g}`).append(slider(g,s)));
-  $(`tg-${g}`).append(toggle(g,'toy','五音に丸める'));
+    <div class="sec"><h3>出力</h3><div class="outrow"><div id="lv-${g}"></div><div class="meter"><i id="mt-${g}"></i></div><div class="side"><div id="pan-${g}"></div><div id="wd-${g}"></div><div class="btnrow" id="ms-${g}"></div></div></div></div>
+    <details class="sec more"><summary>詳細 — 粒の長さ・密度・形、フィルターの鋭さ</summary><div class="sliders" id="dt-${g}"></div></details>`;
+  CHANGE.forEach(s=>$(`ch-${g}`).append(fader(g,s)));
+  $(`tg-${g}`).append(toggle(g,'toy','音高を五音に丸める'));
   FX.forEach(s=>$(`fx-${g}`).append(fader(g,s)));
   $(`lv-${g}`).append(fader(g,LEVEL,{tall:1}));
-  $(`pan-${g}`).append(slider(g,PAN));
+  $(`pan-${g}`).append(slider(g,PAN));$(`wd-${g}`).append(slider(g,TWIDTH));
   $(`ms-${g}`).append(toggle(g,'mute','ミュート'),toggle(g,'solo','ソロ'));
+  DETAIL.forEach(s=>$(`dt-${g}`).append(slider(g,s)));
   el.querySelector('[data-act="dice"]').onclick=()=>dice(g);
-  el.querySelector('[data-act="reset"]').onclick=()=>{for(const k in DEF[g])setParam(g,k,DEF[g][k])};
+  el.querySelector('[data-act="reset"]').onclick=()=>{for(const k in DEF[g])if(k!=='mute'&&k!=='solo')setParam(g,k,DEF[g][k]);msg(`トラック ${g.toUpperCase()} を元の音に戻しました。`)};
   const wave=$(`wave-${g}`),drop=wave.querySelector('.drop');
   ['dragenter','dragover'].forEach(ev=>el.addEventListener(ev,e=>{e.preventDefault();drop.hidden=false}));
   ['dragleave','drop'].forEach(ev=>el.addEventListener(ev,e=>{if(ev==='dragleave'&&el.contains(e.relatedTarget))return;e.preventDefault();drop.hidden=true}));
   el.addEventListener('drop',e=>{const f=e.dataTransfer&&e.dataTransfer.files[0];if(f)loadFile(f,g)});
-  wave.addEventListener('click',()=>{if(!SRC[g])pickFile(g)});
+  // click or drag on the waveform: play from there
+  const seek=e=>{const r=wave.getBoundingClientRect();const pos=clamp((e.clientX-r.left)/r.width,0,0.9999);send({t:'seek',track:g==='a'?0:1,pos});STATUS[g==='a'?'pa_h':'pb_h']=pos;drawWave(g)};
+  wave.addEventListener('pointerdown',e=>{if(!SRC[g]){pickFile(g);return}wave.setPointerCapture(e.pointerId);seek(e)});
+  wave.addEventListener('pointermove',e=>{if(wave.hasPointerCapture(e.pointerId))seek(e)});
   renderSrc(g);
 }
 function buildMorph(){
@@ -179,39 +189,41 @@ function updateModeDesc(){const d=$('modedesc');if(d)d.textContent=MODES[Math.ro
 function buildMaster(){
   const el=$('master');
   el.innerHTML=`<div class="sh"><span class="badge">全</span><h2><small>master · the whole</small>全体</h2>
-      <div class="acts"><button class="ibtn" id="mreset">初期化</button></div></div>
+      <div class="acts"><button class="ibtn" id="mreset">元に戻す</button></div></div>
     <div class="sec"><h3>色</h3><div class="bank" id="x-tone"></div></div>
     <div class="sec"><h3>ディレイ（ピンポン）</h3><div class="bank" id="x-delay"></div></div>
     <div class="sec"><h3>残響</h3><div class="bank" id="x-rev"></div></div>
-    <div class="sec"><h3>出力</h3><div class="outrow"><div id="x-lv"></div><div class="meter"><i id="mt-x"></i></div><div class="side"><div id="x-w"></div><p class="help">各トラックの「送り」で、ディレイと残響にどれだけ入るかを決める。ここは戻りの量と質感。</p></div></div></div>`;
+    <div class="sec"><h3>出力</h3><div class="outrow"><div id="x-lv"></div><div class="meter"><i id="mt-x"></i></div><div class="side"><div id="x-w"></div><p class="help">ディレイと残響は「量」を上げると、合体した音全体にかかる。各トラックの「送り」でトラックごとにも足せる。</p></div></div></div>`;
   MASTER_TONE.forEach(s=>$('x-tone').append(fader('x',s)));
   MASTER_DELAY.forEach(s=>$('x-delay').append(fader('x',s)));
   MASTER_REV.forEach(s=>$('x-rev').append(fader('x',s)));
   $('x-lv').append(fader('x',MLEVEL,{tall:1}));
   $('x-w').append(slider('x',WIDTH));
-  $('mreset').onclick=()=>{for(const k in DEF.x)setParam('x',k,DEF.x[k])};
+  $('mreset').onclick=()=>{for(const k in DEF.x)setParam('x',k,DEF.x[k]);msg('全体を元に戻しました。')};
 }
 
 // ---------- scenes & dice ----------
 const SCENES=[
-  {n:'霧の中の芽',d:'A の霧に、B の高い粒がまばらに芽を出す',v:{m:{mode:0,amount:0.3,bloom:0.45,brate:0.15},a:{density:22,size:320,scan:0.02,spray:0.12,rsend:0.3,tone:-0.2},b:{density:9,size:160,pitch:12,toy:1,pspray:7,rev:0.3,rsend:0.45,dsend:0.25},x:{rret:0.5,dret:0.3}}},
-  {n:'どちらでもない色',d:'スペクトルを混ぜて、にじませる',v:{m:{mode:2,amount:0.5,bloom:0.5,smear:0.55},a:{density:28,size:420},b:{density:28,size:300},x:{rret:0.45}}},
-  {n:'A の形で鳴る B',d:'交差合成。B の質感を A の響きでかたどる',v:{m:{mode:3,amount:0.15,bloom:0.25},a:{density:30,size:220},b:{density:30,size:260,pspray:2}}},
-  {n:'金属の芽',d:'スペクトルをずらし、少し劣化させる',v:{m:{mode:2,amount:0.45,shift:0.35,smear:0.3},a:{crush:0.15,size:200},b:{wow:0.4},x:{drive:0.25,dret:0.4}}},
-  {n:'掛け算',d:'リング変調で A と B を掛け合わせる',v:{m:{mode:4,amount:0.65,bloom:0.3},a:{pitch:-12,density:18,size:260},b:{pitch:7,density:18,size:180,toy:1},x:{rret:0.35}}},
-  {n:'長い庭',d:'ゆっくりした時間と大きな残響',v:{m:{mode:1,amount:0.5,bloom:0.6,brate:0.05},a:{scan:0.005,size:900,density:10,wow:0.3,rsend:0.6},b:{scan:-0.005,size:1200,density:8,rsend:0.6,tone:-0.35},x:{rsize:0.95,rdamp:0.6,rret:0.8,dret:0.2}}},
+  {n:'元の音',d:'すべてのフェーダーを初期値に。入れたファイルがそのまま流れる',v:{}},
+  {n:'ゆっくり溶ける',d:'時間を伸ばし、少し粒にして、揺らして残響へ',v:{a:{stretch:0.75,grain:0.25,wow:0.3,rsend:0.4},b:{stretch:0.8,grain:0.2,tone:-0.3,rsend:0.4},x:{ramt:0.2}}},
+  {n:'霧の中の芽',d:'配分で A の中に B を混ぜ、B を 1 オクターブ上の五音に',v:{m:{mode:1,amount:0.25,bloom:0.4},a:{grain:0.45,stretch:0.5,rsend:0.3},b:{pitch:12,pspray:3,toy:1,rev:0.3,rsend:0.4},x:{ramt:0.2}}},
+  {n:'どちらでもない色',d:'スペクトルを混ぜて、にじませる',v:{m:{mode:2,amount:0.5,smear:0.5,bloom:0.4}}},
+  {n:'A の形で鳴る B',d:'交差合成。B の質感を A の響きでかたどる',v:{m:{mode:3,amount:0.15}}},
+  {n:'金属の芽',d:'スペクトルをずらし、少し劣化させる',v:{m:{mode:2,amount:0.45,shift:0.35,smear:0.3},a:{crush:0.2},x:{drive:0.25,damt:0.2}}},
+  {n:'掛け算',d:'リング変調で A と B を掛け合わせる',v:{m:{mode:4,amount:0.65},a:{pitch:-12},b:{pitch:7,toy:1}}},
+  {n:'壊れたテープ',d:'遅く、揺れて、劣化し、ときどき逆に',v:{a:{speed:0.85,wow:0.7,crush:0.35,drive:0.3},b:{rev:0.5,grain:0.3},x:{damt:0.25}}},
 ];
 function applyScene(sc){
   for(const g in DEF)for(const k in DEF[g])setParam(g,k,(sc.v[g]&&k in sc.v[g])?sc.v[g][k]:DEF[g][k]);
   msg(`場面「${sc.n}」: ${sc.d}`);
 }
 function dice(g){
-  const r=Math.random,pick=a=>a[Math.floor(r()*a.length)],lg=(a,b)=>a*Math.pow(b/a,r());
-  const v={position:r(),scan:r()<0.3?0:(r()*2-1)*0.12,spray:r()*0.4,density:lg(3,50),size:lg(40,800),pitch:pick([-12,-5,0,0,0,7,12]),pspray:r()<0.5?0:r()*7,
-    rev:r()*0.5,width:0.3+r()*0.7,shape:r()<0.6?0:r()*0.7,toy:r()<0.3?1:0,tone:r()<0.5?0:(r()*2-1)*0.6,res:r()*0.5,drive:r()<0.4?r()*0.4:0,crush:r()<0.25?r()*0.3:0,
-    wow:r()<0.4?r()*0.5:0,dsend:r()*0.5,rsend:r()*0.6};
+  const r=Math.random,pick=a=>a[Math.floor(r()*a.length)];
+  const v={speed:pick([1,1,1,0.75,0.5,1.5,-1]),stretch:r()<0.4?r()*0.8:0,grain:r()<0.6?r()*0.7:0,pitch:pick([-12,-7,-5,0,0,0,5,7,12]),pspray:r()<0.4?r()*5:0,
+    rev:r()<0.4?r()*0.6:0,toy:r()<0.25?1:0,tone:r()<0.5?0:(r()*2-1)*0.6,drive:r()<0.3?r()*0.4:0,crush:r()<0.25?r()*0.4:0,wow:r()<0.35?r()*0.6:0,comb:r()<0.25?r()*0.6:0,
+    dsend:r()<0.5?r()*0.5:0,rsend:r()<0.6?r()*0.6:0};
   for(const k in v)setParam(g,k,v[k]);
-  msg(`トラック ${g.toUpperCase()} をダイスで振り直しました。`);
+  msg(`トラック ${g.toUpperCase()} をダイスで振り直しました。「元に戻す」で元の音へ。`);
 }
 
 // ---------- sources ----------
@@ -268,7 +280,7 @@ class MebukiProc extends AudioWorkletProcessor{
   process(ins,outs){const o=outs[0];this.e.render(o[0],o[1]||o[0],o[0].length);if(++this.n%6===0)this.port.postMessage(this.e.status());return true}
 }
 registerProcessor('mebuki',MebukiProc);`;
-const STATUS={ga:[],gb:[],sa:0,sb:0,m:0,pa:0,pb:0,pm:0};
+const STATUS={ga:[],gb:[],pa_h:0,pb_h:0,gma:0,gmb:0,m:0.5,pa:0,pb:0,pm:0};
 function send(m){if(node)node.port.postMessage(m);else if(eng)eng.handle(m)}
 async function ensureAudio(){
   if(ctx)return;
@@ -346,14 +358,13 @@ function drawWave(g){
   x.clearRect(0,0,W,H);
   const p=peaksOf(g,W);
   if(!p){x.fillStyle=faint;x.font=`${13*d}px ${css('--f-body')}`;x.textAlign='center';x.textBaseline='middle';x.fillText('ここに音声ファイルをドロップ／押して選ぶ',W/2,H/2);return}
-  x.globalAlpha=0.55;x.fillStyle=ink;
-  for(let j=0;j<W;j++){const a=H/2-p.mx[j]*H*0.44,b=H/2-p.mn[j]*H*0.44;x.fillRect(j,a,1,Math.max(1,b-a))}
-  x.globalAlpha=1;
-  const q=ST[g],sc=g==='a'?STATUS.sa:STATUS.sb,center=((q.position+sc)%1+1)%1;
-  x.fillStyle=col;x.globalAlpha=0.16;const sw=Math.max(2*d,q.spray*W);x.fillRect(center*W-sw/2,0,sw,H);if(center*W+sw/2>W)x.fillRect(center*W-sw/2-W,0,sw,H);if(center*W-sw/2<0)x.fillRect(center*W-sw/2+W,0,sw,H);
-  x.globalAlpha=1;x.fillRect(center*W-d,0,2*d,H);
+  const ph=g==='a'?STATUS.pa_h:STATUS.pb_h,px=ph*W;
+  // played part a little darker
+  for(let j=0;j<W;j++){const a=H/2-p.mx[j]*H*0.44,b=H/2-p.mn[j]*H*0.44;x.globalAlpha=j<px?0.75:0.4;x.fillStyle=ink;x.fillRect(j,a,1,Math.max(1,b-a))}
+  x.globalAlpha=1;x.fillStyle=col;x.fillRect(px-d,0,2*d,H);
+  x.beginPath();x.moveTo(px-5*d,0);x.lineTo(px+5*d,0);x.lineTo(px,7*d);x.fill();
   const gr=g==='a'?STATUS.ga:STATUS.gb;
-  for(let i=0;i<gr.length;i+=2){const px=gr[i]*W,age=gr[i+1],e=Math.sin(Math.PI*Math.min(1,age));x.globalAlpha=0.25+0.75*e;x.beginPath();x.arc(px,H*(0.12+0.76*age),(2.5+3*e)*d,0,Math.PI*2);x.fill()}
+  for(let i=0;i<gr.length;i+=2){const gx=gr[i]*W,age=gr[i+1],e=Math.sin(Math.PI*Math.min(1,age));x.globalAlpha=0.25+0.75*e;x.beginPath();x.arc(gx,H*(0.14+0.72*age),(2+2.5*e)*d,0,Math.PI*2);x.fill()}
   x.globalAlpha=1;
 }
 function drawSpec(){
@@ -376,7 +387,8 @@ function loop(){
     drawWaves();drawSpec();
     const m=v=>clamp(Math.sqrt(v)*100,0,100)+'%';
     $('mt-a').style.height=m(STATUS.pa);$('mt-b').style.height=m(STATUS.pb);$('mt-x').style.height=m(STATUS.pm);
-    $('xflive').style.left=`calc(13px + ${STATUS.m}*(100% - 26px))`;$('xfnow').textContent=`いま A ${Math.round((1-STATUS.m)*100)} : B ${Math.round(STATUS.m*100)}`;
+    $('xflive').style.left=`calc(13px + ${STATUS.m}*(100% - 26px))`;
+    for(const g of ['a','b']){const gm=g==='a'?STATUS.gma:STATUS.gmb,el=$(`mix-${g}`);if(el)el.textContent=SRC[g]?`いま 元の音 ${Math.round(Math.cos(gm*Math.PI/2)**2*100)}% ／ 粒 ${Math.round(Math.sin(gm*Math.PI/2)**2*100)}%`:''}$('xfnow').textContent=`いま A ${Math.round((1-STATUS.m)*100)} : B ${Math.round(STATUS.m*100)}`;
     if(playing||STATUS.pm>0.001)raf=requestAnimationFrame(step);
   };
   raf=requestAnimationFrame(step);

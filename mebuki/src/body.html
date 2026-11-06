@@ -2,7 +2,7 @@
   <header class="top">
     <div class="brand">
       <h1><i>芽吹</i><span>mebuki</span></h1>
-      <p>ふたつの音から粒を取り出し、それぞれに手を加え、混ぜ合わせて別の音を立ち上げる楽器。</p>
+      <p>ファイルを入れると、まずはそのまま流れます。フェーダーを動かした分だけ、少しずつ別の音へ変わっていきます。ふたつの音は合体させられます。</p>
     </div>
     <div class="trans">
       <button class="play" id="play" aria-pressed="false"><span id="playlabel">▶ 再生</span></button>
@@ -11,7 +11,7 @@
     </div>
   </header>
   <div class="scenes" id="scenes"><span class="lab">場面</span></div>
-  <p class="msg" id="msg">A と B に音声ファイルを入れて、再生を押してください（起動時は空です）。</p>
+  <p class="msg" id="msg">A（と B）に音声ファイルを入れて、再生を押してください。すべてのフェーダーが初期値のあいだは、元の音がそのまま流れます。</p>
 
   <main class="desk">
     <section class="strip trk" id="trkA" data-t="a" aria-label="トラック A"></section>
@@ -21,7 +21,7 @@
   </main>
 
   <footer>
-    <span>フェーダーはドラッグ／矢印キー（Shift で大きく）、ダブルクリックで初期値。</span>
+    <span>フェーダーはドラッグ／矢印キー（Shift で大きく）、ダブルクリックで初期値に戻る。波形を押すとその位置から再生。</span>
     <span>録音は WebM（Safari では MP4）で保存されます。</span>
   </footer>
   <input type="file" id="file" accept="audio/*,.wav,.aif,.aiff,.mp3,.m4a,.flac,.ogg" hidden>

@@ -41,6 +41,7 @@ function MEBUKI_DSP(){
       this.sr=sr;this.ic1=[0,0];this.ic2=[0,0];this.hold=[0,0];this.hc=0;
       this.dl=[new Float32Array(4096),new Float32Array(4096)];this.dw=0;this.wph=0;this.fph=0;this.wr=0;this.wt=0;
       this.a1=1;this.a2=0;this.a3=0;this.k=2;this.mode=0;this.dg=1;this.dn=1;this.q=32768;this.dec=1;
+      this.cb=[new Float32Array(2048),new Float32Array(2048)];this.cw=0;
       this.out=[0,0];
     }
     // per block: turn fader values into coefficients
@@ -52,9 +53,9 @@ function MEBUKI_DSP(){
       const g=Math.tan(Math.PI*fc/sr);this.k=2-2*clamp(res,0,1)*0.96;
       this.a1=1/(1+g*(g+this.k));this.a2=g*this.a1;this.a3=g*this.a2;
       this.drive=drive;this.dg=1+drive*12;this.dn=1/Math.pow(this.dg,0.6);
-      this.crush=crush;const bits=16-crush*13;this.q=Math.pow(2,bits-1);this.dec=1+Math.floor(crush*crush*30);
+      this.crush=crush;const bits=16-Math.sqrt(crush)*13;this.q=Math.pow(2,bits-1);this.dec=1+Math.floor(crush*20);
     }
-    run(l,r,wow){
+    run(l,r,wow,comb){
       const x=[l,r];
       // filter (TPT state variable)
       if(this.mode){
@@ -69,8 +70,10 @@ function MEBUKI_DSP(){
         if(++this.hc>=this.dec){this.hc=0;this.hold[0]=Math.round(x[0]*this.q)/this.q;this.hold[1]=Math.round(x[1]*this.q)/this.q}
         x[0]=this.hold[0];x[1]=this.hold[1];
       }
-      // wow & flutter: a short modulated delay (constant 3 ms base so toggling never clicks)
+      // wow & flutter: a short modulated delay (constant 3 ms base so toggling never clicks);
+      // wow < 0 means no wow stage at all (the master chain)
       const sr=this.sr;
+      if(wow>=0){
       this.wph=wrap01(this.wph+0.55/sr);this.fph=wrap01(this.fph+6.3/sr);
       if(Math.random()<1/(sr*0.4))this.wt=Math.random()*2-1;
       this.wr+=(this.wt-this.wr)*0.00004;
@@ -82,69 +85,102 @@ function MEBUKI_DSP(){
         x[c]=a+(b-a)*f;
       }
       this.dw=(w+1)&(N-1);
+      }
+      // 響き: a feedback comb tuned near G3 (slightly detuned left/right), faded in by the fader
+      if(comb>0.003){
+        const fb=comb*0.94,cw=this.cw,M=2047;
+        for(let c=0;c<2;c++){
+          const dly=sr/(c?198.4:196),rp=cw-dly,j0=Math.floor(rp),f=rp-j0,cb=this.cb[c];
+          const y=cb[(j0+2048)&M]*(1-f)+cb[(j0+2049)&M]*f;
+          cb[cw]=x[c]+y*fb;
+          x[c]=x[c]+(y*(1-fb)*2.2-x[c])*comb;
+        }
+        this.cw=(cw+1)&M;
+      }
       this.out[0]=x[0];this.out[1]=x[1];
     }
   }
 
-  // ---------- granular track ----------
-  const V=32;
+  // ---------- track: plain playback that turns into grains as faders move ----------
+  // At rest a track simply loops its file. Each fader in the 変化 group pulls
+  // the sound into a grain engine that reads around the playhead, so every
+  // fader starts from the original and changes it gradually.
+  const V=40;
   class Track{
     constructor(sr){
-      this.sr=sr;this.buf=null;this.timer=0;this.scan=0;
+      this.sr=sr;this.buf=null;this.ph=0;this.timer=0;this.gm=0;
       this.act=new Uint8Array(V);this.pos=new Float64Array(V);this.inc=new Float64Array(V);this.age=new Float64Array(V);
-      this.dur=new Float64Array(V);this.gl=new Float64Array(V);this.gr=new Float64Array(V);this.shp=new Float64Array(V);
-      this.chain=new Chain(sr);this.peak=0;this.o=[0,0];this.lv=0;
+      this.dur=new Float64Array(V);this.gl=new Float64Array(V);this.gr=new Float64Array(V);this.shp=new Float64Array(V);this.vb=new Array(V).fill(null);
+      this.chain=new Chain(sr);this.peak=0;this.o=[0,0];this.lv=0;this.ov=1;
     }
-    spawn(P,dens){
-      const b=this.buf;if(!b||b.frames<64)return;
+    setBuf(b){this.buf=b;this.ph=0;this.act.fill(0);this.vb.fill(null);this.gm=0}
+    spawn(P,X,size){
       let s=-1;for(let i=0;i<V;i++)if(!this.act[i]){s=i;break}
       if(s<0)return;
-      const n=b.frames;
-      this.pos[s]=wrap01(P.position+this.scan+P.spray*(Math.random()*2-1)*0.5)*n;
+      const own=this.buf,src=X.mix?((Math.random()<X.share?X.bufB:X.bufA)||own):own;
+      if(!src||src.frames<64)return;
+      const sr=this.sr,norm=this.ph/own.frames;
       let semi=P.pitch+P.pspray*(Math.random()*2-1);
       if(P.toy>0.5){const oct=Math.floor(semi/12),d=semi-oct*12;let q=0;if(d>=1)q=2;if(d>=3)q=4;if(d>=5.5)q=7;if(d>=8)q=9;if(d>=10.5)q=12;semi=oct*12+q}
-      let inc=Math.pow(2,semi/12)*(b.rate||1);if(Math.random()<P.rev)inc=-inc;
-      this.inc[s]=inc;this.age[s]=0;
-      this.dur[s]=Math.max(64,P.size*0.001*this.sr*(0.75+0.5*Math.random()));
-      const pan=clamp(0.5+P.width*(Math.random()*2-1)*0.5,0,1);
+      let inc=P.speed*Math.pow(2,semi/12);if(Math.random()<P.rev)inc=-inc;
+      // at 粒化 0 grains are regular and start exactly at the playhead, so at pitch 0 they
+      // rebuild the original (overlap-add of Hann windows) and blend into plain playback seamlessly
+      const dur=Math.max(64,size*(1+P.grain*(Math.random()*0.5-0.25)));
+      const spray=Math.pow(P.grain,1.5)*2*sr;
+      this.pos[s]=norm*src.frames+spray*(Math.random()*2-1);
+      this.inc[s]=inc;this.age[s]=0;this.dur[s]=dur;this.vb[s]=src;
+      const pan=clamp(0.5+P.grain*0.8*(Math.random()*2-1)*0.5,0,1);
       this.gl[s]=Math.cos(pan*Math.PI/2)*Math.SQRT2;this.gr[s]=Math.sin(pan*Math.PI/2)*Math.SQRT2;
       this.shp[s]=P.shape;this.act[s]=1;
     }
-    tick(P,share){
-      const b=this.buf;let L=0,R=0;
+    tick(P,X){
+      const b=this.buf,sr=this.sr;let L=0,R=0;
       if(b&&b.frames>=64){
         const n=b.frames,d0=b.data[0],d1=b.data[1]||b.data[0];
-        this.scan=wrap01(this.scan+P.scan/n);
-        const dens=P.density*share;
-        if(--this.timer<=0){
-          if(dens<0.02)this.timer=this.sr*0.02;
-          else{this.timer=this.sr/dens*(0.5+Math.random());this.spawn(P,dens)}
+        this.ph+=P.speed*(1-P.stretch);
+        if(this.ph>=n||this.ph<0)this.ph-=n*Math.floor(this.ph/n);
+        let gt=Math.max(P.grain*3,P.stretch*4,Math.abs(P.pitch)*2,P.pspray*4,P.rev*4);
+        if(X.force)gt=1;
+        this.gm+=(clamp(gt,0,1)-this.gm)*0.0015;
+        const gm=this.gm,cp=Math.cos(gm*Math.PI/2),sp=Math.sin(gm*Math.PI/2);
+        if(cp>0.001){
+          const p=this.ph,i0=Math.floor(p),f=p-i0,i1=i0+1<n?i0+1:0;
+          L+=(d0[i0]+(d0[i1]-d0[i0])*f)*cp;R+=(d1[i0]+(d1[i1]-d1[i0])*f)*cp;
         }
-        for(let i=0;i<V;i++){
-          if(!this.act[i])continue;
-          let p=this.pos[i]%n;if(p<0)p+=n;
-          const i0=Math.floor(p),f=p-i0,i1=i0+1<n?i0+1:0;
-          const x=this.age[i]/this.dur[i],sh=this.shp[i];
-          let e=0.5-0.5*Math.cos(TAU*x);
-          if(sh>0.001){const pe=Math.min(1,x*40)*Math.pow(1-x,3);e=e+(pe-e)*sh}
-          L+=(d0[i0]+(d0[i1]-d0[i0])*f)*e*this.gl[i];
-          R+=(d1[i0]+(d1[i1]-d1[i0])*f)*e*this.gr[i];
-          this.pos[i]+=this.inc[i];
-          if(++this.age[i]>=this.dur[i])this.act[i]=0;
+        if(gt>0||gm>0.001){
+          const size=P.size*0.001*sr*(1+P.grain*3);
+          const ov=4*(1-P.grain*0.8)*P.dmul,dens=ov*sr/size;
+          this.ov=Math.max(1,ov);
+          if(--this.timer<=0){const jit=0.9*P.grain;this.timer+=sr/dens*(1-jit+2*jit*Math.random());if(this.timer<1)this.timer=1;this.spawn(P,X,size)}
+          let gL=0,gR=0;
+          for(let i=0;i<V;i++){
+            if(!this.act[i])continue;
+            const vb=this.vb[i],m=vb.frames,e0=vb.data[0],e1=vb.data[1]||vb.data[0];
+            let q=this.pos[i]%m;if(q<0)q+=m;
+            const j0=Math.floor(q),fr=q-j0,j1=j0+1<m?j0+1:0;
+            const x=this.age[i]/this.dur[i],sh=this.shp[i];
+            let e=0.5-0.5*Math.cos(TAU*x);
+            if(sh>0.001){const pe=Math.min(1,x*40)*Math.pow(1-x,3);e=e+(pe-e)*sh}
+            gL+=(e0[j0]+(e0[j1]-e0[j0])*fr)*e*this.gl[i];
+            gR+=(e1[j0]+(e1[j1]-e1[j0])*fr)*e*this.gr[i];
+            this.pos[i]+=this.inc[i];
+            if(++this.age[i]>=this.dur[i]){this.act[i]=0;this.vb[i]=null}
+          }
+          // coherent overlap (grains aligned) sums to ov/2; scattered grains add by power
+          const coh=clamp(1-P.grain*3-P.pspray*0.5,0,1),g=sp*(coh*2/this.ov+(1-coh)/Math.sqrt(this.ov));L+=gL*g;R+=gR*g;
         }
-        const ov=clamp(P.density*P.size*0.001,1,V);
-        const g=1/Math.sqrt(ov);L*=g;R*=g;
       }
-      this.chain.run(L,R,P.wow);
+      // stereo width (mid/side)
+      const mid=(L+R)*0.5,side=(L-R)*0.5*P.width;L=mid+side;R=mid-side;
+      this.chain.run(L,R,P.wow,P.comb);
       L=this.chain.out[0];R=this.chain.out[1];
-      // level, pan (balance), mute
       this.lv+=(P.gain-this.lv)*0.002;
       const pl=P.pan<0?1:1-P.pan,pr=P.pan>0?1:1+P.pan;
       this.o[0]=L*this.lv*pl;this.o[1]=R*this.lv*pr;
       const pk=Math.max(Math.abs(this.o[0]),Math.abs(this.o[1]));
       this.peak=pk>this.peak?pk:this.peak*0.9995;
     }
-    grains(){const n=this.buf?this.buf.frames:1,a=[];for(let i=0;i<V;i++)if(this.act[i]){let p=(this.pos[i]%n)/n;if(p<0)p+=1;a.push(+p.toFixed(4),+(this.age[i]/this.dur[i]).toFixed(2))}return a}
+    grains(){const a=[];for(let i=0;i<V;i++)if(this.act[i]&&this.vb[i]){const m=this.vb[i].frames;let p=(this.pos[i]%m)/m;if(p<0)p+=1;a.push(+p.toFixed(4),+(this.age[i]/this.dur[i]).toFixed(2))}return a}
   }
 
   // ---------- STFT morph: spectral / cross / smear / shift / freeze ----------
@@ -271,22 +307,24 @@ function MEBUKI_DSP(){
     }
   }
 
-  const TRACK_DEF={position:0.2,scan:0.03,spray:0.08,density:14,size:180,pitch:0,pspray:0,toy:0,rev:0.15,width:0.6,shape:0,
-    tone:0,res:0.2,drive:0,crush:0,wow:0,dsend:0,rsend:0.15,level:0.8,pan:0,mute:0,solo:0};
-  const MORPH_DEF={mode:0,amount:0.3,bloom:0.3,brate:0.15,smear:0,shift:0,freeze:0};
-  const MASTER_DEF={tone:0,res:0.2,drive:0,crush:0,dtime:0.42,dfb:0.45,ddamp:0.4,dret:0.35,rsize:0.6,rdamp:0.45,rret:0.4,width:1,level:0.8};
+  const TRACK_DEF={speed:1,stretch:0,grain:0,pitch:0,pspray:0,rev:0,toy:0,size:90,dmul:1,shape:0,width:1,
+    tone:0,res:0.3,drive:0,crush:0,wow:0,comb:0,dsend:0,rsend:0,level:1,pan:0,mute:0,solo:0};
+  const MORPH_DEF={mode:0,amount:0.5,bloom:0,brate:0.15,smear:0,shift:0,freeze:0};
+  const MASTER_DEF={tone:0,res:0.3,drive:0,crush:0,damt:0,dtime:0.42,dfb:0.45,ddamp:0.4,ramt:0,rsize:0.6,rdamp:0.45,width:1,level:0.9};
 
   class Engine{
     constructor(sr){
       this.sr=sr;this.run=false;this.g=0;
       this.T=[new Track(sr),new Track(sr)];
-      this.P={a:Object.assign({},TRACK_DEF),b:Object.assign({},TRACK_DEF,{position:0.5,scan:-0.02}),m:Object.assign({},MORPH_DEF),x:Object.assign({},MASTER_DEF)};
+      this.P={a:Object.assign({},TRACK_DEF),b:Object.assign({},TRACK_DEF),m:Object.assign({},MORPH_DEF),x:Object.assign({},MASTER_DEF)};
       this.spec=new Spectral();this.mc=new Chain(sr);this.dly=new Delay(sr);this.rev=new Reverb(sr);
       this.mo=this.P.m.amount;this.bw=0;this.bt=0;this.btimer=0;this.env=0;this.k=0;this.peak=[0,0];
+      this.X={force:false,mix:false,share:0,bufA:null,bufB:null};
       this.dirty=true;
     }
     handle(d){
-      if(d.t==='buf'){const tr=this.T[d.track];tr.buf=d.frames?{frames:d.frames,data:d.data,rate:d.rate||1}:null;tr.act.fill(0);tr.scan=0}
+      if(d.t==='buf'){this.T[d.track].setBuf(d.frames?{frames:d.frames,data:d.data}:null)}
+      else if(d.t==='seek'){const tr=this.T[d.track];if(tr.buf)tr.ph=clamp(d.pos,0,0.999999)*tr.buf.frames}
       else if(d.t==='p'){const [g,k]=d.k.split('.');if(this.P[g]&&(k in this.P[g])){this.P[g][k]=d.v;this.dirty=true}}
       else if(d.t==='run')this.run=!!d.v;
     }
@@ -300,35 +338,32 @@ function MEBUKI_DSP(){
     render(L,R,n){
       if(!this.run&&this.g<1e-4){L.fill(0);R.fill(0);this.g=0;return}
       if(this.dirty)this.prepare();
-      const P=this.P,A=this.T[0],B=this.T[1],M=P.m,X=P.x,sr=this.sr;
+      const P=this.P,A=this.T[0],B=this.T[1],M=P.m,XP=P.x,sr=this.sr,X=this.X;
+      // modes: 0 混合 mix, 1 配分 grain exchange, 2 音色 spectral, 3 交差 cross, 4 掛合 ring
       const mode=Math.round(M.mode),S={mode:mode===2?2:(mode===3?3:0),m:0,shift:Math.round(M.shift*40),smear:clamp(M.smear,0,0.98),freeze:M.freeze>0.5};
+      X.force=mode===1;X.mix=mode===1;X.bufA=A.buf;X.bufB=B.buf;
       const target=this.run?1:0;
       for(let i=0;i<n;i++){
-        // bloom: the morph wanders on its own
         if(--this.btimer<=0){this.btimer=sr/(0.05+M.brate*3)*(0.5+Math.random());this.bt=Math.random()*2-1}
         this.bw+=(this.bt-this.bw)*(0.00002+M.brate*0.0002);
         this.mo+=(clamp(M.amount+M.bloom*this.bw*0.5,0,1)-this.mo)*0.002;
-        const m=this.mo;S.m=m;
-        const shA=mode===0?1-m:1,shB=mode===0?m:1;
-        A.tick(P.a,shA);B.tick(P.b,shB);
+        const m=this.mo;S.m=m;X.share=m;
+        A.tick(P.a,X);B.tick(P.b,X);
         const al=A.o[0],ar=A.o[1],bl=B.o[0],br=B.o[1];
-        // what reaches the spectral stage
-        let xl,xr,yl=0,yr=0;
-        if(mode===0){xl=al+bl;xr=ar+br}
-        else if(mode===1){const ca=Math.cos(m*Math.PI/2),cb=Math.sin(m*Math.PI/2);xl=al*ca+bl*cb;xr=ar*ca+br*cb}
-        else if(mode===4){xl=(al+bl)*0.7*(1-m)+al*bl*5*m;xr=(ar+br)*0.7*(1-m)+ar*br*5*m}
-        else{xl=al;xr=ar;yl=bl;yr=br}
+        let xl,xr,yl=0,yr=0,wa=1,wb=1;
+        if(mode===0){wa=Math.min(1,2*(1-m));wb=Math.min(1,2*m);xl=al*wa+bl*wb;xr=ar*wa+br*wb}
+        else if(mode===1){xl=al+bl;xr=ar+br}
+        else if(mode===4){xl=(al+bl)*(1-m)+al*bl*5*m;xr=(ar+br)*(1-m)+ar*br*5*m}
+        else{xl=al;xr=ar;yl=bl;yr=br;wa=1-m;wb=m}
         this.spec.tick(xl,xr,yl,yr,S);
         let ml=this.spec.o[0],mr=this.spec.o[1];
-        // sends, weighted by how much each track is in the morph
-        const wa=mode===0||mode===4?1:1-m*(mode===1?1:0.5),wb=mode===0||mode===4?1:(mode===1?m:0.5+m*0.5);
-        const sl=al*P.a.dsend*wa+bl*P.b.dsend*wb,srr=ar*P.a.dsend*wa+br*P.b.dsend*wb;
-        const rl=al*P.a.rsend*wa+bl*P.b.rsend*wb,rr=ar*P.a.rsend*wa+br*P.b.rsend*wb;
-        this.dly.tick(sl,srr,X.dtime,X.dfb,X.ddamp);this.rev.tick(rl,rr);
-        ml+=this.dly.o[0]*X.dret+this.rev.o[0]*X.rret;mr+=this.dly.o[1]*X.dret+this.rev.o[1]*X.rret;
-        this.mc.run(ml,mr,0);ml=this.mc.out[0];mr=this.mc.out[1];
-        // width (mid/side), level, limiter
-        const mid=(ml+mr)*0.5,side=(ml-mr)*0.5*X.width;ml=(mid+side)*X.level;mr=(mid-side)*X.level;
+        // delay and reverb: track sends plus the merged sound times the master amount
+        const dl=al*P.a.dsend*wa+bl*P.b.dsend*wb+ml*XP.damt,dr=ar*P.a.dsend*wa+br*P.b.dsend*wb+mr*XP.damt;
+        const rl=al*P.a.rsend*wa+bl*P.b.rsend*wb+ml*XP.ramt,rr=ar*P.a.rsend*wa+br*P.b.rsend*wb+mr*XP.ramt;
+        this.dly.tick(dl,dr,XP.dtime,XP.dfb,XP.ddamp);this.rev.tick(rl,rr);
+        ml+=this.dly.o[0]*0.9+this.rev.o[0]*1.4;mr+=this.dly.o[1]*0.9+this.rev.o[1]*1.4;
+        this.mc.run(ml,mr,-1,0);ml=this.mc.out[0];mr=this.mc.out[1];
+        const mid=(ml+mr)*0.5,side=(ml-mr)*0.5*XP.width;ml=(mid+side)*XP.level;mr=(mid-side)*XP.level;
         const pk=Math.max(Math.abs(ml),Math.abs(mr));
         this.env=pk>this.env?this.env+(pk-this.env)*0.2:this.env*0.99985;
         const lg=this.env>0.9?0.9/this.env:1;
@@ -340,9 +375,9 @@ function MEBUKI_DSP(){
       }
     }
     status(){
-      this.k++;
-      return{ga:this.T[0].grains(),gb:this.T[1].grains(),sa:this.T[0].scan,sb:this.T[1].scan,m:this.mo,
-        pa:this.T[0].peak,pb:this.T[1].peak,pm:Math.max(this.peak[0],this.peak[1])};
+      this.k++;const A=this.T[0],B=this.T[1];
+      return{ga:A.grains(),gb:B.grains(),pa_h:A.buf?A.ph/A.buf.frames:0,pb_h:B.buf?B.ph/B.buf.frames:0,gma:A.gm,gmb:B.gm,m:this.mo,
+        pa:A.peak,pb:B.peak,pm:Math.max(this.peak[0],this.peak[1])};
     }
   }
   return{Engine,TRACK_DEF,MORPH_DEF,MASTER_DEF,makeFFT};
