@@ -104,6 +104,7 @@ input[type=range]:disabled{opacity:.4}
 @media (min-width:880px){.trk-b{grid-template-columns:minmax(0,1fr) 270px}}
 .wbox{position:relative;border-radius:8px;background:var(--well);border:1px solid var(--line);overflow:hidden;touch-action:none}
 .wbox canvas{display:block;width:100%;height:88px;cursor:crosshair}
+.ph{position:absolute;left:-.75px;top:0;bottom:0;width:1.5px;background:var(--ink);pointer-events:none;will-change:transform}
 .drop{position:absolute;inset:0;display:grid;place-items:center;background:var(--sel);border:2px dashed var(--tc);border-radius:8px;font-weight:700;pointer-events:none;font-size:13px}
 .lbar{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px 10px;margin-top:6px}
 .lbtns{display:flex;flex-wrap:wrap;gap:4px}
@@ -323,26 +324,32 @@ function makeFFT(N){
   };
 }
 
-// Streaming STFT, hop N/4, latency N. fn(re[2],im[2]) edits both channels' spectra in place.
+// Streaming STFT, hop N/4, latency N. fn(re[2],im[2]) edits both channels' spectra (bins 0..N/2) in place.
+// Left and right share one complex FFT each way (left in the real part, right in the imaginary part),
+// which halves the transform work.
 class STFT{
   constructor(N,fn){this.N=N;this.m=N-1;this.H=N>>2;this.fft=makeFFT(N);this.fn=fn;this.wp=0;this.cnt=0;this.yl=0;this.yr=0;
     this.w=new Float32Array(N);for(let i=0;i<N;i++)this.w[i]=.5-.5*Math.cos(TAU*i/N);
     this.ib=[new Float32Array(N),new Float32Array(N)];this.ob=[new Float32Array(N),new Float32Array(N)];
-    this.re=[new Float64Array(N),new Float64Array(N)];this.im=[new Float64Array(N),new Float64Array(N)]}
+    this.re=[new Float64Array(N),new Float64Array(N)];this.im=[new Float64Array(N),new Float64Array(N)];this.zr=new Float64Array(N);this.zi=new Float64Array(N)}
   push(l,r){const wp=this.wp;this.ib[0][wp]=l;this.ib[1][wp]=r;
     this.yl=this.ob[0][wp];this.yr=this.ob[1][wp];this.ob[0][wp]=0;this.ob[1][wp]=0;
     this.wp=(wp+1)&this.m;if(++this.cnt>=this.H){this.cnt=0;this.frame()}}
-  frame(){const N=this.N,m=this.m,w=this.w,s=this.wp;
-    for(let c=0;c<2;c++){const re=this.re[c],im=this.im[c],ib=this.ib[c];
-      for(let i=0;i<N;i++){re[i]=ib[(s+i)&m]*w[i];im[i]=0}this.fft(re,im,false)}
+  frame(){const N=this.N,m=this.m,H=N>>1,w=this.w,s=this.wp,zr=this.zr,zi=this.zi,i0=this.ib[0],i1=this.ib[1];
+    for(let i=0;i<N;i++){const j=(s+i)&m;zr[i]=i0[j]*w[i];zi[i]=i1[j]*w[i]}
+    this.fft(zr,zi,false);
+    const lr=this.re[0],li=this.im[0],rr=this.re[1],ri=this.im[1];
+    for(let k=0;k<=H;k++){const q=(N-k)&m,a=zr[k],b=zi[k],c=zr[q],d=zi[q];lr[k]=(a+c)*.5;li[k]=(b-d)*.5;rr[k]=(b+d)*.5;ri[k]=(c-a)*.5}
     this.fn(this.re,this.im);
-    for(let c=0;c<2;c++){const re=this.re[c],im=this.im[c],ob=this.ob[c];this.fft(re,im,true);
-      for(let i=0;i<N;i++)ob[(s+i)&m]+=re[i]*w[i]*(2/3)}}
+    for(let k=0;k<N;k++){zr[k]=lr[k]-ri[k];zi[k]=li[k]+rr[k]}
+    this.fft(zr,zi,true);
+    const o0=this.ob[0],o1=this.ob[1];for(let i=0;i<N;i++){const j=(s+i)&m,g=w[i]*(2/3);o0[j]+=zr[i]*g;o1[j]+=zi[i]*g}}
 }
-function toPolar(re,im,mag,ph,H){for(let k=0;k<=H;k++){const a=re[k],b=im[k];mag[k]=Math.sqrt(a*a+b*b);ph[k]=Math.atan2(b,a)}}
-function fromPolar(re,im,mag,ph,N){const H=N>>1;
-  for(let k=0;k<=H;k++){re[k]=mag[k]*Math.cos(ph[k]);im[k]=mag[k]*Math.sin(ph[k])}
-  im[0]=0;im[H]=0;for(let k=1;k<H;k++){re[N-k]=re[k];im[N-k]=-im[k]}}
+// The spectral algorithms work on complex bins directly (scale and rotate) instead of going through
+// magnitude/phase with atan2, cos and sin; random phases come from this table of unit vectors.
+const UC=new Float64Array(4096),US=new Float64Array(4096);for(let j=0;j<4096;j++){UC[j]=Math.cos(TAU*j/4096);US[j]=Math.sin(TAU*j/4096)}
+// Fill bins H+1..N-1 from 0..H so the spectrum stays that of a real signal.
+function mirror(re,im,N){const H=N>>1;im[0]=0;im[H]=0;for(let k=1;k<H;k++){re[N-k]=re[k];im[N-k]=-im[k]}}
 
 // Time-domain overlap-add in blocks of L samples (hop L/2, Hann). fn(t[2],L) rewrites the block in place.
 class OLA{
@@ -451,11 +458,13 @@ const ALG=[
  desc:'音を周波数の成分に分け、ところどころを離れた成分と入れ替えます。記憶を上げると前の瞬間の響きが尾を引きます。',
  params:[['rate','変異率',0,1,.35,.01,'%'],['reach','変異の幅',1,300,40,1,'bin'],['hold','記憶',0,.98,.5,.01,'%'],['phase','位相の乱れ',0,1,.15,.01,'%']],
  make(S,sr){const N=2048,H=N/2,map=new Int32Array(H+1),jit=new Float64Array(H+1);
-  const mag=[new Float64Array(H+1),new Float64Array(H+1)],ph=[new Float64Array(H+1),new Float64Array(H+1)],sm=[new Float64Array(H+1),new Float64Array(H+1)],nm=new Float64Array(H+1),np=new Float64Array(H+1);let P=null;
-  const st=new STFT(N,(re,im)=>{for(let k=0;k<=H;k++){map[k]=(k>0&&k<H&&rnd()<P.rate)?clamp(k+Math.round((rnd()*2-1)*P.reach),1,H-1):k;jit[k]=(rnd()*2-1)*Math.PI*P.phase}
-   for(let c=0;c<2;c++){toPolar(re[c],im[c],mag[c],ph[c],H);const s=sm[c];
-    for(let k=0;k<=H;k++){s[k]=P.hold*s[k]+(1-P.hold)*mag[c][map[k]];nm[k]=s[k];np[k]=ph[c][map[k]]+jit[k]}
-    fromPolar(re[c],im[c],nm,np,N)}});
+  const jr=new Int32Array(H+1),mag=new Float64Array(H+1),cr=new Float64Array(H+1),ci=new Float64Array(H+1),sm=[new Float64Array(H+1),new Float64Array(H+1)];let P=null;
+  const st=new STFT(N,(re,im)=>{const ph=P.phase*2048;for(let k=0;k<=H;k++){map[k]=(k>0&&k<H&&rnd()<P.rate)?clamp(k+Math.round((rnd()*2-1)*P.reach),1,H-1):k;jr[k]=Math.round((rnd()*2-1)*ph)&4095}
+   const hd=P.hold;
+   for(let c=0;c<2;c++){const R=re[c],I=im[c],s=sm[c];for(let k=0;k<=H;k++){const a=R[k],b=I[k];cr[k]=a;ci[k]=b;mag[k]=Math.sqrt(a*a+b*b)}
+    // each bin takes another bin's sound: its level smoothed by the memory, its phase turned by the jitter
+    for(let k=0;k<=H;k++){const q=map[k],v=s[k]=hd*s[k]+(1-hd)*mag[q],g=v/(mag[q]+1e-20),a=cr[q]*g,b=ci[q]*g,j=jr[k];R[k]=a*UC[j]-b*US[j];I[k]=a*US[j]+b*UC[j]}
+    mirror(R,I,N)}});
   return(dL,dR,oL,oR,n,p)=>{P=p;for(let i=0;i<n;i++){st.push(dL[i],dR[i]);oL[i]=st.yl;oR[i]=st.yr}}}},
 
 {id:'gfluid',g:'lyre',src:true,name:'Granular complex of fluid atoms',ja:'流体の粒子',
@@ -523,14 +532,15 @@ const ALG=[
  desc:'弱い周波数成分から順に削り取り、虫食いのように穴をあけ、残った成分の強さを段々に風化させます。変形を動かすと周波数の並びそのものが歪みます。',
  params:[['amount','侵食',0,1,.5,.01,'%'],['ragged','虫食い',0,1,.25,.01,'%'],['weather','風化',0,1,.2,.01,'%'],['warp','変形',-1.5,1.5,0,.01,'']],
  make(S,sr){const N=2048,H=N/2,src=new Int32Array(H+1),hole=new Uint8Array(H+1);let wk=null,P=null;
-  const mag=[new Float64Array(H+1),new Float64Array(H+1)],ph=[new Float64Array(H+1),new Float64Array(H+1)],nm=new Float64Array(H+1),np=new Float64Array(H+1);
+  const mag=[new Float64Array(H+1),new Float64Array(H+1)],cr=new Float64Array(H+1),ci=new Float64Array(H+1);
   const st=new STFT(N,(re,im)=>{if(wk!==P.warp){wk=P.warp;const e=Math.pow(2,wk);for(let k=0;k<=H;k++)src[k]=clamp(Math.round(H*Math.pow(k/H,e)),0,H)}
-   let mx=0;for(let c=0;c<2;c++){toPolar(re[c],im[c],mag[c],ph[c],H);for(let k=0;k<=H;k++)if(mag[c][k]>mx)mx=mag[c][k]}
+   let mx=0;for(let c=0;c<2;c++){const R=re[c],I=im[c],m=mag[c];for(let k=0;k<=H;k++){const v=Math.sqrt(R[k]*R[k]+I[k]*I[k]);m[k]=v;if(v>mx)mx=v}}
    const thr=mx*db(-80*(1-P.amount)),stp=P.weather*14;for(let k=0;k<=H;k++)hole[k]=rnd()<P.ragged*.6?1:0;
-   for(let c=0;c<2;c++){for(let k=0;k<=H;k++){let m=mag[c][src[k]];
+   for(let c=0;c<2;c++){const R=re[c],I=im[c],mg=mag[c];for(let k=0;k<=H;k++){cr[k]=R[k];ci[k]=I[k]}
+    for(let k=0;k<=H;k++){const q=src[k],m0=mg[q];let m=m0;
      if(m<thr||hole[k])m=0;else if(stp>.05){const d=20*Math.log10(m);m=db(Math.round(d/stp)*stp)}
-     nm[k]=m;np[k]=ph[c][src[k]]}
-    fromPolar(re[c],im[c],nm,np,N)}});
+     const g=m/(m0+1e-20);R[k]=cr[q]*g;I[k]=ci[q]*g}
+    mirror(R,I,N)}});
   return(dL,dR,oL,oR,n,p)=>{P=p;for(let i=0;i<n;i++){st.push(dL[i],dR[i]);oL[i]=st.yl;oR[i]=st.yr}}}},
 
 {id:'trich',g:'lyre',src:true,name:'Trichomes & Spicules',ja:'毛状突起と骨片',
@@ -549,12 +559,12 @@ const ALG=[
  make(S,sr){const IV=[0,7,12,15,19,22,24],SZ=Math.ceil(sr/25)+8;
   const C=[0,1].map(()=>IV.map(()=>({b:new Float32Array(SZ),w:0,lp:0})));
   return(dL,dR,oL,oR,n,p)=>{const nl=Math.round(p.links),a=p.damp,per=[[],[]],g=[[],[]];
-   for(let c=0;c<2;c++)for(let k=0;k<nl;k++){const f=mtof(p.root+IV[k])*(c?Math.pow(2,p.shadow/1200*(k%2?1:-1)):1);
-    per[c][k]=Math.min(sr/f,SZ-4);g[c][k]=Math.exp(Math.log(.001)*per[c][k]/(sr*p.decay))}
+   const in1=[[],[]];for(let c=0;c<2;c++)for(let k=0;k<nl;k++){const f=mtof(p.root+IV[k])*(c?Math.pow(2,p.shadow/1200*(k%2?1:-1)):1);
+    per[c][k]=Math.min(sr/f,SZ-4);g[c][k]=Math.exp(Math.log(.001)*per[c][k]/(sr*p.decay));in1[c][k]=Math.sqrt(1-g[c][k]*g[c][k])*1.5}
    for(let i=0;i<n;i++)for(let c=0;c<2;c++){const x=(c?dR:dL)[i];let s=0;
-    for(let k=0;k<nl;k++){const cm=C[c][k],gg=g[c][k],rp=cm.w-per[c][k];let ri=Math.floor(rp);const f=rp-ri;ri=(ri%SZ+SZ)%SZ;
-     const y=cm.b[ri]+(cm.b[(ri+1)%SZ]-cm.b[ri])*f;cm.lp=y*(1-a)+cm.lp*a;
-     cm.b[cm.w]=x*Math.sqrt(1-gg*gg)*1.5+cm.lp*gg;cm.w=(cm.w+1)%SZ;s+=y}
+    for(let k=0;k<nl;k++){const cm=C[c][k],gg=g[c][k],rp=cm.w-per[c][k];let ri=Math.floor(rp);const f=rp-ri;if(ri<0)ri+=SZ;const r2=ri+1<SZ?ri+1:0;
+     const y=cm.b[ri]+(cm.b[r2]-cm.b[ri])*f;cm.lp=y*(1-a)+cm.lp*a;
+     cm.b[cm.w]=x*in1[c][k]+cm.lp*gg;if(++cm.w>=SZ)cm.w=0;s+=y}
     (c?oR:oL)[i]=s*.5/Math.sqrt(nl)}}}},
 
 {id:'despond',g:'lyre',src:true,name:'A Subtle Despondence',ja:'かすかな憂鬱',
@@ -581,10 +591,13 @@ const ALG=[
 {id:'utas',g:'lyre',name:'Utas és holdvilág',ja:'旅人と月光',
  desc:'響きを凍らせ、位相を霧のように溶かして、持続する光のような音にします。月光を上げると1オクターブ上の像が重なります。',
  params:[['freeze','凍結',0,.995,.92,.001,'%'],['shimmer','月光',0,1,.3,.01,'%'],['fog','霧',0,1,.8,.01,'%']],
- make(S,sr){const N=4096,H=N/2,mag=[new Float64Array(H+1),new Float64Array(H+1)],ph=[new Float64Array(H+1),new Float64Array(H+1)],sm=[new Float64Array(H+1),new Float64Array(H+1)],np=new Float64Array(H+1);let P=null;
-  const st=new STFT(N,(re,im)=>{for(let c=0;c<2;c++){toPolar(re[c],im[c],mag[c],ph[c],H);const m=mag[c],s=sm[c];
-    for(let k=0;k<=H;k++){const v=m[k]+P.shimmer*.8*m[k>>1];s[k]=P.freeze*s[k]+(1-P.freeze)*v;np[k]=rnd()<P.fog?rnd()*TAU:ph[c][k]}
-    fromPolar(re[c],im[c],s,np,N)}});
+ make(S,sr){const N=4096,H=N/2,mag=[new Float64Array(H+1),new Float64Array(H+1)],sm=[new Float64Array(H+1),new Float64Array(H+1)];let P=null;
+  const st=new STFT(N,(re,im)=>{const sh=P.shimmer*.8,fz=P.freeze,fg=P.fog;
+   for(let c=0;c<2;c++){const R=re[c],I=im[c],m=mag[c],s=sm[c];for(let k=0;k<=H;k++)m[k]=Math.sqrt(R[k]*R[k]+I[k]*I[k]);
+    // frozen level; in the fog the phase is a random one, elsewhere the bin keeps its own direction
+    for(let k=0;k<=H;k++){const v=s[k]=fz*s[k]+(1-fz)*(m[k]+sh*m[k>>1]);
+     if(rnd()<fg){const j=(rnd()*4096)|0;R[k]=v*UC[j];I[k]=v*US[j]}else{const g=v/(m[k]+1e-20);R[k]*=g;I[k]*=g}}
+    mirror(R,I,N)}});
   return(dL,dR,oL,oR,n,p)=>{P=p;for(let i=0;i<n;i++){st.push(dL[i],dR[i]);oL[i]=st.yl;oR[i]=st.yr}}}},
 
 {id:'faltung',g:'lyre',name:'Faltung in Zeit',ja:'時間の中の畳み込み',
@@ -596,9 +609,9 @@ const ALG=[
    let pw=0;for(let k=0;k<=H;k++){const a=Math.sqrt(hre[k]*hre[k]+him[k]*him[k]),g=Math.pow(a+1e-9,-P.whiten);hre[k]*=g;him[k]*=g;hm[k]=a*g;pw+=hm[k]*hm[k]}
    const nrm=1/Math.sqrt(pw/(H+1)+1e-12);
    for(let c=0;c<2;c++){const R=re[c],I=im[c],s=sm[c];
-    for(let k=0;k<=H;k++){const a=R[k],b=I[k],x=(a*hre[k]-b*him[k])*nrm,y=(a*him[k]+b*hre[k])*nrm;const m=Math.sqrt(x*x+y*y);
-     s[k]=Math.max(m,P.smear*s[k]+(1-P.smear)*m);mag[k]=s[k];ph[k]=Math.atan2(y,x)}
-    fromPolar(R,I,mag,ph,N)}});
+    for(let k=0;k<=H;k++){const a=R[k],b=I[k],x=(a*hre[k]-b*him[k])*nrm,y=(a*him[k]+b*hre[k])*nrm,m=Math.sqrt(x*x+y*y),v=s[k]=Math.max(m,P.smear*s[k]+(1-P.smear)*m),g=v/(m+1e-20);
+     R[k]=x*g;I[k]=y*g}
+    mirror(R,I,N)}});
   return(dL,dR,oL,oR,n,p)=>{P=p;
    for(let i=0;i<n;i++){if((i&127)===0)irP=S.pos+i+p.offset*(S.b-S.a)+drift;st.push(dL[i],dR[i]);oL[i]=st.yl*.45;oR[i]=st.yr*.45}
    drift+=p.irSpeed*n;drift=wrap({a:0,b:S.b-S.a},drift)}}},
@@ -693,9 +706,9 @@ const ALG=[
    let pw=0;for(let k=0;k<=H;k++){const a=Math.sqrt(hre[k]*hre[k]+him[k]*him[k]),g=Math.pow(a+1e-9,-P.whiten);hre[k]*=g;him[k]*=g;hm[k]=a*g;pw+=hm[k]*hm[k]}
    const nrm=1/Math.sqrt(pw/(H+1)+1e-12);
    for(let c=0;c<2;c++){const R=re[c],I=im[c],s=sm[c];
-    for(let k=0;k<=H;k++){const a=R[k],b=I[k],x=(a*hre[k]-b*him[k])*nrm,y=(a*him[k]+b*hre[k])*nrm;const m=Math.sqrt(x*x+y*y);
-     s[k]=Math.max(m,P.tail*s[k]+(1-P.tail)*m);mag[k]=s[k];ph[k]=Math.atan2(y,x)}
-    fromPolar(R,I,mag,ph,N)}});
+    for(let k=0;k<=H;k++){const a=R[k],b=I[k],x=(a*hre[k]-b*him[k])*nrm,y=(a*him[k]+b*hre[k])*nrm,m=Math.sqrt(x*x+y*y),v=s[k]=Math.max(m,P.tail*s[k]+(1-P.tail)*m),g=v/(m+1e-20);
+     R[k]=x*g;I[k]=y*g}
+    mirror(R,I,N)}});
   return(dL,dR,oL,oR,n,p)=>{P=p;T=partner(X,S,p.with);
    for(let i=0;i<n;i++){if(--cnt<=0){cnt=Math.max(64,p.chunk*sr/1000);base=rnd()<p.leap?T.a+rnd()*(T.b-T.a):ppos(T,S,i);off=0}
     if((off&127)===0)irP=base+off;off++;st.push(dL[i],dR[i]);oL[i]=st.yl*.45;oR[i]=st.yr*.45}}}},
@@ -879,7 +892,8 @@ class Track{
   raw(oL,oR,n){const S=this.S;if(!S.L){oL.fill(0,0,n);oR.fill(0,0,n);return}this.ensure(n);const dL=this.dL,dR=this.dR,N=S.L.length;let i0=0;
     const lin=(ch,u)=>{const i=Math.floor(u),f=u-i;return ch[i]+(ch[Math.min(i+1,N-1)]-ch[i])*f};
     while(i0<n){const m=this.steps(n-i0),len=S.b-S.a,F=Math.min(Math.round(this.sr*.006),len>>3),mode=F<8?0:S.a>=F?1:S.b+F<=N?2:0;
-      for(let i=0;i<m;i++){const p=wrap(S,S.pos+i);let l=rd(S,S.L,p),r=rd(S,S.R,p);
+      const P=S.pos,whole=P===Math.floor(P),sa=S.a,sb=S.b;
+      for(let i=0;i<m;i++){let p,l,r;if(whole){p=P+i;if(p>=sb)p=sa+(p-sa)%len;l=S.L[p];r=S.R[p]}else{p=wrap(S,P+i);l=rd(S,S.L,p);r=rd(S,S.R,p)}
         if(mode===1){const q=p-(S.b-F);if(q>0){const x=q/F,u=p-len;l=l*(1-x)+lin(S.L,u)*x;r=r*(1-x)+lin(S.R,u)*x}}
         else if(mode===2){const q=p-S.a;if(q<F){const x=q/F,u=p+len;l=l*x+lin(S.L,u)*(1-x);r=r*x+lin(S.R,u)*(1-x)}}
         dL[i]=l;dR[i]=r}
@@ -912,12 +926,14 @@ class Verb{
     this.b=this.base.map(()=>new Float32Array(M));this.len=new Float64Array(8);this.g=new Float64Array(8);this.lp=new Float64Array(8);this.y=new Float64Array(8);this.w=0;
     let P=1;while(P<sr*.05)P<<=1;this.pd=[new Float32Array(P),new Float32Array(P)];this.pm=P-1;this.pw=0;this.pl=Math.round(sr*.022);this.e1=Math.round(sr*.015);this.e2=Math.round(sr*.007);
     this.ad=[[142,379],[163,411]].map(a=>a.map(d=>({b:new Float32Array(1024),w:0,d:Math.round(d*sr/44100)})));this.setRoom(.45)}
-  setRoom(x){this.room=x;const sc=.5+x*1.5,rt=.5+x*x*6.5;for(let k=0;k<8;k++){this.len[k]=Math.min(this.base[k]*this.sr/44100*sc,this.M-4);this.g[k]=Math.pow(10,-3*this.len[k]/(this.sr*rt))}this.dm=.62-.32*x}
+  setRoom(x){this.room=x;const sc=.5+x*1.5,rt=.5+x*x*6.5;for(let k=0;k<8;k++){this.len[k]=Math.round(Math.min(this.base[k]*this.sr/44100*sc,this.M-4));this.g[k]=Math.pow(10,-3*this.len[k]/(this.sr*rt))}this.dm=.62-.32*x}
   ap(s,x){const b=s.b,i=(s.w-s.d)&1023,y=b[i]-.6*x;b[s.w]=x+.6*y;s.w=(s.w+1)&1023;return y}
-  run(sL,sR,oL,oR,n){const b=this.b,m=this.m,len=this.len,g=this.g,lp=this.lp,y=this.y,dm=this.dm,pd=this.pd,pm=this.pm;
+  run(sL,sR,oL,oR,n){let any=false;for(let i=0;i<n;i++)if(sL[i]!==0||sR[i]!==0){any=true;break}
+    if(any)this.idle=0;else{this.idle=(this.idle||0)+n;if(this.idle>this.sr*9)return}  // the tail has died away: sleep until something is sent again
+    const b=this.b,m=this.m,len=this.len,g=this.g,lp=this.lp,y=this.y,dm=this.dm,pd=this.pd,pm=this.pm;
     for(let i=0;i<n;i++){pd[0][this.pw]=sL[i];pd[1][this.pw]=sR[i];const ri=(this.pw-this.pl)&pm;this.pw=(this.pw+1)&pm;
       let xl=pd[0][ri],xr=pd[1][ri];xl=this.ap(this.ad[0][1],this.ap(this.ad[0][0],xl));xr=this.ap(this.ad[1][1],this.ap(this.ad[1][0],xr));
-      for(let k=0;k<8;k++){lp[k]+=(ring(b[k],m,this.w-len[k])-lp[k])*dm;y[k]=lp[k]}
+      const w0=this.w;for(let k=0;k<8;k++){lp[k]+=(b[k][(w0-len[k])&m]-lp[k])*dm;y[k]=lp[k]}
       oL[i]+=(y[0]+y[2]+y[4]+y[6])*.3+(pd[0][(ri+this.e1)&pm]*.32+pd[0][(ri+this.e2)&pm]*.22);oR[i]+=(y[1]+y[3]+y[5]+y[7])*.3+(pd[1][(ri+this.e1)&pm]*.32+pd[1][(ri+this.e2)&pm]*.22);
       for(let h=1;h<8;h<<=1)for(let k=0;k<8;k+=h<<1)for(let j=k;j<k+h;j++){const a=y[j],c=y[j+h];y[j]=a+c;y[j+h]=a-c}
       const w=this.w;for(let k=0;k<8;k++)b[k][w]=(k&1?xr:xl)*(k&2?-.5:.5)+y[k]*.35355339*g[k];this.w=(w+1)&m}}
@@ -973,7 +989,7 @@ class Quartet extends AudioWorkletProcessor{
   flush(end){const r=this.rec,L=r.L.slice(0,r.n),R=r.R.slice(0,r.n);r.n=0;this.port.postMessage({t:'rec',L,R,end},[L.buffer,R.buffer])}
   process(ins,outs){const o=outs[0],L=o[0],R=o[1]||o[0];this.e.process(L,R,L.length);
     const r=this.rec;if(r){r.L.set(L,r.n);r.R.set(R,r.n);r.n+=L.length;if(r.n+L.length>r.L.length)this.flush(false)}
-    if(++this.k%4===0)this.port.postMessage(LIB.tick(this.e));return true}
+    if(++this.k%8===0)this.port.postMessage(LIB.tick(this.e));return true}
 }
 registerProcessor('quartet',Quartet);`;
 
@@ -1054,12 +1070,13 @@ async function initAudio(){
   analyser=ctx.createAnalyser();analyser.fftSize=2048;
   try{
     if(!ctx.audioWorklet||!window.AudioWorkletNode)throw new Error('no worklet');
-    const url=URL.createObjectURL(new Blob([WSRC],{type:'application/javascript'}));
-    await Promise.race([ctx.audioWorklet.addModule(url),new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),5000))]);
+    const load=u=>Promise.race([ctx.audioWorklet.addModule(u),new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),5000))]);
+    try{await load(URL.createObjectURL(new Blob([WSRC],{type:'application/javascript'})))}
+    catch(e){await load('data:text/javascript;charset=utf-8,'+encodeURIComponent(WSRC))}
     node=new AudioWorkletNode(ctx,'quartet',{numberOfInputs:0,numberOfOutputs:1,outputChannelCount:[2]});
     node.port.onmessage=e=>onMsg(e.data);node.connect(ctx.destination);node.connect(analyser);outNode=node;
   }catch(err){
-    node=null;eng=new LIB.Engine(ctx.sampleRate);const sp=ctx.createScriptProcessor(2048,1,2);
+    node=null;eng=new LIB.Engine(ctx.sampleRate);const sp=ctx.createScriptProcessor(4096,1,2);
     sp.onaudioprocess=e=>{const ob=e.outputBuffer,L=ob.getChannelData(0),R=ob.getChannelData(1);eng.process(L,R,ob.length);
       if(recChunks)onMsg({t:'rec',L:L.slice(),R:R.slice()});onMsg(LIB.tick(eng))};
     sp.connect(ctx.destination);sp.connect(analyser);outNode=sp}
@@ -1187,7 +1204,7 @@ function buildTracks(){const wrap=$('tracks');wrap.textContent='';
     mb.onclick=()=>{T.mute=!T.mute;sendT(i,'mute');updMS(i);saveSoon()};sb.onclick=()=>{T.solo=!T.solo;sendT(i,'solo');updMS(i);saveSoon()};
     btns.append(op,bb,mb,sb);hd.append(sel,btns);
     const body=h('div','trk-b'),wcol=h('div'),wb=h('div','wbox'),cv=h('canvas');cv.setAttribute('aria-label',`トラック${i+1}の波形とループ範囲`);
-    const dr=h('div','drop',`ここに落とすとトラック ${i+1} へ`);dr.hidden=true;wb.append(cv,dr);
+    const dr=h('div','drop',`ここに落とすとトラック ${i+1} へ`);dr.hidden=true;const ph=h('div','ph');wb.append(cv,ph,dr);cv._trk=T;ro.observe(cv);
     const lb=h('div','lbar'),rg=h('span','mono'),lbt=h('div','lbtns');let zb=null;
     const LB=[['◀','ループを1つ分前へずらす',()=>shiftLoop(i,-1)],['▶','ループを1つ分後ろへずらす',()=>shiftLoop(i,1)],['½','ループを半分に',()=>scaleLoop(i,.5)],['×2','ループを倍に',()=>scaleLoop(i,2)],
       ['全部','ファイル全体をループに',()=>T.L&&setLoop(i,0,T.L.length)],['寄る','ループに寄って表示',()=>{T.zoom=!T.zoom;zb.setAttribute('aria-pressed',String(T.zoom));saveSoon()}]];
@@ -1203,7 +1220,7 @@ function buildTracks(){const wrap=$('tracks');wrap.textContent='';
     for(const [t,bar] of[['L',ml],['R',mR]]){const m=h('div','meter');m.append(bar);lr.append(h('span',null,t),m)}mr.append(lv,lr);mx.append(mr);
     body.append(wcol,mx);
     const fx=buildFx(i);el.append(hd,body,fx);wrap.append(el);
-    T.el=Object.assign(T.el||{},{root:el,sel,nm,mt,cv,dr,rg,mb,sb,bb,F,ml,mR,zb,g:null});
+    T.el=Object.assign(T.el||{},{root:el,sel,nm,mt,cv,ph,dr,rg,mb,sb,bb,F,ml,mR,zb,g:null});
     bindWave(i);updTrackText(i);updMS(i);updChips(i)});
   updSel()}
 function updFader(i,k){const T=TR[i],f=FADERS.find(x=>x.k===k),inp=T.el.F[k];inp.value=f.ui(T[k]);inp.dispatchEvent(new Event('input'))}
@@ -1232,14 +1249,17 @@ function segCtl(i,label){const T=TRK(i),g=h('div','grp'),seg=h('div','seg');seg.
   for(const [m,t] of[['series','直列 1→2→3'],['parallel','並列 混ぜる']]){const b=h('button',null,t);b.type='button';b.dataset.mode=m;b.setAttribute('aria-pressed',String(T.mode===m));
     b.onclick=()=>{T.mode=m;sendT(i,'mode');seg.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));route.textContent=routeTxt(i,m);saveSoon()};seg.append(b)}
   g.append(h('span','lbl','つなぎ方'),seg);return{g,route}}
-function buildFx(i){const T=TR[i],det=h('details','fx');det.open=T.fxOpen;det.addEventListener('toggle',()=>{T.fxOpen=det.open;saveSoon()});
+function buildFx(i){const T=TR[i],det=h('details','fx');det.open=T.fxOpen;
   const sm=h('summary');sm.append(h('span',null,'効果'));const ch=h('span','chips');sm.append(ch);det.append(sm);
-  const body=h('div','fxb'),row=h('div','fxrow'),sc=segCtl(i,`トラック${i+1}のつなぎ方`);
-  const burn=h('button','btn burnb','ループ範囲に焼き込む');burn.type='button';burn.title='このトラックの効果をループ範囲の音に定着させます';burn.onclick=()=>burnTrack(i);
-  const undo=h('button','btn','元に戻す');undo.type='button';undo.disabled=!T.undo.length;undo.onclick=()=>undoTrack(i);
-  row.append(sc.g,burn,undo);const slots=h('div','slots');for(let s=0;s<3;s++)slots.append(slotCard(i,s));
-  body.append(row,sc.route,slots);det.append(body);
-  T.el=Object.assign(T.el||{},{ch,slots,undo,fx:det});return det}
+  T.el=Object.assign(T.el||{},{ch,fx:det,slots:null,undo:null});let built=false;
+  const build=()=>{if(built)return;built=true;T.cells=[[],[],[]];stepKey[i]='';
+    const body=h('div','fxb'),row=h('div','fxrow'),sc=segCtl(i,`トラック${i+1}のつなぎ方`);
+    const burn=h('button','btn burnb','ループ範囲に焼き込む');burn.type='button';burn.title='このトラックの効果をループ範囲の音に定着させます';burn.onclick=()=>burnTrack(i);burn.disabled=G.busy;
+    const undo=h('button','btn','元に戻す');undo.type='button';undo.disabled=G.busy||!T.undo.length;undo.onclick=()=>undoTrack(i);
+    row.append(sc.g,burn,undo);const slots=h('div','slots');for(let s=0;s<3;s++)slots.append(slotCard(i,s));
+    body.append(row,sc.route,slots);det.append(body);T.el.slots=slots;T.el.undo=undo};
+  det.addEventListener('toggle',()=>{T.fxOpen=det.open;if(det.open)build();saveSoon()});if(det.open)build();
+  return det}
 function buildMaster(){const box=$('mslots');MB.el={slots:box};MB.cells=[[],[],[]];box.textContent='';for(let s=0;s<3;s++)box.append(slotCard(MI,s));
   const on=$('mOn');const show=()=>{on.setAttribute('aria-pressed',String(MB.on));on.textContent=MB.on?'オン':'オフ';$('master').classList.toggle('off',!MB.on)};show();
   on.onclick=()=>{MB.on=!MB.on;sendT(MI,'on');show();saveSoon()};
@@ -1287,7 +1307,9 @@ function hexRgb(s){s=s.trim();if(s[0]==='#'){if(s.length===4)s='#'+s[1]+s[1]+s[2
 function readColors(){const cs=getComputedStyle(document.documentElement),v=n=>cs.getPropertyValue(n).trim();
   const t=TC.map(n=>hexRgb(v(n))),f=hexRgb(v('--faint'));
   COL={k:Math.random(),wave:v('--wave'),ink:v('--ink'),honey:v('--honey'),t:t.map(c=>`rgb(${c})`),tA:t.map(c=>`rgba(${c},.16)`),grid:`rgba(${f},.35)`}}
-function fit(c){const d=window.devicePixelRatio||1,w=Math.max(1,Math.round(c.clientWidth*d)),hh=Math.max(1,Math.round(c.clientHeight*d));if(c.width!==w||c.height!==hh){c.width=w;c.height=hh;return true}return false}
+// Canvas sizes come from a ResizeObserver, so drawing never has to ask the layout for them.
+let scopeDirty=true;
+const ro=new ResizeObserver(es=>{for(const e of es){const c=e.target,r=e.contentRect;c._w=r.width;c._h=r.height;if(c._trk)c._trk.drawn='';else scopeDirty=true}});
 // Square-root amplitude scale: quiet passages stay visible, yet a quiet file still looks quieter than a loud one.
 function waveImg(T,i,W,H,v,key){const L=T.L,R=T.R,mk=()=>{const c=document.createElement('canvas');c.width=W;c.height=H;return c},dim=mk(),hi=mk(),a=dim.getContext('2d'),b=hi.getContext('2d');
   a.fillStyle=COL.wave;b.fillStyle=COL.t[i];const span=v[1]-v[0],sc=y=>y<0?-Math.sqrt(Math.min(1,-y)):Math.sqrt(Math.min(1,y));
@@ -1295,21 +1317,33 @@ function waveImg(T,i,W,H,v,key){const L=T.L,R=T.R,mk=()=>{const c=document.creat
     for(let s=s0;s<s1&&s<L.length;s+=st){const y=(L[s]+R[s])*.5;if(y<lo)lo=y;if(y>hi2)hi2=y}if(hi2<lo)continue;
     const y1=H/2-sc(hi2)*H*.46,y2=H/2-sc(lo)*H*.46,hh=Math.max(1,y2-y1);a.fillRect(x,y1,1,hh);b.fillRect(x,y1,1,hh)}
   return{key,dim,hi}}
-function drawTrack(i){const T=TR[i],cv=T.el.cv;if(!T.L)return;fit(cv);const W=cv.width,H=cv.height,d=window.devicePixelRatio||1,N=T.L.length,v=viewOf(T),span=v[1]-v[0];
+// The waveform, loop and grid are painted only when one of them changes; the playhead is a separate layer
+// that only moves (a transform the compositor handles without repainting anything).
+function drawTrack(i){const T=TR[i],cv=T.el.cv;if(!T.L||!cv._w)return;const d=window.devicePixelRatio||1,W=Math.max(1,Math.round(cv._w*d)),H=Math.max(1,Math.round(cv._h*d)),N=T.L.length,v=viewOf(T),span=v[1]-v[0];
+  const u=snapUnit(),sk=[W,H,v[0],v[1],T.a,T.b,T.ver,COL.k,u].join('|');
+  let p=T.view;if(!(p>=0&&p<=N))p=T.a;const xp=Math.round((p-v[0])/span*cv._w*2)/2;
+  if(xp!==T.phx){T.phx=xp;T.el.ph.style.transform=`translateX(${xp}px)`;const out=xp<-2||xp>cv._w+2;if(out!==T.phOut){T.phOut=out;T.el.ph.hidden=out}}
+  if(sk===T.drawn)return;T.drawn=sk;if(cv.width!==W||cv.height!==H){cv.width=W;cv.height=H}
   const key=W+'|'+H+'|'+v[0]+'|'+v[1]+'|'+T.ver+'|'+COL.k;if(!T.img||T.img.key!==key)T.img=waveImg(T,i,W,H,v,key);
   const g=T.el.g||(T.el.g=cv.getContext('2d'));g.clearRect(0,0,W,H);const X=s=>(s-v[0])/span*W,xa=X(T.a),xb=X(T.b),full=T.a===0&&T.b===N;
   g.fillStyle=COL.tA[i];g.fillRect(xa,0,xb-xa,H);g.drawImage(T.img.dim,0,0);
   const sx=Math.max(0,Math.floor(xa)),ex=Math.min(W,Math.ceil(xb));if(ex>sx)g.drawImage(T.img.hi,sx,0,ex-sx,H,sx,0,ex-sx,H);
-  const u=snapUnit();if(u&&span/u<W/(5*d)){g.fillStyle=COL.grid;for(let s=Math.ceil(v[0]/u)*u;s<v[1];s+=u)g.fillRect(Math.round(X(s)),0,Math.max(1,d*.75),H)}
-  if(!full){g.fillStyle=COL.t[i];g.fillRect(xa-d,0,2*d,H);g.fillRect(xb-d,0,2*d,H);g.fillRect(xa,0,8*d,10*d);g.fillRect(xb-8*d,0,8*d,10*d);g.fillRect(xa,H-10*d,8*d,10*d);g.fillRect(xb-8*d,H-10*d,8*d,10*d)}
-  let p=T.view;if(!(p>=0&&p<=N))p=T.a;const xp=X(p);if(xp>=-2&&xp<=W+2){g.fillStyle=COL.ink;g.fillRect(xp-.75*d,0,1.5*d,H)}}
-const scope=$('scope'),sctx=scope.getContext('2d');let sbuf=null;
-function drawScope(){if(!analyser)return;fit(scope);const W=scope.width,H=scope.height;if(!sbuf)sbuf=new Float32Array(analyser.fftSize);analyser.getFloatTimeDomainData(sbuf);
-  sctx.clearRect(0,0,W,H);sctx.strokeStyle=COL.honey;sctx.lineWidth=1.5*(window.devicePixelRatio||1);sctx.beginPath();
-  for(let x=0;x<W;x++){const s=sbuf[Math.floor(x/W*sbuf.length)],y=H/2-s*H*.45;x?sctx.lineTo(x,y):sctx.moveTo(x,y)}sctx.stroke()}
+  if(u&&span/u<W/(5*d)){g.fillStyle=COL.grid;for(let s=Math.ceil(v[0]/u)*u;s<v[1];s+=u)g.fillRect(Math.round(X(s)),0,Math.max(1,d*.75),H)}
+  if(!full){g.fillStyle=COL.t[i];g.fillRect(xa-d,0,2*d,H);g.fillRect(xb-d,0,2*d,H);g.fillRect(xa,0,8*d,10*d);g.fillRect(xb-8*d,0,8*d,10*d);g.fillRect(xa,H-10*d,8*d,10*d);g.fillRect(xb-8*d,H-10*d,8*d,10*d)}}
+// The scope is drawn at screen-pixel resolution, 20 times a second, and only while playing.
+const scope=$('scope'),sctx=scope.getContext('2d');let sbuf=null;ro.observe(scope);
+function drawScope(flat){if(!analyser||!scope._w)return;const W=Math.max(1,Math.round(scope._w)),H=Math.max(1,Math.round(scope._h));if(scope.width!==W||scope.height!==H){scope.width=W;scope.height=H}
+  if(!sbuf)sbuf=new Float32Array(analyser.fftSize);if(!flat)analyser.getFloatTimeDomainData(sbuf);
+  sctx.clearRect(0,0,W,H);sctx.strokeStyle=COL.honey;sctx.lineWidth=1.25;sctx.beginPath();const st=Math.max(1,Math.floor(W/160));
+  for(let x=0;x<=W;x+=st){const s=flat?0:sbuf[Math.floor(x/W*(sbuf.length-1))],y=H/2-s*H*.45;x?sctx.lineTo(x,y):sctx.moveTo(x,y)}sctx.stroke()}
 const stepKey={};
-function frame(){if(ctx&&COL){const sx=v=>`scaleX(${Math.min(1,v||0).toFixed(3)})`;for(let i=0;i<NT;i++){const T=TR[i];drawTrack(i);T.el.ml.style.transform=sx(T.pl);T.el.mR.style.transform=sx(T.pr)}
-    $('mL').style.transform=sx(G.ml);$('mR').style.transform=sx(G.mr);drawScope();
+// Meters only touch the page when their value moves visibly.
+const meterVals=new Map();
+function setMeter(el,v){v=Math.round(Math.min(1,v||0)*100)/100;if(meterVals.get(el)!==v){meterVals.set(el,v);el.style.transform=`scaleX(${v})`}}
+let lastScope=0;
+function frame(now){if(ctx&&COL){for(let i=0;i<NT;i++){const T=TR[i];drawTrack(i);setMeter(T.el.ml,T.pl);setMeter(T.el.mR,T.pr)}
+    setMeter($('mL'),G.ml);setMeter($('mR'),G.mr);
+    if(G.playing){if(now-lastScope>50){lastScope=now;drawScope(false);scopeDirty=true}}else if(scopeDirty){scopeDirty=false;drawScope(true)}
     for(const i of ALLI){const T=TRK(i),key=T.steps.join(',');if(key!==stepKey[i]){stepKey[i]=key;T.cells.forEach((cs,s)=>{const st=T.steps[s];cs.forEach((c,k)=>c.classList.toggle('now',k===st))})}}
     if(G.rec){const t=(performance.now()-recT0)/1000;$('recTxt').textContent='録音中 '+Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0')}}
   requestAnimationFrame(frame)}
@@ -1361,11 +1395,11 @@ function slotCard(i,s){const T=TRK(i),S=T.slots[s],A=ALGM[S.algo],el=h('div','sl
   el.append(seqPanel(i,s));return el}
 
 function seqPanel(i,s){const T=TRK(i),S=T.slots[s],q=S.seq,A=ALGM[S.algo];
-  const det=h('details','seq');det.open=!!S.open;det.addEventListener('toggle',()=>{S.open=det.open;saveSoon()});
+  const det=h('details','seq');det.open=!!S.open;let built=false;
   const sm=h('summary');sm.append(h('span',null,'シーケンサー'));const sum=h('span','sum');sm.append(sum);det.append(sm);
-  const body=h('div','seqb');
   const sumTxt=()=>{const on=SEQM.filter(M=>q[M.k].on).map(M=>M.n);sum.textContent=q.on?(on.length?'オン · '+on.join('・'):'オン · 動きを選んでください'):'オフ';sum.classList.toggle('on',q.on)};
   const upd=()=>{sumTxt();sendSeq(i,s);updChips(i);saveSoon()};
+  const build=()=>{if(built)return;built=true;const body=h('div','seqb');
   const top=h('div','row'),onb=h('button','tog','使う');onb.type='button';onb.setAttribute('aria-pressed',String(q.on));
   onb.onclick=()=>{q.on=!q.on;onb.setAttribute('aria-pressed',String(q.on));upd()};
   const dv=h('select');dv.id=`div${i}_${s}`;dv.setAttribute('aria-label','1マスの長さ');for(const [v,t] of DIVS){const o=h('option',null,t);o.value=v;dv.append(o)}dv.value=q.div;dv.onchange=()=>{q.div=dv.value;upd()};
@@ -1392,7 +1426,9 @@ function seqPanel(i,s){const T=TRK(i),S=T.slots[s],q=S.seq,A=ALGM[S.algo];
     chip.onclick=()=>{st.on=!st.on;chip.setAttribute('aria-pressed',String(st.on));row.classList.toggle('dis',!st.on);if(st.on&&!q.on){q.on=true;onb.setAttribute('aria-pressed','true')}upd()};
     row.append(chip,mc,h('p','mhint',M.hint));modes.append(row)}
   body.append(modes,knob('なめらかさ（音程とつまみの移り）',`gl${i}_${s}`,0,1,.01,q.glide,pct,v=>{q.glide=v;upd()},.15));
-  det.append(body);sumTxt();return det}
+  det.append(body)};
+  det.addEventListener('toggle',()=>{S.open=det.open;if(det.open)build();saveSoon()});if(det.open)build();
+  sumTxt();return det}
 
 function setAlgo(i,s,id){const S=TRK(i).slots[s];S.algo=id||null;if(S.algo&&!S.vals[S.algo])S.vals[S.algo]=defVals(S.algo);if(S.algo)S.on=true;
   send(slotMsg(i,s));sendSS(i,s,'on');rebuildSlot(i,s);sendSeq(i,s);updChips(i);saveSoon();const p=$(`pick${i}_${s}`);if(p)p.focus({preventScroll:true})}
@@ -1458,7 +1494,7 @@ $('fileIn').onchange=e=>{const fs=[...e.target.files];e.target.value='';if(fs.le
 async function openFiles(files,start){if(!ctx)return;const list=files.slice(0,NT);if(files.length>NT)note(`一度に入るのは4つまでです。最初の4つを読み込みます。`);
   for(let k=0;k<list.length;k++){const i=(start+k)%NT,f=list[k];note(`${f.name} をトラック ${i+1} に読み込んでいます…`);
     try{const ab=await f.arrayBuffer(),r=await decodeFile(ab),s=sr(),dur=r.L.length/s,T=TR[i];T.undo=[];
-      setBuffer(i,r.L,r.R,f.name,`${fmtT(dur)} · ${r.R?'ステレオ':'モノ'} · ${r.fileSr} Hz`+(r.fileSr!==s?` → ${s} Hz`:''));T.el.undo.disabled=true;
+      setBuffer(i,r.L,r.R,f.name,`${fmtT(dur)} · ${r.R?'ステレオ':'モノ'} · ${r.fileSr} Hz`+(r.fileSr!==s?` → ${s} Hz`:''));if(T.el.undo)T.el.undo.disabled=true;
       if(G.autoLvl)levelTrack(i,false);
       const quiet=G.autoLvl?` 音量は ${fmtDb(toDb(T.vol))} にそろえました。`:T.peakDb<-18?` かなり小さい音（ピーク ${fmtDb(T.peakDb)}）なので、「音量をならす」で持ち上げられます。`:'';
       note((dur>600?`${f.name} を読み込みました。長いファイルなので、書き出しや焼き込みには時間がかかります。`:`${f.name} をトラック ${i+1} に読み込みました。`)+quiet)}
