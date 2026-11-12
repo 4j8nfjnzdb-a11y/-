@@ -84,7 +84,8 @@ input[type=range]:disabled{opacity:.4}
 
 /* tracks */
 .lanes{display:flex;flex-direction:column;gap:10px}
-.lanes-h{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:4px 16px}
+.lanes-h{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px}
+.lanes-h .help{flex:1 1 100%}
 .lanes-h h2,.ed-h h2,.out h2{margin:0;font-family:var(--f-disp);font-weight:500;font-size:22px;line-height:1.2}
 .help{margin:0;font-size:12px;color:var(--dim);max-width:100%}
 .trk{--tc:var(--t1);position:relative;background:var(--panel);border:1px solid var(--line);border-left:5px solid var(--tc);border-radius:12px;padding:10px 14px 12px;display:flex;flex-direction:column;gap:8px;min-width:0}
@@ -94,7 +95,7 @@ input[type=range]:disabled{opacity:.4}
 .badge{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:6px;background:var(--tc);color:var(--bg);font-family:var(--f-mono);font-weight:500;font-size:13px;flex:none;align-self:center}
 .tname{font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tsel .mono{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
-@media (max-width:600px){.tsel{flex-wrap:wrap}.tsel .mono{flex-basis:100%;padding-left:30px}}
+@media (max-width:600px){.tsel{flex-wrap:wrap}.tsel .mono{flex-basis:100%;padding-left:30px;white-space:normal}}
 .tbtns{display:flex;gap:6px;align-items:center}
 .trk-b{display:grid;grid-template-columns:minmax(0,1fr);gap:10px 16px}
 @media (min-width:880px){.trk-b{grid-template-columns:minmax(0,1fr) 270px}}
@@ -113,11 +114,26 @@ input[type=range]:disabled{opacity:.4}
 .chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chip em{font-style:normal;font-family:var(--f-mono);font-size:10px;color:var(--tc);letter-spacing:.06em}
 .mix{display:flex;flex-direction:column;gap:2px;min-width:0}
-.fd{display:grid;grid-template-columns:4em minmax(0,1fr) 4.6em;align-items:center;gap:8px;font-size:12.5px}
+.fd{display:grid;grid-template-columns:4em minmax(0,1fr) 5.2em;align-items:center;gap:8px;font-size:12.5px}
 .fd output{font-family:var(--f-mono);font-size:11.5px;color:var(--tc);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 .fd input[type=range]{--c:var(--tc)}
-.meter{height:4px;border-radius:2px;background:var(--well);overflow:hidden;margin-top:4px}
+.mrow{display:flex;align-items:center;gap:10px;margin-top:4px}
+.meter{flex:1 1 auto;height:4px;border-radius:2px;background:var(--well);overflow:hidden}
 .meter i{display:block;height:100%;width:100%;background:var(--tc);transform-origin:left;transform:scaleX(0)}
+
+/* per-track effects */
+.fx{border-top:1px solid var(--line);padding-top:8px;min-width:0}
+.fx > summary{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;cursor:pointer;list-style:none;font-weight:700;font-size:13.5px;padding:2px 0}
+.fx > summary::-webkit-details-marker{display:none}
+.fx > summary::before{content:"";width:0;height:0;border-left:6px solid currentColor;border-top:5px solid transparent;border-bottom:5px solid transparent;transition:transform .15s}
+.fx[open] > summary::before{transform:rotate(90deg)}
+.fx > summary .chips{margin:0;font-weight:400}
+.fxb{display:flex;flex-direction:column;gap:10px;padding-top:10px}
+.fxrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px}
+#master{--tc:var(--honey)}
+#master.off .slots{opacity:.45}
+.tog.big{padding:5px 16px;font-size:13px}
+.tog.bus[aria-pressed="true"]{background:var(--honey);color:var(--honey-ink)}
 
 /* editor */
 .ed{--tc:var(--t1);background:var(--panel);border:1px solid var(--line);border-top:5px solid var(--tc);border-radius:12px;padding:14px 16px 16px;display:flex;flex-direction:column;gap:12px;min-width:0}
@@ -139,6 +155,7 @@ input[type=range]:disabled{opacity:.4}
 .pick i{grid-column:1;font-family:var(--f-disp);font-size:14px;color:var(--dim);line-height:1.25;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pick svg{grid-column:2;grid-row:1 / span 2;width:12px;height:12px;fill:var(--dim)}
 .slot .tog{align-self:center}
+.slot-h .tog,.slot-h .btn{flex:none;white-space:nowrap;align-self:center}
 .slot.off .pick,.slot.off .desc,.slot.off .params,.slot.off .smix{opacity:.5}
 .desc{margin:0;font-size:12.5px;color:var(--dim);text-wrap:pretty}
 .empty{margin:0;font-size:12.5px;color:var(--dim)}
@@ -198,7 +215,7 @@ input[type=range]:disabled{opacity:.4}
 <div class="app" id="app">
   <header class="top">
     <h1>竪琴 四重奏 <small>Tategoto Quartet · after Argeïphontes Lyre</small></h1>
-    <p>4つのトラックにそれぞれ音を読み込み、Lyre 由来の28のアルゴリズムから1トラックに3つまで重ねます。どの効果にもシーケンサーを付けられ、ループはつかんで動かせます。</p>
+    <p>4つのトラックにそれぞれ音を読み込み、Lyre 由来の28のアルゴリズムをトラックごとに3つまで重ねます。どの効果にもシーケンサーを付けられ、ループはつかんで動かせます。下の「全体の効果」は4トラックをまとめてかける効果で、オフにもできます。</p>
   </header>
 
   <div class="bar" id="bar">
@@ -213,18 +230,18 @@ input[type=range]:disabled{opacity:.4}
   </div>
 
   <section class="lanes" aria-label="トラック">
-    <div class="lanes-h"><h2>トラック</h2><p class="help">波形の上で　ドラッグ＝新しいループ　·　ループの中をつかむ＝ループごと移動　·　端をつかむ＝伸び縮み　·　ループの外をタップ＝そこへループを移す　·　ループの中をタップ＝再生位置　·　← → キーで選んだトラックのループをずらす</p></div>
+    <div class="lanes-h"><h2>トラック</h2><button class="btn sm" id="levelAll" type="button" title="4トラックそれぞれのループの平均が −20 dBFS になるように音量を合わせます">4トラックの音量をならす</button><p class="help">効果はトラックごとに「効果」を開いて入れます（同じ効果でもトラックごとに別々に調整できます）。　波形の上で　ドラッグ＝新しいループ　·　ループの中をつかむ＝ループごと移動　·　端をつかむ＝伸び縮み　·　ループの外をタップ＝そこへループを移す　·　ループの中をタップ＝再生位置　·　← → キーで選んだトラックのループをずらす</p></div>
     <div id="tracks" class="lanes"></div>
   </section>
 
-  <section class="ed" id="ed" aria-labelledby="edTitle">
+  <section class="ed" id="master" aria-labelledby="mTitle">
     <div class="ed-h">
-      <h2 id="edTitle"><span class="badge" id="edBadge">1</span><span id="edName"></span></h2>
-      <div class="grp"><span class="lbl">つなぎ方</span><div class="seg" role="group" aria-label="つなぎ方"><button type="button" data-mode="series" aria-pressed="true">直列 1→2→3</button><button type="button" data-mode="parallel" aria-pressed="false">並列 混ぜる</button></div></div>
-      <div class="row"><button class="btn" id="burnBtn" type="button" title="このトラックの効果をループ範囲の音に定着させます">ループ範囲に焼き込む</button><button class="btn" id="undoBtn" type="button" disabled>元に戻す</button></div>
+      <h2 id="mTitle">全体の効果</h2>
+      <button class="tog big" id="mOn" type="button" aria-pressed="true">オン</button>
+      <div class="grp"><span class="lbl">つなぎ方</span><div class="seg" role="group" aria-label="全体の効果のつなぎ方" id="mSeg"><button type="button" data-mode="series" aria-pressed="true">直列 1→2→3</button><button type="button" data-mode="parallel" aria-pressed="false">並列 混ぜる</button></div></div>
     </div>
-    <p class="route" id="route"></p>
-    <div class="slots" id="slots"></div>
+    <p class="route" id="mRoute"></p>
+    <div class="slots" id="mslots"></div>
   </section>
 
   <section class="out" aria-labelledby="outTitle">
@@ -818,7 +835,7 @@ class Slot{
 
 class Track{
   constructor(E,idx){this.E=E;this.idx=idx;this.sr=E.sr;this.S={L:null,R:null,a:0,b:0,pos:0,view:0,sg:0};this.slots=[0,1,2].map(k=>new Slot(this,k));this.mode='series';
-    this.vol=.8;this.pan=0;this.width=1;this.depth=0;this.speed=1;this.mute=false;this.solo=false;this.clk=0;
+    this.vol=.8;this.pan=0;this.width=1;this.depth=0;this.speed=1;this.mute=false;this.solo=false;this.clk=0;this.bus=true;this.on=true;
     this.qc=0;this.qn=0;this.rp=0;this.tL=new Float32Array(128);this.tR=new Float32Array(128);this.cap=0;this.lpL=0;this.lpR=0;this.peak=0}
   setSource(L,R){const S=this.S;S.L=L;S.R=R||L;S.a=0;S.b=L.length;S.pos=0;S.view=0;S.sg++;for(const s of this.slots)s.build()}
   setRegion(a,b){const S=this.S;if(!S.L)return;const N=S.L.length;a=clamp(Math.floor(a),0,Math.max(0,N-64));b=clamp(Math.floor(b),Math.min(N,a+64),N);
@@ -836,19 +853,29 @@ class Track{
     while(this.qn<need){this.raw(this.tL,this.tR,128);qL.set(this.tL,this.qn);qR.set(this.tR,this.qn);this.qn+=128}
     for(let i=0;i<n;i++){const p=this.rp+i*sp,j=p|0,f=p-j;oL[i]=qL[j]+(qL[j+1]-qL[j])*f;oR[i]=qR[j]+(qR[j+1]-qR[j])*f}
     this.rp+=n*sp;const d=Math.floor(this.rp);qL.copyWithin(0,d,this.qn);qR.copyWithin(0,d,this.qn);this.qn-=d;this.rp-=d}
-  raw(oL,oR,n){const S=this.S;if(!S.L){oL.fill(0,0,n);oR.fill(0,0,n);return}this.ensure(n);
-    const sl=this.slots,ser=this.mode==='series',dL=this.dL,dR=this.dR;let i0=0;
-    while(i0<n){let m=n-i0;
-      for(const s of sl)if(s.run.active()){const u=s.run.check(this);if(u<m)m=u}
+  // Run the slots over m samples of dL/dR (series or parallel); the result is left in this.cL/this.cR.
+  chain(dL,dR,m){let cL=dL,cR=dR;
+    if(this.mode==='series'){let k=0;for(const s of this.slots){if(!s.busy())continue;const o=this.pp[k];s.process(cL,cR,o[0],o[1],m);cL=o[0];cR=o[1];k^=1}}
+    else{let cnt=0;const aL=this.aL,aR=this.aR,o=this.pp[0];
+      for(const s of this.slots){if(!s.busy())continue;s.process(dL,dR,o[0],o[1],m);
+        if(!cnt)for(let i=0;i<m;i++){aL[i]=o[0][i];aR[i]=o[1][i]}else for(let i=0;i<m;i++){aL[i]+=o[0][i];aR[i]+=o[1][i]}cnt++}
+      if(cnt){const g=1/cnt;for(let i=0;i<m;i++){aL[i]*=g;aR[i]*=g}cL=aL;cR=aR}}
+    this.cL=cL;this.cR=cR}
+  // Samples until the next sequencer step of any slot (and fire steps that start now).
+  steps(n){let m=n;for(const s of this.slots)if(s.run.active()){const u=s.run.check(this);if(u<m)m=u}return m}
+  raw(oL,oR,n){const S=this.S;if(!S.L){oL.fill(0,0,n);oR.fill(0,0,n);return}this.ensure(n);const dL=this.dL,dR=this.dR;let i0=0;
+    while(i0<n){const m=this.steps(n-i0);
       for(let i=0;i<m;i++){dL[i]=rd(S,S.L,S.pos+i);dR[i]=rd(S,S.R,S.pos+i)}
-      S.view=S.pos;let cL=dL,cR=dR;
-      if(ser){let k=0;for(const s of sl){if(!s.busy())continue;const o=this.pp[k];s.process(cL,cR,o[0],o[1],m);cL=o[0];cR=o[1];k^=1}}
-      else{let cnt=0;const aL=this.aL,aR=this.aR,o=this.pp[0];
-        for(const s of sl){if(!s.busy())continue;s.process(dL,dR,o[0],o[1],m);
-          if(!cnt)for(let i=0;i<m;i++){aL[i]=o[0][i];aR[i]=o[1][i]}else for(let i=0;i<m;i++){aL[i]+=o[0][i];aR[i]+=o[1][i]}cnt++}
-        if(cnt){const g=1/cnt;for(let i=0;i<m;i++){aL[i]*=g;aR[i]*=g}cL=aL;cR=aR}}
+      S.view=S.pos;this.chain(dL,dR,m);const cL=this.cL,cR=this.cR;
       for(let i=0;i<m;i++){oL[i0+i]=cL[i];oR[i0+i]=cR[i]}
       S.pos=wrap(S,S.pos+m);this.clk+=m;i0+=m}}
+  // The master bus: its input is the sum of the tracks sent to it. A ring holding the last bar stands in
+  // for the "sound" that player-type algorithms (grains, cut-ups) read from.
+  busRun(xL,xR,oL,oR,n){const S=this.S;this.ensure(n);const want=clamp(Math.round(4*60/this.E.bpm*this.sr),this.sr,LIVE);if(S.b!==want){S.b=want;if(S.pos>=want)S.pos=0}
+    const dL=this.dL,dR=this.dR;let i0=0;
+    while(i0<n){const m=this.steps(n-i0);for(let i=0;i<m;i++){dL[i]=xL[i0+i];dR[i]=xR[i0+i]}
+      S.view=S.pos;this.chain(dL,dR,m);const cL=this.cL,cR=this.cR;for(let i=0;i<m;i++){oL[i0+i]+=cL[i];oR[i0+i]+=cR[i]}
+      let w=S.pos;for(let i=0;i<m;i++){S.L[w]=dL[i];S.R[w]=dR[i];if(++w>=S.b)w=0}S.pos=w;this.clk+=m;i0+=m}}
   // Track fader stage: width (M/S), pan, then depth = darker, quieter and more into the room.
   mixInto(xL,xR,mL,mR,sL,sR,n){const v=this.vol,w=this.width,d=this.depth,th=(this.pan+1)*Math.PI/4,gl=Math.min(1,Math.cos(th)*SQ2),gr=Math.min(1,Math.sin(th)*SQ2);
     const fc=1100+17000*Math.pow(1-d,1.6),a=1-Math.exp(-TAU*fc/this.sr),dg=v*(1-.62*d),sg=v*Math.pow(d,.8)*.9;let pk=0;
@@ -879,13 +906,17 @@ function soft(x){const a=Math.abs(x);return a<=.85?x:Math.sign(x)*(.85+.15*Math.
 
 class Engine{
   constructor(sr){this.sr=sr;this.tracks=[];for(let i=0;i<4;i++)this.tracks.push(new Track(this,i));this.bpm=100;this.playing=false;this.mvol=.85;
+    // the whole-mix effects ("全体の効果"): a track object fed by the tracks instead of a sound file
+    const M=new Track(this,-1);M.S={L:new Float32Array(LIVE),R:new Float32Array(LIVE),a:0,b:Math.round(sr*4.8),pos:0,view:0,sg:0};this.master=M;
     this.verb=new Verb(sr);this.cap=0;this.lg=1;this.lenv=0;this.mpeak=0;this.rec=false}
-  ensure(n){if(this.cap<n){this.cap=n;const f=()=>new Float32Array(n);this.tl=f();this.tr=f();this.mL=f();this.mR=f();this.sL=f();this.sR=f()}}
-  rewind(){for(const t of this.tracks)t.rewind()}
-  process(oL,oR,n){this.ensure(n);const mL=this.mL,mR=this.mR,sL=this.sL,sR=this.sR;mL.fill(0,0,n);mR.fill(0,0,n);sL.fill(0,0,n);sR.fill(0,0,n);
+  ensure(n){if(this.cap<n){this.cap=n;const f=()=>new Float32Array(n);this.tl=f();this.tr=f();this.mL=f();this.mR=f();this.sL=f();this.sR=f();this.bL=f();this.bR=f()}}
+  rewind(){for(const t of this.tracks)t.rewind();this.master.rewind()}
+  process(oL,oR,n){this.ensure(n);const mL=this.mL,mR=this.mR,sL=this.sL,sR=this.sR,bL=this.bL,bR=this.bR;mL.fill(0,0,n);mR.fill(0,0,n);sL.fill(0,0,n);sR.fill(0,0,n);
+    const M=this.master,mOn=M.on&&M.slots.some(s=>s.busy());if(mOn){bL.fill(0,0,n);bR.fill(0,0,n)}
     if(this.playing){const any=this.tracks.some(t=>t.solo);
       for(const t of this.tracks){if(!t.S.L){t.peak*=.96;continue}const aud=any?t.solo:!t.mute;
-        if(!aud){t.skip(n);t.peak*=.96;continue}t.render(this.tl,this.tr,n);t.mixInto(this.tl,this.tr,mL,mR,sL,sR,n)}}
+        if(!aud){t.skip(n);t.peak*=.96;continue}t.render(this.tl,this.tr,n);const b=mOn&&t.bus;t.mixInto(this.tl,this.tr,b?bL:mL,b?bR:mR,sL,sR,n)}
+      if(mOn)M.busRun(bL,bR,mL,mR,n)}
     else for(const t of this.tracks)t.peak*=.96;
     this.verb.run(sL,sR,mL,mR,n);
     const v=this.mvol,rel=Math.exp(-1/(this.sr*.15)),rg=1-Math.exp(-1/(this.sr*.12));let pk=0,bad=false;
@@ -895,7 +926,7 @@ class Engine{
     if(bad){this.verb=new Verb(this.sr);this.verb.setRoom(this.room==null?.45:this.room)}
     this.mpeak=Math.max(pk,this.mpeak*.9)}
 }
-function handle(E,m){const T=m.i!=null?E.tracks[m.i]:null,s=T&&m.s!=null?T.slots[m.s]:null;switch(m.t){
+function handle(E,m){const T=m.i==null?null:m.i===4?E.master:E.tracks[m.i],s=T&&m.s!=null?T.slots[m.s]:null;switch(m.t){
   case'src':T.setSource(m.L,m.R);break;
   case'region':T.setRegion(m.a,m.b);break;
   case'seek':T.seek(m.pos);break;
@@ -906,7 +937,7 @@ function handle(E,m){const T=m.i!=null?E.tracks[m.i]:null,s=T&&m.s!=null?T.slots
   case'seq':s.run.set(m.seq);break;
   case'g':if(m.k==='room'){E.room=m.v;E.verb.setRoom(m.v)}else E[m.k]=m.v;break;
   case'rewind':E.rewind();break}}
-function tick(E){return{t:'tick',v:E.tracks.map(t=>t.S.view),pk:E.tracks.map(t=>t.peak),st:E.tracks.map(t=>t.slots.map(s=>s.run.active()?s.run.step:-1)),mp:E.mpeak}}
+function tick(E){return{t:'tick',v:E.tracks.map(t=>t.S.view),pk:E.tracks.map(t=>t.peak),st:E.tracks.map(t=>t.slots.map(s=>s.run.active()?s.run.step:-1)),ms:E.master.slots.map(s=>s.run.active()?s.run.step:-1),mp:E.mpeak}}
 return{ALG,ALGM,Engine,handle,wrap,DIV,tick};
 }
 //@@DSP-END
@@ -930,7 +961,10 @@ const h=(tag,cls,txt)=>{const e=document.createElement(tag);if(cls)e.className=c
 const clamp=(x,a,b)=>x<a?a:x>b?b:x;
 const clone=o=>JSON.parse(JSON.stringify(o));
 const inViewer=!!(window.claude&&typeof window.claude.use==='function');
-const NT=4,TC=['--t1','--t2','--t3','--t4'];
+const NT=4,MI=4,TC=['--t1','--t2','--t3','--t4'];
+// level in dB for the faders: the bottom of the travel is silence
+const toDb=v=>v<=.001?-60:clamp(20*Math.log10(v),-60,36),fromDb=d=>d<=-59.9?0:Math.pow(10,d/20);
+const fmtDb=d=>d<=-59.9?'−∞':(d>0?'+':d<0?'−':'')+Math.abs(d).toFixed(1)+' dB';
 
 // ---------- state ----------
 const SEQM=[
@@ -951,36 +985,43 @@ const newSlot=()=>({algo:null,vals:{},mix:1,level:1,auto:true,on:true,seq:defSeq
 const defVals=id=>{const o={};for(const q of ALGM[id].params)o[q[0]]=q[4];return o};
 const G={bpm:100,playing:false,mvol:.85,room:.45,snap:0,sel:0,fmt:'wav',rec:false,busy:false,mp:0};
 const TR=[];
-for(let i=0;i<NT;i++)TR.push({name:'',meta:'',L:null,R:null,a:0,b:0,view:0,pk:0,vol:.8,pan:0,width:1,depth:0,speed:1,mute:false,solo:false,mode:'series',zoom:false,
-  undo:[],slots:[newSlot(),newSlot(),newSlot()],steps:[-1,-1,-1],cells:[[],[],[]],ver:0,img:null,lock:null,el:null});
+for(let i=0;i<NT;i++)TR.push({name:'',meta:'',L:null,R:null,a:0,b:0,view:0,pk:0,vol:1,pan:0,width:1,depth:0,speed:1,mute:false,solo:false,bus:true,mode:'series',zoom:false,fxOpen:false,
+  undo:[],slots:[newSlot(),newSlot(),newSlot()],steps:[-1,-1,-1],cells:[[],[],[]],ver:0,img:null,lock:null,el:null,peakDb:null});
+// the whole-mix effects: same slots and sequencers as a track, fed by every track whose 「全体へ」 is on
+const MB={name:'全体の効果',on:true,mode:'series',slots:[newSlot(),newSlot(),newSlot()],steps:[-1,-1,-1],cells:[[],[],[]],el:null};
+const TRK=i=>i===MI?MB:TR[i];
+const ALLI=[0,1,2,3,MI];
 
 function applyDefaults(){
-  const D=[{vol:.8,pan:-.35,depth:.2,width:1,slots:[['gfluid']]},
-    {vol:.75,pan:.05,depth:.06,width:.8,slots:[['evisc',{seq:{on:true,div:'loop',steps:16,ratchet:{on:true,amt:.28,x:4},glitch:{on:true,amt:.12,x:0}}}]]},
-    {vol:.5,pan:0,depth:.55,width:1.6,slots:[['utas'],['svf']]},
-    {vol:.62,pan:.35,depth:.35,width:1,slots:[['kedju',{mix:.7}]]}];
+  const D=[{vol:1,pan:-.35,depth:.2,width:1,slots:[['gfluid']]},
+    {vol:.95,pan:.05,depth:.06,width:.8,slots:[['evisc',{seq:{on:true,div:'loop',steps:16,ratchet:{on:true,amt:.28,x:4},glitch:{on:true,amt:.12,x:0}}}]]},
+    {vol:.7,pan:0,depth:.55,width:1.6,slots:[['utas'],['svf']]},
+    {vol:.8,pan:.35,depth:.35,width:1,slots:[['kedju',{mix:.7}]]}];
   D.forEach((d,i)=>{const T=TR[i];Object.assign(T,{vol:d.vol,pan:d.pan,depth:d.depth,width:d.width});
     d.slots.forEach(([id,o],s)=>{const S=T.slots[s];S.algo=id;S.vals[id]=defVals(id);if(o&&o.mix!=null)S.mix=o.mix;
-      if(o&&o.seq){const q=o.seq;for(const k in q){if(typeof q[k]==='object')Object.assign(S.seq[k],q[k]);else S.seq[k]=q[k]}}})})}
+      if(o&&o.seq){const q=o.seq;for(const k in q){if(typeof q[k]==='object')Object.assign(S.seq[k],q[k]);else S.seq[k]=q[k]}}})});
+  TR[0].fxOpen=true}
 
 // Settings (not the sounds) are kept in this browser.
 const SKEY='shijuso.v1';
 function saveSoon(){clearTimeout(saveSoon.t);saveSoon.t=setTimeout(()=>{try{localStorage.setItem(SKEY,JSON.stringify({
-  g:{bpm:G.bpm,mvol:G.mvol,room:G.room,snap:G.snap,sel:G.sel,fmt:G.fmt},
-  t:TR.map(T=>({vol:T.vol,pan:T.pan,width:T.width,depth:T.depth,speed:T.speed,mute:T.mute,solo:T.solo,mode:T.mode,zoom:T.zoom,slots:T.slots}))}))}catch(e){}},400)}
+  g:{bpm:G.bpm,mvol:G.mvol,room:G.room,snap:G.snap,sel:G.sel,fmt:G.fmt},m:{on:MB.on,mode:MB.mode,slots:MB.slots},
+  t:TR.map(T=>({vol:T.vol,pan:T.pan,width:T.width,depth:T.depth,speed:T.speed,mute:T.mute,solo:T.solo,bus:T.bus,mode:T.mode,zoom:T.zoom,fxOpen:T.fxOpen,slots:T.slots}))}))}catch(e){}},400)}
+const num=(v,a,b,d)=>Number.isFinite(+v)?clamp(+v,a,b):d;
+function loadSlots(dst,src){(src||[]).slice(0,3).forEach((so,s)=>{if(!so)return;const S=dst[s];S.algo=ALGM[so.algo]?so.algo:null;
+  if(so.vals&&typeof so.vals==='object')for(const id in so.vals){if(!ALGM[id])continue;const v=defVals(id);for(const q of ALGM[id].params)v[q[0]]=num(so.vals[id][q[0]],q[2],q[3],q[4]);S.vals[id]=v}
+  if(S.algo&&!S.vals[S.algo])S.vals[S.algo]=defVals(S.algo);
+  S.mix=num(so.mix,0,1,1);S.level=num(so.level,0,8,1);S.auto=so.auto!==false;S.on=so.on!==false;S.open=!!so.open;
+  const q=so.seq;if(q&&typeof q==='object'){const d=S.seq;d.on=!!q.on;d.div=DIVS.some(x=>x[0]===q.div)?q.div:'1/16';d.steps=num(q.steps,2,32,16)|0;d.glide=num(q.glide,0,1,.15);
+    if(Array.isArray(q.pat))for(let k=0;k<32;k++)d.pat[k]=!!q.pat[k];
+    for(const M of SEQM){const m=q[M.k];if(!m)continue;const t=d[M.k];t.on=!!m.on;t.amt=num(m.amt,M.amt[1],M.amt[2],t.amt);
+      if(m.x!=null)t.x=M.k==='param'?String(m.x):num(m.x,0,16,t.x);if(m.y!=null)t.y=num(m.y,0,8,t.y)}}})}
 function loadSaved(){let s=null;try{s=JSON.parse(localStorage.getItem(SKEY)||'null')}catch(e){return false}if(!s||!Array.isArray(s.t))return false;
-  const num=(v,a,b,d)=>Number.isFinite(+v)?clamp(+v,a,b):d;
   if(s.g){G.bpm=num(s.g.bpm,30,300,100);G.mvol=num(s.g.mvol,0,1.5,.85);G.room=num(s.g.room,0,1,.45);G.snap=num(s.g.snap,0,4,0);G.sel=num(s.g.sel,0,NT-1,0)|0;G.fmt=s.g.fmt==='aiff'?'aiff':'wav'}
-  s.t.slice(0,NT).forEach((o,i)=>{const T=TR[i];if(!o)return;T.vol=num(o.vol,0,1.5,.8);T.pan=num(o.pan,-1,1,0);T.width=num(o.width,0,2,1);T.depth=num(o.depth,0,1,0);
-    T.speed=num(o.speed,.25,4,1);T.mute=!!o.mute;T.solo=!!o.solo;T.mode=o.mode==='parallel'?'parallel':'series';T.zoom=!!o.zoom;
-    (o.slots||[]).slice(0,3).forEach((so,s)=>{if(!so)return;const S=T.slots[s];S.algo=ALGM[so.algo]?so.algo:null;
-      if(so.vals&&typeof so.vals==='object')for(const id in so.vals){if(!ALGM[id])continue;const v=defVals(id);for(const q of ALGM[id].params)v[q[0]]=num(so.vals[id][q[0]],q[2],q[3],q[4]);S.vals[id]=v}
-      if(S.algo&&!S.vals[S.algo])S.vals[S.algo]=defVals(S.algo);
-      S.mix=num(so.mix,0,1,1);S.level=num(so.level,0,2,1);S.auto=so.auto!==false;S.on=so.on!==false;S.open=!!so.open;
-      const q=so.seq;if(q&&typeof q==='object'){const d=S.seq;d.on=!!q.on;d.div=DIVS.some(x=>x[0]===q.div)?q.div:'1/16';d.steps=num(q.steps,2,32,16)|0;d.glide=num(q.glide,0,1,.15);
-        if(Array.isArray(q.pat))for(let k=0;k<32;k++)d.pat[k]=!!q.pat[k];
-        for(const M of SEQM){const m=q[M.k];if(!m)continue;const t=d[M.k];t.on=!!m.on;t.amt=num(m.amt,M.amt[1],M.amt[2],t.amt);
-          if(m.x!=null)t.x=M.k==='param'?String(m.x):num(m.x,0,16,t.x);if(m.y!=null)t.y=num(m.y,0,8,t.y)}}})});
+  if(s.m){MB.on=s.m.on!==false;MB.mode=s.m.mode==='parallel'?'parallel':'series';loadSlots(MB.slots,s.m.slots)}
+  s.t.slice(0,NT).forEach((o,i)=>{const T=TR[i];if(!o)return;T.vol=num(o.vol,0,fromDb(24),1);T.pan=num(o.pan,-1,1,0);T.width=num(o.width,0,2,1);T.depth=num(o.depth,0,1,0);
+    T.speed=num(o.speed,.25,4,1);T.mute=!!o.mute;T.solo=!!o.solo;T.bus=o.bus!==false;T.mode=o.mode==='parallel'?'parallel':'series';T.zoom=!!o.zoom;T.fxOpen=!!o.fxOpen;
+    loadSlots(T.slots,o.slots)});
   return true}
 
 // ---------- audio ----------
@@ -1002,21 +1043,22 @@ async function initAudio(){
     sp.connect(analyser)}
 }
 function onMsg(d){
-  if(d.t==='tick'){for(let i=0;i<NT;i++){TR[i].view=d.v[i];TR[i].pk=d.pk[i];TR[i].steps=d.st[i]}G.mp=d.mp}
+  if(d.t==='tick'){for(let i=0;i<NT;i++){TR[i].view=d.v[i];TR[i].pk=d.pk[i];TR[i].steps=d.st[i]}MB.steps=d.ms||MB.steps;G.mp=d.mp}
   else if(d.t==='rec'&&recChunks){if(d.L.length){recChunks.push([d.L,d.R]);recLen+=d.L.length}
     if(recLen>ctx.sampleRate*600&&G.rec)toggleRec();else if(d.end)finishRec()}}
-function slotMsg(i,s){const S=TR[i].slots[s];return{t:'slot',i,s,algo:S.algo,p:S.algo?Object.assign({},S.vals[S.algo]):{}}}
+function slotMsg(i,s){const S=TRK(i).slots[s];return{t:'slot',i,s,algo:S.algo,p:S.algo?Object.assign({},S.vals[S.algo]):{}}}
+function slotMsgs(i,out){TRK(i).slots.forEach((S,s)=>{out.push(slotMsg(i,s));for(const k of['mix','level','auto','on'])out.push({t:'sset',i,s,k,v:S[k]});out.push({t:'seq',i,s,seq:clone(S.seq)})})}
 function stateMsgs(){const out=[{t:'g',k:'bpm',v:G.bpm},{t:'g',k:'mvol',v:G.mvol},{t:'g',k:'room',v:G.room}];
-  TR.forEach((T,i)=>{for(const k of['vol','pan','width','depth','speed','mute','solo','mode'])out.push({t:'trk',i,k,v:T[k]});
-    T.slots.forEach((S,s)=>{out.push(slotMsg(i,s));for(const k of['mix','level','auto','on'])out.push({t:'sset',i,s,k,v:S[k]});out.push({t:'seq',i,s,seq:clone(S.seq)})})});
+  TR.forEach((T,i)=>{for(const k of['vol','pan','width','depth','speed','mute','solo','bus','mode'])out.push({t:'trk',i,k,v:T[k]});slotMsgs(i,out)});
+  out.push({t:'trk',i:MI,k:'on',v:MB.on},{t:'trk',i:MI,k:'mode',v:MB.mode});slotMsgs(MI,out);
   return out}
 // Everything an offline engine needs to sound like the live one.
 function configure(E){for(const m of stateMsgs())LIB.handle(E,m);
   TR.forEach((T,i)=>{if(T.L){LIB.handle(E,{t:'src',i,L:T.L,R:T.R===T.L?null:T.R});LIB.handle(E,{t:'region',i,a:T.a,b:T.b})}})}
-const sendT=(i,k)=>send({t:'trk',i,k,v:TR[i][k]});
-const sendSS=(i,s,k)=>send({t:'sset',i,s,k,v:TR[i].slots[s][k]});
-const sendSeq=(i,s)=>send({t:'seq',i,s,seq:clone(TR[i].slots[s].seq)});
-const sendP=(i,s,k)=>{const S=TR[i].slots[s];send({t:'sp',i,s,p:{[k]:S.vals[S.algo][k]}})};
+const sendT=(i,k)=>send({t:'trk',i,k,v:TRK(i)[k]});
+const sendSS=(i,s,k)=>send({t:'sset',i,s,k,v:TRK(i).slots[s][k]});
+const sendSeq=(i,s)=>send({t:'seq',i,s,seq:clone(TRK(i).slots[s].seq)});
+const sendP=(i,s,k)=>{const S=TRK(i).slots[s];send({t:'sp',i,s,p:{[k]:S.vals[S.algo][k]}})};
 
 // ---------- decoding ----------
 function resample(a,from,to){if(from===to)return a;const n=Math.max(1,Math.round(a.length*to/from)),o=new Float32Array(n),k=from/to;
@@ -1095,13 +1137,15 @@ function exVoice(sr){const n=Math.round(sr*4.8),N=n+Math.round(sr*.4),L=new Floa
       let y=0;fs.forEach((s,j)=>{y+=run(s,src)*[1,.6,.3][j]});const e=Math.min(1,t/.05,(len/sr-t)/.08)*.5;L[t0+i]+=y*e*.9;R[t0+i]+=y*e}});
   return fold(L,R,n)}
 
+
 // ---------- tracks ----------
+// volume runs in dB from silence to +24 dB, so a quiet recording can be brought right up
 const FADERS=[
- ['vol','音量',0,1.5,.01,.8,v=>Math.round(v*100)+'%'],
- ['pan','パン',-1,1,.01,0,v=>Math.abs(v)<.005?'中央':(v<0?'左 ':'右 ')+Math.round(Math.abs(v)*100)],
- ['depth','奥行き',0,1,.01,0,v=>Math.round(v*100)+'%'],
- ['width','広がり',0,2,.01,1,v=>v<.005?'モノ':Math.round(v*100)+'%'],
- ['speed','速さ',-2,2,.01,0,v=>(Math.abs(v)<.015?1:Math.pow(2,v)).toFixed(2)+'×'],
+ {k:'vol',n:'音量',min:-60,max:24,step:.5,def:0,ui:toDb,val:fromDb,fmt:fmtDb},
+ {k:'pan',n:'パン',min:-1,max:1,step:.01,def:0,ui:v=>v,val:v=>v,fmt:v=>Math.abs(v)<.005?'中央':(v<0?'左 ':'右 ')+Math.round(Math.abs(v)*100)},
+ {k:'depth',n:'奥行き',min:0,max:1,step:.01,def:0,ui:v=>v,val:v=>v,fmt:v=>Math.round(v*100)+'%'},
+ {k:'width',n:'広がり',min:0,max:2,step:.01,def:1,ui:v=>v,val:v=>v,fmt:v=>v<.005?'モノ':Math.round(v*100)+'%'},
+ {k:'speed',n:'速さ',min:-2,max:2,step:.01,def:0,ui:v=>Math.log2(v),val:v=>Math.abs(v)<.015?1:+Math.pow(2,v).toFixed(4),fmt:v=>(Math.abs(v)<.015?1:Math.pow(2,v)).toFixed(2)+'×'},
 ];
 function setFill(inp){const mn=+inp.min,mx=+inp.max;inp.style.setProperty('--v',((+inp.value-mn)/(mx-mn)*100)+'%')}
 const fmtT=s=>{const m=Math.floor(s/60),r=s-m*60;return m+':'+r.toFixed(3).padStart(6,'0')};
@@ -1113,37 +1157,71 @@ function buildTracks(){const wrap=$('tracks');wrap.textContent='';
     const hd=h('div','trk-h'),sel=h('button','tsel');sel.type='button';const nm=h('span','tname'),mt=h('span','mono');sel.append(h('span','badge',String(i+1)),nm,mt);
     sel.onclick=()=>select(i);
     const btns=h('div','tbtns'),op=h('button','btn sm','音を開く');op.type='button';op.onclick=()=>{fileTarget=i;$('fileIn').click()};
+    const bb=h('button','tog bus','全体へ');bb.type='button';bb.title='オンのとき、このトラックは下の「全体の効果」を通ります';bb.setAttribute('aria-label',`トラック${i+1}を全体の効果に通す`);
+    bb.onclick=()=>{T.bus=!T.bus;sendT(i,'bus');updMS(i);saveSoon()};
     const mb=h('button','tog m','M'),sb=h('button','tog s','S');mb.type=sb.type='button';mb.title='ミュート';sb.title='ソロ';mb.setAttribute('aria-label',`トラック${i+1}をミュート`);sb.setAttribute('aria-label',`トラック${i+1}をソロ`);
     mb.onclick=()=>{T.mute=!T.mute;sendT(i,'mute');updMS(i);saveSoon()};sb.onclick=()=>{T.solo=!T.solo;sendT(i,'solo');updMS(i);saveSoon()};
-    btns.append(op,mb,sb);hd.append(sel,btns);
+    btns.append(op,bb,mb,sb);hd.append(sel,btns);
     const body=h('div','trk-b'),wcol=h('div'),wb=h('div','wbox'),cv=h('canvas');cv.setAttribute('aria-label',`トラック${i+1}の波形とループ範囲`);
     const dr=h('div','drop',`ここに落とすとトラック ${i+1} へ`);dr.hidden=true;wb.append(cv,dr);
     const lb=h('div','lbar'),rg=h('span','mono'),lbt=h('div','lbtns');let zb=null;
     const LB=[['◀','ループを1つ分前へずらす',()=>shiftLoop(i,-1)],['▶','ループを1つ分後ろへずらす',()=>shiftLoop(i,1)],['½','ループを半分に',()=>scaleLoop(i,.5)],['×2','ループを倍に',()=>scaleLoop(i,2)],
       ['全体','全体をループに',()=>T.L&&setLoop(i,0,T.L.length)],['寄る','ループに寄って表示',()=>{T.zoom=!T.zoom;zb.setAttribute('aria-pressed',String(T.zoom));saveSoon()}]];
     for(const [t,tt,fn] of LB){const b=h('button','btn',t);b.type='button';b.title=tt;b.setAttribute('aria-label',tt);b.onclick=fn;if(t==='寄る'){zb=b;b.setAttribute('aria-pressed',String(T.zoom))}lbt.append(b)}
-    lb.append(rg,lbt);const ch=h('div','chips');wcol.append(wb,lb,ch);
+    lb.append(rg,lbt);wcol.append(wb,lb);
     const mx=h('div','mix'),F={};
-    for(const [k,lab,mn,mxv,st,def,fmt] of FADERS){const l=h('label','fd'),o=h('output'),inp=h('input');inp.type='range';inp.id=`f${i}_${k}`;inp.min=mn;inp.max=mxv;inp.step=st;
-      inp.value=k==='speed'?Math.log2(T.speed):T[k];const show=()=>{o.textContent=fmt(+inp.value);setFill(inp)};show();
-      inp.oninput=()=>{const v=+inp.value;if(k==='speed')T.speed=Math.abs(v)<.015?1:+Math.pow(2,v).toFixed(4);else T[k]=v;show();sendT(i,k);saveSoon()};
-      inp.ondblclick=()=>{inp.value=def;inp.oninput()};l.append(h('span',null,lab),inp,o);mx.append(l);F[k]=inp}
-    const met=h('div','meter'),mi=h('i');met.append(mi);mx.append(met);
-    body.append(wcol,mx);el.append(hd,body);wrap.append(el);
-    T.el={root:el,sel,nm,mt,cv,dr,rg,ch,mb,sb,F,mi,zb,g:null};
+    for(const f of FADERS){const l=h('label','fd'),o=h('output'),inp=h('input');inp.type='range';inp.id=`f${i}_${f.k}`;inp.min=f.min;inp.max=f.max;inp.step=f.step;
+      inp.value=f.ui(T[f.k]);const show=()=>{o.textContent=f.fmt(+inp.value);setFill(inp)};show();
+      inp.oninput=()=>{T[f.k]=f.val(+inp.value);show();sendT(i,f.k);saveSoon()};
+      inp.ondblclick=()=>{inp.value=f.def;inp.oninput()};l.append(h('span',null,f.n),inp,o);mx.append(l);F[f.k]=inp}
+    const mr=h('div','mrow'),lv=h('button','btn sm','音量をならす');lv.type='button';lv.title='ループの平均の大きさが −20 dBFS になるように音量を合わせます（小さい音は上げ、大きい音は下げます）';
+    lv.onclick=()=>levelTrack(i,true);const met=h('div','meter'),mi=h('i');met.append(mi);mr.append(lv,met);mx.append(mr);
+    body.append(wcol,mx);
+    const fx=buildFx(i);el.append(hd,body,fx);wrap.append(el);
+    T.el=Object.assign(T.el||{},{root:el,sel,nm,mt,cv,dr,rg,mb,sb,bb,F,mi,zb,g:null});
     bindWave(i);updTrackText(i);updMS(i);updChips(i)});
   updSel()}
-function updFader(i,k){const T=TR[i],inp=T.el.F[k];inp.value=k==='speed'?Math.log2(T.speed):T[k];inp.dispatchEvent(new Event('input'))}
-function updMS(i){const T=TR[i];T.el.mb.setAttribute('aria-pressed',String(T.mute));T.el.sb.setAttribute('aria-pressed',String(T.solo))}
-function updTrackText(i){const T=TR[i];T.el.nm.textContent=T.name||'（音なし）';T.el.mt.textContent=T.meta;T.el.rg.textContent=regionTxt(T);if(i===G.sel)$('edName').textContent=(T.name||'（音なし）')+' の効果'}
+function updFader(i,k){const T=TR[i],f=FADERS.find(x=>x.k===k),inp=T.el.F[k];inp.value=f.ui(T[k]);inp.dispatchEvent(new Event('input'))}
+function updMS(i){const T=TR[i];T.el.mb.setAttribute('aria-pressed',String(T.mute));T.el.sb.setAttribute('aria-pressed',String(T.solo));T.el.bb.setAttribute('aria-pressed',String(T.bus))}
+function updTrackText(i){const T=TR[i];T.el.nm.textContent=T.name||'（音なし）';T.el.mt.textContent=T.meta+(T.peakDb!=null?` · ピーク ${fmtDb(T.peakDb)}`:'');T.el.rg.textContent=regionTxt(T)}
 function regionTxt(T){if(!T.L)return'';const s=sr(),N=T.L.length,len=(T.b-T.a)/s,beats=len*G.bpm/60,bt=Math.abs(beats-Math.round(beats))<.01?String(Math.round(beats)):beats.toFixed(2);
   return(T.a===0&&T.b===N?`全体 ${fmtT(N/s)}`:`${fmtT(T.a/s)} – ${fmtT(T.b/s)}`)+` · ${len.toFixed(3)} 秒 · ${bt} 拍`}
-function updChips(i){const T=TR[i],box=T.el.ch;box.textContent='';
-  T.slots.forEach((S,s)=>{const A=ALGM[S.algo],c=h('button','chip');c.type='button';c.append(h('i',null,String(s+1)),h('span',null,A?A.ja:'空き'));
-    if(S.seq.on)c.append(h('em',null,'SEQ'));if(!S.on||(!A&&!S.seq.on))c.classList.add('off');
-    c.title=A?A.name:'空きスロット';c.onclick=()=>{select(i);$('ed').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'})};box.append(c)})}
-function select(i){if(G.sel===i)return;G.sel=i;updSel();buildEditor();saveSoon()}
+// Set the track's volume so the loop's average level sits at -20 dBFS.
+function levelTrack(i,say){const T=TR[i];if(!T.L)return;const L=T.L,R=T.R,a=T.a,b=T.b,st=Math.max(1,Math.floor((b-a)/400000));let s=0,n=0;
+  for(let k=a;k<b;k+=st){const v=(L[k]+R[k])*.5;s+=v*v;n++}const rms=Math.sqrt(s/Math.max(1,n));
+  if(rms<1e-6){if(say)note(`トラック ${i+1} のループはほぼ無音なので、音量は変えていません。`);return}
+  const d=clamp(Math.round((-20-20*Math.log10(rms))*2)/2,-60,24);T.vol=fromDb(d);updFader(i,'vol');
+  if(say)note(`トラック ${i+1} の音量を ${fmtDb(d)} にしました（ループの平均を −20 dBFS にそろえました）。`)}
+function updChips(i){if(i===MI)return;const T=TR[i],box=T.el.ch;if(!box)return;box.textContent='';
+  T.slots.forEach((S,s)=>{const A=ALGM[S.algo],c=h('span','chip');c.append(h('i',null,String(s+1)),h('span',null,A?A.ja:'空き'));
+    if(S.seq.on)c.append(h('em',null,'SEQ'));if(!S.on||(!A&&!S.seq.on))c.classList.add('off');c.title=A?A.name:'空きスロット';box.append(c)})}
+function select(i){if(G.sel===i)return;G.sel=i;updSel();saveSoon()}
 function updSel(){TR.forEach((T,i)=>{T.el.root.classList.toggle('sel',i===G.sel);T.el.sel.setAttribute('aria-pressed',String(i===G.sel))})}
+
+// Each track's own effects, opened from its lane.
+const routeTxt=(i,mode)=>mode==='series'
+  ?'1 → 2 → 3 の順に通します。2番目以降に粒や切り貼りのような「再生する系」のアルゴリズムを置くと、前の段の音をループの長さだけ録りながら、それを素材にします。'
+  :(i===MI?'4トラックをまとめた音を3つのスロットに分けて通し、結果を混ぜます。':'同じ原音を3つのスロットに分けて通し、結果を混ぜます。');
+function segCtl(i,label){const T=TRK(i),g=h('div','grp'),seg=h('div','seg');seg.setAttribute('role','group');seg.setAttribute('aria-label',label);
+  const route=h('p','route',routeTxt(i,T.mode));
+  for(const [m,t] of[['series','直列 1→2→3'],['parallel','並列 混ぜる']]){const b=h('button',null,t);b.type='button';b.dataset.mode=m;b.setAttribute('aria-pressed',String(T.mode===m));
+    b.onclick=()=>{T.mode=m;sendT(i,'mode');seg.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));route.textContent=routeTxt(i,m);saveSoon()};seg.append(b)}
+  g.append(h('span','lbl','つなぎ方'),seg);return{g,route}}
+function buildFx(i){const T=TR[i],det=h('details','fx');det.open=T.fxOpen;det.addEventListener('toggle',()=>{T.fxOpen=det.open;saveSoon()});
+  const sm=h('summary');sm.append(h('span',null,'効果'));const ch=h('span','chips');sm.append(ch);det.append(sm);
+  const body=h('div','fxb'),row=h('div','fxrow'),sc=segCtl(i,`トラック${i+1}のつなぎ方`);
+  const burn=h('button','btn burnb','ループ範囲に焼き込む');burn.type='button';burn.title='このトラックの効果をループ範囲の音に定着させます';burn.onclick=()=>burnTrack(i);
+  const undo=h('button','btn','元に戻す');undo.type='button';undo.disabled=!T.undo.length;undo.onclick=()=>undoTrack(i);
+  row.append(sc.g,burn,undo);const slots=h('div','slots');for(let s=0;s<3;s++)slots.append(slotCard(i,s));
+  body.append(row,sc.route,slots);det.append(body);
+  T.el=Object.assign(T.el||{},{ch,slots,undo,fx:det});return det}
+function buildMaster(){const box=$('mslots');MB.el={slots:box};MB.cells=[[],[],[]];box.textContent='';for(let s=0;s<3;s++)box.append(slotCard(MI,s));
+  const on=$('mOn');const show=()=>{on.setAttribute('aria-pressed',String(MB.on));on.textContent=MB.on?'オン':'オフ';$('master').classList.toggle('off',!MB.on)};show();
+  on.onclick=()=>{MB.on=!MB.on;sendT(MI,'on');show();saveSoon()};
+  const seg=$('mSeg');seg.querySelectorAll('button').forEach(b=>{b.setAttribute('aria-pressed',String(b.dataset.mode===MB.mode));
+    b.onclick=()=>{MB.mode=b.dataset.mode;sendT(MI,'mode');seg.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));setMRoute();saveSoon()}});
+  setMRoute()}
+function setMRoute(){$('mRoute').textContent='「全体へ」がオンのトラックをまとめて通す効果です。オフにすると、何が入っていても素通りします。'+routeTxt(MI,MB.mode)}
 
 // ---------- loop editing ----------
 const snapUnit=()=>G.snap?G.snap*60/G.bpm*sr():0;
@@ -1177,6 +1255,7 @@ function bindWave(i){const T=TR[i],cv=T.el.cv;let d=null;
   cv.addEventListener('pointerup',end);cv.addEventListener('pointercancel',end);
   cv.addEventListener('dblclick',()=>{if(T.L)setLoop(i,0,T.L.length)})}
 
+
 // ---------- drawing ----------
 let COL=null;
 function hexRgb(s){s=s.trim();if(s[0]==='#'){if(s.length===4)s='#'+s[1]+s[1]+s[2]+s[2]+s[3]+s[3];const n=parseInt(s.slice(1),16);return[(n>>16)&255,(n>>8)&255,n&255]}
@@ -1185,14 +1264,12 @@ function readColors(){const cs=getComputedStyle(document.documentElement),v=n=>c
   const t=TC.map(n=>hexRgb(v(n))),f=hexRgb(v('--faint'));
   COL={k:Math.random(),wave:v('--wave'),ink:v('--ink'),honey:v('--honey'),t:t.map(c=>`rgb(${c})`),tA:t.map(c=>`rgba(${c},.16)`),grid:`rgba(${f},.35)`}}
 function fit(c){const d=window.devicePixelRatio||1,w=Math.max(1,Math.round(c.clientWidth*d)),hh=Math.max(1,Math.round(c.clientHeight*d));if(c.width!==w||c.height!==hh){c.width=w;c.height=hh;return true}return false}
-function waveImg(T,i,W,H,v,key){const L=T.L,R=T.R;
-  // draw quiet files larger: scale so the loudest point of the file reaches the edge (at most ×8)
-  if(T.pkv!==T.ver){let m=0;const st=Math.max(1,Math.floor(L.length/200000));for(let s=0;s<L.length;s+=st){const y=Math.abs(L[s]+R[s])*.5;if(y>m)m=y}T.pkv=T.ver;T.gain=Math.min(8,.95/Math.max(1e-4,m))}
-  const gn=T.gain,mk=()=>{const c=document.createElement('canvas');c.width=W;c.height=H;return c},dim=mk(),hi=mk(),a=dim.getContext('2d'),b=hi.getContext('2d');
-  a.fillStyle=COL.wave;b.fillStyle=COL.t[i];const span=v[1]-v[0];
+// Square-root amplitude scale: quiet passages stay visible, yet a quiet file still looks quieter than a loud one.
+function waveImg(T,i,W,H,v,key){const L=T.L,R=T.R,mk=()=>{const c=document.createElement('canvas');c.width=W;c.height=H;return c},dim=mk(),hi=mk(),a=dim.getContext('2d'),b=hi.getContext('2d');
+  a.fillStyle=COL.wave;b.fillStyle=COL.t[i];const span=v[1]-v[0],sc=y=>y<0?-Math.sqrt(Math.min(1,-y)):Math.sqrt(Math.min(1,y));
   for(let x=0;x<W;x++){const s0=Math.floor(v[0]+x*span/W),s1=Math.max(s0+1,Math.floor(v[0]+(x+1)*span/W)),st=Math.max(1,Math.floor((s1-s0)/300));let lo=1,hi2=-1;
     for(let s=s0;s<s1&&s<L.length;s+=st){const y=(L[s]+R[s])*.5;if(y<lo)lo=y;if(y>hi2)hi2=y}if(hi2<lo)continue;
-    const y1=H/2-Math.min(1,hi2*gn)*H*.46,y2=H/2-Math.max(-1,lo*gn)*H*.46,hh=Math.max(1,y2-y1);a.fillRect(x,y1,1,hh);b.fillRect(x,y1,1,hh)}
+    const y1=H/2-sc(hi2)*H*.46,y2=H/2-sc(lo)*H*.46,hh=Math.max(1,y2-y1);a.fillRect(x,y1,1,hh);b.fillRect(x,y1,1,hh)}
   return{key,dim,hi}}
 function drawTrack(i){const T=TR[i],cv=T.el.cv;if(!T.L)return;fit(cv);const W=cv.width,H=cv.height,d=window.devicePixelRatio||1,N=T.L.length,v=viewOf(T),span=v[1]-v[0];
   const key=W+'|'+H+'|'+v[0]+'|'+v[1]+'|'+T.ver+'|'+COL.k;if(!T.img||T.img.key!==key)T.img=waveImg(T,i,W,H,v,key);
@@ -1206,13 +1283,13 @@ const scope=$('scope'),sctx=scope.getContext('2d');let sbuf=null;
 function drawScope(){if(!analyser)return;fit(scope);const W=scope.width,H=scope.height;if(!sbuf)sbuf=new Float32Array(analyser.fftSize);analyser.getFloatTimeDomainData(sbuf);
   sctx.clearRect(0,0,W,H);sctx.strokeStyle=COL.honey;sctx.lineWidth=1.5*(window.devicePixelRatio||1);sctx.beginPath();
   for(let x=0;x<W;x++){const s=sbuf[Math.floor(x/W*sbuf.length)],y=H/2-s*H*.45;x?sctx.lineTo(x,y):sctx.moveTo(x,y)}sctx.stroke()}
-let lastSteps='';
+const stepKey={};
 function frame(){if(ctx&&COL){for(let i=0;i<NT;i++){drawTrack(i);TR[i].el.mi.style.transform=`scaleX(${Math.min(1,TR[i].pk||0).toFixed(3)})`}drawScope();
-    const T=TR[G.sel],key=T.steps.join(',');if(key!==lastSteps){lastSteps=key;T.cells.forEach((cs,s)=>{const st=T.steps[s];cs.forEach((c,k)=>c.classList.toggle('now',k===st))})}
-    if(G.rec){const t=(performance.now()-recT0)/1000;const txt='録音中 '+Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0');$('recTxt').textContent=txt}}
+    for(const i of ALLI){const T=TRK(i),key=T.steps.join(',');if(key!==stepKey[i]){stepKey[i]=key;T.cells.forEach((cs,s)=>{const st=T.steps[s];cs.forEach((c,k)=>c.classList.toggle('now',k===st))})}}
+    if(G.rec){const t=(performance.now()-recT0)/1000;$('recTxt').textContent='録音中 '+Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0')}}
   requestAnimationFrame(frame)}
 
-// ---------- editor ----------
+// ---------- effect slots ----------
 function fmtV(v,q){const u=q[6],step=q[5];
   if(u==='%')return(v*100).toFixed(step<.01?1:0)+'%';
   if(u==='note'){const nn=['C','C♯','D','E♭','E','F','F♯','G','A♭','A','B♭','B'];return nn[v%12]+(Math.floor(v/12)-1)}
@@ -1227,22 +1304,18 @@ function knob(label,id,min,max,step,val,fmt,on,def){const l=h('label','knob'),kl
   kl.append(h('span',null,label),o);l.append(kl,inp);return l}
 function choice(label,id,items,val,on){const l=h('label','knob'),kl=h('span','kl'),sel=h('select');sel.id=id;kl.append(h('span',null,label));
   for(const [v,t] of items){const o=h('option',null,t);o.value=String(v);sel.append(o)}sel.value=String(val);sel.onchange=()=>on(sel.value);l.append(kl,sel);return l}
-function trkItems(i){const o=[[0,`となり（トラック ${(i+1)%NT+1}）`]];for(let k=0;k<NT;k++)o.push([k+1,`トラック ${k+1}`+(k===i?'（自分）':'')]);return o}
-function updRoute(){const T=TR[G.sel];$('route').textContent=T.mode==='series'
-  ?'1 → 2 → 3 の順に通します。2番目以降に粒や切り貼りのような「再生する系」のアルゴリズムを置くと、前の段の音をループの長さだけ録りながら、それを素材にします。'
-  :'同じ原音を3つのスロットに分けて通し、結果を混ぜます。'}
-function buildEditor(){const i=G.sel,T=TR[i];$('ed').style.setProperty('--tc',`var(${TC[i]})`);$('edBadge').textContent=String(i+1);$('edName').textContent=(T.name||'（音なし）')+' の効果';
-  document.querySelectorAll('.seg button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mode===T.mode)));updRoute();
-  $('undoBtn').disabled=!T.undo.length||G.busy;T.cells=[[],[],[]];lastSteps='';
-  const box=$('slots');box.textContent='';for(let s=0;s<3;s++)box.append(slotCard(i,s))}
-function rebuildSlot(i,s){if(i!==G.sel)return;const box=$('slots'),old=box.children[s];const n=slotCard(i,s);old?box.replaceChild(n,old):box.append(n);lastSteps=''}
-function slotCard(i,s){const T=TR[i],S=T.slots[s],A=ALGM[S.algo],el=h('div','slot');if(!S.on)el.classList.add('off');
+function trkItems(i){if(i===MI){const o=[[0,'トラック 1']];for(let k=0;k<NT;k++)o.push([k+1,`トラック ${k+1}`]);return o}
+  const o=[[0,`となり（トラック ${(i+1)%NT+1}）`]];for(let k=0;k<NT;k++)o.push([k+1,`トラック ${k+1}`+(k===i?'（自分）':'')]);return o}
+function rebuildSlot(i,s){const T=TRK(i),box=T.el&&T.el.slots;if(!box)return;const old=box.children[s],n=slotCard(i,s);old?box.replaceChild(n,old):box.append(n);stepKey[i]=''}
+function slotCard(i,s){const T=TRK(i),S=T.slots[s],A=ALGM[S.algo],el=h('div','slot');if(!S.on)el.classList.add('off');
   const hd=h('div','slot-h'),pick=h('button','pick');pick.type='button';pick.id=`pick${i}_${s}`;pick.setAttribute('aria-haspopup','dialog');
   pick.append(h('b',null,A?A.ja:'効果を選ぶ'),h('i',null,A?A.name:'空き'));pick.insertAdjacentHTML('beforeend','<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 4l4 4 4-4z"/></svg>');
   pick.onclick=()=>openPicker(i,s,pick);
-  const onb=h('button','tog',S.on?'オン':'オフ');onb.type='button';onb.setAttribute('aria-pressed',String(S.on));onb.title='このスロットの効果を一時的に外します';
+  const onb=h('button','tog',S.on?'オン':'オフ');onb.type='button';onb.setAttribute('aria-pressed',String(S.on));onb.title='このスロットの効果を一時的に外します（設定は残ります）';
   onb.onclick=()=>{S.on=!S.on;onb.setAttribute('aria-pressed',String(S.on));onb.textContent=S.on?'オン':'オフ';el.classList.toggle('off',!S.on);sendSS(i,s,'on');updChips(i);saveSoon()};
-  hd.append(h('span','sn',String(s+1)),pick,onb);el.append(hd);
+  hd.append(h('span','sn',String(s+1)),pick,onb);
+  if(A){const rm=h('button','btn sm','外す');rm.type='button';rm.title='このスロットを空にします';rm.setAttribute('aria-label',`スロット${s+1}の効果を外す`);rm.onclick=()=>setAlgo(i,s,null);hd.append(rm)}
+  el.append(hd);
   if(A){el.append(h('p','desc',A.desc));const ps=h('div','params'),vals=S.vals[A.id];
     for(const q of A.params){const [k,label,mn,mx,def,st,u,opts]=q,id=`p${i}_${s}_${k}`;
       if(u==='trk'||u==='sel')ps.append(choice(label,id,u==='trk'?trkItems(i):opts.map((o,j)=>[j,o]),Math.round(vals[k]),v=>{vals[k]=+v;sendP(i,s,k);saveSoon()}));
@@ -1250,7 +1323,7 @@ function slotCard(i,s){const T=TR[i],S=T.slots[s],A=ALGM[S.algo],el=h('div','slo
     el.append(ps);
     const sm=h('div','smix'),two=h('div','two');
     two.append(knob('効き（原音↔効果）',`mix${i}_${s}`,0,1,.01,S.mix,pct,v=>{S.mix=v;sendSS(i,s,'mix');saveSoon()},1),
-      knob('音量',`lvl${i}_${s}`,0,2,.01,S.level,pct,v=>{S.level=v;sendSS(i,s,'level');saveSoon()},1));
+      knob('音量',`lvl${i}_${s}`,-60,18,.5,toDb(S.level),fmtDb,v=>{S.level=fromDb(v);sendSS(i,s,'level');saveSoon()},0));
     const row=h('div','row'),ab=h('button','tog','音量をそろえる');ab.type='button';ab.setAttribute('aria-pressed',String(S.auto));ab.title='入ってきた音とだいたい同じ大きさで出てくるように自動でそろえます';
     ab.onclick=()=>{S.auto=!S.auto;ab.setAttribute('aria-pressed',String(S.auto));sendSS(i,s,'auto');saveSoon()};
     const dice=h('button','btn sm','サイコロ'),rst=h('button','btn sm','初期値');dice.type=rst.type='button';
@@ -1262,7 +1335,7 @@ function slotCard(i,s){const T=TR[i],S=T.slots[s],A=ALGM[S.algo],el=h('div','slo
   else el.append(h('p','empty','空きスロットです。効果を選ぶか、効果なしでシーケンサーだけをかけることもできます（グリッチや音程の動きだけを足したいとき）。'));
   el.append(seqPanel(i,s));return el}
 
-function seqPanel(i,s){const T=TR[i],S=T.slots[s],q=S.seq,A=ALGM[S.algo];
+function seqPanel(i,s){const T=TRK(i),S=T.slots[s],q=S.seq,A=ALGM[S.algo];
   const det=h('details','seq');det.open=!!S.open;det.addEventListener('toggle',()=>{S.open=det.open;saveSoon()});
   const sm=h('summary');sm.append(h('span',null,'シーケンサー'));const sum=h('span','sum');sm.append(sum);det.append(sm);
   const body=h('div','seqb');
@@ -1275,7 +1348,7 @@ function seqPanel(i,s){const T=TR[i],S=T.slots[s],q=S.seq,A=ALGM[S.algo];
   const grid=h('div','grid'),cells=T.cells[s];
   const buildGrid=()=>{grid.textContent='';cells.length=0;grid.style.setProperty('--n',String(Math.min(16,q.steps)));
     for(let k=0;k<q.steps;k++){const c=h('button','cell');c.type='button';c.setAttribute('aria-pressed',String(!!q.pat[k]));c.setAttribute('aria-label',`${k+1}マス目`);
-      c.onclick=()=>{q.pat[k]=!q.pat[k];c.setAttribute('aria-pressed',String(q.pat[k]));upd()};grid.append(c);cells.push(c)}lastSteps=''};
+      c.onclick=()=>{q.pat[k]=!q.pat[k];c.setAttribute('aria-pressed',String(q.pat[k]));upd()};grid.append(c);cells.push(c)}stepKey[i]=''};
   buildGrid();
   body.append(knob('マスの数',`stp${i}_${s}`,2,32,1,q.steps,v=>v+' マス',v=>{q.steps=v;buildGrid();upd()},16),grid);
   const pr=h('div','row');const pb=(t,fn)=>{const b=h('button','btn sm',t);b.type='button';b.onclick=()=>{fn();buildGrid();upd()};return b};
@@ -1296,15 +1369,15 @@ function seqPanel(i,s){const T=TR[i],S=T.slots[s],q=S.seq,A=ALGM[S.algo];
   body.append(modes,knob('なめらかさ（音程とつまみの移り）',`gl${i}_${s}`,0,1,.01,q.glide,pct,v=>{q.glide=v;upd()},.15));
   det.append(body);sumTxt();return det}
 
-function setAlgo(i,s,id){const S=TR[i].slots[s];S.algo=id||null;if(S.algo&&!S.vals[S.algo])S.vals[S.algo]=defVals(S.algo);if(S.algo)S.on=true;
-  send(slotMsg(i,s));sendSS(i,s,'on');sendSeq(i,s);rebuildSlot(i,s);updChips(i);saveSoon();const p=$(`pick${i}_${s}`);if(p)p.focus()}
+function setAlgo(i,s,id){const S=TRK(i).slots[s];S.algo=id||null;if(S.algo&&!S.vals[S.algo])S.vals[S.algo]=defVals(S.algo);if(S.algo)S.on=true;
+  send(slotMsg(i,s));sendSS(i,s,'on');sendSeq(i,s);rebuildSlot(i,s);updChips(i);saveSoon();const p=$(`pick${i}_${s}`);if(p)p.focus({preventScroll:true})}
 
 // ---------- algorithm picker ----------
 let pk=null;
-function openPicker(i,s,btn){const P=$('picker'),cur=TR[i].slots[s].algo||null;P.textContent='';
+function openPicker(i,s,btn){const P=$('picker'),cur=TRK(i).slots[s].algo||null;P.textContent='';
   const add=(id,b,it,desc)=>{const x=h('button','pi');x.type='button';x.append(h('b',null,b));if(it)x.append(h('i',null,it));if(desc)x.append(h('span',null,desc));
     if(id===cur)x.setAttribute('aria-current','true');x.onclick=()=>{closePicker(true);setAlgo(i,s,id)};P.append(x)};
-  P.append(h('h3',null,`トラック ${i+1} · スロット ${s+1}`));add(null,'なし（空ける）',null,'効果を通さず、シーケンサーだけを使うこともできます。');
+  P.append(h('h3',null,(i===MI?'全体の効果':`トラック ${i+1}`)+` · スロット ${s+1}`));add(null,'なし（空ける）',null,'効果を通さず、シーケンサーだけを使うこともできます。');
   P.append(h('h3',null,'Lyre の Audio メニュー · 19'));for(const A of ALG)if(A.g==='lyre')add(A.id,A.ja,A.name,A.desc);
   P.append(h('h3',null,'昔の Lyre から掘り起こした · 9'));for(const A of ALG)if(A.g==='old')add(A.id,A.ja,A.name,A.desc);
   P.hidden=false;const r=btn.getBoundingClientRect(),W=P.offsetWidth,H=P.offsetHeight;let y=r.bottom+6;if(y+H>innerHeight-8)y=Math.max(8,r.top-H-6);if(y+H>innerHeight-8)y=Math.max(8,innerHeight-H-8);
@@ -1324,7 +1397,7 @@ async function resume(){if(ctx&&ctx.state!=='running')try{await ctx.resume()}cat
 $('playBtn').onclick=async()=>{if(!ctx)return;await resume();setPlaying(!G.playing)};
 $('fab').onclick=()=>$('playBtn').click();
 $('rewBtn').onclick=()=>{send({t:'rewind'});TR.forEach(T=>{T.view=T.a})};
-function setBpm(v){v=clamp(Math.round((+v||100)*10)/10,30,300);G.bpm=v;$('bpm').value=v;send({t:'g',k:'bpm',v});TR.forEach((T,i)=>{if(T.el)T.el.rg.textContent=regionTxt(T)});saveSoon()}
+function setBpm(v){v=clamp(Math.round((+v||100)*10)/10,30,300);G.bpm=v;$('bpm').value=v;send({t:'g',k:'bpm',v});TR.forEach(T=>{if(T.el)T.el.rg.textContent=regionTxt(T)});saveSoon()}
 $('bpm').onchange=()=>setBpm($('bpm').value);
 $('bpmDn').onclick=()=>setBpm(Math.round(G.bpm)-1);$('bpmUp').onclick=()=>setBpm(Math.round(G.bpm)+1);
 $('bpmLoop').onclick=()=>{const T=TR[G.sel];if(!T.L)return;const len=(T.b-T.a)/sr();let best=null;
@@ -1334,8 +1407,7 @@ $('bpmLoop').onclick=()=>{const T=TR[G.sel];if(!T.L)return;const len=(T.b-T.a)/s
 $('snap').onchange=()=>{G.snap=+$('snap').value;saveSoon()};
 for(const k of['mvol','room']){const inp=$(k);const show=()=>{$(k+'Out').textContent=pct(+inp.value);setFill(inp)};
   inp.oninput=()=>{G[k]=+inp.value;show();send({t:'g',k,v:G[k]});saveSoon()};inp.ondblclick=()=>{inp.value=k==='mvol'?.85:.45;inp.oninput()};inp.value=G[k];show()}
-document.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{const T=TR[G.sel];T.mode=b.dataset.mode;sendT(G.sel,'mode');
-  document.querySelectorAll('.seg button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));updRoute();saveSoon()});
+$('levelAll').onclick=()=>{let n=0;TR.forEach((T,i)=>{if(T.L){levelTrack(i,false);n++}});note(`${n}つのトラックの音量を、ループの平均が −20 dBFS になるようにそろえました。小さい音は上がり、大きい音は下がっています。`)};
 document.addEventListener('keydown',e=>{const t=e.target,free=t===document.body||t.tagName==='CANVAS';if(!free||e.metaKey||e.ctrlKey||e.altKey)return;
   if(e.code==='Space'){e.preventDefault();$('playBtn').click()}
   else if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();const dir=e.key==='ArrowLeft'?-1:1;e.shiftKey?nudgeLoop(G.sel,dir):shiftLoop(G.sel,dir)}});
@@ -1343,15 +1415,17 @@ document.addEventListener('keydown',e=>{const t=e.target,free=t===document.body|
 // ---------- sounds in ----------
 function note(t,err){const n=$('note');n.textContent=t;n.className='note'+(err?' err':'')}
 function setBuffer(i,L,R,name,meta,reg){const T=TR[i];T.L=L;T.R=R||L;T.name=name;T.meta=meta||'';T.ver++;T.img=null;T.a=0;T.b=L.length;if(reg){T.a=reg[0];T.b=reg[1]}T.view=T.a;
+  let m=0;const st=Math.max(1,Math.floor(L.length/400000));for(let k=0;k<L.length;k+=st){const a=Math.max(Math.abs(L[k]),Math.abs(T.R[k]));if(a>m)m=a}T.peakDb=m>1e-6?Math.max(-60,20*Math.log10(m)):-60;
   const cL=L.slice(),cR=R&&R!==L?R.slice():null;send({t:'src',i,L:cL,R:cR},node?[cL.buffer].concat(cR?[cR.buffer]:[]):undefined);
   if(reg)send({t:'region',i,a:T.a,b:T.b});updTrackText(i)}
 let fileTarget=0;
 $('fileIn').onchange=e=>{const fs=[...e.target.files];e.target.value='';if(fs.length)openFiles(fs,fileTarget)};
 async function openFiles(files,start){if(!ctx)return;const list=files.slice(0,NT);if(files.length>NT)note(`一度に入るのは4つまでです。最初の4つを読み込みます。`);
   for(let k=0;k<list.length;k++){const i=(start+k)%NT,f=list[k];note(`${f.name} をトラック ${i+1} に読み込んでいます…`);
-    try{const ab=await f.arrayBuffer(),r=await decodeFile(ab),s=sr(),dur=r.L.length/s;TR[i].undo=[];
-      setBuffer(i,r.L,r.R,f.name,`${fmtT(dur)} · ${r.R?'ステレオ':'モノ'} · ${r.fileSr} Hz`+(r.fileSr!==s?` → ${s} Hz`:''));if(i===G.sel)$('undoBtn').disabled=true;
-      note(dur>600?`${f.name} を読み込みました。長いファイルなので、書き出しや焼き込みには時間がかかります。`:`${f.name} をトラック ${i+1} に読み込みました。`)}
+    try{const ab=await f.arrayBuffer(),r=await decodeFile(ab),s=sr(),dur=r.L.length/s,T=TR[i];T.undo=[];
+      setBuffer(i,r.L,r.R,f.name,`${fmtT(dur)} · ${r.R?'ステレオ':'モノ'} · ${r.fileSr} Hz`+(r.fileSr!==s?` → ${s} Hz`:''));T.el.undo.disabled=true;
+      const quiet=T.peakDb<-18?` かなり小さい音（ピーク ${fmtDb(T.peakDb)}）なので、「音量をならす」で持ち上げられます。`:'';
+      note((dur>600?`${f.name} を読み込みました。長いファイルなので、書き出しや焼き込みには時間がかかります。`:`${f.name} をトラック ${i+1} に読み込みました。`)+quiet)}
     catch(err){note(`${f.name}: ${err.message||err}`,true)}}}
 let dragDepth=0;const hasFiles=e=>e.dataTransfer&&[...e.dataTransfer.types].includes('Files');
 const showDrops=on=>TR.forEach(T=>{if(T.el)T.el.dr.hidden=!on});
@@ -1362,10 +1436,11 @@ document.addEventListener('drop',e=>{e.preventDefault();dragDepth=0;showDrops(fa
   const card=e.target&&e.target.closest?e.target.closest('.trk'):null;openFiles(fs,card?+card.dataset.i:G.sel)});
 
 // ---------- burn in, record, bounce ----------
-function lock(on){G.busy=on;for(const id of['burnBtn','bounceBtn'])$(id).disabled=on;$('undoBtn').disabled=on||!TR[G.sel].undo.length}
+function lock(on){G.busy=on;document.querySelectorAll('.burnb').forEach(b=>b.disabled=on);$('bounceBtn').disabled=on;TR.forEach(T=>{if(T.el&&T.el.undo)T.el.undo.disabled=on||!T.undo.length})}
 const yieldUI=()=>new Promise(r=>setTimeout(r,0));
-$('burnBtn').onclick=async()=>{const i=G.sel,T=TR[i];if(!T.L||G.busy)return;
-  if(!T.slots.some(S=>(S.algo&&S.on)||S.seq.on)){note('このトラックには、焼き込む効果もシーケンサーもかかっていません。');return}
+function rebuildFx(i){const T=TR[i],old=T.el.fx;T.cells=[[],[],[]];stepKey[i]='';const n=buildFx(i);old.replaceWith(n);updChips(i)}
+async function burnTrack(i){const T=TR[i];if(!T.L||G.busy)return;
+  if(!T.slots.some(S=>(S.algo&&S.on)||S.seq.on)){note(`トラック ${i+1} には、焼き込む効果もシーケンサーもかかっていません。`);return}
   lock(true);try{const s=sr(),E=new LIB.Engine(s);configure(E);const tk=E.tracks[i],S=tk.S,sl=S.b-S.a,len=Math.max(1,Math.round(sl/T.speed)),pre=Math.min(8192,sl);
     tk.rewind();S.pos=LIB.wrap(S,S.a-pre);tk.clk=-pre;
     const B=1024,bl=new Float32Array(B),br=new Float32Array(B),oL=new Float32Array(len),oR=new Float32Array(len);let done=-Math.round(pre/T.speed),t0=performance.now();
@@ -1376,13 +1451,13 @@ $('burnBtn').onclick=async()=>{const i=G.sel,T=TR[i];if(!T.L||G.busy)return;
     T.undo.push({L,R,a,b,meta:T.meta,speed:T.speed,on:T.slots.map(x=>x.on),seq:T.slots.map(x=>x.seq.on)});if(T.undo.length>5)T.undo.shift();
     T.slots.forEach((x,k)=>{x.on=false;x.seq.on=false;sendSS(i,k,'on');sendSeq(i,k)});
     const sped=T.speed!==1;if(sped){T.speed=1;sendT(i,'speed');updFader(i,'speed')}
-    setBuffer(i,nL,nR,T.name,T.meta,[a,a+len]);buildEditor();updChips(i);saveSoon();
-    note('焼き込みました。二重にかからないよう、このトラックの効果とシーケンサーはオフにしました（設定は残っています）。'+(sped?'速さも音に含めたので 1× に戻しました。':''))}
+    setBuffer(i,nL,nR,T.name,T.meta,[a,a+len]);rebuildFx(i);saveSoon();
+    note(`トラック ${i+1} に焼き込みました。二重にかからないよう、このトラックの効果とシーケンサーはオフにしました（設定は残っています）。`+(sped?'速さも音に含めたので 1× に戻しました。':''))}
   catch(e){note('焼き込めませんでした: '+(e.message||e),true)}
-  lock(false)};
-$('undoBtn').onclick=()=>{const i=G.sel,T=TR[i],u=T.undo.pop();if(!u)return;
+  lock(false)}
+function undoTrack(i){const T=TR[i],u=T.undo.pop();if(!u)return;
   T.slots.forEach((x,k)=>{x.on=u.on[k];x.seq.on=u.seq[k];sendSS(i,k,'on');sendSeq(i,k)});if(T.speed!==u.speed){T.speed=u.speed;sendT(i,'speed');updFader(i,'speed')}
-  setBuffer(i,u.L,u.R===u.L?null:u.R,T.name,u.meta,[u.a,u.b]);buildEditor();updChips(i);note('焼き込む前の音と設定に戻しました。')};
+  setBuffer(i,u.L,u.R===u.L?null:u.R,T.name,u.meta,[u.a,u.b]);rebuildFx(i);note(`トラック ${i+1} を焼き込む前の音と設定に戻しました。`)}
 
 function toggleRec(){if(!ctx)return;if(!G.rec){resume();recChunks=[];recLen=0;recT0=performance.now();G.rec=true;send({t:'rec',v:true});
     if(!G.playing)setPlaying(true);note('録音しています。もう一度押すと止めて保存します。')}
@@ -1434,11 +1509,12 @@ async function deliver(name,data){
 $('resetAll').onclick=function(){if(this.dataset.armed){try{localStorage.removeItem(SKEY)}catch(e){}location.reload();return}
   this.dataset.armed='1';this.textContent='もう一度押すと戻します';setTimeout(()=>{delete this.dataset.armed;this.textContent='設定を最初に戻す'},4000)};
 
+
 // ---------- start ----------
 if(window.matchMedia)matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',readColors);
 new MutationObserver(readColors).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
 (async()=>{if(!loadSaved())applyDefaults();$('bpm').value=G.bpm;$('snap').value=String(G.snap);$('fmt').value=G.fmt;for(const k of['mvol','room']){$(k).value=G[k];$(k).dispatchEvent(new Event('input'))}
-  readColors();buildTracks();buildEditor();
+  readColors();buildTracks();buildMaster();
   await initAudio();for(const m of stateMsgs())send(m);
   const s=ctx.sampleRate,ex=[[exHarp,'竪琴のアルペジオ（例）'],[exDrums,'打楽器（例）'],[exPad,'持続音（例）'],[exVoice,'声のような音（例）']];
   ex.forEach(([fn,name],i)=>{const r=fn(s);setBuffer(i,r.L,r.R,name,`合成した例 · 4.800 秒 · 2小節（100 BPM）`)});
