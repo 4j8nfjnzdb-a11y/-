@@ -122,6 +122,8 @@ input[type=range]:disabled{opacity:.4}
 .fd input[type=range]{--c:var(--tc)}
 .mrow{display:flex;align-items:center;gap:10px;margin-top:4px}
 .meter{flex:1 1 auto;height:4px;border-radius:2px;background:var(--well);overflow:hidden}
+.lr{flex:1 1 auto;display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:3px 6px;font-family:var(--f-mono);font-size:9.5px;color:var(--faint);line-height:1}
+.mlr{flex:0 1 110px;min-width:80px;--tc:var(--honey)}
 .meter i{display:block;height:100%;width:100%;background:var(--tc);transform-origin:left;transform:scaleX(0)}
 
 /* per-track effects */
@@ -229,6 +231,8 @@ input[type=range]:disabled{opacity:.4}
     <label class="grp"><span class="lbl">吸着</span><select id="snap"><option value="0">なし</option><option value="4">1小節</option><option value="1">1拍</option><option value="0.5">1/2拍</option><option value="0.25">1/4拍</option><option value="0.125">1/8拍</option></select></label>
     <label class="mini"><span>マスター</span><input type="range" id="mvol" min="0" max="1.5" step="0.01" value="0.85"><output id="mvolOut"></output></label>
     <label class="mini"><span>空間</span><input type="range" id="room" min="0" max="1" step="0.01" value="0.45"><output id="roomOut"></output></label>
+    <div class="lr mlr" title="出力の左右の大きさ"><span>L</span><div class="meter"><i id="mL"></i></div><span>R</span><div class="meter"><i id="mR"></i></div></div>
+    <button class="btn sm" id="lrTest" type="button" title="左だけ、右だけの順に音を鳴らして、聞いている機器が左右に分かれているか確かめます">左右の確認</button>
     <canvas id="scope" aria-hidden="true"></canvas>
   </div>
 
@@ -250,7 +254,7 @@ input[type=range]:disabled{opacity:.4}
   <section class="out" aria-labelledby="outTitle">
     <h2 id="outTitle">書き出し</h2>
     <div class="row">
-      <select id="fmt" aria-label="形式"><option value="wav">WAV 24bit</option><option value="aiff">AIFF 24bit</option></select>
+      <select id="fmt" aria-label="保存する形式"><option value="direct">そのまま聴ける音声（iPhone・Safari は .mp4、ほかは .webm）</option><option value="wav">WAV 24bit（zip に入ります）</option><option value="aiff">AIFF 24bit（zip に入ります）</option></select>
       <button class="btn recb" id="recBtn2" type="button" aria-pressed="false"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5"/></svg><span>聞こえている音を録音</span></button>
       <span class="row"><input type="number" id="bSec" min="1" max="600" step="1" value="20" aria-label="書き出す秒数"><span>秒を</span><button class="btn" id="bounceBtn" type="button">4トラックまとめて書き出す</button></span>
     </div>
@@ -839,7 +843,7 @@ class Slot{
 class Track{
   constructor(E,idx){this.E=E;this.idx=idx;this.sr=E.sr;this.S={L:null,R:null,a:0,b:0,pos:0,view:0,sg:0};this.slots=[0,1,2].map(k=>new Slot(this,k));this.mode='series';
     this.vol=.8;this.pan=0;this.width=1;this.depth=0;this.speed=1;this.mute=false;this.solo=false;this.clk=0;this.bus=true;this.on=true;
-    this.qc=0;this.qn=0;this.rp=0;this.tL=new Float32Array(128);this.tR=new Float32Array(128);this.cap=0;this.lpL=0;this.lpR=0;this.peak=0}
+    this.qc=0;this.qn=0;this.rp=0;this.tL=new Float32Array(128);this.tR=new Float32Array(128);this.cap=0;this.lpL=0;this.lpR=0;this.peak=0;this.peakL=0;this.peakR=0}
   setSource(L,R){const S=this.S;S.L=L;S.R=R||L;S.a=0;S.b=L.length;S.pos=0;S.view=0;S.sg++;for(const s of this.slots)s.build()}
   setRegion(a,b){const S=this.S;if(!S.L)return;const N=S.L.length;a=clamp(Math.floor(a),0,Math.max(0,N-64));b=clamp(Math.floor(b),Math.min(N,a+64),N);
     const oa=S.a;S.a=a;S.b=b;const len=b-a;S.pos=a+((((S.pos-oa)%len)+len)%len);S.sg++}
@@ -890,12 +894,13 @@ class Track{
   // Pan moves the whole stereo image: panning left folds the right channel into the left (constant power),
   // so hard left really is only the left speaker, even for sounds that are already wide.
   mixInto(xL,xR,mL,mR,sL,sR,n){const v=this.vol,w=this.width,d=this.depth,p=this.pan,pa=Math.abs(p),ps=Math.sin(pa*Math.PI/2),pc=Math.cos(pa*Math.PI/2),pg=1/Math.sqrt(1+ps),left=p<0;
-    const fc=1100+17000*Math.pow(1-d,1.6),a=1-Math.exp(-TAU*fc/this.sr),dg=v*(1-.45*d),sg=v*Math.pow(d,.8)*.9;let pk=0;
+    const fc=1100+17000*Math.pow(1-d,1.6),a=1-Math.exp(-TAU*fc/this.sr),dg=v*(1-.45*d),sg=v*Math.pow(d,.8)*.9;let pkl=0,pkr=0;
     for(let i=0;i<n;i++){let l=xL[i],r=xR[i];const mid=(l+r)*.5,sd=(l-r)*.5*w;l=mid+sd;r=mid-sd;
       if(left){const nl=(l+r*ps)*pg;r=r*pc*pg;l=nl}else{const nr=(r+l*ps)*pg;l=l*pc*pg;r=nr}
       this.lpL+=(l-this.lpL)*a;this.lpR+=(r-this.lpR)*a;const ol=this.lpL*dg,or=this.lpR*dg;mL[i]+=ol;mR[i]+=or;sL[i]+=l*sg;sR[i]+=r*sg;
-      const z=Math.max(Math.abs(ol),Math.abs(or));if(z>pk)pk=z}
-    this.peak=Math.max(pk,this.peak*.96)}
+      const zl=Math.abs(ol),zr=Math.abs(or);if(zl>pkl)pkl=zl;if(zr>pkr)pkr=zr}
+    this.peakL=Math.max(pkl,this.peakL*.96);this.peakR=Math.max(pkr,this.peakR*.96);this.peak=Math.max(this.peakL,this.peakR)}
+  fall(){this.peakL*=.96;this.peakR*=.96;this.peak=Math.max(this.peakL,this.peakR)}
 }
 
 // Shared room for the depth faders: an 8-line feedback delay network with damping and a short pre-delay.
@@ -927,17 +932,17 @@ class Engine{
   process(oL,oR,n){this.ensure(n);const mL=this.mL,mR=this.mR,sL=this.sL,sR=this.sR,bL=this.bL,bR=this.bR;mL.fill(0,0,n);mR.fill(0,0,n);sL.fill(0,0,n);sR.fill(0,0,n);
     const M=this.master,mOn=M.on&&M.slots.some(s=>s.busy());if(mOn){bL.fill(0,0,n);bR.fill(0,0,n)}
     if(this.playing){const any=this.tracks.some(t=>t.solo);
-      for(const t of this.tracks){if(!t.S.L){t.peak*=.96;continue}const aud=any?t.solo:!t.mute;
-        if(!aud){t.skip(n);t.peak*=.96;continue}t.render(this.tl,this.tr,n);const b=mOn&&t.bus;t.mixInto(this.tl,this.tr,b?bL:mL,b?bR:mR,sL,sR,n)}
+      for(const t of this.tracks){if(!t.S.L){t.fall();continue}const aud=any?t.solo:!t.mute;
+        if(!aud){t.skip(n);t.fall();continue}t.render(this.tl,this.tr,n);const b=mOn&&t.bus;t.mixInto(this.tl,this.tr,b?bL:mL,b?bR:mR,sL,sR,n)}
       if(mOn)M.busRun(bL,bR,mL,mR,n)}
-    else for(const t of this.tracks)t.peak*=.96;
+    else for(const t of this.tracks)t.fall();
     this.verb.run(sL,sR,mL,mR,n);
-    const v=this.mvol,rel=Math.exp(-1/(this.sr*.15)),rg=1-Math.exp(-1/(this.sr*.12));let pk=0,bad=false;
+    const v=this.mvol,rel=Math.exp(-1/(this.sr*.15)),rg=1-Math.exp(-1/(this.sr*.12));let pk=0,pl=0,pr=0,bad=false;
     for(let i=0;i<n;i++){let l=mL[i]*v,r=mR[i]*v;if(!(Math.abs(l)<1e4&&Math.abs(r)<1e4)){l=r=0;bad=true}
       const a=Math.max(Math.abs(l),Math.abs(r));this.lenv=a>this.lenv?a:this.lenv*rel;const t=this.lenv>.95?.95/this.lenv:1;
-      this.lg=t<this.lg?t:this.lg+(t-this.lg)*rg;l=soft(l*this.lg);r=soft(r*this.lg);oL[i]=l;oR[i]=r;const z=Math.max(Math.abs(l),Math.abs(r));if(z>pk)pk=z}
+      this.lg=t<this.lg?t:this.lg+(t-this.lg)*rg;l=soft(l*this.lg);r=soft(r*this.lg);oL[i]=l;oR[i]=r;const al=Math.abs(l),ar=Math.abs(r);if(al>pl)pl=al;if(ar>pr)pr=ar}pk=Math.max(pl,pr);
     if(bad){this.verb=new Verb(this.sr);this.verb.setRoom(this.room==null?.45:this.room)}
-    this.mpeak=Math.max(pk,this.mpeak*.9)}
+    this.mpeak=Math.max(pk,this.mpeak*.9);this.mpl=Math.max(pl,(this.mpl||0)*.9);this.mpr=Math.max(pr,(this.mpr||0)*.9)}
 }
 function handle(E,m){const T=m.i==null?null:m.i===4?E.master:E.tracks[m.i],s=T&&m.s!=null?T.slots[m.s]:null;switch(m.t){
   case'src':T.setSource(m.L,m.R);break;
@@ -950,7 +955,7 @@ function handle(E,m){const T=m.i==null?null:m.i===4?E.master:E.tracks[m.i],s=T&&
   case'seq':s.run.set(m.seq);break;
   case'g':if(m.k==='room'){E.room=m.v;E.verb.setRoom(m.v)}else E[m.k]=m.v;break;
   case'rewind':E.rewind();break}}
-function tick(E){return{t:'tick',v:E.tracks.map(t=>t.S.view),pk:E.tracks.map(t=>t.peak),st:E.tracks.map(t=>t.slots.map(s=>s.run.active()?s.run.step:-1)),ms:E.master.slots.map(s=>s.run.active()?s.run.step:-1),mp:E.mpeak}}
+function tick(E){return{t:'tick',v:E.tracks.map(t=>t.S.view),pk:E.tracks.map(t=>t.peak),pl:E.tracks.map(t=>t.peakL),pr:E.tracks.map(t=>t.peakR),ml:E.mpl||0,mr:E.mpr||0,st:E.tracks.map(t=>t.slots.map(s=>s.run.active()?s.run.step:-1)),ms:E.master.slots.map(s=>s.run.active()?s.run.step:-1),mp:E.mpeak}}
 return{ALG,ALGM,Engine,handle,wrap,DIV,tick};
 }
 //@@DSP-END
@@ -996,7 +1001,7 @@ function defSeq(){const pat=[];for(let i=0;i<32;i++)pat.push(PAT[i%16]===1);
     shuffle:{on:false,amt:.3,x:4},pitch:{on:false,amt:7,x:3,y:0},param:{on:false,amt:.35,x:'*',y:0}}}
 const newSlot=()=>({algo:null,vals:{},mix:1,level:1,auto:true,on:true,seq:defSeq(),open:false});
 const defVals=id=>{const o={};for(const q of ALGM[id].params)o[q[0]]=q[4];return o};
-const G={bpm:100,playing:false,mvol:.85,room:.45,snap:0,sel:0,fmt:'wav',rec:false,busy:false,mp:0,autoLvl:true};
+const G={bpm:100,playing:false,mvol:.85,room:.45,snap:0,sel:0,fmt:'direct',ml:0,mr:0,rec:false,busy:false,mp:0,autoLvl:true};
 const TR=[];
 for(let i=0;i<NT;i++)TR.push({name:'',meta:'',L:null,R:null,a:0,b:0,view:0,pk:0,vol:1,pan:0,width:1,depth:0,speed:1,mute:false,solo:false,bus:true,mode:'series',zoom:false,fxOpen:false,
   undo:[],slots:[newSlot(),newSlot(),newSlot()],steps:[-1,-1,-1],cells:[[],[],[]],ver:0,img:null,lock:null,el:null,peakDb:null});
@@ -1018,7 +1023,7 @@ function applyDefaults(){
 // Settings (not the sounds) are kept in this browser.
 const SKEY='shijuso.v2';
 function saveSoon(){clearTimeout(saveSoon.t);saveSoon.t=setTimeout(()=>{try{localStorage.setItem(SKEY,JSON.stringify({
-  g:{bpm:G.bpm,mvol:G.mvol,room:G.room,snap:G.snap,sel:G.sel,fmt:G.fmt,autoLvl:G.autoLvl},m:{on:MB.on,mode:MB.mode,slots:MB.slots},
+  g:{bpm:G.bpm,mvol:G.mvol,room:G.room,snap:G.snap,sel:G.sel,fmt2:G.fmt,autoLvl:G.autoLvl},m:{on:MB.on,mode:MB.mode,slots:MB.slots},
   t:TR.map(T=>({vol:T.vol,pan:T.pan,width:T.width,depth:T.depth,speed:T.speed,mute:T.mute,solo:T.solo,bus:T.bus,mode:T.mode,zoom:T.zoom,fxOpen:T.fxOpen,slots:T.slots}))}))}catch(e){}},400)}
 const num=(v,a,b,d)=>Number.isFinite(+v)?clamp(+v,a,b):d;
 function loadSlots(dst,src){(src||[]).slice(0,3).forEach((so,s)=>{if(!so)return;const S=dst[s];S.algo=ALGM[so.algo]?so.algo:null;
@@ -1030,7 +1035,7 @@ function loadSlots(dst,src){(src||[]).slice(0,3).forEach((so,s)=>{if(!so)return;
     for(const M of SEQM){const m=q[M.k];if(!m)continue;const t=d[M.k];t.on=!!m.on;t.amt=num(m.amt,M.amt[1],M.amt[2],t.amt);
       if(m.x!=null)t.x=M.k==='param'?String(m.x):num(m.x,0,16,t.x);if(m.y!=null)t.y=num(m.y,0,8,t.y)}}})}
 function loadSaved(){let s=null;try{s=JSON.parse(localStorage.getItem(SKEY)||'null')}catch(e){return false}if(!s||!Array.isArray(s.t))return false;
-  if(s.g){G.bpm=num(s.g.bpm,30,300,100);G.mvol=num(s.g.mvol,0,1.5,.85);G.room=num(s.g.room,0,1,.45);G.snap=num(s.g.snap,0,4,0);G.sel=num(s.g.sel,0,NT-1,0)|0;G.fmt=s.g.fmt==='aiff'?'aiff':'wav';G.autoLvl=s.g.autoLvl!==false}
+  if(s.g){G.bpm=num(s.g.bpm,30,300,100);G.mvol=num(s.g.mvol,0,1.5,.85);G.room=num(s.g.room,0,1,.45);G.snap=num(s.g.snap,0,4,0);G.sel=num(s.g.sel,0,NT-1,0)|0;G.fmt=['direct','wav','aiff'].includes(s.g.fmt2)?s.g.fmt2:'direct';G.autoLvl=s.g.autoLvl!==false}
   if(s.m){MB.on=s.m.on!==false;MB.mode=s.m.mode==='parallel'?'parallel':'series';loadSlots(MB.slots,s.m.slots)}
   s.t.slice(0,NT).forEach((o,i)=>{const T=TR[i];if(!o)return;T.vol=num(o.vol,0,fromDb(36),1);T.pan=num(o.pan,-1,1,0);T.width=num(o.width,0,2,1);T.depth=num(o.depth,0,1,0);
     T.speed=num(o.speed,.25,4,1);T.mute=!!o.mute;T.solo=!!o.solo;T.bus=o.bus!==false;T.mode=o.mode==='parallel'?'parallel':'series';T.zoom=!!o.zoom;T.fxOpen=!!o.fxOpen;
@@ -1038,25 +1043,26 @@ function loadSaved(){let s=null;try{s=JSON.parse(localStorage.getItem(SKEY)||'nu
   return true}
 
 // ---------- audio ----------
-let ctx=null,node=null,eng=null,analyser=null,recChunks=null,recLen=0,recT0=0;
+let ctx=null,node=null,eng=null,analyser=null,outNode=null,recChunks=null,recLen=0,recT0=0;
 function send(m,tr){if(node)node.port.postMessage(m,tr||[]);else if(eng)LIB.handle(eng,m)}
 async function initAudio(){
   const AC=window.AudioContext||window.webkitAudioContext;ctx=new AC({latencyHint:'playback'});
-  analyser=ctx.createAnalyser();analyser.fftSize=2048;analyser.connect(ctx.destination);
+  // the engine goes straight to the speakers; the scope only listens in from the side
+  analyser=ctx.createAnalyser();analyser.fftSize=2048;
   try{
     if(!ctx.audioWorklet||!window.AudioWorkletNode)throw new Error('no worklet');
     const url=URL.createObjectURL(new Blob([WSRC],{type:'application/javascript'}));
     await Promise.race([ctx.audioWorklet.addModule(url),new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),5000))]);
     node=new AudioWorkletNode(ctx,'quartet',{numberOfInputs:0,numberOfOutputs:1,outputChannelCount:[2]});
-    node.port.onmessage=e=>onMsg(e.data);node.connect(analyser);
+    node.port.onmessage=e=>onMsg(e.data);node.connect(ctx.destination);node.connect(analyser);outNode=node;
   }catch(err){
     node=null;eng=new LIB.Engine(ctx.sampleRate);const sp=ctx.createScriptProcessor(2048,1,2);
     sp.onaudioprocess=e=>{const ob=e.outputBuffer,L=ob.getChannelData(0),R=ob.getChannelData(1);eng.process(L,R,ob.length);
       if(recChunks)onMsg({t:'rec',L:L.slice(),R:R.slice()});onMsg(LIB.tick(eng))};
-    sp.connect(analyser)}
+    sp.connect(ctx.destination);sp.connect(analyser);outNode=sp}
 }
 function onMsg(d){
-  if(d.t==='tick'){for(let i=0;i<NT;i++){TR[i].view=d.v[i];TR[i].pk=d.pk[i];TR[i].steps=d.st[i]}MB.steps=d.ms||MB.steps;G.mp=d.mp}
+  if(d.t==='tick'){for(let i=0;i<NT;i++){const T=TR[i];T.view=d.v[i];T.pk=d.pk[i];T.pl=d.pl?d.pl[i]:d.pk[i];T.pr=d.pr?d.pr[i]:d.pk[i];T.steps=d.st[i]}MB.steps=d.ms||MB.steps;G.mp=d.mp;G.ml=d.ml||0;G.mr=d.mr||0}
   else if(d.t==='rec'&&recChunks){if(d.L.length){recChunks.push([d.L,d.R]);recLen+=d.L.length}
     if(recLen>ctx.sampleRate*600&&G.rec)toggleRec();else if(d.end)finishRec()}}
 function slotMsg(i,s){const S=TRK(i).slots[s];return{t:'slot',i,s,algo:S.algo,p:S.algo?Object.assign({},S.vals[S.algo]):{}}}
@@ -1190,10 +1196,11 @@ function buildTracks(){const wrap=$('tracks');wrap.textContent='';
       inp.oninput=()=>{T[f.k]=f.val(+inp.value);show();sendT(i,f.k);saveSoon()};
       inp.ondblclick=()=>{inp.value=f.def;inp.oninput()};l.append(h('span',null,f.n),inp,o);mx.append(l);F[f.k]=inp}
     const mr=h('div','mrow'),lv=h('button','btn sm','音量をならす');lv.type='button';lv.title='ループの平均の大きさが −20 dBFS になるように音量を合わせます（小さい音は上げ、大きい音は下げます）';
-    lv.onclick=()=>levelTrack(i,true);const met=h('div','meter'),mi=h('i');met.append(mi);mr.append(lv,met);mx.append(mr);
+    lv.onclick=()=>levelTrack(i,true);const lr=h('div','lr'),ml=h('i'),mR=h('i');lr.title='左右の音の大きさ（パンを動かすと片方が下がります）';
+    for(const [t,bar] of[['L',ml],['R',mR]]){const m=h('div','meter');m.append(bar);lr.append(h('span',null,t),m)}mr.append(lv,lr);mx.append(mr);
     body.append(wcol,mx);
     const fx=buildFx(i);el.append(hd,body,fx);wrap.append(el);
-    T.el=Object.assign(T.el||{},{root:el,sel,nm,mt,cv,dr,rg,mb,sb,bb,F,mi,zb,g:null});
+    T.el=Object.assign(T.el||{},{root:el,sel,nm,mt,cv,dr,rg,mb,sb,bb,F,ml,mR,zb,g:null});
     bindWave(i);updTrackText(i);updMS(i);updChips(i)});
   updSel()}
 function updFader(i,k){const T=TR[i],f=FADERS.find(x=>x.k===k),inp=T.el.F[k];inp.value=f.ui(T[k]);inp.dispatchEvent(new Event('input'))}
@@ -1298,7 +1305,8 @@ function drawScope(){if(!analyser)return;fit(scope);const W=scope.width,H=scope.
   sctx.clearRect(0,0,W,H);sctx.strokeStyle=COL.honey;sctx.lineWidth=1.5*(window.devicePixelRatio||1);sctx.beginPath();
   for(let x=0;x<W;x++){const s=sbuf[Math.floor(x/W*sbuf.length)],y=H/2-s*H*.45;x?sctx.lineTo(x,y):sctx.moveTo(x,y)}sctx.stroke()}
 const stepKey={};
-function frame(){if(ctx&&COL){for(let i=0;i<NT;i++){drawTrack(i);TR[i].el.mi.style.transform=`scaleX(${Math.min(1,TR[i].pk||0).toFixed(3)})`}drawScope();
+function frame(){if(ctx&&COL){const sx=v=>`scaleX(${Math.min(1,v||0).toFixed(3)})`;for(let i=0;i<NT;i++){const T=TR[i];drawTrack(i);T.el.ml.style.transform=sx(T.pl);T.el.mR.style.transform=sx(T.pr)}
+    $('mL').style.transform=sx(G.ml);$('mR').style.transform=sx(G.mr);drawScope();
     for(const i of ALLI){const T=TRK(i),key=T.steps.join(',');if(key!==stepKey[i]){stepKey[i]=key;T.cells.forEach((cs,s)=>{const st=T.steps[s];cs.forEach((c,k)=>c.classList.toggle('now',k===st))})}}
     if(G.rec){const t=(performance.now()-recT0)/1000;$('recTxt').textContent='録音中 '+Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0')}}
   requestAnimationFrame(frame)}
@@ -1421,6 +1429,11 @@ $('bpmLoop').onclick=()=>{const T=TR[G.sel];if(!T.L)return;const len=(T.b-T.a)/s
 $('snap').onchange=()=>{G.snap=+$('snap').value;saveSoon()};
 for(const k of['mvol','room']){const inp=$(k);const show=()=>{$(k+'Out').textContent=pct(+inp.value);setFill(inp)};
   inp.oninput=()=>{G[k]=+inp.value;show();send({t:'g',k,v:G[k]});saveSoon()};inp.ondblclick=()=>{inp.value=k==='mvol'?.85:.45;inp.oninput()};inp.value=G[k];show()}
+$('lrTest').onclick=async()=>{if(!ctx)return;await resume();const t=ctx.currentTime+.05,m=ctx.createChannelMerger(2);m.connect(ctx.destination);
+  for(const [ch,at,f] of[[0,0,440],[1,.75,660]]){const o=ctx.createOscillator(),g=ctx.createGain();o.frequency.value=f;g.gain.setValueAtTime(0,t+at);g.gain.linearRampToValueAtTime(.2,t+at+.02);
+    g.gain.setValueAtTime(.2,t+at+.5);g.gain.linearRampToValueAtTime(0,t+at+.55);o.connect(g);g.connect(m,0,ch);o.start(t+at);o.stop(t+at+.6)}
+  setTimeout(()=>m.disconnect(),1800);
+  note('左だけ（低い音）→ 右だけ（高い音）の順に鳴らしました。両方とも同じところから聞こえたら、いま聞いている機器はモノラルなのでパンは聞き分けられません（縦向きの iPhone のスピーカー、片耳だけのイヤホン、Bluetooth スピーカー、アクセシビリティの「モノラルオーディオ」など）。ヘッドホンか左右のあるスピーカーで確かめてください。')};
 $('autoLvl').checked=G.autoLvl;$('autoLvl').onchange=()=>{G.autoLvl=$('autoLvl').checked;saveSoon()};
 $('levelAll').onclick=()=>{let n=0;TR.forEach((T,i)=>{if(T.L){levelTrack(i,false);n++}});note(`${n}つのトラックの音量を、ループの平均が −20 dBFS になるようにそろえました。小さい音は上がり、大きい音は下がっています。`)};
 // Space plays and stops, ← → move the selected track's loop, also right after clicking a button;
@@ -1479,22 +1492,42 @@ function undoTrack(i){const T=TR[i],u=T.undo.pop();if(!u)return;
   T.slots.forEach((x,k)=>{x.on=u.on[k];x.seq.on=u.seq[k];sendSS(i,k,'on');sendSeq(i,k)});if(T.speed!==u.speed){T.speed=u.speed;sendT(i,'speed');updFader(i,'speed')}
   setBuffer(i,u.L,u.R===u.L?null:u.R,T.name,u.meta,[u.a,u.b]);rebuildFx(i);note(`トラック ${i+1} を焼き込む前の音と設定に戻しました。`)}
 
-function toggleRec(){if(!ctx)return;if(!G.rec){resume();recChunks=[];recLen=0;recT0=performance.now();G.rec=true;send({t:'rec',v:true});
-    if(!G.playing)setPlaying(true);note('録音しています。もう一度押すと止めて保存します。')}
-  else{G.rec=false;send({t:'rec',v:false});if(!node)finishRec()}
+// A file that plays as it is, recorded by the browser's own encoder: AAC in .mp4 where the browser has it (Safari, iPhone),
+// otherwise Opus in .webm. A plain "audio/mp4" is not asked for, since some browsers put Opus in it and Apple players refuse that.
+const directMime=()=>{if(!window.MediaRecorder||!MediaRecorder.isTypeSupported)return null;for(const t of['audio/mp4;codecs=mp4a.40.2','audio/webm;codecs=opus','audio/webm'])if(MediaRecorder.isTypeSupported(t))return t;return null};
+const extOf=mt=>mt.includes('mp4')?'mp4':'webm';
+const stamp=()=>{const d=new Date(),p=x=>String(x).padStart(2,'0');return`${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`};
+let mdest=null,mrec=null,mchunks=null;
+function toggleRec(){if(!ctx)return;
+  if(!G.rec){resume();const mt=G.fmt==='direct'?directMime():null;
+    if(G.fmt==='direct'&&!mt)note('このブラウザはそのまま聴ける形式で録音できないので、WAV（zip）で保存します。');
+    if(mt){if(!mdest)mdest=ctx.createMediaStreamDestination();outNode.connect(mdest);mchunks=[];mrec=new MediaRecorder(mdest.stream,{mimeType:mt,audioBitsPerSecond:256000});
+      mrec.ondataavailable=e=>{if(e.data&&e.data.size)mchunks.push(e.data)};mrec.onstop=()=>finishDirect(mt);mrec.start(1000)}
+    else{recChunks=[];recLen=0;send({t:'rec',v:true})}
+    recT0=performance.now();G.rec=true;if(!G.playing)setPlaying(true);if(!(G.fmt==='direct'&&!mt))note('録音しています。もう一度押すと止めて保存します。')}
+  else{G.rec=false;if(mrec){try{mrec.stop()}catch(e){}try{outNode.disconnect(mdest)}catch(e){}}else{send({t:'rec',v:false});if(!node)finishRec()}}
   for(const id of['recBtn','recBtn2'])$(id).setAttribute('aria-pressed',String(G.rec));if(!G.rec)$('recTxt').textContent='録音'}
 $('recBtn').onclick=toggleRec;$('recBtn2').onclick=toggleRec;
 async function finishRec(){const ch=recChunks;recChunks=null;if(!ch)return;const n=ch.reduce((a,c)=>a+c[0].length,0);
   if(n<sr()*.05){note('録音が短すぎたので保存しませんでした。');return}
   const L=new Float32Array(n),R=new Float32Array(n);let o=0;for(const [a,b] of ch){L.set(a,o);R.set(b,o);o+=a.length}
-  const d=new Date(),stamp=`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}`;
-  try{note(await deliver(`shijuso_rec_${stamp}`+(G.fmt==='aiff'?'.aif':'.wav'),encode(L,R,sr(),G.fmt)))}catch(e){note(e.message||String(e),true)}}
+  const f=G.fmt==='aiff'?'aiff':'wav';try{note(await deliver(`shijuso_rec_${stamp()}`+(f==='aiff'?'.aif':'.wav'),encode(L,R,sr(),f)))}catch(e){note(e.message||String(e),true)}}
+async function finishDirect(mt){const ch=mchunks;mchunks=null;mrec=null;if(!ch||!ch.length){note('録音が短すぎたので保存しませんでした。');return}
+  try{note(await deliverBlob(`shijuso_rec_${stamp()}.${extOf(mt)}`,new Blob(ch,{type:mt.split(';')[0]})))}catch(e){note(e.message||String(e),true)}}
 $('fmt').value=G.fmt;$('fmt').onchange=()=>{G.fmt=$('fmt').value;saveSoon()};
 $('bounceBtn').onclick=async()=>{if(G.busy||!ctx)return;const sec=clamp(Math.round(+$('bSec').value||20),1,600);$('bSec').value=sec;lock(true);
   try{const s=sr(),E=new LIB.Engine(s);configure(E);E.playing=true;E.rewind();const n=Math.round(sec*s),oL=new Float32Array(n),oR=new Float32Array(n),B=1024,bl=new Float32Array(B),br=new Float32Array(B);
     let done=0,t0=performance.now();while(done<n){const m=Math.min(B,n-done);E.process(bl,br,m);oL.set(bl.subarray(0,m),done);oR.set(br.subarray(0,m),done);done+=m;
       if(performance.now()-t0>60){note(`書き出しています… ${Math.round(done/n*100)}%`);await yieldUI();t0=performance.now()}}
-    note('ファイルを作っています…');await yieldUI();note(await deliver(`shijuso_${sec}s`+(G.fmt==='aiff'?'.aif':'.wav'),encode(oL,oR,s,G.fmt)))}
+    const mt=G.fmt==='direct'?directMime():null;
+    if(mt){// the browser's encoder only runs in real time: play the finished mix silently into it
+      await resume();const buf=ctx.createBuffer(2,n,s);buf.copyToChannel(oL,0);buf.copyToChannel(oR,1);const src=ctx.createBufferSource();src.buffer=buf;
+      const d=ctx.createMediaStreamDestination();src.connect(d);const rec=new MediaRecorder(d.stream,{mimeType:mt,audioBitsPerSecond:256000}),ch=[];
+      rec.ondataavailable=e=>{if(e.data&&e.data.size)ch.push(e.data)};const done=new Promise(r=>rec.onstop=r);rec.start(500);const t1=performance.now();src.start();
+      const tm=setInterval(()=>note(`そのまま聴ける形式に変換しています… ${Math.min(sec,Math.round((performance.now()-t1)/1000))} / ${sec} 秒`),250);
+      src.onended=()=>setTimeout(()=>{try{rec.stop()}catch(e){}},300);await done;clearInterval(tm);
+      note(await deliverBlob(`shijuso_${sec}s.${extOf(mt)}`,new Blob(ch,{type:mt.split(';')[0]})))}
+    else{const f=G.fmt==='aiff'?'aiff':'wav';note('ファイルを作っています…');await yieldUI();note(await deliver(`shijuso_${sec}s`+(f==='aiff'?'.aif':'.wav'),encode(oL,oR,s,f)))}}
   catch(e){note(e.message||String(e),true)}
   lock(false)};
 
@@ -1518,6 +1551,12 @@ function zip(name,data){const nm=new TextEncoder().encode(name),crc=crc32(data),
   const C=new DataView(new ArrayBuffer(46));C.setUint32(0,0x02014b50,true);C.setUint16(4,20,true);C.setUint16(6,20,true);C.setUint16(8,0x0800,true);C.setUint16(12,dt,true);C.setUint16(14,dd,true);C.setUint32(16,crc,true);C.setUint32(20,data.length,true);C.setUint32(24,data.length,true);C.setUint16(28,nm.length,true);
   const E=new DataView(new ArrayBuffer(22));E.setUint32(0,0x06054b50,true);E.setUint16(8,1,true);E.setUint16(10,1,true);E.setUint32(12,46+nm.length,true);E.setUint32(16,30+nm.length+data.length,true);
   return new Blob([L.buffer,nm,data,C.buffer,nm,E.buffer])}
+async function deliverBlob(name,blob){
+  if(inViewer){const dl=await window.claude.use('downloads');if(!dl)throw new Error('この表示ではファイルを保存できません');
+    try{await dl.save({filename:name,data:blob});return`${name} を保存しました。`}
+    catch(e){const c=e&&e.code;if(c==='declined')return'保存をやめました。';if(c==='rate_limited')throw new Error('保存の確認がまだ開いています。閉じてからもう一度押してください');throw new Error('この表示ではファイルを保存できません')}}
+  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+  return`${name} を書き出しました。`}
 async function deliver(name,data){
   if(inViewer){const dl=await window.claude.use('downloads');if(!dl)throw new Error('この表示ではファイルを保存できません');
     const zn=name.replace(/\.[^.]+$/,'')+'.zip';
