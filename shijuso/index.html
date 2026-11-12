@@ -213,6 +213,8 @@ input[type=range]:disabled{opacity:.4}
 .out{display:flex;flex-direction:column;gap:10px;padding:14px 16px;border-radius:12px;background:var(--panel);border:1px solid var(--line)}
 .note{margin:0;min-height:1.5em;font-size:13px;color:var(--dim)}
 .note.err{color:var(--err)}
+.lastout{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px}
+.lastout audio{height:34px;flex:1 1 240px;min-width:0;max-width:100%}
 .foot{color:var(--faint);font-size:12px;margin:0;max-width:86ch;display:flex;flex-direction:column;gap:6px}
 .foot p{margin:0}
 </style>
@@ -259,6 +261,7 @@ input[type=range]:disabled{opacity:.4}
       <span class="row"><input type="number" id="bSec" min="1" max="600" step="1" value="20" aria-label="書き出す秒数"><span>秒を</span><button class="btn" id="bounceBtn" type="button">4トラックまとめて書き出す</button></span>
     </div>
     <p class="note" id="note" role="status"></p>
+    <div class="lastout" id="lastOut" hidden><span class="lbl">最後に作った音</span><span class="mono" id="lastName"></span><audio id="lastAudio" controls preload="metadata"></audio><button class="btn sm" id="saveAgain" type="button">もう一度保存</button></div>
   </section>
 
   <div class="foot">
@@ -1551,13 +1554,17 @@ function zip(name,data){const nm=new TextEncoder().encode(name),crc=crc32(data),
   const C=new DataView(new ArrayBuffer(46));C.setUint32(0,0x02014b50,true);C.setUint16(4,20,true);C.setUint16(6,20,true);C.setUint16(8,0x0800,true);C.setUint16(12,dt,true);C.setUint16(14,dd,true);C.setUint32(16,crc,true);C.setUint32(20,data.length,true);C.setUint32(24,data.length,true);C.setUint16(28,nm.length,true);
   const E=new DataView(new ArrayBuffer(22));E.setUint32(0,0x06054b50,true);E.setUint16(8,1,true);E.setUint16(10,1,true);E.setUint32(12,46+nm.length,true);E.setUint32(16,30+nm.length+data.length,true);
   return new Blob([L.buffer,nm,data,C.buffer,nm,E.buffer])}
-async function deliverBlob(name,blob){
+// The last file made stays on the page: it can be played here and saved again if the save sheet was missed.
+let lastOut=null;
+function keepOut(name,blob,again){lastOut={again};const au=$('lastAudio');try{if(au.src)URL.revokeObjectURL(au.src)}catch(e){}au.src=URL.createObjectURL(blob);$('lastName').textContent=name;$('lastOut').hidden=false}
+$('saveAgain').onclick=async()=>{if(!lastOut)return;try{note(await lastOut.again())}catch(e){note(e.message||String(e),true)}};
+async function deliverBlob(name,blob){keepOut(name,blob,()=>deliverBlob(name,blob));
   if(inViewer){const dl=await window.claude.use('downloads');if(!dl)throw new Error('この表示ではファイルを保存できません');
     try{await dl.save({filename:name,data:blob});return`${name} を保存しました。`}
     catch(e){const c=e&&e.code;if(c==='declined')return'保存をやめました。';if(c==='rate_limited')throw new Error('保存の確認がまだ開いています。閉じてからもう一度押してください');throw new Error('この表示ではファイルを保存できません')}}
   const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
   return`${name} を書き出しました。`}
-async function deliver(name,data){
+async function deliver(name,data){keepOut(name,new Blob([data],{type:name.endsWith('.wav')?'audio/wav':'audio/aiff'}),()=>deliver(name,data));
   if(inViewer){const dl=await window.claude.use('downloads');if(!dl)throw new Error('この表示ではファイルを保存できません');
     const zn=name.replace(/\.[^.]+$/,'')+'.zip';
     try{await dl.save({filename:zn,data:zip(name,data)});return`${zn} を保存しました（中に ${name} が入っています）。`}
