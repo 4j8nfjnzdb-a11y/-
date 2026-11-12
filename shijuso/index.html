@@ -87,6 +87,8 @@ input[type=range]:disabled{opacity:.4}
 .lanes{display:flex;flex-direction:column;gap:10px}
 .lanes-h{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px}
 .lanes-h .help{flex:1 1 100%}
+.ck{font-size:12.5px;color:var(--dim);gap:5px}
+.ck input{accent-color:var(--honey);width:15px;height:15px;margin:0}
 .lanes-h h2,.ed-h h2,.out h2{margin:0;font-family:var(--f-disp);font-weight:500;font-size:22px;line-height:1.2}
 .help{margin:0;font-size:12px;color:var(--dim);max-width:100%}
 .trk{--tc:var(--t1);position:relative;background:var(--panel);border:1px solid var(--line);border-left:5px solid var(--tc);border-radius:12px;padding:10px 14px 12px;display:flex;flex-direction:column;gap:8px;min-width:0}
@@ -225,13 +227,13 @@ input[type=range]:disabled{opacity:.4}
     <button class="btn recb" id="recBtn" type="button" aria-pressed="false" title="聞こえている音をそのまま録音し、止めると保存できます"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5"/></svg><span id="recTxt">録音</span></button>
     <div class="grp bpm"><span class="lbl">テンポ</span><button class="btn sm" id="bpmDn" type="button" aria-label="テンポを下げる">−</button><input type="number" id="bpm" min="30" max="300" step="0.1" value="100" aria-label="テンポ（BPM）"><button class="btn sm" id="bpmUp" type="button" aria-label="テンポを上げる">＋</button><button class="btn sm" id="bpmLoop" type="button" title="選んでいるトラックのループがちょうど何拍かになるようにテンポを合わせます">ループから</button></div>
     <label class="grp"><span class="lbl">吸着</span><select id="snap"><option value="0">なし</option><option value="4">1小節</option><option value="1">1拍</option><option value="0.5">1/2拍</option><option value="0.25">1/4拍</option><option value="0.125">1/8拍</option></select></label>
-    <label class="mini"><span>全体</span><input type="range" id="mvol" min="0" max="1.5" step="0.01" value="0.85"><output id="mvolOut"></output></label>
+    <label class="mini"><span>マスター</span><input type="range" id="mvol" min="0" max="1.5" step="0.01" value="0.85"><output id="mvolOut"></output></label>
     <label class="mini"><span>空間</span><input type="range" id="room" min="0" max="1" step="0.01" value="0.45"><output id="roomOut"></output></label>
     <canvas id="scope" aria-hidden="true"></canvas>
   </div>
 
   <section class="lanes" aria-label="トラック">
-    <div class="lanes-h"><h2>トラック</h2><button class="btn sm" id="levelAll" type="button" title="4トラックそれぞれのループの平均が −20 dBFS になるように音量を合わせます">4トラックの音量をならす</button><p class="help">効果はトラックごとに「効果」を開いて入れます（同じ効果でもトラックごとに別々に調整できます）。　波形の上で　ドラッグ＝新しいループ　·　ループの中をつかむ＝ループごと移動　·　端をつかむ＝伸び縮み　·　ループの外をタップ＝そこへループを移す　·　ループの中をタップ＝再生位置　·　← → キーで選んだトラックのループをずらす</p></div>
+    <div class="lanes-h"><h2>トラック</h2><button class="btn sm" id="levelAll" type="button" title="4トラックそれぞれのループの平均が −20 dBFS になるように音量を合わせます">4トラックの音量をならす</button><label class="row ck"><input type="checkbox" id="autoLvl" checked>読み込んだ音の音量を自動でならす</label><p class="help">効果はトラックごとに「効果」を開いて入れます（同じ効果でもトラックごとに別々に調整できます）。　波形の上で　ドラッグ＝新しいループ　·　ループの中をつかむ＝ループごと移動　·　端をつかむ＝伸び縮み　·　ループの外をタップ＝そこへループを移す　·　ループの中をタップ＝再生位置　·　← → キーで選んだトラックのループをずらす（Shift で細かく）</p></div>
     <div id="tracks" class="lanes"></div>
   </section>
 
@@ -864,9 +866,16 @@ class Track{
     this.cL=cL;this.cR=cR}
   // Samples until the next sequencer step of any slot (and fire steps that start now).
   steps(n){let m=n;for(const s of this.slots)if(s.run.active()){const u=s.run.check(this);if(u<m)m=u}return m}
-  raw(oL,oR,n){const S=this.S;if(!S.L){oL.fill(0,0,n);oR.fill(0,0,n);return}this.ensure(n);const dL=this.dL,dR=this.dR;let i0=0;
-    while(i0<n){const m=this.steps(n-i0);
-      for(let i=0;i<m;i++){dL[i]=rd(S,S.L,S.pos+i);dR[i]=rd(S,S.R,S.pos+i)}
+  // The loop point gets a short crossfade so a loop dragged to any spot does not click when it wraps:
+  // the last few ms fade into the audio just before the loop start (or the first few ms fade out of the
+  // audio just after the loop end, when the loop starts at the very beginning of the file).
+  raw(oL,oR,n){const S=this.S;if(!S.L){oL.fill(0,0,n);oR.fill(0,0,n);return}this.ensure(n);const dL=this.dL,dR=this.dR,N=S.L.length;let i0=0;
+    const lin=(ch,u)=>{const i=Math.floor(u),f=u-i;return ch[i]+(ch[Math.min(i+1,N-1)]-ch[i])*f};
+    while(i0<n){const m=this.steps(n-i0),len=S.b-S.a,F=Math.min(Math.round(this.sr*.006),len>>3),mode=F<8?0:S.a>=F?1:S.b+F<=N?2:0;
+      for(let i=0;i<m;i++){const p=wrap(S,S.pos+i);let l=rd(S,S.L,p),r=rd(S,S.R,p);
+        if(mode===1){const q=p-(S.b-F);if(q>0){const x=q/F,u=p-len;l=l*(1-x)+lin(S.L,u)*x;r=r*(1-x)+lin(S.R,u)*x}}
+        else if(mode===2){const q=p-S.a;if(q<F){const x=q/F,u=p+len;l=l*x+lin(S.L,u)*(1-x);r=r*x+lin(S.R,u)*(1-x)}}
+        dL[i]=l;dR[i]=r}
       S.view=S.pos;this.chain(dL,dR,m);const cL=this.cL,cR=this.cR;
       for(let i=0;i<m;i++){oL[i0+i]=cL[i];oR[i0+i]=cR[i]}
       S.pos=wrap(S,S.pos+m);this.clk+=m;i0+=m}}
@@ -878,9 +887,12 @@ class Track{
       S.view=S.pos;this.chain(dL,dR,m);const cL=this.cL,cR=this.cR;for(let i=0;i<m;i++){oL[i0+i]+=cL[i];oR[i0+i]+=cR[i]}
       let w=S.pos;for(let i=0;i<m;i++){S.L[w]=dL[i];S.R[w]=dR[i];if(++w>=S.b)w=0}S.pos=w;this.clk+=m;i0+=m}}
   // Track fader stage: width (M/S), pan, then depth = darker, quieter and more into the room.
-  mixInto(xL,xR,mL,mR,sL,sR,n){const v=this.vol,w=this.width,d=this.depth,th=(this.pan+1)*Math.PI/4,gl=Math.min(1,Math.cos(th)*SQ2),gr=Math.min(1,Math.sin(th)*SQ2);
-    const fc=1100+17000*Math.pow(1-d,1.6),a=1-Math.exp(-TAU*fc/this.sr),dg=v*(1-.62*d),sg=v*Math.pow(d,.8)*.9;let pk=0;
-    for(let i=0;i<n;i++){let l=xL[i],r=xR[i];const mid=(l+r)*.5,sd=(l-r)*.5*w;l=(mid+sd)*gl;r=(mid-sd)*gr;
+  // Pan moves the whole stereo image: panning left folds the right channel into the left (constant power),
+  // so hard left really is only the left speaker, even for sounds that are already wide.
+  mixInto(xL,xR,mL,mR,sL,sR,n){const v=this.vol,w=this.width,d=this.depth,p=this.pan,pa=Math.abs(p),ps=Math.sin(pa*Math.PI/2),pc=Math.cos(pa*Math.PI/2),pg=1/Math.sqrt(1+ps),left=p<0;
+    const fc=1100+17000*Math.pow(1-d,1.6),a=1-Math.exp(-TAU*fc/this.sr),dg=v*(1-.45*d),sg=v*Math.pow(d,.8)*.9;let pk=0;
+    for(let i=0;i<n;i++){let l=xL[i],r=xR[i];const mid=(l+r)*.5,sd=(l-r)*.5*w;l=mid+sd;r=mid-sd;
+      if(left){const nl=(l+r*ps)*pg;r=r*pc*pg;l=nl}else{const nr=(r+l*ps)*pg;l=l*pc*pg;r=nr}
       this.lpL+=(l-this.lpL)*a;this.lpR+=(r-this.lpR)*a;const ol=this.lpL*dg,or=this.lpR*dg;mL[i]+=ol;mR[i]+=or;sL[i]+=l*sg;sR[i]+=r*sg;
       const z=Math.max(Math.abs(ol),Math.abs(or));if(z>pk)pk=z}
     this.peak=Math.max(pk,this.peak*.96)}
@@ -890,7 +902,7 @@ class Track{
 class Verb{
   constructor(sr){this.sr=sr;this.base=[1031,1327,1523,1871,2053,2377,2689,3011];let M=1;while(M<3011*sr/44100*2.3+16)M<<=1;this.M=M;this.m=M-1;
     this.b=this.base.map(()=>new Float32Array(M));this.len=new Float64Array(8);this.g=new Float64Array(8);this.lp=new Float64Array(8);this.y=new Float64Array(8);this.w=0;
-    let P=1;while(P<sr*.05)P<<=1;this.pd=[new Float32Array(P),new Float32Array(P)];this.pm=P-1;this.pw=0;this.pl=Math.round(sr*.022);
+    let P=1;while(P<sr*.05)P<<=1;this.pd=[new Float32Array(P),new Float32Array(P)];this.pm=P-1;this.pw=0;this.pl=Math.round(sr*.022);this.e1=Math.round(sr*.015);this.e2=Math.round(sr*.007);
     this.ad=[[142,379],[163,411]].map(a=>a.map(d=>({b:new Float32Array(1024),w:0,d:Math.round(d*sr/44100)})));this.setRoom(.45)}
   setRoom(x){this.room=x;const sc=.5+x*1.5,rt=.5+x*x*6.5;for(let k=0;k<8;k++){this.len[k]=Math.min(this.base[k]*this.sr/44100*sc,this.M-4);this.g[k]=Math.pow(10,-3*this.len[k]/(this.sr*rt))}this.dm=.62-.32*x}
   ap(s,x){const b=s.b,i=(s.w-s.d)&1023,y=b[i]-.6*x;b[s.w]=x+.6*y;s.w=(s.w+1)&1023;return y}
@@ -898,7 +910,7 @@ class Verb{
     for(let i=0;i<n;i++){pd[0][this.pw]=sL[i];pd[1][this.pw]=sR[i];const ri=(this.pw-this.pl)&pm;this.pw=(this.pw+1)&pm;
       let xl=pd[0][ri],xr=pd[1][ri];xl=this.ap(this.ad[0][1],this.ap(this.ad[0][0],xl));xr=this.ap(this.ad[1][1],this.ap(this.ad[1][0],xr));
       for(let k=0;k<8;k++){lp[k]+=(ring(b[k],m,this.w-len[k])-lp[k])*dm;y[k]=lp[k]}
-      oL[i]+=(y[0]+y[2]+y[4]+y[6])*.3;oR[i]+=(y[1]+y[3]+y[5]+y[7])*.3;
+      oL[i]+=(y[0]+y[2]+y[4]+y[6])*.3+(pd[0][(ri+this.e1)&pm]*.32+pd[0][(ri+this.e2)&pm]*.22);oR[i]+=(y[1]+y[3]+y[5]+y[7])*.3+(pd[1][(ri+this.e1)&pm]*.32+pd[1][(ri+this.e2)&pm]*.22);
       for(let h=1;h<8;h<<=1)for(let k=0;k<8;k+=h<<1)for(let j=k;j<k+h;j++){const a=y[j],c=y[j+h];y[j]=a+c;y[j+h]=a-c}
       const w=this.w;for(let k=0;k<8;k++)b[k][w]=(k&1?xr:xl)*(k&2?-.5:.5)+y[k]*.35355339*g[k];this.w=(w+1)&m}}
 }
@@ -984,7 +996,7 @@ function defSeq(){const pat=[];for(let i=0;i<32;i++)pat.push(PAT[i%16]===1);
     shuffle:{on:false,amt:.3,x:4},pitch:{on:false,amt:7,x:3,y:0},param:{on:false,amt:.35,x:'*',y:0}}}
 const newSlot=()=>({algo:null,vals:{},mix:1,level:1,auto:true,on:true,seq:defSeq(),open:false});
 const defVals=id=>{const o={};for(const q of ALGM[id].params)o[q[0]]=q[4];return o};
-const G={bpm:100,playing:false,mvol:.85,room:.45,snap:0,sel:0,fmt:'wav',rec:false,busy:false,mp:0};
+const G={bpm:100,playing:false,mvol:.85,room:.45,snap:0,sel:0,fmt:'wav',rec:false,busy:false,mp:0,autoLvl:true};
 const TR=[];
 for(let i=0;i<NT;i++)TR.push({name:'',meta:'',L:null,R:null,a:0,b:0,view:0,pk:0,vol:1,pan:0,width:1,depth:0,speed:1,mute:false,solo:false,bus:true,mode:'series',zoom:false,fxOpen:false,
   undo:[],slots:[newSlot(),newSlot(),newSlot()],steps:[-1,-1,-1],cells:[[],[],[]],ver:0,img:null,lock:null,el:null,peakDb:null});
@@ -994,19 +1006,19 @@ const TRK=i=>i===MI?MB:TR[i];
 const ALLI=[0,1,2,3,MI];
 
 function applyDefaults(){
-  const D=[{vol:1,pan:-.35,depth:.2,width:1,slots:[['gfluid']]},
-    {vol:.95,pan:.05,depth:.06,width:.8,slots:[['evisc',{seq:{on:true,div:'loop',steps:16,ratchet:{on:true,amt:.28,x:4},glitch:{on:true,amt:.12,x:0}}}]]},
-    {vol:.7,pan:0,depth:.55,width:1.6,slots:[['utas'],['svf']]},
-    {vol:.8,pan:.35,depth:.35,width:1,slots:[['kedju',{mix:.7}]]}];
+  const D=[{vol:1.26,pan:-.55,depth:.12,width:1,slots:[['gfluid']]},
+    {vol:1,pan:.1,depth:.04,width:.8,slots:[['evisc',{seq:{on:true,div:'loop',steps:16,ratchet:{on:true,amt:.28,x:4},glitch:{on:true,amt:.12,x:0}}}]]},
+    {vol:1,pan:0,depth:.3,width:1.5,slots:[['utas'],['svf']]},
+    {vol:1,pan:.55,depth:.2,width:1,slots:[['kedju',{mix:.7}]]}];
   D.forEach((d,i)=>{const T=TR[i];Object.assign(T,{vol:d.vol,pan:d.pan,depth:d.depth,width:d.width});
     d.slots.forEach(([id,o],s)=>{const S=T.slots[s];S.algo=id;S.vals[id]=defVals(id);if(o&&o.mix!=null)S.mix=o.mix;
       if(o&&o.seq){const q=o.seq;for(const k in q){if(typeof q[k]==='object')Object.assign(S.seq[k],q[k]);else S.seq[k]=q[k]}}})});
   TR[0].fxOpen=true}
 
 // Settings (not the sounds) are kept in this browser.
-const SKEY='shijuso.v1';
+const SKEY='shijuso.v2';
 function saveSoon(){clearTimeout(saveSoon.t);saveSoon.t=setTimeout(()=>{try{localStorage.setItem(SKEY,JSON.stringify({
-  g:{bpm:G.bpm,mvol:G.mvol,room:G.room,snap:G.snap,sel:G.sel,fmt:G.fmt},m:{on:MB.on,mode:MB.mode,slots:MB.slots},
+  g:{bpm:G.bpm,mvol:G.mvol,room:G.room,snap:G.snap,sel:G.sel,fmt:G.fmt,autoLvl:G.autoLvl},m:{on:MB.on,mode:MB.mode,slots:MB.slots},
   t:TR.map(T=>({vol:T.vol,pan:T.pan,width:T.width,depth:T.depth,speed:T.speed,mute:T.mute,solo:T.solo,bus:T.bus,mode:T.mode,zoom:T.zoom,fxOpen:T.fxOpen,slots:T.slots}))}))}catch(e){}},400)}
 const num=(v,a,b,d)=>Number.isFinite(+v)?clamp(+v,a,b):d;
 function loadSlots(dst,src){(src||[]).slice(0,3).forEach((so,s)=>{if(!so)return;const S=dst[s];S.algo=ALGM[so.algo]?so.algo:null;
@@ -1018,9 +1030,9 @@ function loadSlots(dst,src){(src||[]).slice(0,3).forEach((so,s)=>{if(!so)return;
     for(const M of SEQM){const m=q[M.k];if(!m)continue;const t=d[M.k];t.on=!!m.on;t.amt=num(m.amt,M.amt[1],M.amt[2],t.amt);
       if(m.x!=null)t.x=M.k==='param'?String(m.x):num(m.x,0,16,t.x);if(m.y!=null)t.y=num(m.y,0,8,t.y)}}})}
 function loadSaved(){let s=null;try{s=JSON.parse(localStorage.getItem(SKEY)||'null')}catch(e){return false}if(!s||!Array.isArray(s.t))return false;
-  if(s.g){G.bpm=num(s.g.bpm,30,300,100);G.mvol=num(s.g.mvol,0,1.5,.85);G.room=num(s.g.room,0,1,.45);G.snap=num(s.g.snap,0,4,0);G.sel=num(s.g.sel,0,NT-1,0)|0;G.fmt=s.g.fmt==='aiff'?'aiff':'wav'}
+  if(s.g){G.bpm=num(s.g.bpm,30,300,100);G.mvol=num(s.g.mvol,0,1.5,.85);G.room=num(s.g.room,0,1,.45);G.snap=num(s.g.snap,0,4,0);G.sel=num(s.g.sel,0,NT-1,0)|0;G.fmt=s.g.fmt==='aiff'?'aiff':'wav';G.autoLvl=s.g.autoLvl!==false}
   if(s.m){MB.on=s.m.on!==false;MB.mode=s.m.mode==='parallel'?'parallel':'series';loadSlots(MB.slots,s.m.slots)}
-  s.t.slice(0,NT).forEach((o,i)=>{const T=TR[i];if(!o)return;T.vol=num(o.vol,0,fromDb(24),1);T.pan=num(o.pan,-1,1,0);T.width=num(o.width,0,2,1);T.depth=num(o.depth,0,1,0);
+  s.t.slice(0,NT).forEach((o,i)=>{const T=TR[i];if(!o)return;T.vol=num(o.vol,0,fromDb(36),1);T.pan=num(o.pan,-1,1,0);T.width=num(o.width,0,2,1);T.depth=num(o.depth,0,1,0);
     T.speed=num(o.speed,.25,4,1);T.mute=!!o.mute;T.solo=!!o.solo;T.bus=o.bus!==false;T.mode=o.mode==='parallel'?'parallel':'series';T.zoom=!!o.zoom;T.fxOpen=!!o.fxOpen;
     loadSlots(T.slots,o.slots)});
   return true}
@@ -1123,11 +1135,13 @@ function exDrums(sr){const n=Math.round(sr*4.8),N=n+Math.round(sr*.6),L=new Floa
     if(SN.includes(s)||GH.includes(s)){const g=GH.includes(s)?.35:1;let lp=0;for(let i=0;i<sr*.25;i++){const t=i/sr,w=Math.random()*2-1;lp+=(w-lp)*.35;const v=(lp*.55+Math.sin(TAU0*185*t)*.28*Math.exp(-t*30))*Math.exp(-t*16)*g;L[t0+i]+=v*.95;R[t0+i]+=v}}
     {const acc=s%4===2?1:.55;let prev=0;for(let i=0;i<sr*.06;i++){const t=i/sr,w=Math.random()*2-1,v=(w-prev)*Math.exp(-t*(s%8===6?35:90))*.12*acc;prev=w;L[t0+i]+=v*.75;R[t0+i]+=v}}}
   return fold(L,R,n)}
-function exPad(sr){const n=Math.round(sr*4.8),L=new Float32Array(n),R=new Float32Array(n),F=[146.83,174.61,220,261.63,329.63];let lp=0,lp2=0,lq=0,lq2=0;
+// The pad is rendered a little past two bars and the overhang is crossfaded into the start, so it loops without a click.
+function exPad(sr){const n=Math.round(sr*4.8),X=Math.round(sr*.4),A=new Float32Array(n+X),B=new Float32Array(n+X),F=[146.83,174.61,220,261.63,329.63];let lp=0,lp2=0,lq=0,lq2=0;
   const ph=F.map(()=>[Math.random(),Math.random(),Math.random()]);
-  for(let i=0;i<n*2;i++){const t=i/sr;let a=0,b=0;F.forEach((f,k)=>{const p=ph[k];p[0]=(p[0]+f*1.003/sr)%1;p[1]=(p[1]+f*.997/sr)%1;p[2]=(p[2]+f*.5/sr)%1;a+=p[0]*2-1+(p[2]*2-1)*.3;b+=p[1]*2-1+(p[2]*2-1)*.3});
+  for(let i=0;i<n*2+X;i++){const t=i/sr;let a=0,b=0;F.forEach((f,k)=>{const p=ph[k];p[0]=(p[0]+f*1.003/sr)%1;p[1]=(p[1]+f*.997/sr)%1;p[2]=(p[2]+f*.5/sr)%1;a+=p[0]*2-1+(p[2]*2-1)*.3;b+=p[1]*2-1+(p[2]*2-1)*.3});
     const c=.03+.025*Math.sin(TAU0*t/4.8);lp+=(a-lp)*c;lq+=(lp-lq)*c;lp2+=(b-lp2)*c;lq2+=(lp2-lq2)*c;
-    if(i>=n){const j=i-n,e=.1*(.75+.25*Math.sin(TAU0*j/n));L[j]=lq*e;R[j]=lq2*e}}
+    if(i>=n){const j=i-n,e=.1*(.75+.25*Math.sin(TAU0*j/n));A[j]=lq*e;B[j]=lq2*e}}
+  const L=A.slice(0,n),R=B.slice(0,n);for(let k=0;k<X;k++){const x=k/X;L[k]=A[k]*x+A[n+k]*(1-x);R[k]=B[k]*x+B[n+k]*(1-x)}
   return{L,R}}
 function exVoice(sr){const n=Math.round(sr*4.8),N=n+Math.round(sr*.4),L=new Float32Array(N),R=new Float32Array(N);
   const FM={a:[800,1200,2500],i:[300,2300,3000],u:[350,1300,2400],e:[500,1900,2500],o:[500,800,2400]},notes=[[57,'a'],[60,'o'],[62,'i'],[64,'e'],[62,'u'],[60,'a'],[57,'o'],[55,'e']];
@@ -1140,9 +1154,9 @@ function exVoice(sr){const n=Math.round(sr*4.8),N=n+Math.round(sr*.4),L=new Floa
 
 
 // ---------- tracks ----------
-// volume runs in dB from silence to +24 dB, so a quiet recording can be brought right up
+// volume runs in dB from silence to +36 dB, so even a very quiet recording can be brought right up
 const FADERS=[
- {k:'vol',n:'音量',min:-60,max:24,step:.5,def:0,ui:toDb,val:fromDb,fmt:fmtDb},
+ {k:'vol',n:'音量',min:-60,max:36,step:.5,def:0,ui:toDb,val:fromDb,fmt:fmtDb},
  {k:'pan',n:'パン',min:-1,max:1,step:.01,def:0,ui:v=>v,val:v=>v,fmt:v=>Math.abs(v)<.005?'中央':(v<0?'左 ':'右 ')+Math.round(Math.abs(v)*100)},
  {k:'depth',n:'奥行き',min:0,max:1,step:.01,def:0,ui:v=>v,val:v=>v,fmt:v=>Math.round(v*100)+'%'},
  {k:'width',n:'広がり',min:0,max:2,step:.01,def:1,ui:v=>v,val:v=>v,fmt:v=>v<.005?'モノ':Math.round(v*100)+'%'},
@@ -1167,7 +1181,7 @@ function buildTracks(){const wrap=$('tracks');wrap.textContent='';
     const dr=h('div','drop',`ここに落とすとトラック ${i+1} へ`);dr.hidden=true;wb.append(cv,dr);
     const lb=h('div','lbar'),rg=h('span','mono'),lbt=h('div','lbtns');let zb=null;
     const LB=[['◀','ループを1つ分前へずらす',()=>shiftLoop(i,-1)],['▶','ループを1つ分後ろへずらす',()=>shiftLoop(i,1)],['½','ループを半分に',()=>scaleLoop(i,.5)],['×2','ループを倍に',()=>scaleLoop(i,2)],
-      ['全体','全体をループに',()=>T.L&&setLoop(i,0,T.L.length)],['寄る','ループに寄って表示',()=>{T.zoom=!T.zoom;zb.setAttribute('aria-pressed',String(T.zoom));saveSoon()}]];
+      ['全部','ファイル全体をループに',()=>T.L&&setLoop(i,0,T.L.length)],['寄る','ループに寄って表示',()=>{T.zoom=!T.zoom;zb.setAttribute('aria-pressed',String(T.zoom));saveSoon()}]];
     for(const [t,tt,fn] of LB){const b=h('button','btn',t);b.type='button';b.title=tt;b.setAttribute('aria-label',tt);b.onclick=fn;if(t==='寄る'){zb=b;b.setAttribute('aria-pressed',String(T.zoom))}lbt.append(b)}
     lb.append(rg,lbt);wcol.append(wb,lb);
     const mx=h('div','mix'),F={};
@@ -1186,13 +1200,13 @@ function updFader(i,k){const T=TR[i],f=FADERS.find(x=>x.k===k),inp=T.el.F[k];inp
 function updMS(i){const T=TR[i];T.el.mb.setAttribute('aria-pressed',String(T.mute));T.el.sb.setAttribute('aria-pressed',String(T.solo));T.el.bb.setAttribute('aria-pressed',String(T.bus))}
 function updTrackText(i){const T=TR[i];T.el.nm.textContent=T.name||'（音なし）';T.el.mt.textContent=T.meta+(T.peakDb!=null?` · ピーク ${fmtDb(T.peakDb)}`:'');T.el.rg.textContent=regionTxt(T)}
 function regionTxt(T){if(!T.L)return'';const s=sr(),N=T.L.length,len=(T.b-T.a)/s,beats=len*G.bpm/60,bt=Math.abs(beats-Math.round(beats))<.01?String(Math.round(beats)):beats.toFixed(2);
-  return(T.a===0&&T.b===N?`全体 ${fmtT(N/s)}`:`${fmtT(T.a/s)} – ${fmtT(T.b/s)}`)+` · ${len.toFixed(3)} 秒 · ${bt} 拍`}
+  return(T.a===0&&T.b===N?`ファイル全体 ${fmtT(N/s)}`:`${fmtT(T.a/s)} – ${fmtT(T.b/s)}`)+` · ${len.toFixed(3)} 秒 · ${bt} 拍`}
 // Set the track's volume so the loop's average level sits at -20 dBFS.
 function levelTrack(i,say){const T=TR[i];if(!T.L)return;const L=T.L,R=T.R,a=T.a,b=T.b,st=Math.max(1,Math.floor((b-a)/400000));let s=0,n=0;
   for(let k=a;k<b;k+=st){const v=(L[k]+R[k])*.5;s+=v*v;n++}const rms=Math.sqrt(s/Math.max(1,n));
   if(rms<1e-6){if(say)note(`トラック ${i+1} のループはほぼ無音なので、音量は変えていません。`);return}
-  const d=clamp(Math.round((-20-20*Math.log10(rms))*2)/2,-60,24);T.vol=fromDb(d);updFader(i,'vol');
-  if(say)note(`トラック ${i+1} の音量を ${fmtDb(d)} にしました（ループの平均を −20 dBFS にそろえました）。`)}
+  const want=Math.round((-20-20*Math.log10(rms))*2)/2,d=clamp(want,-60,36);T.vol=fromDb(d);updFader(i,'vol');
+  if(say)note(`トラック ${i+1} の音量を ${fmtDb(d)} にしました`+(want>36?'（上限です。それでも小さい場合は録音レベルの問題かもしれません）。':'（ループの平均を −20 dBFS にそろえました）。'))}
 function updChips(i){if(i===MI)return;const T=TR[i],box=T.el.ch;if(!box)return;box.textContent='';
   T.slots.forEach((S,s)=>{const A=ALGM[S.algo],c=h('span','chip');c.append(h('i',null,String(s+1)),h('span',null,A?A.ja:'空き'));
     if(S.seq.on)c.append(h('em',null,'SEQ'));if(!S.on||(!A&&!S.seq.on))c.classList.add('off');c.title=A?A.name:'空きスロット';box.append(c)})}
@@ -1253,8 +1267,7 @@ function bindWave(i){const T=TR[i],cv=T.el.cv;let d=null;
   const end=e=>{if(!d)return;if(e.type==='pointerup'&&!d.moved){const s=toS(xs(e),d.v);
       if(s>=T.a&&s<T.b)seek(i,s);else{const len=T.b-T.a,N=T.L.length,a=clamp(snapS(s),0,N-len);setLoop(i,a,a+len)}}
     d=null;T.lock=null;cv.style.cursor='';saveSoon()};
-  cv.addEventListener('pointerup',end);cv.addEventListener('pointercancel',end);
-  cv.addEventListener('dblclick',()=>{if(T.L)setLoop(i,0,T.L.length)})}
+  cv.addEventListener('pointerup',end);cv.addEventListener('pointercancel',end)}
 
 
 // ---------- drawing ----------
@@ -1371,7 +1384,7 @@ function seqPanel(i,s){const T=TRK(i),S=T.slots[s],q=S.seq,A=ALGM[S.algo];
   det.append(body);sumTxt();return det}
 
 function setAlgo(i,s,id){const S=TRK(i).slots[s];S.algo=id||null;if(S.algo&&!S.vals[S.algo])S.vals[S.algo]=defVals(S.algo);if(S.algo)S.on=true;
-  send(slotMsg(i,s));sendSS(i,s,'on');sendSeq(i,s);rebuildSlot(i,s);updChips(i);saveSoon();const p=$(`pick${i}_${s}`);if(p)p.focus({preventScroll:true})}
+  send(slotMsg(i,s));sendSS(i,s,'on');rebuildSlot(i,s);sendSeq(i,s);updChips(i);saveSoon();const p=$(`pick${i}_${s}`);if(p)p.focus({preventScroll:true})}
 
 // ---------- algorithm picker ----------
 let pk=null;
@@ -1408,10 +1421,15 @@ $('bpmLoop').onclick=()=>{const T=TR[G.sel];if(!T.L)return;const len=(T.b-T.a)/s
 $('snap').onchange=()=>{G.snap=+$('snap').value;saveSoon()};
 for(const k of['mvol','room']){const inp=$(k);const show=()=>{$(k+'Out').textContent=pct(+inp.value);setFill(inp)};
   inp.oninput=()=>{G[k]=+inp.value;show();send({t:'g',k,v:G[k]});saveSoon()};inp.ondblclick=()=>{inp.value=k==='mvol'?.85:.45;inp.oninput()};inp.value=G[k];show()}
+$('autoLvl').checked=G.autoLvl;$('autoLvl').onchange=()=>{G.autoLvl=$('autoLvl').checked;saveSoon()};
 $('levelAll').onclick=()=>{let n=0;TR.forEach((T,i)=>{if(T.L){levelTrack(i,false);n++}});note(`${n}つのトラックの音量を、ループの平均が −20 dBFS になるようにそろえました。小さい音は上がり、大きい音は下がっています。`)};
-document.addEventListener('keydown',e=>{const t=e.target,free=t===document.body||t.tagName==='CANVAS';if(!free||e.metaKey||e.ctrlKey||e.altKey)return;
-  if(e.code==='Space'){e.preventDefault();$('playBtn').click()}
-  else if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();const dir=e.key==='ArrowLeft'?-1:1;e.shiftKey?nudgeLoop(G.sel,dir):shiftLoop(G.sel,dir)}});
+// Space plays and stops, ← → move the selected track's loop, also right after clicking a button;
+// only text fields, menus and sliders keep their own keys.
+const ownKeys=t=>t&&(t.tagName==='SELECT'||t.tagName==='TEXTAREA'||(t.tagName==='INPUT'&&t.type!=='checkbox')||t.isContentEditable||(pk&&$('picker').contains(t)));
+document.addEventListener('keydown',e=>{if(e.metaKey||e.ctrlKey||e.altKey)return;const t=e.target;
+  if(e.code==='Space'&&!(ownKeys(t)&&t.type!=='range')){e.preventDefault();if(!e.repeat)$('playBtn').click()}
+  else if((e.key==='ArrowLeft'||e.key==='ArrowRight')&&!ownKeys(t)){e.preventDefault();const dir=e.key==='ArrowLeft'?-1:1;e.shiftKey?nudgeLoop(G.sel,dir):shiftLoop(G.sel,dir)}});
+document.addEventListener('keyup',e=>{if(e.code==='Space'&&e.target&&e.target.tagName==='BUTTON')e.preventDefault()});
 
 // ---------- sounds in ----------
 function note(t,err){const n=$('note');n.textContent=t;n.className='note'+(err?' err':'')}
@@ -1425,7 +1443,8 @@ async function openFiles(files,start){if(!ctx)return;const list=files.slice(0,NT
   for(let k=0;k<list.length;k++){const i=(start+k)%NT,f=list[k];note(`${f.name} をトラック ${i+1} に読み込んでいます…`);
     try{const ab=await f.arrayBuffer(),r=await decodeFile(ab),s=sr(),dur=r.L.length/s,T=TR[i];T.undo=[];
       setBuffer(i,r.L,r.R,f.name,`${fmtT(dur)} · ${r.R?'ステレオ':'モノ'} · ${r.fileSr} Hz`+(r.fileSr!==s?` → ${s} Hz`:''));T.el.undo.disabled=true;
-      const quiet=T.peakDb<-18?` かなり小さい音（ピーク ${fmtDb(T.peakDb)}）なので、「音量をならす」で持ち上げられます。`:'';
+      if(G.autoLvl)levelTrack(i,false);
+      const quiet=G.autoLvl?` 音量は ${fmtDb(toDb(T.vol))} にそろえました。`:T.peakDb<-18?` かなり小さい音（ピーク ${fmtDb(T.peakDb)}）なので、「音量をならす」で持ち上げられます。`:'';
       note((dur>600?`${f.name} を読み込みました。長いファイルなので、書き出しや焼き込みには時間がかかります。`:`${f.name} をトラック ${i+1} に読み込みました。`)+quiet)}
     catch(err){note(`${f.name}: ${err.message||err}`,true)}}}
 let dragDepth=0;const hasFiles=e=>e.dataTransfer&&[...e.dataTransfer.types].includes('Files');
@@ -1518,7 +1537,10 @@ new MutationObserver(readColors).observe(document.documentElement,{attributes:tr
   readColors();buildTracks();buildMaster();
   await initAudio();for(const m of stateMsgs())send(m);
   const s=ctx.sampleRate,ex=[[exHarp,'竪琴のアルペジオ（例）'],[exDrums,'打楽器（例）'],[exPad,'持続音（例）'],[exVoice,'声のような音（例）']];
-  ex.forEach(([fn,name],i)=>{const r=fn(s);setBuffer(i,r.L,r.R,name,`合成した例 · 4.800 秒 · 2小節（100 BPM）`)});
+  ex.forEach(([fn,name],i)=>{const r=fn(s);let q=0,pk=0;for(let k=0;k<r.L.length;k++){q+=r.L[k]*r.L[k]+r.R[k]*r.R[k];pk=Math.max(pk,Math.abs(r.L[k]),Math.abs(r.R[k]))}
+    // same average level for all four, without letting peaks pass -1 dBFS
+    const g=Math.min(Math.pow(10,-20/20)/Math.sqrt(q/(2*r.L.length)+1e-12),.89/pk);for(let k=0;k<r.L.length;k++){r.L[k]*=g;r.R[k]*=g}
+    setBuffer(i,r.L,r.R,name,`合成した例 · 4.800 秒 · 2小節（100 BPM）`)});
   requestAnimationFrame(frame)})();
 </script>
 
