@@ -67,6 +67,7 @@ input[type=range]:disabled{opacity:.4}
 .play{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:104px;padding:10px 16px;border-radius:9px;border:0;background:var(--ink);color:var(--bg);font-weight:700;font-size:15px;letter-spacing:.06em}
 .play svg{width:14px;height:14px;fill:currentColor}
 .play[aria-pressed="true"]{background:var(--honey);color:var(--honey-ink)}
+.wake{background:var(--rec);color:#fff;border-color:transparent;font-weight:700}
 .recb[aria-pressed="true"]{background:var(--rec);color:#fff;border-color:transparent}
 .recb[aria-pressed="true"] svg{animation:blink 1s steps(2) infinite}
 @keyframes blink{50%{opacity:.25}}
@@ -227,6 +228,7 @@ input[type=range]:disabled{opacity:.4}
 
   <div class="bar" id="bar">
     <button class="play" id="playBtn" type="button" aria-pressed="false"><svg viewBox="0 0 16 16" id="playIco"><path d="M3 1.5v13l11-6.5z"/></svg><span id="playTxt">再生</span></button>
+    <button class="btn wake" id="wakeBtn" type="button" hidden>音が止まっています · タップで再開</button>
     <button class="btn" id="rewBtn" type="button" title="すべてのトラックをループの頭へ戻し、シーケンサーを1拍目からそろえます"><svg viewBox="0 0 16 16"><path d="M2 2h2v12H2zM14 2v12L5 8z"/></svg>頭へ</button>
     <button class="btn recb" id="recBtn" type="button" aria-pressed="false" title="聞こえている音をそのまま録音し、止めると保存できます"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5"/></svg><span id="recTxt">録音</span></button>
     <div class="grp bpm"><span class="lbl">テンポ</span><button class="btn sm" id="bpmDn" type="button" aria-label="テンポを下げる">−</button><input type="number" id="bpm" min="30" max="300" step="0.1" value="100" aria-label="テンポ（BPM）"><button class="btn sm" id="bpmUp" type="button" aria-label="テンポを上げる">＋</button><button class="btn sm" id="bpmLoop" type="button" title="選んでいるトラックのループがちょうど何拍かになるようにテンポを合わせます">ループから</button></div>
@@ -1099,23 +1101,35 @@ const sendSeq=(i,s)=>send({t:'seq',i,s,seq:clone(TRK(i).slots[s].seq)});
 const sendP=(i,s,k)=>{const S=TRK(i).slots[s];send({t:'sp',i,s,p:{[k]:S.vals[S.algo][k]}})};
 
 // ---------- decoding ----------
-function resample(a,from,to){if(from===to)return a;const n=Math.max(1,Math.round(a.length*to/from)),o=new Float32Array(n),k=from/to;
-  for(let i=0;i<n;i++){const p=i*k,j=Math.floor(p),f=p-j;const x=a[Math.min(j,a.length-1)],y=a[Math.min(j+1,a.length-1)];o[i]=x+(y-x)*f}return o}
+// Loading works in slices of about 260,000 samples and lets the page breathe between them, so a long file
+// shows progress instead of freezing the screen (and the phone) for seconds.
+const CHUNK=1<<18;const breathe=()=>new Promise(r=>setTimeout(r,0));
+async function resample(a,from,to,prog){if(from===to)return a;const n=Math.max(1,Math.round(a.length*to/from)),o=new Float32Array(n),k=from/to,last=a.length-1;
+  for(let i0=0;i0<n;i0+=CHUNK){const e=Math.min(n,i0+CHUNK);for(let i=i0;i<e;i++){const p=i*k,j=Math.floor(p),f=p-j,x=a[j<last?j:last],y=a[j+1<last?j+1:last];o[i]=x+(y-x)*f}
+    if(prog)prog(e/n);await breathe()}return o}
 function f80(dv,o){const e=((dv.getUint8(o)&0x7f)<<8)|dv.getUint8(o+1),hi=dv.getUint32(o+2),lo=dv.getUint32(o+6);if(!e&&!hi&&!lo)return 0;
   return(hi*Math.pow(2,e-16383-31)+lo*Math.pow(2,e-16383-63))*((dv.getUint8(o)&0x80)?-1:1)}
 const tag=(dv,o)=>String.fromCharCode(dv.getUint8(o),dv.getUint8(o+1),dv.getUint8(o+2),dv.getUint8(o+3));
-function pcm(dv,start,frames,ch,bytes,kind,le){
-  const out=[];for(let c=0;c<ch;c++)out.push(new Float32Array(frames));const fs=bytes*ch,sc=1/Math.pow(2,bytes*8-1);
-  for(let i=0;i<frames;i++)for(let c=0;c<ch;c++){const o=start+i*fs+c*bytes;let v;
+async function pcm(dv,start,frames,ch,bytes,kind,le,prog){
+  const out=[];for(let c=0;c<ch;c++)out.push(new Float32Array(frames));const fs=bytes*ch,sc=1/Math.pow(2,bytes*8-1),buf=dv.buffer,u8=new Uint8Array(buf);
+  // the common little-endian formats read straight from typed views; everything else goes through the DataView
+  const step=async e=>{if(prog)prog(e/frames);await breathe()};
+  if(le&&kind==='i'&&bytes===2&&start%2===0){const v=new Int16Array(buf,start,frames*ch);
+    for(let i0=0;i0<frames;i0+=CHUNK){const e=Math.min(frames,i0+CHUNK);for(let c=0;c<ch;c++){const o=out[c];for(let i=i0,j=i0*ch+c;i<e;i++,j+=ch)o[i]=v[j]*sc}await step(e)}return out}
+  if(le&&kind==='f'&&bytes===4&&start%4===0){const v=new Float32Array(buf,start,frames*ch);
+    for(let i0=0;i0<frames;i0+=CHUNK){const e=Math.min(frames,i0+CHUNK);for(let c=0;c<ch;c++){const o=out[c];for(let i=i0,j=i0*ch+c;i<e;i++,j+=ch)o[i]=v[j]}await step(e)}return out}
+  if(le&&kind==='i'&&bytes===3){for(let i0=0;i0<frames;i0+=CHUNK){const e=Math.min(frames,i0+CHUNK);
+      for(let c=0;c<ch;c++){const o=out[c];for(let i=i0,p=start+i0*fs+c*3;i<e;i++,p+=fs){let x=u8[p]|(u8[p+1]<<8)|(u8[p+2]<<16);if(x&0x800000)x-=0x1000000;o[i]=x*sc}}await step(e)}return out}
+  for(let i=0;i<frames;i++){if(i&&(i&(CHUNK-1))===0)await step(i);for(let c=0;c<ch;c++){const o=start+i*fs+c*bytes;let v;
     if(kind==='f'){v=bytes===4?dv.getFloat32(o,le):dv.getFloat64(o,le)}
     else if(kind==='u8'){v=(dv.getUint8(o)-128)/128}
     else if(bytes===1)v=dv.getInt8(o)/128;
     else if(bytes===2)v=dv.getInt16(o,le)*sc;
     else if(bytes===3)v=(le?(dv.getInt8(o+2)<<16)|(dv.getUint8(o+1)<<8)|dv.getUint8(o):(dv.getInt8(o)<<16)|(dv.getUint8(o+1)<<8)|dv.getUint8(o+2))*sc;
     else v=dv.getInt32(o,le)*sc;
-    out[c][i]=v}
+    out[c][i]=v}}
   return out}
-function parseAIFF(ab){const dv=new DataView(ab);if(ab.byteLength<12||tag(dv,0)!=='FORM')return null;const aifc=tag(dv,8)==='AIFC';
+async function parseAIFF(ab,prog){const dv=new DataView(ab);if(ab.byteLength<12||tag(dv,0)!=='FORM')return null;const aifc=tag(dv,8)==='AIFC';
   let o=12,ch=0,frames=0,bits=0,sr=0,comp='NONE',data=-1,dlen=0;
   while(o+8<=dv.byteLength){const id=tag(dv,o),sz=dv.getUint32(o+4),b=o+8;
     if(id==='COMM'){ch=dv.getInt16(b);frames=dv.getUint32(b+2);bits=dv.getInt16(b+6);sr=f80(dv,b+8);if(aifc&&sz>=22)comp=tag(dv,b+18)}
@@ -1125,8 +1139,8 @@ function parseAIFF(ab){const dv=new DataView(ab);if(ab.byteLength<12||tag(dv,0)!
   let kind='i',le=false,bytes=Math.ceil(bits/8);const cc=comp.toLowerCase();
   if(cc==='sowt')le=true;else if(cc==='fl32'){kind='f';bytes=4}else if(cc==='fl64'){kind='f';bytes=8}
   else if(cc==='raw ')kind='u8';else if(cc!=='none'&&cc!=='twos')throw new Error(`この AIFF-C の圧縮形式（${comp}）には対応していません`);
-  frames=Math.min(frames,Math.floor(dlen/(bytes*ch)));return{ch:pcm(dv,data,frames,ch,bytes,kind,le),sr}}
-function parseWAV(ab){const dv=new DataView(ab);if(ab.byteLength<12||tag(dv,0)!=='RIFF'||tag(dv,8)!=='WAVE')return null;
+  frames=Math.min(frames,Math.floor(dlen/(bytes*ch)));return{ch:await pcm(dv,data,frames,ch,bytes,kind,le,prog),sr}}
+async function parseWAV(ab,prog){const dv=new DataView(ab);if(ab.byteLength<12||tag(dv,0)!=='RIFF'||tag(dv,8)!=='WAVE')return null;
   let o=12,fmt=0,ch=0,sr=0,bits=0,data=-1,dlen=0;
   while(o+8<=dv.byteLength){const id=tag(dv,o),sz=dv.getUint32(o+4,true),b=o+8;
     if(id==='fmt '){fmt=dv.getUint16(b,true);ch=dv.getUint16(b+2,true);sr=dv.getUint32(b+4,true);bits=dv.getUint16(b+14,true);if(fmt===0xFFFE&&sz>=26)fmt=dv.getUint16(b+24,true)}
@@ -1134,15 +1148,16 @@ function parseWAV(ab){const dv=new DataView(ab);if(ab.byteLength<12||tag(dv,0)!=
     o=b+sz+(sz&1)}
   if(data<0||!ch||!sr)return null;if(fmt!==1&&fmt!==3)return null;
   const bytes=bits/8;if(!Number.isInteger(bytes))return null;
-  return{ch:pcm(dv,data,Math.floor(dlen/(bytes*ch)),ch,bytes,fmt===3?'f':(bytes===1?'u8':'i'),true),sr}}
-async function decodeFile(ab){const sr=ctx.sampleRate;let r=null;
+  return{ch:await pcm(dv,data,Math.floor(dlen/(bytes*ch)),ch,bytes,fmt===3?'f':(bytes===1?'u8':'i'),true,prog),sr}}
+async function decodeFile(ab,prog){const sr=ctx.sampleRate;let r=null;const P=(a,b)=>x=>prog&&prog(a+(b-a)*x);
   const head=new DataView(ab,0,Math.min(12,ab.byteLength));
-  if(ab.byteLength>=4&&tag(head,0)==='FORM')r=parseAIFF(ab);
-  else if(ab.byteLength>=4&&tag(head,0)==='RIFF'){try{r=parseWAV(ab)}catch(e){r=null}}
-  if(!r){const b=await new Promise((res,rej)=>{const p=ctx.decodeAudioData(ab.slice(0),res,rej);if(p&&p.catch)p.catch(rej)})
+  if(ab.byteLength>=4&&tag(head,0)==='FORM')r=await parseAIFF(ab,P(0,.6));
+  else if(ab.byteLength>=4&&tag(head,0)==='RIFF'){try{r=await parseWAV(ab,P(0,.6))}catch(e){r=null}}
+  if(!r){// the browser's own decoder (MP3, M4A, FLAC, OGG…); its channels are used as they are, without another copy
+    const b=await new Promise((res,rej)=>{const p=ctx.decodeAudioData(ab,res,rej);if(p&&p.catch)p.catch(rej)})
       .catch(()=>{throw new Error('このファイルは音として読めませんでした。WAV・AIFF・MP3・M4A・FLAC・OGG などを試してください')});
-    const ch=[];for(let c=0;c<Math.min(2,b.numberOfChannels);c++)ch.push(b.getChannelData(c).slice());return{L:ch[0],R:ch[1]||null,fileSr:b.sampleRate}}
-  const L=resample(r.ch[0],r.sr,sr),R=r.ch.length>1?resample(r.ch[1],r.sr,sr):null;return{L,R,fileSr:r.sr}}
+    return{L:b.getChannelData(0),R:b.numberOfChannels>1?b.getChannelData(1):null,fileSr:b.sampleRate}}
+  const L=await resample(r.ch[0],r.sr,sr,P(.6,.8)),R=r.ch.length>1?await resample(r.ch[1],r.sr,sr,P(.8,1)):null;return{L,R,fileSr:r.sr}}
 
 // ---------- example sounds: two bars at 100 BPM each, so the four loops line up ----------
 const TAU0=Math.PI*2;
@@ -1450,10 +1465,17 @@ window.addEventListener('scroll',()=>{if(pk&&innerWidth>640&&performance.now()-p
 window.addEventListener('resize',()=>{if(pk)closePicker(true)});
 
 // ---------- transport ----------
-function setPlaying(on){G.playing=on;send({t:'g',k:'playing',v:on});$('playBtn').setAttribute('aria-pressed',String(on));$('playTxt').textContent=on?'停止':'再生';
+function setPlaying(on){G.playing=on;send({t:'g',k:'playing',v:on});checkAwake();$('playBtn').setAttribute('aria-pressed',String(on));$('playTxt').textContent=on?'停止':'再生';
   const ico=on?'<path d="M3 2h4v12H3zM9 2h4v12H9z"/>':'<path d="M3 1.5v13l11-6.5z"/>';$('playIco').innerHTML=ico;$('fabIco').innerHTML=ico;
   $('fab').setAttribute('aria-pressed',String(on));$('fab').setAttribute('aria-label',on?'停止':'再生')}
-async function resume(){if(ctx&&ctx.state!=='running')try{await ctx.resume()}catch(e){}}
+async function resume(){if(ctx&&ctx.state!=='running')try{await ctx.resume()}catch(e){}checkAwake()}
+// iPhone suspends web audio while the file picker or another app is in front. When that happens during
+// playback, the next touch anywhere wakes it; if it cannot, a button says so.
+function checkAwake(){const stuck=!!ctx&&G.playing&&ctx.state!=='running';$('wakeBtn').hidden=!stuck}
+function watchAwake(){ctx.onstatechange=checkAwake;
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&G.playing)resume()});
+  document.addEventListener('pointerdown',()=>{if(G.playing&&ctx.state!=='running')resume()},true);
+  $('wakeBtn').onclick=()=>resume()}
 $('playBtn').onclick=async()=>{if(!ctx)return;await resume();setPlaying(!G.playing)};
 $('fab').onclick=()=>$('playBtn').click();
 $('rewBtn').onclick=()=>{send({t:'rewind'});TR.forEach(T=>{T.view=T.a})};
@@ -1491,13 +1513,15 @@ function setBuffer(i,L,R,name,meta,reg){const T=TR[i];T.L=L;T.R=R||L;T.name=name
 let fileTarget=0;
 $('fileIn').onchange=e=>{const fs=[...e.target.files];e.target.value='';if(fs.length)openFiles(fs,fileTarget)};
 async function openFiles(files,start){if(!ctx)return;const list=files.slice(0,NT);if(files.length>NT)note(`一度に入るのは4つまでです。最初の4つを読み込みます。`);
+  resume();
   for(let k=0;k<list.length;k++){const i=(start+k)%NT,f=list[k];note(`${f.name} をトラック ${i+1} に読み込んでいます…`);
-    try{const ab=await f.arrayBuffer(),r=await decodeFile(ab),s=sr(),dur=r.L.length/s,T=TR[i];T.undo=[];
+    try{const ab=await f.arrayBuffer(),r=await decodeFile(ab,x=>note(`${f.name} をトラック ${i+1} に読み込んでいます… ${Math.round(x*100)}%`)),s=sr(),dur=r.L.length/s,T=TR[i];T.undo=[];
       setBuffer(i,r.L,r.R,f.name,`${fmtT(dur)} · ${r.R?'ステレオ':'モノ'} · ${r.fileSr} Hz`+(r.fileSr!==s?` → ${s} Hz`:''));if(T.el.undo)T.el.undo.disabled=true;
       if(G.autoLvl)levelTrack(i,false);
       const quiet=G.autoLvl?` 音量は ${fmtDb(toDb(T.vol))} にそろえました。`:T.peakDb<-18?` かなり小さい音（ピーク ${fmtDb(T.peakDb)}）なので、「音量をならす」で持ち上げられます。`:'';
       note((dur>600?`${f.name} を読み込みました。長いファイルなので、書き出しや焼き込みには時間がかかります。`:`${f.name} をトラック ${i+1} に読み込みました。`)+quiet)}
-    catch(err){note(`${f.name}: ${err.message||err}`,true)}}}
+    catch(err){note(`${f.name}: ${err.message||err}`,true)}}
+  resume();checkAwake()}
 let dragDepth=0;const hasFiles=e=>e.dataTransfer&&[...e.dataTransfer.types].includes('Files');
 const showDrops=on=>TR.forEach(T=>{if(T.el)T.el.dr.hidden=!on});
 document.addEventListener('dragenter',e=>{if(hasFiles(e)){dragDepth++;showDrops(true)}});
@@ -1616,7 +1640,7 @@ if(window.matchMedia)matchMedia('(prefers-color-scheme: dark)').addEventListener
 new MutationObserver(readColors).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
 (async()=>{if(!loadSaved())applyDefaults();$('bpm').value=G.bpm;$('snap').value=String(G.snap);$('fmt').value=G.fmt;for(const k of['mvol','room']){$(k).value=G[k];$(k).dispatchEvent(new Event('input'))}
   readColors();buildTracks();buildMaster();
-  await initAudio();for(const m of stateMsgs())send(m);
+  await initAudio();watchAwake();for(const m of stateMsgs())send(m);
   const s=ctx.sampleRate,ex=[[exHarp,'竪琴のアルペジオ（例）'],[exDrums,'打楽器（例）'],[exPad,'持続音（例）'],[exVoice,'声のような音（例）']];
   ex.forEach(([fn,name],i)=>{const r=fn(s);let q=0,pk=0;for(let k=0;k<r.L.length;k++){q+=r.L[k]*r.L[k]+r.R[k]*r.R[k];pk=Math.max(pk,Math.abs(r.L[k]),Math.abs(r.R[k]))}
     // same average level for all four, without letting peaks pass -1 dBFS
