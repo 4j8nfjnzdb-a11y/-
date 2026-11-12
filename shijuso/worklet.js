@@ -550,29 +550,37 @@ const LIVE=1<<19;
 class Slot{
   constructor(T,k){this.T=T;this.k=k;this.sr=T.sr;this.id=null;this.A=null;this.p={};this.fn=null;this.mix=1;this.level=1;this.auto=true;this.on=true;
     this.run=new SeqRun(this);this.S2=null;this.live=null;this.useLive=false;this.ag=1;this.Pi=0;this.Pw=0;this.cap=0}
-  setAlgo(id,p){this.id=ALGM[id]?id:null;this.p=Object.assign({},p||{});this.build();this.T.refresh()}
+  setAlgo(id,p){this.dead=false;this.bads=0;this.id=ALGM[id]?id:null;this.p=Object.assign({},p||{});this.build();this.T.refresh()}
   wantLive(){const A=this.A,T=this.T;if(!A||!A.src||T.mode!=='series'||this.k===0)return false;for(let j=0;j<this.k;j++){const s=T.slots[j];if(s.id&&s.on)return true}return false}
-  build(){const A=ALGM[this.id]||null;this.A=A;this.fn=null;this.ag=1;this.Pi=this.Pw=0;this.useLive=false;if(!A||!this.T.S.L)return;
+  build(){const A=ALGM[this.id]||null;this.A=A;this.fn=null;if(this.dead)return;this.ag=1;this.Pi=this.Pw=0;this.useLive=false;if(!A||!this.T.S.L)return;
     for(const q of A.params)if(this.p[q[0]]==null)this.p[q[0]]=q[4];
     this.useLive=this.wantLive();if(this.useLive){if(!this.live)this.live={L:new Float32Array(LIVE),R:new Float32Array(LIVE),a:0,b:LIVE,pos:0,view:0,sg:0};this.fitLive()}
     this.S2=this.useLive?this.live:this.T.S;this.fn=A.make(this.S2,this.sr,{tracks:this.T.E.tracks,idx:this.T.idx})}
   fitLive(){const S=this.T.S,lv=this.live,want=clamp(Math.round(S.b-S.a),4096,LIVE);if(lv.b!==want){lv.b=want;if(lv.pos>=want)lv.pos=0}}
   busy(){return!!(this.fn&&this.on)||this.run.active()}
   ensure(m){if(this.cap<m){this.cap=m;this.wL=new Float32Array(m);this.wR=new Float32Array(m)}}
-  process(iL,iR,oL,oR,m){this.ensure(m);const run=this.run,seq=run.active();
-    if(this.fn&&this.on){const wL=this.wL,wR=this.wR;wL.fill(0,0,m);wR.fill(0,0,m);if(this.useLive)this.fitLive();
+  // A fault switches off only this effect (or its sequencer) and is reported; the rest keeps playing.
+  fault(e,where){const T=this.T;if(where==='seq')this.run.q=null;else{this.fn=null;this.dead=true}
+    T.E.report(T.idx,this.k,(where==='seq'?'シーケンサー':(this.A?this.A.ja:'効果')),e)}
+  process(iL,iR,oL,oR,m){this.ensure(m);const run=this.run,seq=run.active();let done=false;
+    if(this.fn&&this.on)try{done=this.effect(iL,iR,oL,oR,m,seq)}catch(e){this.fault(e,'fx')}
+    if(!done)for(let i=0;i<m;i++){oL[i]=iL[i];oR[i]=iR[i]}
+    if(seq){try{run.post(oL,oR,iL,iR,m)}catch(e){this.fault(e,'seq')}
+      for(let i=0;i<m;i++)if(!(Math.abs(oL[i])<1e4&&Math.abs(oR[i])<1e4)){this.fault(new Error('シーケンサーの出力に壊れた値'),'seq');for(let j=0;j<m;j++){oL[j]=iL[j];oR[j]=iR[j]}break}}
+    const lv=this.level;if(lv!==1)for(let i=0;i<m;i++){oL[i]*=lv;oR[i]*=lv}}
+  effect(iL,iR,oL,oR,m,seq){const run=this.run;
+    {const wL=this.wL,wR=this.wR;wL.fill(0,0,m);wR.fill(0,0,m);if(this.useLive)this.fitLive();
       this.fn(iL,iR,wL,wR,m,seq&&this.q&&this.q.param.on?run.params(this.p,m):this.p);
       if(this.useLive){const lv=this.live;let w=lv.pos;for(let i=0;i<m;i++){lv.L[w]=iL[i];lv.R[w]=iR[i];if(++w>=lv.b)w=0}lv.pos=w}
       const tr=this.A.trim;let pi=0,pw=0,bad=false;
       for(let i=0;i<m;i++){const a=wL[i],b=wR[i];if(!(Math.abs(a)<1e4&&Math.abs(b)<1e4)){bad=true;break}pi+=iL[i]*iL[i]+iR[i]*iR[i];pw+=a*a+b*b}
-      if(bad){this.build();for(let i=0;i<m;i++){oL[i]=iL[i];oR[i]=iR[i]}}
+      // a runaway value (NaN or huge) restarts the algorithm; if it keeps happening the effect is switched off
+      if(bad){this.bads=(this.bads||0)+1;if(this.bads>8){this.fault(new Error('値が発散し続けた'),'fx');return false}this.build();return false}
       else{pw*=tr*tr;const a=Math.exp(-m/(this.sr*.6));this.Pi=a*this.Pi+(1-a)*pi/(2*m);this.Pw=a*this.Pw+(1-a)*pw/(2*m);
         let tg=1;if(this.auto){tg=this.ag;if(this.Pi>1e-7&&this.Pw>1e-10)tg=clamp(Math.sqrt(this.Pi/this.Pw),.0625,4)}
         const g0=this.ag,g1=g0+(tg-g0)*(1-Math.exp(-m/(this.sr*.3)));this.ag=g1;const mx=this.mix,dm=1-mx;
         for(let i=0;i<m;i++){const g=(g0+(g1-g0)*i/m)*tr*mx;oL[i]=iL[i]*dm+wL[i]*g;oR[i]=iR[i]*dm+wR[i]*g}}}
-    else for(let i=0;i<m;i++){oL[i]=iL[i];oR[i]=iR[i]}
-    if(seq)run.post(oL,oR,iL,iR,m);
-    const lv=this.level;if(lv!==1)for(let i=0;i<m;i++){oL[i]*=lv;oR[i]*=lv}}
+    return true}
   get q(){return this.run.q}
 }
 
@@ -580,7 +588,8 @@ class Track{
   constructor(E,idx){this.E=E;this.idx=idx;this.sr=E.sr;this.S={L:null,R:null,a:0,b:0,pos:0,view:0,sg:0};this.slots=[0,1,2].map(k=>new Slot(this,k));this.mode='series';
     this.vol=.8;this.pan=0;this.width=1;this.depth=0;this.speed=1;this.mute=false;this.solo=false;this.clk=0;this.bus=true;this.on=true;
     this.qc=0;this.qn=0;this.rp=0;this.tL=new Float32Array(128);this.tR=new Float32Array(128);this.cap=0;this.lpL=0;this.lpR=0;this.peak=0;this.peakL=0;this.peakR=0}
-  setSource(L,R){const S=this.S;S.L=L;S.R=R||L;S.a=0;S.b=L.length;S.pos=0;S.view=0;S.sg++;for(const s of this.slots)s.build()}
+  setSource(L,R){for(const c of R&&R!==L?[L,R]:[L])for(let i=0;i<c.length;i++)if(!(c[i]<=8&&c[i]>=-8))c[i]=0;
+    const S=this.S;S.L=L;S.R=R||L;S.a=0;S.b=L.length;S.pos=0;S.view=0;S.sg++;this.broken=false;for(const s of this.slots)s.build()}
   setRegion(a,b){const S=this.S;if(!S.L)return;const N=S.L.length;a=clamp(Math.floor(a),0,Math.max(0,N-64));b=clamp(Math.floor(b),Math.min(N,a+64),N);
     const oa=S.a;S.a=a;S.b=b;const len=b-a;S.pos=a+((((S.pos-oa)%len)+len)%len);S.sg++}
   seek(p){const S=this.S;if(!S.L)return;S.pos=wrap(S,p);S.sg++;for(const s of this.slots)s.run.reset()}
@@ -605,7 +614,7 @@ class Track{
       if(cnt){const g=1/cnt;for(let i=0;i<m;i++){aL[i]*=g;aR[i]*=g}cL=aL;cR=aR}}
     this.cL=cL;this.cR=cR}
   // Samples until the next sequencer step of any slot (and fire steps that start now).
-  steps(n){let m=n;for(const s of this.slots)if(s.run.active()){const u=s.run.check(this);if(u<m)m=u}return m}
+  steps(n){let m=n;for(const s of this.slots)if(s.run.active()){let u=n;try{u=s.run.check(this)}catch(e){s.fault(e,'seq')}if(u<m)m=u}return Math.max(1,m|0)}
   // The loop point gets a short crossfade so a loop dragged to any spot does not click when it wraps:
   // the last few ms fade into the audio just before the loop start (or the first few ms fade out of the
   // audio just after the loop end, when the loop starts at the very beginning of the file).
@@ -632,10 +641,12 @@ class Track{
   // so hard left really is only the left speaker, even for sounds that are already wide.
   mixInto(xL,xR,mL,mR,sL,sR,n){const v=this.vol,w=this.width,d=this.depth,p=this.pan,pa=Math.abs(p),ps=Math.sin(pa*Math.PI/2),pc=Math.cos(pa*Math.PI/2),pg=1/Math.sqrt(1+ps),left=p<0;
     const fc=1100+17000*Math.pow(1-d,1.6),a=1-Math.exp(-TAU*fc/this.sr),dg=v*(1-.45*d),sg=v*Math.pow(d,.8)*.9;let pkl=0,pkr=0;
-    for(let i=0;i<n;i++){let l=xL[i],r=xR[i];const mid=(l+r)*.5,sd=(l-r)*.5*w;l=mid+sd;r=mid-sd;
+    for(let i=0;i<n;i++){let l=xL[i],r=xR[i];if(!(Math.abs(l)<1e4&&Math.abs(r)<1e4)){l=r=0;if(!this.nanTold){this.nanTold=true;this.E.report(this.idx,-1,'トラックの出力',new Error('壊れた値（NaN か巨大な値）が出たので 0 にしました'))}}
+      const mid=(l+r)*.5,sd=(l-r)*.5*w;l=mid+sd;r=mid-sd;
       if(left){const nl=(l+r*ps)*pg;r=r*pc*pg;l=nl}else{const nr=(r+l*ps)*pg;l=l*pc*pg;r=nr}
       this.lpL+=(l-this.lpL)*a;this.lpR+=(r-this.lpR)*a;const ol=this.lpL*dg,or=this.lpR*dg;mL[i]+=ol;mR[i]+=or;sL[i]+=l*sg;sR[i]+=r*sg;
       const zl=Math.abs(ol),zr=Math.abs(or);if(zl>pkl)pkl=zl;if(zr>pkr)pkr=zr}
+    if(!(Math.abs(this.lpL)<1e4&&Math.abs(this.lpR)<1e4)){this.lpL=0;this.lpR=0}
     this.peakL=Math.max(pkl,this.peakL*.96);this.peakR=Math.max(pkr,this.peakR*.96);this.peak=Math.max(this.peakL,this.peakR)}
   fall(){this.peakL*=.96;this.peakR*=.96;this.peak=Math.max(this.peakL,this.peakR)}
 }
@@ -668,19 +679,23 @@ class Engine{
     this.verb=new Verb(sr);this.cap=0;this.lg=1;this.lenv=0;this.mpeak=0;this.rec=false}
   ensure(n){if(this.cap<n){this.cap=n;const f=()=>new Float32Array(n);this.tl=f();this.tr=f();this.mL=f();this.mR=f();this.sL=f();this.sR=f();this.bL=f();this.bR=f()}}
   rewind(){for(const t of this.tracks)t.rewind();this.master.rewind()}
+  report(i,s,what,e){const st=String(e&&e.stack||'').split('\n').map(x=>x.trim()).filter(x=>x&&x!==String(e&&e.message))[0]||'';
+    if(!this.errs)this.errs=[];if(this.errs.length<8)this.errs.push({i,s,what,msg:String(e&&e.message||e).slice(0,140),at:st.slice(0,140)})}
   process(oL,oR,n){this.ensure(n);const mL=this.mL,mR=this.mR,sL=this.sL,sR=this.sR,bL=this.bL,bR=this.bR;mL.fill(0,0,n);mR.fill(0,0,n);sL.fill(0,0,n);sR.fill(0,0,n);
     const M=this.master,mOn=M.on&&M.slots.some(s=>s.busy());if(mOn){bL.fill(0,0,n);bR.fill(0,0,n)}
     if(this.playing){const any=this.tracks.some(t=>t.solo);
       for(const t of this.tracks){if(!t.S.L){t.fall();continue}const aud=any?t.solo:!t.mute;
-        if(!aud){t.skip(n);t.fall();continue}t.render(this.tl,this.tr,n);const b=mOn&&t.bus;t.mixInto(this.tl,this.tr,b?bL:mL,b?bR:mR,sL,sR,n)}
-      if(mOn)M.busRun(bL,bR,mL,mR,n)}
+        if(!aud||t.broken){t.skip(n);t.fall();continue}
+        try{t.render(this.tl,this.tr,n);const b=mOn&&t.bus;t.mixInto(this.tl,this.tr,b?bL:mL,b?bR:mR,sL,sR,n)}catch(e){t.broken=true;this.report(t.idx,-1,'トラック',e)}}
+      if(mOn)try{M.busRun(bL,bR,mL,mR,n)}catch(e){M.on=false;this.report(4,-1,'全体の効果',e)}}
     else for(const t of this.tracks)t.fall();
     this.verb.run(sL,sR,mL,mR,n);
     const v=this.mvol,rel=Math.exp(-1/(this.sr*.15)),rg=1-Math.exp(-1/(this.sr*.12));let pk=0,pl=0,pr=0,bad=false;
     for(let i=0;i<n;i++){let l=mL[i]*v,r=mR[i]*v;if(!(Math.abs(l)<1e4&&Math.abs(r)<1e4)){l=r=0;bad=true}
       const a=Math.max(Math.abs(l),Math.abs(r));this.lenv=a>this.lenv?a:this.lenv*rel;const t=this.lenv>.95?.95/this.lenv:1;
       this.lg=t<this.lg?t:this.lg+(t-this.lg)*rg;l=soft(l*this.lg);r=soft(r*this.lg);oL[i]=l;oR[i]=r;const al=Math.abs(l),ar=Math.abs(r);if(al>pl)pl=al;if(ar>pr)pr=ar}pk=Math.max(pl,pr);
-    if(bad){this.verb=new Verb(this.sr);this.verb.setRoom(this.room==null?.45:this.room)}
+    if(bad){this.badN=(this.badN||0)+n;if(!(this.badN<this.sr)||!this.verbFresh){this.verb=new Verb(this.sr);this.verb.setRoom(this.room==null?.45:this.room);this.verbFresh=true;this.badN=0;
+      this.report(-1,-1,'全体の出力',new Error('壊れた値が出たので残響を作り直しました'))}}else this.verbFresh=false
     this.mpeak=Math.max(pk,this.mpeak*.9);this.mpl=Math.max(pl,(this.mpl||0)*.9);this.mpr=Math.max(pr,(this.mpr||0)*.9)}
 }
 function handle(E,m){const T=m.i==null?null:m.i===4?E.master:E.tracks[m.i],s=T&&m.s!=null?T.slots[m.s]:null;switch(m.t){
@@ -694,18 +709,19 @@ function handle(E,m){const T=m.i==null?null:m.i===4?E.master:E.tracks[m.i],s=T&&
   case'seq':s.run.set(m.seq);break;
   case'g':if(m.k==='room'){E.room=m.v;E.verb.setRoom(m.v)}else E[m.k]=m.v;break;
   case'rewind':E.rewind();break}}
-function tick(E){return{t:'tick',v:E.tracks.map(t=>t.S.view),pk:E.tracks.map(t=>t.peak),pl:E.tracks.map(t=>t.peakL),pr:E.tracks.map(t=>t.peakR),ml:E.mpl||0,mr:E.mpr||0,st:E.tracks.map(t=>t.slots.map(s=>s.run.active()?s.run.step:-1)),ms:E.master.slots.map(s=>s.run.active()?s.run.step:-1),mp:E.mpeak}}
+function tick(E){return{t:'tick',v:E.tracks.map(t=>t.S.view),pk:E.tracks.map(t=>t.peak),pl:E.tracks.map(t=>t.peakL),pr:E.tracks.map(t=>t.peakR),ml:E.mpl||0,mr:E.mpr||0,st:E.tracks.map(t=>t.slots.map(s=>s.run.active()?s.run.step:-1)),ms:E.master.slots.map(s=>s.run.active()?s.run.step:-1),mp:E.mpeak,er:E.errs&&E.errs.length?E.errs.splice(0):null}}
 return{ALG,ALGM,Engine,handle,wrap,DIV,tick};
 })();
 (function PROCSRC(){
 const clock=()=>(globalThis.performance&&performance.now)?performance.now():Date.now();
 class Quartet extends AudioWorkletProcessor{
   constructor(){super();this.e=new LIB.Engine(sampleRate);this.k=0;this.rec=null;this.busy=0;this.w0=clock();this.ld=0;
-    this.port.onmessage=ev=>{const m=ev.data;if(m.t==='rec')this.setRec(m.v);else LIB.handle(this.e,m)}}
+    this.port.onmessage=ev=>{const m=ev.data;if(m.t==='rec')this.setRec(m.v);else if(m.t==='kill')this.dead=true;
+      else try{LIB.handle(this.e,m)}catch(err){this.e.report(m.i==null?-1:m.i,m.s==null?-1:m.s,'設定の受け渡し('+m.t+')',err)}}}
   setRec(on){if(on)this.rec={L:new Float32Array(32768),R:new Float32Array(32768),n:0};else if(this.rec){this.flush(true);this.rec=null}}
   flush(end){const r=this.rec,L=r.L.slice(0,r.n),R=r.R.slice(0,r.n);r.n=0;this.port.postMessage({t:'rec',L,R,end},[L.buffer,R.buffer])}
-  process(ins,outs){const t0=clock(),o=outs[0],L=o[0],R=o[1]||o[0];
-    try{this.e.process(L,R,L.length)}catch(err){L.fill(0);R.fill(0);if(!this.told){this.told=true;this.port.postMessage({t:'err',msg:String(err&&err.message||err)})}}
+  process(ins,outs){if(this.dead)return false;const t0=clock(),o=outs[0];if(!o||!o[0])return true;const L=o[0],R=o[1]||o[0];
+    try{this.e.process(L,R,L.length)}catch(err){L.fill(0);R.fill(0);this.e.report(-1,-1,'エンジン全体',err);if(!this.told){this.told=true;this.port.postMessage({t:'err',msg:String(err&&err.message||err)})}}
     const r=this.rec;if(r){r.L.set(L,r.n);r.R.set(R,r.n);r.n+=L.length;if(r.n+L.length>r.L.length)this.flush(false)}
     const t1=clock();this.busy+=t1-t0;
     // how much of the available time the engine uses, measured over half-second windows
