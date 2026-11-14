@@ -74,6 +74,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:5px;height
 input[type=range]::-moz-range-thumb{width:5px;height:16px;background:var(--ink);border:0;border-radius:0}
 .line{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:3px 0}
 .line label{display:flex;gap:6px;align-items:center}
+.vh{position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:.01;overflow:hidden;pointer-events:none}
+.vh video{width:2px;height:2px}
 .note{color:var(--dim);font-size:11.5px;margin:6px 0 0}
 .file{display:flex;gap:8px;align-items:center;padding:3px 0;min-width:0}
 .file b{font-weight:600;width:1.2em}
@@ -126,7 +128,7 @@ progress{width:100%;height:6px;accent-color:var(--ink)}
       <h2>素材</h2>
       <div class="file"><b>A</b><span id="nameA">見本の景色</span><button id="pickA">景色の動画を選ぶ</button></div>
       <div class="file"><b>B</b><span id="nameB">見本の細胞</span><button id="pickB">動きの元を選ぶ</button></div>
-      <input type="file" id="fileA" accept="video/*" hidden><input type="file" id="fileB" accept="video/*" hidden>
+      <input type="file" id="fileA" accept="video/*" class="vh" tabindex="-1" aria-hidden="true"><input type="file" id="fileB" accept="video/*" class="vh" tabindex="-1" aria-hidden="true"><div id="holder" class="vh" aria-hidden="true"></div>
       <p class="note" id="srcNote">いま映っているのは見本です。Aに三脚で撮った景色、Bに細胞や動物の接写を入れてください。Bは画面には映りません。</p>
     </section>
 
@@ -258,7 +260,7 @@ class VidSrc {
       v.addEventListener('seeked', fin); v.currentTime = t; setTimeout(fin, 4000);
     }); }
   frame(){ return this.v.readyState >= 2 ? this.v : null; }
-  dispose(){ this.v.pause(); URL.revokeObjectURL(this.v.src); this.v.removeAttribute('src'); this.v.load(); }
+  dispose(){ this.v.pause(); URL.revokeObjectURL(this.v.src); this.v.removeAttribute('src'); this.v.load(); this.v.remove(); }
 }
 class SynthSrc {
   constructor(w,h,dur,draw){ this.w=w; this.h=h; this.dur=dur; this.draw=draw; this.c=document.createElement('canvas'); this.c.width=w; this.c.height=h;
@@ -521,9 +523,17 @@ $('mClear').onclick = () => { maskCx.clearRect(0,0,maskCv.width,maskCv.height); 
 /* ---------- loading ---------- */
 function loadVideo(file){
   return new Promise((res, rej) => {
-    const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.loop = true; v.preload = 'auto'; v.src = URL.createObjectURL(file);
-    v.addEventListener('loadeddata', () => (v.videoWidth && isFinite(v.duration)) ? res(new VidSrc(v)) : rej(new Error('nodata')), {once:true});
-    v.addEventListener('error', () => rej(new Error('decode')), {once:true});
+    // iPhone and iPad load no picture until the video is asked to play, and want it muted, inline and in the page
+    const v = document.createElement('video'); v.muted = true; v.defaultMuted = true; v.playsInline = true; v.loop = true; v.preload = 'auto';
+    v.setAttribute('muted',''); v.setAttribute('playsinline',''); v.setAttribute('webkit-playsinline','');
+    $('holder').append(v);
+    let done = false; const fail = why => { if (done) return; done = true; clearInterval(iv); v.remove(); rej(new Error(why)); };
+    const iv = setInterval(() => { if (done) return;
+      if (v.readyState >= 2 && v.videoWidth && isFinite(v.duration) && v.duration > 0) { done = true; clearInterval(iv); res(new VidSrc(v)); } }, 60);
+    v.addEventListener('error', () => fail('decode'), {once:true});
+    v.addEventListener('loadedmetadata', () => { const p = v.play(); if (p) p.catch(()=>{}); }, {once:true});
+    setTimeout(() => fail(v.readyState >= 1 ? 'nopicture' : 'timeout'), 20000);
+    v.src = URL.createObjectURL(file); v.load();
   });
 }
 async function measureB(){
@@ -542,16 +552,18 @@ function setA(src, name){
   setParam('oMbps', clamp(Math.round(A.w*A.h*30*0.25/1e6*2)/2, 2, 120));
   $('outSize').textContent = (A.w&~1)+' × '+(A.h&~1)+' px';
   buildEvents(); fpsTouched = false;
-  if (A.isVideo && A.v.requestVideoFrameCallback) { const ts=[]; const cb=(n,m)=>{ if (A.v!==src.v) return; ts.push(m.mediaTime); if (ts.length<24) src.v.requestVideoFrameCallback(cb); else { const d=[]; for(let i=1;i<ts.length;i++){ const x=ts[i]-ts[i-1]; if (x>0.001) d.push(x); } d.sort((a,b)=>a-b); const f=1/d[d.length>>1]; if (!fpsTouched && isFinite(f) && f>1 && f<=120) setParam('oFps', +f.toFixed(3)); } }; src.v.requestVideoFrameCallback(cb); }
+  if (A.isVideo && A.v.requestVideoFrameCallback) { const ts=[]; const cb=(n,m)=>{ if (A.v!==src.v) return; ts.push(m.mediaTime); if (ts.length<24) src.v.requestVideoFrameCallback(cb); else { const d=[]; for(let i=1;i<ts.length;i++){ const x=ts[i]-ts[i-1]; if (x>0.001) d.push(x); } d.sort((a,b)=>a-b); let f=1/d[d.length>>1]; for (const c of [24,25,30,50,60]) if (Math.abs(f-c)/c < 0.04) f=c; if (!fpsTouched && isFinite(f) && f>1 && f<=120) setParam('oFps', +f.toFixed(3)); } }; src.v.requestVideoFrameCallback(cb); }
 }
 async function setB(src, name){ if (B) B.dispose(); B = src; $('nameB').textContent = name; UI.bStart.num.max = UI.bStart.rng.max = Math.max(0, +(B.dur-0.1).toFixed(1)); setParam('bStart', 0); await measureB(); }
 UI.oFps.num.addEventListener('input', () => { fpsTouched = true; });
 async function pick(which, file){
   if (!file || exporting) return;
-  try { const s = await loadVideo(file); if (which==='A') setA(s, file.name); else await setB(s, file.name);
+  const note = $('srcNote'); note.textContent = file.name + ' を読み込んでいます…';
+  try { const s = await loadVideo(file); if (which==='A') { setA(s, file.name); A.play(); } else { s.pause(); await setB(s, file.name); }
     $('srcNote').textContent = (A.isVideo && B.isVideo) ? 'Bは画面には映りません。動きだけがAのマスク内に入ります。' : 'もう片方はまだ見本です。';
-    if (which==='A') $('msg').textContent = 'マスクは空です。「描く」で変形させたい物を一つだけ塗ってください。';
-  } catch(e) { $('msg').textContent = 'この動画は読み込めませんでした。ブラウザで再生できる形式（MP4やWebM）に変換して、もう一度選んでください。'; }
+    if (which==='A') note.textContent = 'Aを読み込みました。マスクは空なので、「描く」で変形させたい物を一つだけ塗ってください。' + (B.isVideo ? '' : 'Bはまだ見本です。');
+  } catch(e) { note.textContent = file.name + ' は読み込めませんでした（' + (e.message==='decode' ? 'このブラウザで再生できない形式' : '映像が出てこない') + '）。iPhoneの動画はSafariかClaudeアプリで、それ以外はMP4（H.264）に変換して、もう一度選んでください。'; }
+  $('fileA').value = ''; $('fileB').value = '';
 }
 $('pickA').onclick = () => $('fileA').click(); $('pickB').onclick = () => $('fileB').click();
 $('fileA').onchange = e => pick('A', e.target.files[0]); $('fileB').onchange = e => pick('B', e.target.files[0]);
@@ -600,8 +612,8 @@ async function runExport(){
   try {
     const M = pc.c.ext === 'mp4' ? Mp4Muxer : WebMMuxer;
     const muxer = new M.Muxer(pc.c.ext === 'mp4'
-      ? {target:new M.ArrayBufferTarget(), video:{codec:'avc', width:w, height:h, frameRate:fps}, fastStart:'in-memory'}
-      : {target:new M.ArrayBufferTarget(), video:{codec:pc.c.mux, width:w, height:h, frameRate:fps}});
+      ? {target:new M.ArrayBufferTarget(), video:{codec:'avc', width:w, height:h}, fastStart:'in-memory'}
+      : {target:new M.ArrayBufferTarget(), video:{codec:pc.c.mux, width:w, height:h}});
     enc = new VideoEncoder({output:(chunk, meta) => muxer.addVideoChunk(chunk, meta), error:e => { err = e; }});
     enc.configure(pc.cfg);
     cv.width = w; cv.height = h; cv.style.width = '';
