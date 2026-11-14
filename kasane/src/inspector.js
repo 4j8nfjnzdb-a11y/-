@@ -74,7 +74,7 @@
     const modeSel = UI.select(RL.MODES.map((m) => [m[0], m[1]]), rel.mode, (v) => { rel.mode = v; if (v === 'step' && rel.atk < 0.04) { rel.atk = rel.rel = 0.06; } rebuild('relation'); }, { label: '態度' });
     let amt;
     if (desc.type === 'color') amt = rel.cm === 'hue' ? N('回す角度', 'amt', { step: 5, unit: '°', def: 360 }) : h('label.fld', h('span', '行き先の色'), UI.color({ value: rel.to || [1, 1, 1, 1], noAlpha: true, onInput: (v, done) => { rel.to = v; KS.changed(); if (done) KS.commit('relation'); } }));
-    else if (U.isArr(rel.amt)) { const mk = (i) => UI.num({ value: rel.amt[i], step: desc.step || 1, label: '量', onInput: (v, done) => { rel.amt[i] = v; KS.changed(); if (done) KS.commit('relation'); } }); amt = h('label.fld', h('span', '動く量'), h('span.pv', mk(0), mk(1))); }
+    else if (U.isArr(rel.amt)) { const mk = (i) => UI.num({ value: rel.amt[i], step: desc.step || 1, label: '量', onInput: (v, done) => { rel.amt[i] = v; KS.changed(); if (done) KS.commit('relation'); } }); amt = h('label.fld.full', h('span', '動く量（横・縦）'), h('span.pv', mk(0), mk(1))); }
     else amt = N('動く量', 'amt', { step: desc.step || 1, unit: desc.unit && desc.unit.length === 1 ? desc.unit : '', def: 20 });
     const cv = h('canvas.scope', { width: 420, height: 68, title: '再生位置の前後3秒で、この関係がプロパティに足す量' });
     scopes.push({ cv, L, rel });

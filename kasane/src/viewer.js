@@ -74,9 +74,37 @@
   };
   const inQuad = (c, x, y) => { let s = 0; for (let i = 0; i < 4; i++) { const a = c[i], b = c[(i + 1) % 4], cr = (b[0] - a[0]) * (y - a[1]) - (b[1] - a[1]) * (x - a[0]); if (cr === 0) continue; if (s === 0) s = Math.sign(cr); else if (Math.sign(cr) !== s) return false; } return true; };
   const pickable = (frame, comp, L) => L.tr && L.type !== 'audio' && !L.lock && frame.active(L) && (comp.layers.some((l) => l.solo) ? L.solo : L.vis);
+  // is this point of the layer (in its own coordinates) still there after its masks and tears?
+  const covered = (L, x, y) => {
+    const mks = L.masks || []; if (!mks.length) return true;
+    const plain = mks.filter((m) => !m.torn && m.pts.length > 2);
+    let cov = true;
+    if (plain.length) {
+      cov = plain[0].mode !== 'add';
+      for (const m of plain) { KS.Raster.maskPath(o2, m); o2.save(); o2.setTransform(1, 0, 0, 1, 0, 0); const inP = o2.isPointInPath(x, y) !== !!m.inv; o2.restore(); cov = m.mode === 'add' ? cov || inP : m.mode === 'subtract' ? cov && !inP : cov && inP; }
+      o2.beginPath();
+    }
+    for (const m of mks) {
+      if (!cov || !m.torn || m.torn.line.length < 2) continue;
+      const ln = m.torn.line; let best = Infinity, side = 0;
+      for (let i = 0; i + 1 < ln.length; i++) {
+        const a = ln[i], b = ln[i + 1], dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy || 1;
+        let t = ((x - a[0]) * dx + (y - a[1]) * dy) / l2; if (i > 0) t = Math.max(0, t); if (i + 2 < ln.length) t = Math.min(1, t);   // the two end stretches run on to the edge
+        const d = Math.hypot(x - (a[0] + dx * t), y - (a[1] + dy * t));
+        if (d < best) { best = d; side = dx * (y - a[1]) - dy * (x - a[0]); }
+      }
+      cov = side * m.torn.side > 0;
+    }
+    return cov;
+  };
   V.pick = (sx, sy) => {
-    const comp = KS.comp(), frame = KS.frameNow();
-    for (const L of comp.layers) if (pickable(frame, comp, L) && L.type !== 'adjust' && inQuad(geom(frame, L).c, sx, sy)) return L;
+    const comp = KS.comp(), frame = KS.frameNow(), c = V.toComp(sx, sy);
+    for (const L of comp.layers) {
+      if (!pickable(frame, comp, L) || L.type === 'adjust') continue;
+      const g = geom(frame, L); if (!inQuad(g.c, sx, sy)) continue;
+      const lp = U.mApply(U.mInv(g.W), c[0], c[1]);
+      if (covered(L, lp[0], lp[1])) return L;
+    }
     return null;
   };
   const near = (p, x, y, rad) => Math.hypot(p[0] - x, p[1] - y) <= rad;
@@ -203,12 +231,7 @@
     if (S.tool === 'rect' || S.tool === 'ellipse' || S.tool === 'star') { drag = { kind: 'shape', x0: x, y0: y, x1: x, y1: y }; return; }
     if (S.tool === 'text') { const L = KS.cmd.addLayer('text', { str: 'テキスト' }); L.tr.p.v = [Math.round(c[0]), Math.round(c[1])]; KS.setTool('select'); KS.restructured(); KS.commit('text'); KS.emit('focusText'); return; }
     if (S.tool === 'pen') return penDown(x, y, prim, frame, rad);
-    if (S.tool === 'tear') {
-      const L = prim && inQuad(geom(frame, prim).c, x, y) ? prim : V.pick(x, y);
-      if (!L) { V.note('ちぎりたいレイヤーの上を、線を引くようになぞってください'); return; }
-      const inv = U.mInv(frame.world(L));
-      drag = { kind: 'tear', L, inv, pts: [U.mApply(inv, c[0], c[1])], scr: [[x, y]] }; return;
-    }
+    if (S.tool === 'tear') { drag = { kind: 'tear', prim, scr: [[x, y]] }; return; }   // which layer it is gets decided by what the line crosses
     if (S.tool === 'pin') {
       let L = prim, pf = pinsFx(L);
       if (L && pf) { const g = geom(frame, L); for (const q of pf.pins) { const cur = frame.val(L, `fx.${pf.id}.pin.${q.id}`); if (near(g.P(cur[0], cur[1]), x, y, rad + 2)) return beginPin(L, pf, q); } }
@@ -304,7 +327,7 @@
       case 'maskpt': { const p = U.mApply(drag.inv, c[0], c[1]), q = drag.mk.pts[drag.i]; if (drag.alt) { q.ox = U.round(p[0] - q.x, 1); q.oy = U.round(p[1] - q.y, 1); q.ix = -q.ox; q.iy = -q.oy; } else { q.x = U.round(p[0], 1); q.y = U.round(p[1], 1); } break; }
       case 'maskh': { const p = U.mApply(drag.inv, c[0], c[1]), q = drag.mk.pts[drag.i], k = drag.hk, o = k === 'o' ? 'i' : 'o'; q[k + 'x'] = U.round(p[0] - q.x, 1); q[k + 'y'] = U.round(p[1] - q.y, 1); if (!e.altKey) { q[o + 'x'] = -q[k + 'x']; q[o + 'y'] = -q[k + 'y']; } break; }
       case 'pathkey': { const d = U.mVec(drag.pinv, (x - drag.x) / z, (y - drag.y) / z); drag.key.v = [U.round(drag.v0[0] + d[0], 2), U.round(drag.v0[1] + d[1], 2)]; break; }
-      case 'tear': { const last = drag.scr[drag.scr.length - 1]; if (Math.hypot(x - last[0], y - last[1]) > 3) { drag.scr.push([x, y]); drag.pts.push(U.mApply(drag.inv, c[0], c[1])); } KS.touch('overlay'); return; }
+      case 'tear': { const last = drag.scr[drag.scr.length - 1]; if (Math.hypot(x - last[0], y - last[1]) > 3) drag.scr.push([x, y]); KS.touch('overlay'); return; }
       case 'shape': drag.x1 = x; drag.y1 = y; KS.touch('overlay'); return;
       case 'pen': { const p = V.pen.pts[V.pen.pts.length - 1], q = drag.inv ? U.mApply(drag.inv, c[0], c[1]) : c; if (Math.hypot(x - drag.x, y - drag.y) > 4) { p.ox = U.round(q[0] - p.x, 1); p.oy = U.round(q[1] - p.y, 1); p.ix = -p.ox; p.iy = -p.oy; } KS.touch('overlay'); return; }
       default: return;
@@ -371,9 +394,15 @@
 
   // ---------------------------------------------------------------- tearing
   function doTear(d) {
-    const comp = KS.comp(), L = d.L, r = R.rectOf(L), diag = Math.hypot(r.w, r.h);
+    const comp = KS.comp(), frame = KS.frameNow();
     const len = d.scr.reduce((s, p, i) => (i ? s + Math.hypot(p[0] - d.scr[i - 1][0], p[1] - d.scr[i - 1][1]) : 0), 0);
-    if (len < 24 || d.pts.length < 2) { V.note('もう少し長く、レイヤーを横切るようになぞってください'); return; }
+    if (len < 24 || d.scr.length < 2) { V.note('ちぎりたいレイヤーを横切るように、線を引いてください'); return; }
+    // the selected layer if the line crosses it; otherwise the first layer the line runs over
+    let L = d.prim && !d.prim.lock && d.scr.some((p) => inQuad(geom(frame, d.prim).c, p[0], p[1])) ? d.prim : null;
+    if (!L) for (const p of d.scr) { L = V.pick(p[0], p[1]); if (L) break; }
+    if (!L) { V.note('線がどのレイヤーにも掛かっていません。ちぎりたいレイヤーを横切るように引いてください'); return; }
+    const inv = U.mInv(frame.world(L)), r = R.rectOf(L), diag = Math.hypot(r.w, r.h);
+    d.pts = d.scr.map((p) => { const c = V.toComp(p[0], p[1]); return U.mApply(inv, c[0], c[1]); });
     const keep = U.rdp(d.pts, Math.max(0.6, diag / 500)), line = keep.map((i) => [U.round(d.pts[i][0], 1), U.round(d.pts[i][1], 1)]);
     const seed = Math.floor(Math.random() * 9000) + 1, torn = (side) => { const m = M.newMask([]); m.torn = { line, side, seed, rough: U.round(diag / 60, 1), fibre: U.round(diag / 110, 1) }; return m; };
     const B = M.cloneLayer(L); B.name = M.uniqueName(comp, L.name.replace(/ ちぎれ.*$/, '') + ' ちぎれ');

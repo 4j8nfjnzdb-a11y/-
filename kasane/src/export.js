@@ -74,7 +74,8 @@
         mix = await MD.mixdown(project, comp, t0, t1);
         if (mix) {
           const acodec = await MB.getFirstEncodableAudioCodec(ext === 'webm' ? ['opus', 'vorbis'] : ['aac', 'opus'], { numberOfChannels: mix.numberOfChannels, sampleRate: mix.sampleRate });
-          if (acodec) { as = new MB.AudioBufferSource({ codec: acodec, bitrate: MB.QUALITY_HIGH }); output.addAudioTrack(as); } else note += ' 音はこのブラウザで符号化できなかったため入っていません。';
+          if (acodec) { as = new MB.AudioBufferSource({ codec: acodec, bitrate: MB.QUALITY_HIGH }); output.addAudioTrack(as); if (ext === 'mp4' && acodec !== 'aac') note += ' このブラウザは AAC に書き出せないため、音は Opus で入っています（再生できないアプリがあります）。'; }
+          else note += ' 音はこのブラウザで符号化できなかったため入っていません。';
         }
       }
       await output.start();

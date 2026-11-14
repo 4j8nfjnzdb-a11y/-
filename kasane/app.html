@@ -251,7 +251,7 @@ button:disabled{opacity:.4;cursor:default}
   .app[data-tab="tl"] .left,.app[data-tab="tl"] .insp,.app[data-tab="insp"] .left,.app[data-tab="insp"] .tl,.app[data-tab="left"] .insp,.app[data-tab="left"] .tl{display:none}
   .top{flex-wrap:wrap;gap:6px}
   .tools{order:5;flex-basis:100%}
-  .brand span{display:none}
+  .brand span,#helpBtn{display:none}
   .tabs{grid-area:tabs;display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--line2);padding-bottom:2px}
   .tabs button{height:38px;color:var(--dim);font-size:12px}
   .tabs button[aria-pressed="true"]{color:var(--tape);box-shadow:inset 0 2px 0 var(--tape)}
@@ -574,7 +574,7 @@ var KS = globalThis.KS || (globalThis.KS = {});
     if (s[0] === 'fx') {
       const fx = layer.fx && layer.fx.find((f) => f.id === s[1]);
       if (!fx) return null;
-      if (s[2] === 'pin') { const pin = fx.pins && fx.pins.find((q) => q.id === s[3]); return pin ? pin.pos : null; }
+      if (s[2] === 'pin' && s.length > 3) { const pin = fx.pins && fx.pins.find((q) => q.id === s[3]); return pin ? pin.pos : null; }   // (an effect may also have a plain parameter called "pin")
       return fx.p[s[2]] || null;
     }
     if (s[0] === 'mk') { const mk = layer.masks && layer.masks.find((m) => m.id === s[1]); return mk ? mk.p[s[2]] : null; }
@@ -588,7 +588,7 @@ var KS = globalThis.KS || (globalThis.KS = {});
       const fx = layer.fx && layer.fx.find((f) => f.id === s[1]);
       if (!fx) return null;
       const def = KS.FX && KS.FX.defs[fx.type];
-      if (s[2] === 'pin') { const i = fx.pins.findIndex((q) => q.id === s[3]); return { label: 'ピン ' + (i + 1), type: 'vec2', unit: 'px', step: 1, group: def ? def.name : '' }; }
+      if (s[2] === 'pin' && s.length > 3) { const i = (fx.pins || []).findIndex((q) => q.id === s[3]); return { label: 'ピン ' + (i + 1), type: 'vec2', unit: 'px', step: 1, group: def ? def.name : '' }; }
       const pd = def && def.params.find((q) => q.id === s[2]);
       return pd ? Object.assign({ group: fx.name || def.name }, pd, { label: pd.name }) : null;
     }
@@ -642,7 +642,7 @@ var KS = globalThis.KS || (globalThis.KS = {});
   M.setKey = (prop, t, v, opts = {}) => {
     if (!prop.k) prop.k = [];
     let key = M.keyAt(prop, t);
-    if (key) { key.v = U.vcopy(v); return key; }
+    if (key) { key.v = U.vcopy(v); prop.v = U.vcopy(v); return key; }
     key = { id: U.uid('k'), t, v: U.vcopy(v) };
     const i = prop.k.length ? M.keySeg(prop.k, t) : -1;
     if (opts.e !== undefined) { if (opts.e) key.e = opts.e.slice(); }
@@ -2935,6 +2935,7 @@ void main(){
   };
   // ---- processes: effects that are applied to their own result, frame after frame
   let procs = new Map();        // fx.id → { key, n, state, cps: [{ n, rt }], sig, docVer }
+  let stepBudget = 24;          // how many steps a redraw may catch up; grows on fast machines, shrinks on slow ones
   const freeProc = (st) => { if (st.key.endsWith(':' + G.gen)) { if (st.state) G.release(st.state); for (const c of st.cps) G.release(c.rt); } };
   function runProcess(env, L, t, f, def, ctx, input, p) {
     if (def.float && !G.floatOK) return input;
@@ -2948,7 +2949,7 @@ void main(){
       if (st.state) G.release(st.state);
       st.state = best ? FX.copyRt(best.rt) : null; st.n = best ? best.n : -1;
     }
-    let budget = env.exporting ? 1e9 : 120;
+    let budget = env.exporting ? 1e9 : Math.max(1, Math.round(stepBudget));   // catching up is spread over several redraws so the page never locks
     while (st.n < fi && budget-- > 0) {
       const n1 = st.n + 1, tn = L.in + n1 / fps;
       ctx.time = tn; ctx.frameNo = n1;
@@ -2990,7 +2991,7 @@ void main(){
       return { tex: G.white, rect: { x: 0, y: 0, w: L.d.w, h: L.d.h }, rs: 1, tint: [c[0] * c[3], c[1] * c[3], c[2] * c[3], c[3]], flat: true, hard: true };
     }
     if (L.type === 'text' || L.type === 'shape') {
-      const v = typeVals(frame, L, t), want = quantRs(U.mScaleOf(world) * 1.0);
+      const v = typeVals(frame, L, t), want = hasProcess(L) ? 1 : quantRs(U.mScaleOf(world) * 1.0);   // a process counts in pixels: its grid must not depend on the zoom
       const key = JSON.stringify([L.d, v, want, KS.Fonts.gen]);
       let e = srcCache.get(L.id);
       if (!e || e.key !== key || e.gen !== G.gen) {
@@ -3029,8 +3030,9 @@ void main(){
       const nc = M.comp(env.project, L.comp);
       if (!nc || env.depth > 6 || env.stack.includes(nc.id)) return null;
       const tl = (frame.lt(L, t) - L.start) * (L.speed || 1);
-      const rt = renderComp(env.project, nc, tl, { res: env.res, mb: env.mb, depth: env.depth + 1, stack: env.stack.concat(env.comp.id), exporting: env.exporting, playing: env.playing });
-      return { tex: rt.tex, rect: { x: 0, y: 0, w: nc.w, h: nc.h }, rs: env.res, own: rt, hard: true };
+      const nres = hasProcess(L) ? 1 : env.res;
+      const rt = renderComp(env.project, nc, tl, { res: nres, mb: env.mb, depth: env.depth + 1, stack: env.stack.concat(env.comp.id), exporting: env.exporting, playing: env.playing });
+      return { tex: rt.tex, rect: { x: 0, y: 0, w: nc.w, h: nc.h }, rs: nres, own: rt, hard: true };
     }
     return null;
   }
@@ -3120,6 +3122,7 @@ void main(){
     return m;
   }
   const meshFx = (L) => (L.fx || []).filter((f) => f.on && FX.defs[f.type] && FX.defs[f.type].mesh);
+  const hasProcess = (L) => (L.fx || []).some((f) => f.on && FX.defs[f.type] && FX.defs[f.type].process);
 
   // place the prepared layer into rt with the given matrix; deforms the mesh when a tactile effect asks for it
   function place(env, rt, L, t, pre, mat, alpha, blend, mfx) {
@@ -3266,7 +3269,9 @@ void main(){
     const t0 = performance.now();
     R.stats.layers = 0; R.more = false;
     const rt = renderComp(project, comp, t, o);
+    if (R.more && !o.exporting) G.gl.finish();   // only while catching up: make the time measurement honest
     R.stats.ms = performance.now() - t0;
+    if (!o.exporting) stepBudget = R.more ? U.clamp(stepBudget * (R.stats.ms < 14 ? 1.6 : R.stats.ms > 40 ? 0.5 : 1), 1, 240) : Math.max(stepBudget, 12);
     return rt;
   };
   // RGBA pixels of a frame (straight alpha over nothing, or flattened onto the background)
@@ -3789,7 +3794,8 @@ void main(){
         mix = await MD.mixdown(project, comp, t0, t1);
         if (mix) {
           const acodec = await MB.getFirstEncodableAudioCodec(ext === 'webm' ? ['opus', 'vorbis'] : ['aac', 'opus'], { numberOfChannels: mix.numberOfChannels, sampleRate: mix.sampleRate });
-          if (acodec) { as = new MB.AudioBufferSource({ codec: acodec, bitrate: MB.QUALITY_HIGH }); output.addAudioTrack(as); } else note += ' 音はこのブラウザで符号化できなかったため入っていません。';
+          if (acodec) { as = new MB.AudioBufferSource({ codec: acodec, bitrate: MB.QUALITY_HIGH }); output.addAudioTrack(as); if (ext === 'mp4' && acodec !== 'aac') note += ' このブラウザは AAC に書き出せないため、音は Opus で入っています（再生できないアプリがあります）。'; }
+          else note += ' 音はこのブラウザで符号化できなかったため入っていません。';
         }
       }
       await output.start();
@@ -4118,9 +4124,37 @@ void main(){
   };
   const inQuad = (c, x, y) => { let s = 0; for (let i = 0; i < 4; i++) { const a = c[i], b = c[(i + 1) % 4], cr = (b[0] - a[0]) * (y - a[1]) - (b[1] - a[1]) * (x - a[0]); if (cr === 0) continue; if (s === 0) s = Math.sign(cr); else if (Math.sign(cr) !== s) return false; } return true; };
   const pickable = (frame, comp, L) => L.tr && L.type !== 'audio' && !L.lock && frame.active(L) && (comp.layers.some((l) => l.solo) ? L.solo : L.vis);
+  // is this point of the layer (in its own coordinates) still there after its masks and tears?
+  const covered = (L, x, y) => {
+    const mks = L.masks || []; if (!mks.length) return true;
+    const plain = mks.filter((m) => !m.torn && m.pts.length > 2);
+    let cov = true;
+    if (plain.length) {
+      cov = plain[0].mode !== 'add';
+      for (const m of plain) { KS.Raster.maskPath(o2, m); o2.save(); o2.setTransform(1, 0, 0, 1, 0, 0); const inP = o2.isPointInPath(x, y) !== !!m.inv; o2.restore(); cov = m.mode === 'add' ? cov || inP : m.mode === 'subtract' ? cov && !inP : cov && inP; }
+      o2.beginPath();
+    }
+    for (const m of mks) {
+      if (!cov || !m.torn || m.torn.line.length < 2) continue;
+      const ln = m.torn.line; let best = Infinity, side = 0;
+      for (let i = 0; i + 1 < ln.length; i++) {
+        const a = ln[i], b = ln[i + 1], dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy || 1;
+        let t = ((x - a[0]) * dx + (y - a[1]) * dy) / l2; if (i > 0) t = Math.max(0, t); if (i + 2 < ln.length) t = Math.min(1, t);   // the two end stretches run on to the edge
+        const d = Math.hypot(x - (a[0] + dx * t), y - (a[1] + dy * t));
+        if (d < best) { best = d; side = dx * (y - a[1]) - dy * (x - a[0]); }
+      }
+      cov = side * m.torn.side > 0;
+    }
+    return cov;
+  };
   V.pick = (sx, sy) => {
-    const comp = KS.comp(), frame = KS.frameNow();
-    for (const L of comp.layers) if (pickable(frame, comp, L) && L.type !== 'adjust' && inQuad(geom(frame, L).c, sx, sy)) return L;
+    const comp = KS.comp(), frame = KS.frameNow(), c = V.toComp(sx, sy);
+    for (const L of comp.layers) {
+      if (!pickable(frame, comp, L) || L.type === 'adjust') continue;
+      const g = geom(frame, L); if (!inQuad(g.c, sx, sy)) continue;
+      const lp = U.mApply(U.mInv(g.W), c[0], c[1]);
+      if (covered(L, lp[0], lp[1])) return L;
+    }
     return null;
   };
   const near = (p, x, y, rad) => Math.hypot(p[0] - x, p[1] - y) <= rad;
@@ -4247,12 +4281,7 @@ void main(){
     if (S.tool === 'rect' || S.tool === 'ellipse' || S.tool === 'star') { drag = { kind: 'shape', x0: x, y0: y, x1: x, y1: y }; return; }
     if (S.tool === 'text') { const L = KS.cmd.addLayer('text', { str: 'テキスト' }); L.tr.p.v = [Math.round(c[0]), Math.round(c[1])]; KS.setTool('select'); KS.restructured(); KS.commit('text'); KS.emit('focusText'); return; }
     if (S.tool === 'pen') return penDown(x, y, prim, frame, rad);
-    if (S.tool === 'tear') {
-      const L = prim && inQuad(geom(frame, prim).c, x, y) ? prim : V.pick(x, y);
-      if (!L) { V.note('ちぎりたいレイヤーの上を、線を引くようになぞってください'); return; }
-      const inv = U.mInv(frame.world(L));
-      drag = { kind: 'tear', L, inv, pts: [U.mApply(inv, c[0], c[1])], scr: [[x, y]] }; return;
-    }
+    if (S.tool === 'tear') { drag = { kind: 'tear', prim, scr: [[x, y]] }; return; }   // which layer it is gets decided by what the line crosses
     if (S.tool === 'pin') {
       let L = prim, pf = pinsFx(L);
       if (L && pf) { const g = geom(frame, L); for (const q of pf.pins) { const cur = frame.val(L, `fx.${pf.id}.pin.${q.id}`); if (near(g.P(cur[0], cur[1]), x, y, rad + 2)) return beginPin(L, pf, q); } }
@@ -4348,7 +4377,7 @@ void main(){
       case 'maskpt': { const p = U.mApply(drag.inv, c[0], c[1]), q = drag.mk.pts[drag.i]; if (drag.alt) { q.ox = U.round(p[0] - q.x, 1); q.oy = U.round(p[1] - q.y, 1); q.ix = -q.ox; q.iy = -q.oy; } else { q.x = U.round(p[0], 1); q.y = U.round(p[1], 1); } break; }
       case 'maskh': { const p = U.mApply(drag.inv, c[0], c[1]), q = drag.mk.pts[drag.i], k = drag.hk, o = k === 'o' ? 'i' : 'o'; q[k + 'x'] = U.round(p[0] - q.x, 1); q[k + 'y'] = U.round(p[1] - q.y, 1); if (!e.altKey) { q[o + 'x'] = -q[k + 'x']; q[o + 'y'] = -q[k + 'y']; } break; }
       case 'pathkey': { const d = U.mVec(drag.pinv, (x - drag.x) / z, (y - drag.y) / z); drag.key.v = [U.round(drag.v0[0] + d[0], 2), U.round(drag.v0[1] + d[1], 2)]; break; }
-      case 'tear': { const last = drag.scr[drag.scr.length - 1]; if (Math.hypot(x - last[0], y - last[1]) > 3) { drag.scr.push([x, y]); drag.pts.push(U.mApply(drag.inv, c[0], c[1])); } KS.touch('overlay'); return; }
+      case 'tear': { const last = drag.scr[drag.scr.length - 1]; if (Math.hypot(x - last[0], y - last[1]) > 3) drag.scr.push([x, y]); KS.touch('overlay'); return; }
       case 'shape': drag.x1 = x; drag.y1 = y; KS.touch('overlay'); return;
       case 'pen': { const p = V.pen.pts[V.pen.pts.length - 1], q = drag.inv ? U.mApply(drag.inv, c[0], c[1]) : c; if (Math.hypot(x - drag.x, y - drag.y) > 4) { p.ox = U.round(q[0] - p.x, 1); p.oy = U.round(q[1] - p.y, 1); p.ix = -p.ox; p.iy = -p.oy; } KS.touch('overlay'); return; }
       default: return;
@@ -4415,9 +4444,15 @@ void main(){
 
   // ---------------------------------------------------------------- tearing
   function doTear(d) {
-    const comp = KS.comp(), L = d.L, r = R.rectOf(L), diag = Math.hypot(r.w, r.h);
+    const comp = KS.comp(), frame = KS.frameNow();
     const len = d.scr.reduce((s, p, i) => (i ? s + Math.hypot(p[0] - d.scr[i - 1][0], p[1] - d.scr[i - 1][1]) : 0), 0);
-    if (len < 24 || d.pts.length < 2) { V.note('もう少し長く、レイヤーを横切るようになぞってください'); return; }
+    if (len < 24 || d.scr.length < 2) { V.note('ちぎりたいレイヤーを横切るように、線を引いてください'); return; }
+    // the selected layer if the line crosses it; otherwise the first layer the line runs over
+    let L = d.prim && !d.prim.lock && d.scr.some((p) => inQuad(geom(frame, d.prim).c, p[0], p[1])) ? d.prim : null;
+    if (!L) for (const p of d.scr) { L = V.pick(p[0], p[1]); if (L) break; }
+    if (!L) { V.note('線がどのレイヤーにも掛かっていません。ちぎりたいレイヤーを横切るように引いてください'); return; }
+    const inv = U.mInv(frame.world(L)), r = R.rectOf(L), diag = Math.hypot(r.w, r.h);
+    d.pts = d.scr.map((p) => { const c = V.toComp(p[0], p[1]); return U.mApply(inv, c[0], c[1]); });
     const keep = U.rdp(d.pts, Math.max(0.6, diag / 500)), line = keep.map((i) => [U.round(d.pts[i][0], 1), U.round(d.pts[i][1], 1)]);
     const seed = Math.floor(Math.random() * 9000) + 1, torn = (side) => { const m = M.newMask([]); m.torn = { line, side, seed, rough: U.round(diag / 60, 1), fibre: U.round(diag / 110, 1) }; return m; };
     const B = M.cloneLayer(L); B.name = M.uniqueName(comp, L.name.replace(/ ちぎれ.*$/, '') + ' ちぎれ');
@@ -4840,7 +4875,7 @@ void main(){
     const modeSel = UI.select(RL.MODES.map((m) => [m[0], m[1]]), rel.mode, (v) => { rel.mode = v; if (v === 'step' && rel.atk < 0.04) { rel.atk = rel.rel = 0.06; } rebuild('relation'); }, { label: '態度' });
     let amt;
     if (desc.type === 'color') amt = rel.cm === 'hue' ? N('回す角度', 'amt', { step: 5, unit: '°', def: 360 }) : h('label.fld', h('span', '行き先の色'), UI.color({ value: rel.to || [1, 1, 1, 1], noAlpha: true, onInput: (v, done) => { rel.to = v; KS.changed(); if (done) KS.commit('relation'); } }));
-    else if (U.isArr(rel.amt)) { const mk = (i) => UI.num({ value: rel.amt[i], step: desc.step || 1, label: '量', onInput: (v, done) => { rel.amt[i] = v; KS.changed(); if (done) KS.commit('relation'); } }); amt = h('label.fld', h('span', '動く量'), h('span.pv', mk(0), mk(1))); }
+    else if (U.isArr(rel.amt)) { const mk = (i) => UI.num({ value: rel.amt[i], step: desc.step || 1, label: '量', onInput: (v, done) => { rel.amt[i] = v; KS.changed(); if (done) KS.commit('relation'); } }); amt = h('label.fld.full', h('span', '動く量（横・縦）'), h('span.pv', mk(0), mk(1))); }
     else amt = N('動く量', 'amt', { step: desc.step || 1, unit: desc.unit && desc.unit.length === 1 ? desc.unit : '', def: 20 });
     const cv = h('canvas.scope', { width: 420, height: 68, title: '再生位置の前後3秒で、この関係がプロパティに足す量' });
     scopes.push({ cv, L, rel });
@@ -5192,6 +5227,7 @@ void main(){
         for (const l of comp.layers) if (l !== L && l.out >= old - 1e-6 && l.type !== 'video' && l.type !== 'audio') l.out = comp.dur;
         KS.toast(`コンポジションの長さを ${U.fmtNum(comp.dur, 1)} 秒に延ばしました`); TL.fit();
       }
+      if (a.kind === 'audio') { comp.layers.splice(comp.layers.indexOf(L), 1); comp.layers.push(L); }   // sound has no place in the stack; keep it at the bottom
       if (a.kind === 'audio' || a.hasAudio) S.tl.open[L.id] = 'tr';
     }
     KS.restructured(); KS.commit('add footage');
@@ -5221,6 +5257,7 @@ void main(){
       { label: 'いまのコマを透明つきで保存', run: () => EX.still(true).then(deliver) },
       { sep: true },
       { label: 'サンプルを開く', run: () => UI.confirm('サンプルを開く', 'いまの内容を閉じて、サンプルを開きます。', '開く', () => adopt(KS.demo(), { t: 3.6 })) },
+      { label: '使い方', run: help },
     ]);
   }
   function addMenu(anchor) {

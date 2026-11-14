@@ -41,6 +41,7 @@
   };
   // ---- processes: effects that are applied to their own result, frame after frame
   let procs = new Map();        // fx.id → { key, n, state, cps: [{ n, rt }], sig, docVer }
+  let stepBudget = 24;          // how many steps a redraw may catch up; grows on fast machines, shrinks on slow ones
   const freeProc = (st) => { if (st.key.endsWith(':' + G.gen)) { if (st.state) G.release(st.state); for (const c of st.cps) G.release(c.rt); } };
   function runProcess(env, L, t, f, def, ctx, input, p) {
     if (def.float && !G.floatOK) return input;
@@ -54,7 +55,7 @@
       if (st.state) G.release(st.state);
       st.state = best ? FX.copyRt(best.rt) : null; st.n = best ? best.n : -1;
     }
-    let budget = env.exporting ? 1e9 : 120;
+    let budget = env.exporting ? 1e9 : Math.max(1, Math.round(stepBudget));   // catching up is spread over several redraws so the page never locks
     while (st.n < fi && budget-- > 0) {
       const n1 = st.n + 1, tn = L.in + n1 / fps;
       ctx.time = tn; ctx.frameNo = n1;
@@ -96,7 +97,7 @@
       return { tex: G.white, rect: { x: 0, y: 0, w: L.d.w, h: L.d.h }, rs: 1, tint: [c[0] * c[3], c[1] * c[3], c[2] * c[3], c[3]], flat: true, hard: true };
     }
     if (L.type === 'text' || L.type === 'shape') {
-      const v = typeVals(frame, L, t), want = quantRs(U.mScaleOf(world) * 1.0);
+      const v = typeVals(frame, L, t), want = hasProcess(L) ? 1 : quantRs(U.mScaleOf(world) * 1.0);   // a process counts in pixels: its grid must not depend on the zoom
       const key = JSON.stringify([L.d, v, want, KS.Fonts.gen]);
       let e = srcCache.get(L.id);
       if (!e || e.key !== key || e.gen !== G.gen) {
@@ -135,8 +136,9 @@
       const nc = M.comp(env.project, L.comp);
       if (!nc || env.depth > 6 || env.stack.includes(nc.id)) return null;
       const tl = (frame.lt(L, t) - L.start) * (L.speed || 1);
-      const rt = renderComp(env.project, nc, tl, { res: env.res, mb: env.mb, depth: env.depth + 1, stack: env.stack.concat(env.comp.id), exporting: env.exporting, playing: env.playing });
-      return { tex: rt.tex, rect: { x: 0, y: 0, w: nc.w, h: nc.h }, rs: env.res, own: rt, hard: true };
+      const nres = hasProcess(L) ? 1 : env.res;
+      const rt = renderComp(env.project, nc, tl, { res: nres, mb: env.mb, depth: env.depth + 1, stack: env.stack.concat(env.comp.id), exporting: env.exporting, playing: env.playing });
+      return { tex: rt.tex, rect: { x: 0, y: 0, w: nc.w, h: nc.h }, rs: nres, own: rt, hard: true };
     }
     return null;
   }
@@ -226,6 +228,7 @@
     return m;
   }
   const meshFx = (L) => (L.fx || []).filter((f) => f.on && FX.defs[f.type] && FX.defs[f.type].mesh);
+  const hasProcess = (L) => (L.fx || []).some((f) => f.on && FX.defs[f.type] && FX.defs[f.type].process);
 
   // place the prepared layer into rt with the given matrix; deforms the mesh when a tactile effect asks for it
   function place(env, rt, L, t, pre, mat, alpha, blend, mfx) {
@@ -372,7 +375,9 @@
     const t0 = performance.now();
     R.stats.layers = 0; R.more = false;
     const rt = renderComp(project, comp, t, o);
+    if (R.more && !o.exporting) G.gl.finish();   // only while catching up: make the time measurement honest
     R.stats.ms = performance.now() - t0;
+    if (!o.exporting) stepBudget = R.more ? U.clamp(stepBudget * (R.stats.ms < 14 ? 1.6 : R.stats.ms > 40 ? 0.5 : 1), 1, 240) : Math.max(stepBudget, 12);
     return rt;
   };
   // RGBA pixels of a frame (straight alpha over nothing, or flattened onto the background)

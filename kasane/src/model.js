@@ -78,7 +78,7 @@
     if (s[0] === 'fx') {
       const fx = layer.fx && layer.fx.find((f) => f.id === s[1]);
       if (!fx) return null;
-      if (s[2] === 'pin') { const pin = fx.pins && fx.pins.find((q) => q.id === s[3]); return pin ? pin.pos : null; }
+      if (s[2] === 'pin' && s.length > 3) { const pin = fx.pins && fx.pins.find((q) => q.id === s[3]); return pin ? pin.pos : null; }   // (an effect may also have a plain parameter called "pin")
       return fx.p[s[2]] || null;
     }
     if (s[0] === 'mk') { const mk = layer.masks && layer.masks.find((m) => m.id === s[1]); return mk ? mk.p[s[2]] : null; }
@@ -92,7 +92,7 @@
       const fx = layer.fx && layer.fx.find((f) => f.id === s[1]);
       if (!fx) return null;
       const def = KS.FX && KS.FX.defs[fx.type];
-      if (s[2] === 'pin') { const i = fx.pins.findIndex((q) => q.id === s[3]); return { label: 'ピン ' + (i + 1), type: 'vec2', unit: 'px', step: 1, group: def ? def.name : '' }; }
+      if (s[2] === 'pin' && s.length > 3) { const i = (fx.pins || []).findIndex((q) => q.id === s[3]); return { label: 'ピン ' + (i + 1), type: 'vec2', unit: 'px', step: 1, group: def ? def.name : '' }; }
       const pd = def && def.params.find((q) => q.id === s[2]);
       return pd ? Object.assign({ group: fx.name || def.name }, pd, { label: pd.name }) : null;
     }
@@ -146,7 +146,7 @@
   M.setKey = (prop, t, v, opts = {}) => {
     if (!prop.k) prop.k = [];
     let key = M.keyAt(prop, t);
-    if (key) { key.v = U.vcopy(v); return key; }
+    if (key) { key.v = U.vcopy(v); prop.v = U.vcopy(v); return key; }
     key = { id: U.uid('k'), t, v: U.vcopy(v) };
     const i = prop.k.length ? M.keySeg(prop.k, t) : -1;
     if (opts.e !== undefined) { if (opts.e) key.e = opts.e.slice(); }

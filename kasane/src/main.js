@@ -82,6 +82,7 @@
         for (const l of comp.layers) if (l !== L && l.out >= old - 1e-6 && l.type !== 'video' && l.type !== 'audio') l.out = comp.dur;
         KS.toast(`コンポジションの長さを ${U.fmtNum(comp.dur, 1)} 秒に延ばしました`); TL.fit();
       }
+      if (a.kind === 'audio') { comp.layers.splice(comp.layers.indexOf(L), 1); comp.layers.push(L); }   // sound has no place in the stack; keep it at the bottom
       if (a.kind === 'audio' || a.hasAudio) S.tl.open[L.id] = 'tr';
     }
     KS.restructured(); KS.commit('add footage');
@@ -111,6 +112,7 @@
       { label: 'いまのコマを透明つきで保存', run: () => EX.still(true).then(deliver) },
       { sep: true },
       { label: 'サンプルを開く', run: () => UI.confirm('サンプルを開く', 'いまの内容を閉じて、サンプルを開きます。', '開く', () => adopt(KS.demo(), { t: 3.6 })) },
+      { label: '使い方', run: help },
     ]);
   }
   function addMenu(anchor) {
