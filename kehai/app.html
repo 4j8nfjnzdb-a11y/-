@@ -1,0 +1,653 @@
+<title>気配 Kehai</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a grading bench. The picture and its readings stay in view on the left;
+   the right column is a plain list of numbers with units. Greys are kept free of
+   hue on purpose, so the surround does not tint the judgement of the picture. */
+:root{
+  --bg:#dcdcdc; --panel:#ebebeb; --well:#f6f6f6; --ink:#1b1b1b; --dim:#5c5c5c; --faint:#8b8b8b;
+  --line:#c2c2c2; --btn:#1b1b1b; --btn-ink:#f3f3f3; --mark:#b3261e; --stage:#101010;
+  --f-body:"IBM Plex Sans JP","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#2b2b2b; --panel:#343434; --well:#232323; --ink:#e6e6e6; --dim:#a9a9a9; --faint:#7d7d7d;
+  --line:#4a4a4a; --btn:#e6e6e6; --btn-ink:#1b1b1b; --mark:#ff8a80; --stage:#0b0b0b; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#2b2b2b; --panel:#343434; --well:#232323; --ink:#e6e6e6; --dim:#a9a9a9; --faint:#7d7d7d;
+  --line:#4a4a4a; --btn:#e6e6e6; --btn-ink:#1b1b1b; --mark:#ff8a80; --stage:#0b0b0b; color-scheme:dark }
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font:400 13px/1.55 var(--f-body);-webkit-text-size-adjust:100%}
+.wrap{max-width:1500px;margin:0 auto;padding-block:14px 40px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:18px;align-items:start}
+.left{position:sticky;top:calc(env(safe-area-inset-top,0px) + 10px);display:flex;flex-direction:column;gap:10px;min-width:0}
+.right{display:flex;flex-direction:column;gap:12px;min-width:0}
+header{grid-column:1/-1;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+h1{font:600 17px/1.2 var(--f-body);margin:0;letter-spacing:.04em}
+h1 span{font:400 12px var(--f-mono);color:var(--dim);margin-left:8px;letter-spacing:.06em}
+header p{margin:0;color:var(--dim);font-size:12px}
+.stage{background:var(--stage);position:relative;display:flex;justify-content:center;overflow:hidden}
+.stage.one{overflow:auto;justify-content:flex-start;max-height:72vh}
+#cv{display:block;width:100%;height:auto;max-height:68vh;object-fit:contain}
+.stage.one #cv{max-height:none;object-fit:fill;flex:none}
+.stage.paint #cv{touch-action:none;cursor:crosshair}
+.tag{position:absolute;left:8px;top:8px;font:500 11px var(--f-mono);color:#eee;background:rgba(0,0,0,.6);padding:2px 7px;pointer-events:none}
+.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.seek{flex:1;min-width:140px;position:relative;height:26px;display:flex;align-items:center}
+.seek input{width:100%}
+#ticks{position:absolute;left:7px;right:7px;top:0;height:5px;pointer-events:none}
+#ticks i{position:absolute;top:0;width:1px;height:5px;background:var(--mark)}
+.time{font:400 12px var(--f-mono);color:var(--dim);font-variant-numeric:tabular-nums;white-space:nowrap}
+button,select,input{font:inherit;color:inherit}
+button{background:var(--panel);border:1px solid var(--line);padding:5px 11px;border-radius:2px;cursor:pointer;min-height:30px}
+button:hover{border-color:var(--faint)}
+button.on,button.pri{background:var(--btn);color:var(--btn-ink);border-color:var(--btn)}
+button:disabled{opacity:.45;cursor:default}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+select{background:var(--well);border:1px solid var(--line);padding:4px 6px;border-radius:2px;min-height:30px;max-width:100%}
+.meter{background:var(--panel);border:1px solid var(--line);padding:10px 12px;display:grid;grid-template-columns:minmax(0,1fr) 180px;gap:12px;align-items:start}
+.meter dl{margin:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 14px}
+.meter div.m{min-width:0}
+.meter dt{color:var(--dim);font-size:11px}
+.meter dd{margin:0;font:500 14px var(--f-mono);font-variant-numeric:tabular-nums}
+.meter dd small{font:400 11px var(--f-mono);color:var(--dim)}
+#hist{width:100%;height:64px;background:var(--well);border:1px solid var(--line);display:block}
+.histcap{display:flex;justify-content:space-between;font:400 10px var(--f-mono);color:var(--faint)}
+section{background:var(--panel);border:1px solid var(--line);padding:10px 12px 12px}
+h2{font:600 12px var(--f-body);margin:0 0 8px;letter-spacing:.06em;display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+h2 small{font:400 11px var(--f-body);color:var(--dim);letter-spacing:0}
+.row{display:grid;grid-template-columns:minmax(0,1fr) 74px 34px;gap:4px 8px;align-items:center;padding:3px 0}
+.row label{grid-column:1/-1;font-size:12px;color:var(--ink)}
+.row input[type=number]{width:100%;background:var(--well);border:1px solid var(--line);padding:3px 5px;border-radius:2px;
+  font:400 13px var(--f-mono);font-variant-numeric:tabular-nums;text-align:right;min-height:28px}
+.row .u{font:400 11px var(--f-mono);color:var(--dim);white-space:nowrap}
+input[type=range]{-webkit-appearance:none;appearance:none;background:transparent;height:22px;margin:0;min-width:0;width:100%}
+input[type=range]::-webkit-slider-runnable-track{height:1px;background:var(--faint)}
+input[type=range]::-moz-range-track{height:1px;background:var(--faint)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:5px;height:16px;background:var(--ink);margin-top:-8px;border:0;border-radius:0}
+input[type=range]::-moz-range-thumb{width:5px;height:16px;background:var(--ink);border:0;border-radius:0}
+.line{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:3px 0}
+.line label{display:flex;gap:6px;align-items:center}
+.note{color:var(--dim);font-size:11.5px;margin:6px 0 0}
+.file{display:flex;gap:8px;align-items:center;padding:3px 0;min-width:0}
+.file b{font-weight:600;width:1.2em}
+.file span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dim);font-size:12px}
+progress{width:100%;height:6px;accent-color:var(--ink)}
+#result video{width:100%;display:block;background:var(--stage);margin-top:8px}
+#msg{color:var(--dim);font-size:12px;min-height:1.5em;margin:6px 0 0;overflow-wrap:anywhere}
+@media (max-width:900px){
+  .wrap{grid-template-columns:minmax(0,1fr)}
+  .left{position:static}
+  .stageWrap{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-bottom:6px}
+  #cv{max-height:38vh}
+  .meter{grid-template-columns:minmax(0,1fr)}
+  .meter dl{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>気配<span>Kehai</span></h1>
+    <p>景色の一部だけを、別の映像の動きで数ピクセル押し引きする。</p>
+  </header>
+
+  <div class="left">
+    <div class="stageWrap">
+      <div class="stage" id="stage"><canvas id="cv"></canvas><div class="tag" id="tag" hidden></div></div>
+      <div class="bar" style="margin-top:8px">
+        <button id="play" class="pri">再生</button>
+        <div class="seek"><div id="ticks"></div><input type="range" id="seek" min="0" max="1" step="0.001" value="0" aria-label="再生位置"></div>
+        <span class="time" id="time">0.00 / 0.00 秒</span>
+        <button id="orig" title="押している間、加工前の映像を表示">元を見る（押している間）</button>
+      </div>
+    </div>
+    <div class="meter">
+      <dl>
+        <div class="m"><dt>輝度の平均</dt><dd id="mMean">–</dd></div>
+        <div class="m"><dt>上位5%の輝度</dt><dd id="mHi">–</dd></div>
+        <div class="m"><dt>下位5%の輝度</dt><dd id="mLo">–</dd></div>
+        <div class="m"><dt>明暗の幅（上位5%−下位5%）</dt><dd id="mRange">–</dd></div>
+        <div class="m"><dt>黒に近い画素（輝度8以下）</dt><dd id="mBlack">–</dd></div>
+        <div class="m"><dt>反射光ごしの明暗比</dt><dd id="mVeil">–</dd></div>
+        <div class="m"><dt>実際の変位（最大／マスク内平均）</dt><dd id="mDisp">–</dd></div>
+      </dl>
+      <div><canvas id="hist" width="256" height="64"></canvas><div class="histcap"><span>0</span><span>輝度（0〜255）</span><span>255</span></div></div>
+    </div>
+  </div>
+
+  <div class="right">
+    <section>
+      <h2>素材</h2>
+      <div class="file"><b>A</b><span id="nameA">見本の景色</span><button id="pickA">景色の動画を選ぶ</button></div>
+      <div class="file"><b>B</b><span id="nameB">見本の細胞</span><button id="pickB">動きの元を選ぶ</button></div>
+      <input type="file" id="fileA" accept="video/*" hidden><input type="file" id="fileB" accept="video/*" hidden>
+      <p class="note" id="srcNote">いま映っているのは見本です。Aに三脚で撮った景色、Bに細胞や動物の接写を入れてください。Bは画面には映りません。</p>
+    </section>
+
+    <section>
+      <h2>マスク <small>変形させる範囲</small></h2>
+      <div class="line">
+        <button id="mDraw">描く</button><button id="mErase">消す</button><button id="mClear">全部消す</button>
+        <label><input type="checkbox" id="mShow"> マスクを表示</label>
+      </div>
+      <div id="rowsMask"></div>
+    </section>
+
+    <section>
+      <h2>変位 <small>Bの明るいところで膨らみ、暗いところで縮む</small></h2>
+      <div id="rowsDisp"></div>
+    </section>
+
+    <section>
+      <h2>粒子</h2>
+      <div id="rowsGrain"></div>
+    </section>
+
+    <section>
+      <h2>リセット <small>目の慣れを切る一瞬の変化</small></h2>
+      <div class="line"><label>種類 <select id="rType"><option value="none">入れない</option><option value="lum">明るさの変化</option><option value="shake">カメラの揺れ</option></select></label></div>
+      <div id="rowsReset"></div>
+      <p class="note">入る位置は再生バーの上に印で出ます。</p>
+    </section>
+
+    <section>
+      <h2>見え方の確認 <small>書き出しには入らない</small></h2>
+      <div class="line">
+        <label><input type="checkbox" id="veil"> 明るい室内のスマホ</label>
+        <label><input type="checkbox" id="one"> 等倍で見る</label>
+        <label><input type="checkbox" id="full"> 元の解像度で描く</label>
+      </div>
+      <div id="rowsVeil"></div>
+      <p class="note">粒子と1ピクセル前後の変位は「等倍で見る」で確かめてください。</p>
+    </section>
+
+    <section>
+      <h2>書き出し <small id="outSize"></small></h2>
+      <div class="line"><label>形式 <select id="fmt"><option value="auto">自動（MP4優先）</option><option value="mp4">MP4（H.264）</option><option value="webm">WebM（VP9）</option></select></label></div>
+      <div id="rowsOut"></div>
+      <div class="line"><button id="export" class="pri">コマごとに書き出す</button><button id="cancel" hidden>中止</button><button id="save" hidden>保存する</button></div>
+      <progress id="prog" value="0" max="1" hidden></progress>
+      <p id="msg"></p>
+      <div id="result"></div>
+      <p class="note">解像度は元のまま。再生せずに1コマずつ処理するので、コマ落ちしません。音は入りません。</p>
+    </section>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.2/build/mp4-muxer.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/webm-muxer@5.1.4/build/webm-muxer.js"></script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+
+/* ---------- parameters: every one has a unit and a low ceiling ---------- */
+const DEFS = {
+  brush:  {g:'Mask',  label:'筆の太さ',            unit:'px',   min:4,    max:600, step:1,    v:120},
+  edge:   {g:'Mask',  label:'縁のぼかし',          unit:'px',   min:0,    max:300, step:1,    v:60},
+  amp:    {g:'Disp',  label:'変位',                unit:'px',   min:0,    max:8,   step:0.05, v:1},
+  smooth: {g:'Disp',  label:'うねりの細かさ（Bをぼかす半径）', unit:'px', min:4, max:200, step:1, v:40},
+  bRate:  {g:'Disp',  label:'Bの時間の伸縮',       unit:'倍',   min:0.25, max:4,   step:0.05, v:1},
+  bStart: {g:'Disp',  label:'Bの開始位置',         unit:'秒',   min:0,    max:60,  step:0.1,  v:0},
+  gAmt:   {g:'Grain', label:'量（輝度の振れ）',    unit:'/255', min:0,    max:24,  step:0.5,  v:2},
+  gSize:  {g:'Grain', label:'粒の大きさ',          unit:'px',   min:1,    max:6,   step:0.1,  v:1.2},
+  gRate:  {g:'Grain', label:'時間変化の速さ',      unit:'回/秒',min:1,    max:60,  step:1,    v:24},
+  rEvery: {g:'Reset', label:'間隔',                unit:'秒',   min:1,    max:60,  step:0.5,  v:6},
+  rJit:   {g:'Reset', label:'間隔のランダム幅（±）',unit:'秒',  min:0,    max:20,  step:0.5,  v:0},
+  rLen:   {g:'Reset', label:'長さ',                unit:'ミリ秒',min:20,  max:500, step:10,   v:80},
+  rEv:    {g:'Reset', label:'明るさの変化',        unit:'EV',   min:-0.5, max:0.5, step:0.01, v:0.08},
+  rShake: {g:'Reset', label:'揺れの幅',            unit:'px',   min:0,    max:8,   step:0.1,  v:1.5},
+  vWhite: {g:'Veil',  label:'画面の白の明るさ',    unit:'cd/m²',min:100,  max:1500,step:10,   v:500},
+  vRefl:  {g:'Veil',  label:'画面に映りこむ反射光',unit:'cd/m²',min:0,    max:200, step:1,    v:25},
+  oFps:   {g:'Out',   label:'コマ数',              unit:'コマ/秒',min:1,  max:120, step:0.001,v:30, noSlider:true},
+  oFrom:  {g:'Out',   label:'開始',                unit:'秒',   min:0,    max:1e5, step:0.01, v:0,  noSlider:true},
+  oTo:    {g:'Out',   label:'終了',                unit:'秒',   min:0,    max:1e5, step:0.01, v:0,  noSlider:true},
+  oMbps:  {g:'Out',   label:'ビットレート',        unit:'Mbps', min:1,    max:200, step:0.5,  v:16, noSlider:true},
+};
+const NOSAVE = new Set(['oFps','oFrom','oTo','oMbps','bStart']);
+const P = {}; const UI = {};
+let saved = {};
+try { saved = JSON.parse(localStorage.getItem('kehai.v1') || '{}') || {}; } catch(e) {}
+function persist(){ try { const o={}; for(const k in P) if(!NOSAVE.has(k)) o[k]=P[k]; o._rType=$('rType').value; localStorage.setItem('kehai.v1', JSON.stringify(o)); } catch(e) {} }
+const clamp = (x,a,b) => Math.min(b, Math.max(a, x));
+
+for (const k in DEFS) {
+  const d = DEFS[k];
+  P[k] = (!NOSAVE.has(k) && typeof saved[k] === 'number') ? clamp(saved[k], d.min, d.max) : d.v;
+  const row = document.createElement('div'); row.className = 'row';
+  const lab = document.createElement('label'); lab.textContent = d.label; lab.htmlFor = 'n_'+k;
+  const num = document.createElement('input'); num.type='number'; num.id='n_'+k; num.min=d.min; num.max=d.max; num.step=d.step; num.value=P[k]; num.inputMode='decimal';
+  const unit = document.createElement('span'); unit.className='u'; unit.textContent=d.unit;
+  let rng = null;
+  if (!d.noSlider) { rng = document.createElement('input'); rng.type='range'; rng.id='r_'+k; rng.min=d.min; rng.max=d.max; rng.step=d.step; rng.value=P[k]; rng.setAttribute('aria-label', d.label); }
+  else { rng = document.createElement('span'); }
+  row.append(lab, rng, num, unit);
+  $('rows'+d.g).append(row);
+  UI[k] = {num, rng, row};
+  const set = (v, from) => {
+    v = parseFloat(v); if (!isFinite(v)) return;
+    v = clamp(v, +num.min, +num.max); P[k] = v;
+    if (from !== num) num.value = v;
+    if (rng.type === 'range' && from !== rng) rng.value = v;
+    onParam(k);
+  };
+  if (rng.type === 'range') rng.addEventListener('input', () => set(rng.value, rng));
+  num.addEventListener('input', () => set(num.value, num));
+  num.addEventListener('change', () => { num.value = P[k]; });
+}
+function setParam(k, v){ P[k]=v; UI[k].num.value=v; if (UI[k].rng.type==='range') UI[k].rng.value=v; }
+if (saved._rType) $('rType').value = saved._rType;
+
+/* ---------- sources: a video file, or a drawn sample ---------- */
+class VidSrc {
+  constructor(v){ this.v=v; this.w=v.videoWidth; this.h=v.videoHeight; this.dur=v.duration; this.isVideo=true; }
+  get time(){ return this.v.currentTime; }
+  get playing(){ return !this.v.paused; }
+  play(){ const p=this.v.play(); if (p) p.catch(()=>{}); }
+  pause(){ this.v.pause(); }
+  setRate(r){ if (this.v.playbackRate !== r) this.v.playbackRate = r; }
+  seek(t){ const v=this.v; t=clamp(t,0,Math.max(0,this.dur-0.001));
+    return new Promise(res => {
+      if (Math.abs(v.currentTime-t) < 1e-4 && !v.seeking && v.readyState >= 2) return res();
+      let done=false; const fin=()=>{ if(done) return; done=true; v.removeEventListener('seeked',fin); res(); };
+      v.addEventListener('seeked', fin); v.currentTime = t; setTimeout(fin, 4000);
+    }); }
+  frame(){ return this.v.readyState >= 2 ? this.v : null; }
+  dispose(){ this.v.pause(); URL.revokeObjectURL(this.v.src); this.v.removeAttribute('src'); this.v.load(); }
+}
+class SynthSrc {
+  constructor(w,h,dur,draw){ this.w=w; this.h=h; this.dur=dur; this.draw=draw; this.c=document.createElement('canvas'); this.c.width=w; this.c.height=h;
+    this.x=this.c.getContext('2d'); this.t=0; this._p=false; this._last=0; this._drawn=-1; this.rate=1; }
+  get time(){ if (this._p){ const n=performance.now(); this.t=(this.t+(n-this._last)/1000*this.rate)%this.dur; this._last=n; } return this.t; }
+  get playing(){ return this._p; }
+  play(){ this._p=true; this._last=performance.now(); }
+  pause(){ void this.time; this._p=false; }
+  setRate(r){ void this.time; this.rate=r; }
+  seek(t){ this.t=((t%this.dur)+this.dur)%this.dur; this._last=performance.now(); return Promise.resolve(); }
+  frame(){ const t=this.time; if (t!==this._drawn){ this.draw(this.x,t,this.w,this.h); this._drawn=t; } return this.c; }
+  dispose(){}
+}
+function rng32(a){ return () => { a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+
+/* sample A: an overcast field with a pole, a tree at the edge and a walker in the middle */
+function makeSampleA(){
+  const W=1280,H=720, bg=document.createElement('canvas'); bg.width=W; bg.height=H; const x=bg.getContext('2d'), r=rng32(7);
+  let g=x.createLinearGradient(0,0,0,H*0.62); g.addColorStop(0,'#9aa3a8'); g.addColorStop(1,'#c9cbc6'); x.fillStyle=g; x.fillRect(0,0,W,H);
+  for(let i=0;i<26;i++){ const cx=r()*W, cy=r()*H*0.5, rad=90+r()*220; const c=x.createRadialGradient(cx,cy,0,cx,cy,rad); c.addColorStop(0,'rgba(232,232,226,.16)'); c.addColorStop(1,'rgba(232,232,226,0)'); x.fillStyle=c; x.fillRect(cx-rad,cy-rad,rad*2,rad*2); }
+  x.fillStyle='#8a938f'; x.beginPath(); x.moveTo(0,H*0.6); for(let i=0;i<=40;i++) x.lineTo(i*W/40, H*(0.56+0.035*Math.sin(i*0.5)+0.012*Math.sin(i*1.7+1))); x.lineTo(W,H); x.lineTo(0,H); x.fill();
+  g=x.createLinearGradient(0,H*0.6,0,H); g.addColorStop(0,'#7c8473'); g.addColorStop(1,'#4e5546'); x.fillStyle=g; x.fillRect(0,H*0.62,W,H*0.38);
+  for(let i=0;i<5200;i++){ const px=r()*W, py=H*0.62+Math.pow(r(),0.7)*H*0.38, l=3+(py/H-0.6)*40*r(); x.strokeStyle=`rgba(${40+r()*70|0},${50+r()*70|0},${35+r()*40|0},.5)`; x.lineWidth=1; x.beginPath(); x.moveTo(px,py); x.lineTo(px+(r()-0.5)*4,py-l); x.stroke(); }
+  x.strokeStyle='#3b3a36'; x.lineWidth=7; x.beginPath(); x.moveTo(1010,H*0.72); x.lineTo(1010,150); x.stroke();
+  x.lineWidth=4; x.beginPath(); x.moveTo(972,186); x.lineTo(1048,186); x.moveTo(982,214); x.lineTo(1038,214); x.stroke();
+  x.lineWidth=1; x.strokeStyle='rgba(50,50,46,.8)'; for(const y0 of [186,214]){ x.beginPath(); x.moveTo(1010,y0); x.quadraticCurveTo(1150,y0+46,W,y0+18); x.moveTo(1010,y0); x.quadraticCurveTo(700,y0+70,380,y0+150); x.stroke(); }
+  x.strokeStyle='#39342c'; x.lineWidth=9; x.beginPath(); x.moveTo(170,H*0.74); x.lineTo(176,400); x.stroke();
+  for(let i=0;i<420;i++){ const a=r()*6.283, d=Math.sqrt(r())*125, cx=176+Math.cos(a)*d*0.85, cy=335+Math.sin(a)*d; x.fillStyle=`rgba(${42+r()*40|0},${58+r()*46|0},${40+r()*26|0},.75)`; x.beginPath(); x.arc(cx,cy,5+r()*13,0,6.3); x.fill(); }
+  return new SynthSrc(W,H,12,(c,t)=>{
+    c.drawImage(bg,0,0);
+    const ph=t/12*6.283, px=640+Math.sin(ph)*150, py=H*0.69, s=Math.sin(t*7.2);
+    c.strokeStyle='#22221f'; c.lineCap='round'; c.lineWidth=5; c.beginPath(); c.moveTo(px,py-34); c.lineTo(px,py-12); c.stroke();
+    c.lineWidth=4; c.beginPath(); c.moveTo(px,py-12); c.lineTo(px+s*6,py+8); c.moveTo(px,py-12); c.lineTo(px-s*6,py+8); c.stroke();
+    c.fillStyle='#22221f'; c.beginPath(); c.arc(px,py-41,5.5,0,6.3); c.fill();
+  });
+}
+/* sample B: soft bright bodies drifting and swelling, like cells under a microscope */
+function makeSampleB(){
+  const r=rng32(3), cells=[]; for(let i=0;i<9;i++) cells.push({x:r(),y:r(),ax:0.1+r()*0.25,ay:0.1+r()*0.25,fx:1+(r()*3|0),fy:1+(r()*3|0),p:r()*6.3,q:r()*6.3,rad:0.1+r()*0.12,fr:1+(r()*4|0)});
+  return new SynthSrc(256,144,8,(c,t,W,H)=>{
+    c.globalCompositeOperation='source-over'; c.fillStyle='#1c1c1c'; c.fillRect(0,0,W,H); c.globalCompositeOperation='lighter';
+    const k=t/8*6.283;
+    for(const o of cells){ const cx=(o.x+o.ax*Math.sin(k*o.fx+o.p))*W, cy=(o.y+o.ay*Math.sin(k*o.fy+o.q))*H, rad=o.rad*W*(1+0.3*Math.sin(k*o.fr+o.p));
+      const g=c.createRadialGradient(cx,cy,0,cx,cy,rad); g.addColorStop(0,'rgba(210,210,210,.85)'); g.addColorStop(1,'rgba(210,210,210,0)'); c.fillStyle=g; c.fillRect(cx-rad,cy-rad,rad*2,rad*2); }
+  });
+}
+
+/* ---------- WebGL ---------- */
+const cv = $('cv');
+const gl = cv.getContext('webgl2', {alpha:false, antialias:false, premultipliedAlpha:false, preserveDrawingBuffer:false});
+const VS = `#version 300 es
+in vec2 p; void main(){ gl_Position=vec4(p,0.,1.); }`;
+const FS = `#version 300 es
+precision highp float; precision highp int;
+uniform sampler2D uA, uB, uM;
+uniform vec2 uRes, uSrc, uBScale, uBSize, uShake, uBRange;
+uniform float uK, uAmp, uSmooth, uGain, uGAmt, uGSize, uVeil, uFlipY;
+uniform int uMode, uSeed;   // 0 processed, 1 original, 2 displacement readout
+uniform vec3 uMaskCol; uniform float uShowMask;
+out vec4 o;
+const vec3 W = vec3(0.2126, 0.7152, 0.0722);
+uint hsh(uvec3 v){ v = v*1664525u + 1013904223u; v.x += v.y*v.z; v.y += v.z*v.x; v.z += v.x*v.y; v ^= v >> 16u; v.x += v.y*v.z; v.y += v.z*v.x; v.z += v.x*v.y; return v.x ^ v.y ^ v.z; }
+float rnd(ivec2 c, int s){ return float(hsh(uvec3(uvec2(c + 32768), uint(s))) >> 8u) / 16777216.0; }
+float tri(ivec2 c){ return rnd(c, uSeed) + rnd(c, uSeed + 7919) - 1.0; }
+float grain(vec2 px){
+  vec2 g = px / uGSize - 0.5; ivec2 i = ivec2(floor(g)); vec2 f = fract(g);
+  float a = tri(i), b = tri(i + ivec2(1,0)), c = tri(i + ivec2(0,1)), d = tri(i + ivec2(1,1));
+  float v = mix(mix(a,b,f.x), mix(c,d,f.x), f.y);
+  // keep the same spread whatever the interpolation weights are
+  vec2 w = f*f + (1.-f)*(1.-f);
+  return v / sqrt(max(w.x*w.y, 1e-4));
+}
+float LB(vec2 uv, float lod){ return dot(textureLod(uB, uv, lod).rgb, W); }
+void main(){
+  float fy = mix(uRes.y - gl_FragCoord.y, gl_FragCoord.y, uFlipY);
+  vec2 px = vec2(gl_FragCoord.x, fy) / uK;
+  vec2 uv = px / uSrc;
+  float m = texture(uM, uv).r;
+  // push and pull: follow the slope of B's brightness, so bright bodies swell and dark gaps shrink
+  vec2 buv = (uv - 0.5) * uBScale + 0.5;
+  vec2 rB = uSmooth / uSrc * uBScale;
+  float lod = max(0., log2(max(1., uSmooth / uSrc.x * uBScale.x * uBSize.x)) - 0.5);
+  vec2 d = vec2(0.);
+  for (int i = 0; i < 8; i++) { float a = float(i) * 0.7853982; vec2 dir = vec2(cos(a), sin(a)); d += dir * LB(buv + dir * rB, lod); }
+  d = d * 0.5 / max(uBRange.y - uBRange.x, 0.04) * 1.6;
+  float len = length(d); if (len > 1.) d /= len;
+  vec2 disp = d * uAmp * m;
+  if (uMode == 2) { o = vec4(length(disp) / max(uAmp, 1e-4), m, 0., 1.); return; }
+  if (uMode == 1) { o = vec4(texture(uA, uv).rgb, 1.); return; }
+  vec3 c = texture(uA, uv + (disp + uShake) / uSrc).rgb;
+  c *= uGain;
+  c += grain(px) * uGAmt / 255.;
+  c = clamp(c, 0., 1.);
+  if (uVeil > 0.) { vec3 l = pow(c, vec3(2.2)); l = (l + uVeil) / (1. + uVeil); c = pow(l, vec3(1./2.2)); }
+  c = mix(c, uMaskCol, uShowMask * m * 0.45);
+  o = vec4(c, 1.);
+}`;
+function sh(type, src){ const s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s); if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
+let U = {}, texA, texB, texM, fbo, fboTex;
+const SW = 128; let SH = 72;
+function initGL(){
+  const pr = gl.createProgram(); gl.attachShader(pr, sh(gl.VERTEX_SHADER,VS)); gl.attachShader(pr, sh(gl.FRAGMENT_SHADER,FS)); gl.linkProgram(pr);
+  if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(pr));
+  gl.useProgram(pr);
+  const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,b); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(pr,'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
+  for (const n of ['uA','uB','uM','uRes','uSrc','uBScale','uBSize','uShake','uBRange','uK','uAmp','uSmooth','uGain','uGAmt','uGSize','uVeil','uFlipY','uMode','uSeed','uMaskCol','uShowMask']) U[n]=gl.getUniformLocation(pr,n);
+  const mk = (unit, min, wrap) => { const t=gl.createTexture(); gl.activeTexture(gl.TEXTURE0+unit); gl.bindTexture(gl.TEXTURE_2D,t);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,min); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,wrap); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,wrap);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([0,0,0,255])); return t; };
+  texA = mk(0, gl.LINEAR, gl.CLAMP_TO_EDGE); texB = mk(1, gl.LINEAR_MIPMAP_LINEAR, gl.MIRRORED_REPEAT); texM = mk(2, gl.LINEAR, gl.CLAMP_TO_EDGE);
+  gl.uniform1i(U.uA,0); gl.uniform1i(U.uB,1); gl.uniform1i(U.uM,2);
+  fboTex = mk(3, gl.NEAREST, gl.CLAMP_TO_EDGE); fbo = gl.createFramebuffer();
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+}
+function sizeFBO(){ SH = Math.max(8, Math.round(SW * A.h / A.w)); gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D,fboTex);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,SW,SH,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,fbo); gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,fboTex,0); gl.bindFramebuffer(gl.FRAMEBUFFER,null); }
+
+/* ---------- state ---------- */
+let A = null, B = null, exporting = false, holdOrig = false;
+let bRange = [0.1, 0.9];
+const bCv = document.createElement('canvas'), bCx = bCv.getContext('2d', {willReadFrequently:true});
+let maskCv = document.createElement('canvas'), maskCx = null, maskEmpty = true;
+let tool = null, events = [];
+
+function bTime(t){ const span = Math.max(0.05, B.dur - P.bStart); return P.bStart + ((t * P.bRate) % span); }
+
+function buildEvents(){
+  events = []; $('ticks').textContent = '';
+  if (!A || $('rType').value === 'none') return;
+  const r = rng32(1234); let t = Math.max(0.3, P.rEvery + (r()*2-1)*P.rJit);
+  while (t < A.dur && events.length < 2000) { events.push({t, a:r()*6.283}); t += Math.max(0.3, P.rEvery + (r()*2-1)*P.rJit); }
+  for (const e of events) { const i=document.createElement('i'); i.style.left=(e.t/A.dur*100)+'%'; $('ticks').append(i); }
+}
+function resetAt(t){
+  let gain = 1, sx = 0, sy = 0; const type = $('rType').value, len = P.rLen/1000;
+  if (type !== 'none') for (const e of events) {
+    if (t < e.t) break; const p = (t - e.t)/len; if (p >= 1) continue;
+    if (type === 'lum') { const s=Math.sin(Math.PI*p); gain = Math.pow(2, P.rEv*s*s/2.2); }
+    else { const k = Math.sin(p*Math.PI*4) * (1-p)*(1-p) * P.rShake; sx = Math.cos(e.a)*k; sy = Math.sin(e.a)*k; }
+  }
+  return {gain, sx, sy};
+}
+
+/* ---------- drawing one frame at time t ---------- */
+function uploadSources(){
+  const fa = A.frame(); if (fa) { gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,texA); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,fa); }
+  const fb = B.frame(); if (fb) { bCx.drawImage(fb,0,0,bCv.width,bCv.height); gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,texB);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,bCv); gl.generateMipmap(gl.TEXTURE_2D); }
+}
+function draw(t, w, h, o){
+  const k = w / A.w, ar = A.w/A.h, br = B.w/B.h, r = resetAt(t);
+  gl.viewport(0,0,w,h);
+  gl.uniform2f(U.uRes,w,h); gl.uniform2f(U.uSrc,A.w,A.h); gl.uniform1f(U.uK,k);
+  gl.uniform2f(U.uBScale, ar>br ? 1 : ar/br, ar>br ? br/ar : 1); gl.uniform2f(U.uBSize,bCv.width,bCv.height);
+  gl.uniform2f(U.uBRange,bRange[0],bRange[1]);
+  gl.uniform1f(U.uAmp,P.amp); gl.uniform1f(U.uSmooth,P.smooth);
+  gl.uniform2f(U.uShake,r.sx,r.sy); gl.uniform1f(U.uGain,r.gain);
+  gl.uniform1f(U.uGAmt,P.gAmt); gl.uniform1f(U.uGSize,P.gSize); gl.uniform1i(U.uSeed, Math.floor(t*P.gRate + 1e-6) % 100000);
+  gl.uniform1f(U.uVeil, o.veil ? P.vRefl/P.vWhite : 0); gl.uniform1i(U.uMode,o.mode||0); gl.uniform1f(U.uFlipY,o.flip?1:0);
+  gl.uniform3f(U.uMaskCol,0.86,0.2,0.3); gl.uniform1f(U.uShowMask,o.mask?1:0);
+  gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+}
+
+/* ---------- readings ---------- */
+const buf = new Uint8Array(SW*200*4), hist = new Uint32Array(256);
+let lastStat = 0;
+function measure(t){
+  gl.bindFramebuffer(gl.FRAMEBUFFER,fbo);
+  draw(t,SW,SH,{flip:true}); gl.readPixels(0,0,SW,SH,gl.RGBA,gl.UNSIGNED_BYTE,buf);
+  const n = SW*SH; hist.fill(0); let sum = 0;
+  for (let i=0;i<n;i++){ const y = Math.round(0.2126*buf[i*4]+0.7152*buf[i*4+1]+0.0722*buf[i*4+2]); hist[y]++; sum += y; }
+  let lo=0, hi=255, acc=0; for (let i=0;i<256;i++){ acc+=hist[i]; if (acc>=n*0.05){ lo=i; break; } }
+  acc=0; for (let i=255;i>=0;i--){ acc+=hist[i]; if (acc>=n*0.05){ hi=i; break; } }
+  let black=0; for (let i=0;i<=8;i++) black+=hist[i];
+  draw(t,SW,SH,{flip:true,mode:2}); gl.readPixels(0,0,SW,SH,gl.RGBA,gl.UNSIGNED_BYTE,buf);
+  let dmax=0, dsum=0, dn=0; for (let i=0;i<n;i++){ const d=buf[i*4]/255*P.amp; if (d>dmax) dmax=d; if (buf[i*4+1]>127){ dsum+=d; dn++; } }
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+  const v = P.vRefl/P.vWhite, lin = y => (Math.pow(y/255,2.2)+v), ratio = lin(hi)/lin(lo), bare = Math.pow(Math.max(hi,1)/Math.max(lo,1),2.2);
+  const stats = {mean:sum/n, lo, hi, black:black/n, dmax, dmean: dn? dsum/dn : 0, ratio, bare};
+  $('mMean').textContent = stats.mean.toFixed(1); $('mHi').textContent = hi; $('mLo').textContent = lo; $('mRange').textContent = hi-lo;
+  $('mBlack').innerHTML = (stats.black*100).toFixed(1)+' <small>%</small>';
+  $('mVeil').innerHTML = ratio.toFixed(1)+' : 1 <small>（暗室では '+(bare>999?'999+':bare.toFixed(1))+' : 1）</small>';
+  $('mDisp').innerHTML = maskEmpty ? '0 <small>px（マスクなし）</small>' : dmax.toFixed(2)+' / '+stats.dmean.toFixed(2)+' <small>px</small>';
+  const hc=$('hist'), hx=hc.getContext('2d'), cs=getComputedStyle(document.documentElement); hx.clearRect(0,0,256,64);
+  let mx=1; for (let i=1;i<255;i++) if (hist[i]>mx) mx=hist[i];
+  hx.fillStyle=cs.getPropertyValue('--dim'); for (let i=0;i<256;i++){ const hh=Math.min(64,hist[i]/mx*60); hx.fillRect(i,64-hh,1,hh); }
+  hx.fillStyle=cs.getPropertyValue('--mark'); hx.fillRect(lo,0,1,64); hx.fillRect(hi,0,1,64);
+  window.__stats = stats;
+  return stats;
+}
+
+/* ---------- preview loop (light) ---------- */
+function previewSize(){
+  const full = $('full').checked || $('one').checked;
+  const w = full ? A.w : Math.min(A.w, 960), h = Math.round(w * A.h / A.w);
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  cv.style.width = $('one').checked ? (A.w / (window.devicePixelRatio||1))+'px' : '';
+}
+function fmtT(x){ return x.toFixed(2); }
+function tick(){
+  requestAnimationFrame(tick);
+  if (!A || !B || exporting) return;
+  previewSize();
+  const t = A.time;
+  if (B.isVideo) { B.setRate(P.bRate); const want=bTime(t); if (A.playing) { if (!B.playing) B.play(); if (Math.abs(B.time-want) > 0.35*Math.max(1,P.bRate)) B.v.currentTime = want; } else { if (B.playing) B.pause(); if (Math.abs(B.time-want) > 0.05 && !B.v.seeking) B.v.currentTime = want; } }
+  else B.seek(bTime(t));
+  uploadSources();
+  draw(t, cv.width, cv.height, holdOrig ? {mode:1} : {veil:$('veil').checked, mask:$('mShow').checked || !!tool});
+  $('tag').hidden = !holdOrig; if (holdOrig) $('tag').textContent = '加工前';
+  if (document.activeElement !== $('seek')) $('seek').value = t / A.dur;
+  $('time').textContent = fmtT(t)+' / '+fmtT(A.dur)+' 秒';
+  $('play').textContent = A.playing ? '止める' : '再生';
+  const now = performance.now(); if (now - lastStat > 250) { lastStat = now; measure(t); }
+}
+
+/* ---------- mask ---------- */
+function initMask(){ const w=512, h=Math.max(8,Math.round(512*A.h/A.w)); maskCv.width=w; maskCv.height=h; maskCx=maskCv.getContext('2d',{willReadFrequently:true}); maskEmpty=true; pushMask(); }
+function boxBlur(src, w, h, r){
+  if (r < 1) return src; const tmp = new Float32Array(w*h), out = new Float32Array(w*h); let a = src, b = tmp;
+  for (let pass=0; pass<3; pass++){
+    for (let y=0;y<h;y++){ let s=0; const o=y*w; for (let x=-r;x<=r;x++) s+=a[o+clamp(x,0,w-1)];
+      for (let x=0;x<w;x++){ b[o+x]=s/(2*r+1); s+=a[o+Math.min(w-1,x+r+1)]-a[o+Math.max(0,x-r)]; } }
+    for (let x=0;x<w;x++){ let s=0; for (let y=-r;y<=r;y++) s+=b[clamp(y,0,h-1)*w+x];
+      for (let y=0;y<h;y++){ out[y*w+x]=s/(2*r+1); s+=b[Math.min(h-1,y+r+1)*w+x]-b[Math.max(0,y-r)*w+x]; } }
+    a = out; b = tmp;
+  }
+  return out;
+}
+function pushMask(){
+  const w=maskCv.width, h=maskCv.height, d=maskCx.getImageData(0,0,w,h).data, f=new Float32Array(w*h); let any=false;
+  for (let i=0;i<w*h;i++){ f[i]=d[i*4+3]/255; if (d[i*4+3]>8) any=true; }
+  maskEmpty = !any;
+  const r = Math.round(P.edge * w / A.w / 3), bl = boxBlur(f,w,h,r), u8 = new Uint8Array(w*h);
+  for (let i=0;i<w*h;i++) u8[i]=Math.round(clamp(bl[i],0,1)*255);
+  gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D,texM); gl.texImage2D(gl.TEXTURE_2D,0,gl.R8,w,h,0,gl.RED,gl.UNSIGNED_BYTE,u8);
+}
+function pointerUV(e){
+  const r = cv.getBoundingClientRect(), ar = A.w/A.h; let w=r.width, h=r.height, x0=r.left, y0=r.top;
+  if (w/h > ar) { const nw=h*ar; x0+=(w-nw)/2; w=nw; } else { const nh=w/ar; y0+=(h-nh)/2; h=nh; }
+  return [(e.clientX-x0)/w, (e.clientY-y0)/h];
+}
+let lastPt = null;
+function stroke(e){
+  const [u,v]=pointerUV(e), w=maskCv.width, h=maskCv.height, x=u*w, y=v*h, rad=Math.max(1,P.brush/2*w/A.w);
+  maskCx.globalCompositeOperation = tool==='erase' ? 'destination-out' : 'source-over';
+  maskCx.strokeStyle = maskCx.fillStyle = '#fff'; maskCx.lineWidth = rad*2; maskCx.lineCap='round'; maskCx.lineJoin='round';
+  maskCx.beginPath(); if (lastPt) { maskCx.moveTo(lastPt[0],lastPt[1]); maskCx.lineTo(x,y); maskCx.stroke(); } else { maskCx.arc(x,y,rad,0,6.3); maskCx.fill(); }
+  lastPt=[x,y]; pushMask();
+}
+cv.addEventListener('pointerdown', e => { if (!tool || exporting) return; e.preventDefault(); cv.setPointerCapture(e.pointerId); lastPt=null; stroke(e); });
+cv.addEventListener('pointermove', e => { if (tool && lastPt && (e.buttons || e.pointerType==='touch')) stroke(e); });
+const endStroke = () => { lastPt=null; }; cv.addEventListener('pointerup', endStroke); cv.addEventListener('pointercancel', endStroke);
+function setTool(t){ tool = tool===t ? null : t; $('mDraw').classList.toggle('on',tool==='draw'); $('mErase').classList.toggle('on',tool==='erase'); $('stage').classList.toggle('paint',!!tool); }
+$('mDraw').onclick = () => setTool('draw'); $('mErase').onclick = () => setTool('erase');
+$('mClear').onclick = () => { maskCx.clearRect(0,0,maskCv.width,maskCv.height); pushMask(); };
+
+/* ---------- loading ---------- */
+function loadVideo(file){
+  return new Promise((res, rej) => {
+    const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.loop = true; v.preload = 'auto'; v.src = URL.createObjectURL(file);
+    v.addEventListener('loadeddata', () => (v.videoWidth && isFinite(v.duration)) ? res(new VidSrc(v)) : rej(new Error('nodata')), {once:true});
+    v.addEventListener('error', () => rej(new Error('decode')), {once:true});
+  });
+}
+async function measureB(){
+  bCv.width = Math.min(512, B.w); bCv.height = Math.max(2, Math.round(bCv.width * B.h / B.w));
+  const s = document.createElement('canvas'); s.width=48; s.height=27; const x=s.getContext('2d',{willReadFrequently:true}), h=new Uint32Array(256); let n=0;
+  for (let i=0;i<6;i++){ await B.seek(B.dur*(i+0.5)/6); const f=B.frame(); if (!f) continue; x.drawImage(f,0,0,48,27); const d=x.getImageData(0,0,48,27).data;
+    for (let j=0;j<d.length;j+=4){ h[Math.round(0.2126*d[j]+0.7152*d[j+1]+0.0722*d[j+2])]++; n++; } }
+  let lo=0, hi=255, a=0; for (let i=0;i<256;i++){ a+=h[i]; if (a>=n*0.05){ lo=i; break; } } a=0; for (let i=255;i>=0;i--){ a+=h[i]; if (a>=n*0.05){ hi=i; break; } }
+  bRange = n ? [lo/255, hi/255] : [0.1,0.9];
+  await B.seek(P.bStart);
+}
+let fpsTouched = false;
+function setA(src, name){
+  if (A) A.dispose(); A = src; $('nameA').textContent = name; sizeFBO(); initMask();
+  setParam('oFrom',0); setParam('oTo', +A.dur.toFixed(2)); UI.oTo.num.max = UI.oFrom.num.max = A.dur;
+  setParam('oMbps', clamp(Math.round(A.w*A.h*30*0.25/1e6*2)/2, 2, 120));
+  $('outSize').textContent = (A.w&~1)+' × '+(A.h&~1)+' px';
+  buildEvents(); fpsTouched = false;
+  if (A.isVideo && A.v.requestVideoFrameCallback) { const ts=[]; const cb=(n,m)=>{ if (A.v!==src.v) return; ts.push(m.mediaTime); if (ts.length<24) src.v.requestVideoFrameCallback(cb); else { const d=[]; for(let i=1;i<ts.length;i++){ const x=ts[i]-ts[i-1]; if (x>0.001) d.push(x); } d.sort((a,b)=>a-b); const f=1/d[d.length>>1]; if (!fpsTouched && isFinite(f) && f>1 && f<=120) setParam('oFps', +f.toFixed(3)); } }; src.v.requestVideoFrameCallback(cb); }
+}
+async function setB(src, name){ if (B) B.dispose(); B = src; $('nameB').textContent = name; UI.bStart.num.max = UI.bStart.rng.max = Math.max(0, +(B.dur-0.1).toFixed(1)); setParam('bStart', 0); await measureB(); }
+UI.oFps.num.addEventListener('input', () => { fpsTouched = true; });
+async function pick(which, file){
+  if (!file || exporting) return;
+  try { const s = await loadVideo(file); if (which==='A') setA(s, file.name); else await setB(s, file.name);
+    $('srcNote').textContent = (A.isVideo && B.isVideo) ? 'Bは画面には映りません。動きだけがAのマスク内に入ります。' : 'もう片方はまだ見本です。';
+    if (which==='A') $('msg').textContent = 'マスクは空です。「描く」で変形させたい物を一つだけ塗ってください。';
+  } catch(e) { $('msg').textContent = 'この動画は読み込めませんでした。ブラウザで再生できる形式（MP4やWebM）に変換して、もう一度選んでください。'; }
+}
+$('pickA').onclick = () => $('fileA').click(); $('pickB').onclick = () => $('fileB').click();
+$('fileA').onchange = e => pick('A', e.target.files[0]); $('fileB').onchange = e => pick('B', e.target.files[0]);
+
+/* ---------- controls ---------- */
+function onParam(k){ if (k==='edge') pushMask(); if (k==='rEvery'||k==='rJit') buildEvents(); persist(); }
+$('rType').onchange = () => { buildEvents(); showResetRows(); persist(); };
+function showResetRows(){ const t=$('rType').value; for (const k of ['rEvery','rJit','rLen']) UI[k].row.hidden = t==='none'; UI.rEv.row.hidden = t!=='lum'; UI.rShake.row.hidden = t!=='shake'; }
+$('play').onclick = () => { if (!A || exporting) return; A.playing ? A.pause() : A.play(); };
+$('seek').oninput = () => { if (A && !exporting) { if (A.isVideo) A.v.currentTime = $('seek').value * A.dur; else A.seek($('seek').value * A.dur); } };
+const hold = on => { holdOrig = on; $('orig').classList.toggle('on', on); };
+$('orig').addEventListener('pointerdown', e => { e.preventDefault(); hold(true); }); for (const ev of ['pointerup','pointerleave','pointercancel']) $('orig').addEventListener(ev, () => hold(false));
+$('orig').addEventListener('keydown', e => { if (e.key===' '||e.key==='Enter') hold(true); }); $('orig').addEventListener('keyup', () => hold(false));
+$('one').onchange = () => $('stage').classList.toggle('one', $('one').checked);
+
+/* ---------- export: every frame, at the source size, never in real time ---------- */
+let cancelled = false, outBlob = null, outName = '';
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function pickCodec(w, h, fps, bitrate){
+  const big = w*h > 1920*1088, pref = $('fmt').value;
+  const list = [
+    {ext:'mp4',  codec: big ? 'avc1.640033' : 'avc1.640028', mux:'avc'},
+    {ext:'mp4',  codec: big ? 'avc1.4d0033' : 'avc1.4d0028', mux:'avc'},
+    {ext:'webm', codec: big ? 'vp09.00.51.08' : 'vp09.00.41.08', mux:'V_VP9'},
+    {ext:'webm', codec: 'vp8', mux:'V_VP8'},
+  ];
+  if (pref === 'webm') list.sort((a,b) => (a.ext==='webm'?0:1)-(b.ext==='webm'?0:1));
+  for (const c of list) {
+    if (c.ext==='mp4' && !window.Mp4Muxer) continue; if (c.ext==='webm' && !window.WebMMuxer) continue;
+    const cfg = {codec:c.codec, width:w, height:h, bitrate, framerate:fps, latencyMode:'quality'}; if (c.mux==='avc') cfg.avc = {format:'avc'};
+    try { const s = await VideoEncoder.isConfigSupported(cfg); if (s.supported) return {c, cfg}; } catch(e) {}
+  }
+  return null;
+}
+async function runExport(){
+  if (exporting || !A || !B) return;
+  const msg = $('msg');
+  if (!window.VideoEncoder) { msg.textContent = 'このブラウザはコマごとの書き出しに対応していません。Chrome、Edge、Safari 17以降で開いてください。'; return; }
+  const w = A.w & ~1, h = A.h & ~1, fps = P.oFps, from = clamp(P.oFrom,0,A.dur), to = clamp(P.oTo || A.dur, 0, A.dur), n = Math.floor((to-from)*fps + 1e-6);
+  if (n < 1) { msg.textContent = '書き出す範囲が空です。開始と終了の秒数を確かめてください。'; return; }
+  const pc = await pickCodec(w, h, fps, P.oMbps*1e6);
+  if (!pc) { msg.textContent = 'この解像度を書き出せる形式が、このブラウザにありません。別のブラウザで試してください。'; return; }
+  exporting = true; cancelled = false; A.pause(); if (B.playing) B.pause();
+  $('export').disabled = true; $('cancel').hidden = false; $('save').hidden = true; $('prog').hidden = false; $('prog').value = 0; $('result').textContent = '';
+  const backT = A.time; let enc = null, err = null;
+  try {
+    const M = pc.c.ext === 'mp4' ? Mp4Muxer : WebMMuxer;
+    const muxer = new M.Muxer(pc.c.ext === 'mp4'
+      ? {target:new M.ArrayBufferTarget(), video:{codec:'avc', width:w, height:h, frameRate:fps}, fastStart:'in-memory'}
+      : {target:new M.ArrayBufferTarget(), video:{codec:pc.c.mux, width:w, height:h, frameRate:fps}});
+    enc = new VideoEncoder({output:(chunk, meta) => muxer.addVideoChunk(chunk, meta), error:e => { err = e; }});
+    enc.configure(pc.cfg);
+    cv.width = w; cv.height = h; cv.style.width = '';
+    const gop = Math.max(1, Math.round(fps*2)), t0 = performance.now();
+    for (let i = 0; i < n && !cancelled && !err; i++) {
+      const t = from + i/fps;
+      await A.seek(Math.min(A.dur - 0.5/fps, t + (A.isVideo ? 0.25/fps : 0)));
+      await B.seek(bTime(t));
+      uploadSources(); draw(t, w, h, {});
+      const frame = new VideoFrame(cv, {timestamp: Math.round(i*1e6/fps), duration: Math.round(1e6/fps)});
+      enc.encode(frame, {keyFrame: i % gop === 0}); frame.close();
+      while (enc.encodeQueueSize > 3) await sleep(4);
+      if (i % 5 === 0) { $('prog').value = (i+1)/n; const el=(performance.now()-t0)/1000; msg.textContent = (i+1)+' / '+n+' コマ（残り約 '+Math.ceil(el/(i+1)*(n-i-1))+' 秒）'; await sleep(0); }
+    }
+    if (err) throw err;
+    if (!cancelled) {
+      await enc.flush(); muxer.finalize();
+      outBlob = new Blob([muxer.target.buffer], {type:'video/'+pc.c.ext});
+      outName = 'kehai-'+w+'x'+h+'-'+Date.now().toString(36)+'.'+pc.c.ext;
+      const v = document.createElement('video'); v.controls = true; v.loop = true; v.playsInline = true; v.muted = true; v.src = URL.createObjectURL(outBlob); $('result').append(v);
+      msg.textContent = n+' コマ、'+w+' × '+h+' px、'+(outBlob.size/1e6).toFixed(1)+' MB の '+pc.c.ext.toUpperCase()+' ができました。'
+        + ($('fmt').value==='mp4' && pc.c.ext!=='mp4' ? 'このブラウザはMP4を作れないため、WebMにしました。' : '');
+      $('save').hidden = false;
+      window.__export = {frames:n, w, h, size:outBlob.size, ext:pc.c.ext};
+    } else msg.textContent = '中止しました。';
+  } catch(e) { msg.textContent = '書き出しが途中で止まりました（'+(e && e.message || e)+'）。ビットレートを下げるか、範囲を短くして試してください。'; }
+  try { if (enc && enc.state !== 'closed') enc.close(); } catch(e) {}
+  await A.seek(backT);
+  exporting = false; $('export').disabled = false; $('cancel').hidden = true; $('prog').hidden = true;
+}
+$('export').onclick = runExport; $('cancel').onclick = () => { cancelled = true; };
+$('save').onclick = async () => {
+  if (!outBlob) return; const msg = $('msg');
+  let dl = null; try { dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null; } catch(e) {}
+  if (dl) { try { await dl.save({filename:outName, data:outBlob}); msg.textContent = '保存しました。'; }
+    catch(e) { msg.textContent = e && e.code === 'declined' ? '保存を取りやめました。' : 'ここでは保存できませんでした。下の動画を長押し（右クリック）して保存してください。'; } return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(outBlob); a.download = outName; document.body.append(a); a.click(); a.remove();
+};
+
+/* ---------- start with the sample, clearly labelled as a sample ---------- */
+(async function start(){
+  try { initGL(); } catch(e) { $('msg').textContent = 'このブラウザではWebGL2が使えないため、動きません。'; return; }
+  B = makeSampleB(); await measureB();
+  setA(makeSampleA(), '見本の景色');
+  // sample mask: the tree at the left edge, away from where the eye rests
+  const g = maskCx.createRadialGradient(70,134,0,70,134,62); g.addColorStop(0,'#fff'); g.addColorStop(0.75,'#fff'); g.addColorStop(1,'rgba(255,255,255,0)');
+  maskCx.fillStyle = g; maskCx.beginPath(); maskCx.ellipse(70,134,52,62,0,0,6.3); maskCx.fill(); pushMask();
+  showResetRows(); A.play(); tick();
+})();
+</script>
