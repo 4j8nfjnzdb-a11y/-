@@ -1,0 +1,71 @@
+<div class="app" id="app" data-tab="tl">
+  <header class="top">
+    <div class="brand" title="Kasane 重ね"><b>重ね</b><span>Kasane</span></div>
+    <div class="menus">
+      <button type="button" class="tb" id="mFile">ファイル</button>
+      <button type="button" class="tb" id="mAdd"><svg class="ic" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>重ねる</button>
+    </div>
+    <div class="tools" id="tools" role="toolbar" aria-label="道具"></div>
+    <div class="acts">
+      <button type="button" class="ib" id="undoBtn" title="取り消す (⌘Z)" aria-label="取り消す"><svg class="ic" viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4L3.5 7.5 7 11M3.5 7.5h8a5 5 0 0 1 0 10H8"/></svg></button>
+      <button type="button" class="ib" id="redoBtn" title="やり直す (⇧⌘Z)" aria-label="やり直す"><svg class="ic" viewBox="0 0 20 20" aria-hidden="true"><path d="M13 4l3.5 3.5L13 11M16.5 7.5h-8a5 5 0 0 0 0 10H12"/></svg></button>
+      <button type="button" class="ib" id="helpBtn" title="使い方" aria-label="使い方"><svg class="ic" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M7.8 8a2.3 2.3 0 1 1 3.2 2.1c-.7.3-1 .8-1 1.500M10 14.200v.100"/></svg></button>
+      <button type="button" class="btn primary" id="exportBtn">書き出す</button>
+    </div>
+  </header>
+
+  <aside class="left" id="left" aria-label="素材とコンポジション"></aside>
+
+  <section class="stage" id="stage" aria-label="ビューア">
+    <canvas id="gl"></canvas>
+    <canvas id="ov" aria-label="コンポジション。レイヤーをつかんで動かせます"></canvas>
+    <div class="hud" id="hud">
+      <button type="button" class="hb" id="zoomBtn" title="表示倍率">100%</button>
+      <button type="button" class="hb" id="resBtn" title="プレビューの解像度">自動</button>
+      <button type="button" class="hb" id="mbBtn" title="モーションブラーをプレビューに反映" aria-pressed="false">ブラー</button>
+    </div>
+    <div class="note" id="note" hidden></div>
+    <div class="fail" id="fail" hidden><b>この端末では描画を始められませんでした</b><p>WebGL2 に対応したブラウザ（最新の Chrome・Safari・Edge・Firefox）で開いてください。</p></div>
+    <div class="drop" id="drop" hidden>ここに置くと素材として読み込みます</div>
+    <div class="exp" id="exp" hidden>
+      <b id="expTitle">書き出しています</b>
+      <div class="bar"><i id="expBar"></i></div>
+      <span id="expInfo"></span>
+      <button type="button" class="btn" id="expCancel">やめる</button>
+    </div>
+  </section>
+
+  <aside class="insp" id="insp" aria-label="プロパティ"></aside>
+
+  <section class="tl" id="tl" aria-label="タイムライン">
+    <div class="tlbar">
+      <button type="button" class="tc" id="tcBtn" title="時間を入力して移動">0:00:00</button>
+      <div class="transport">
+        <button type="button" class="ib" id="firstBtn" title="最初へ (Home)" aria-label="最初へ"></button>
+        <button type="button" class="ib" id="prevBtn" title="1コマ戻る (←)" aria-label="1コマ戻る"></button>
+        <button type="button" class="ib play" id="playBtn" title="再生・停止 (スペース)" aria-label="再生" aria-pressed="false"></button>
+        <button type="button" class="ib" id="nextBtn" title="1コマ進む (→)" aria-label="1コマ進む"></button>
+        <button type="button" class="ib" id="loopBtn" title="くり返す" aria-label="くり返す" aria-pressed="true"></button>
+        <button type="button" class="ib rec" id="recBtn" title="手の動きを記録：押してからレイヤーをつかんで動かすと、その動きがキーフレームになります" aria-label="手の動きを記録" aria-pressed="false"></button>
+      </div>
+      <span class="tlinfo" id="tlInfo"></span>
+      <input type="range" id="tlZoom" min="0" max="100" value="40" aria-label="タイムラインの拡大">
+    </div>
+    <div class="tlbody">
+      <div class="tlleft" id="tlLeft"></div>
+      <div class="tlright" id="tlRight"><canvas id="tlc" aria-label="レイヤーの時間とキーフレーム"></canvas></div>
+    </div>
+  </section>
+
+  <nav class="tabs" id="tabs" aria-label="表示の切り替え">
+    <button type="button" data-tab="tl" aria-pressed="true">タイムライン</button>
+    <button type="button" data-tab="insp" aria-pressed="false">プロパティ</button>
+    <button type="button" data-tab="left" aria-pressed="false">素材</button>
+  </nav>
+
+  <div class="pop" id="pop" hidden></div>
+  <div class="modal" id="modal" hidden></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <input type="file" id="fileIn" multiple hidden accept="image/*,video/*,audio/*,.m4a,.mp3,.wav,.aac,.flac,.ogg,.mov,.mp4,.m4v,.webm">
+  <input type="file" id="projIn" hidden accept=".json,application/json">
+</div>
