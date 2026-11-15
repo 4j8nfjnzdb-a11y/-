@@ -427,6 +427,33 @@ function lkPair(a, b, w, h){
     }
   }
 }
+// the whole shift and swell, fitted directly on every pixel (not by averaging local estimates), coarse to fine
+function globalFit(a, b, w, h){
+  const pa=[{I:a,w,h}], pb=[{I:b,w,h}];
+  while (pa[pa.length-1].w > 24 && pa.length < 4) { pa.push(down2(pa[pa.length-1])); pb.push(down2(pb[pb.length-1])); }
+  let tx=0, ty=0, s=0;
+  for (let L=pa.length-1; L>=0; L--) {
+    const I0=pa[L].I, I1=pb[L].I, W=pa[L].w, H=pa[L].h, cx=W/2, cy=H/2, m=Math.max(1, Math.round(W*0.05));
+    if (L < pa.length-1) { tx*=2; ty*=2; }
+    for (let it=0; it<5; it++){
+      let a11=0,a12=0,a13=0,a22=0,a23=0,a33=0,b1=0,b2=0,b3=0;
+      for (let y=m;y<H-m;y++) for (let x=m;x<W-m;x++){
+        const rx=x+0.5-cx, ry=y+0.5-cy, sx=clamp(x+tx+s*rx,0,W-1.001), sy=clamp(y+ty+s*ry,0,H-1.001), x0=sx|0, y0=sy|0, fx=sx-x0, fy=sy-y0, j=y0*W+x0;
+        const J=(I1[j]*(1-fx)+I1[j+1]*fx)*(1-fy)+(I1[j+W]*(1-fx)+I1[j+W+1]*fx)*fy, i=y*W+x;
+        const ix=(I0[i+1]-I0[i-1])*0.5, iy=(I0[i+W]-I0[i-W])*0.5, iz=ix*rx+iy*ry, r=J-I0[i], wt=1/(1+r*r/400);
+        a11+=wt*ix*ix; a12+=wt*ix*iy; a13+=wt*ix*iz; a22+=wt*iy*iy; a23+=wt*iy*iz; a33+=wt*iz*iz; b1+=wt*ix*r; b2+=wt*iy*r; b3+=wt*iz*r;
+      }
+      const e=1e-3*(a11+a22+1); a11+=e; a22+=e; a33+=e*(W*W/12);
+      // solve the 3x3 system by Cramer's rule
+      const det=a11*(a22*a33-a23*a23)-a12*(a12*a33-a23*a13)+a13*(a12*a23-a22*a13); if (!det) break;
+      const d1=-(b1*(a22*a33-a23*a23)-a12*(b2*a33-a23*b3)+a13*(b2*a23-a22*b3))/det;
+      const d2=-(a11*(b2*a33-a23*b3)-b1*(a12*a33-a23*a13)+a13*(a12*b3-b2*a13))/det;
+      const d3=-(a11*(a22*b3-b2*a23)-a12*(a12*b3-b2*a13)+b1*(a12*a23-a22*a13))/det;
+      tx+=clamp(d1,-2,2); ty+=clamp(d2,-2,2); s+=clamp(d3,-0.05,0.05);
+    }
+  }
+  return {tx, ty, s};
+}
 let BF = null, loadingB = false, bSample = true, bUp = [-1,-1,-1];
 async function decodeB(src, prog){
   const gw = Math.min(128, src.w & ~1), gh = Math.max(16, Math.round(gw*src.h/src.w) & ~1), fw = gw>>1, fh = gh>>1;
@@ -463,50 +490,42 @@ async function decodeB(src, prog){
     for (let i=0;i<n;i++) { if (grey[i]) continue; await src.seek(i/rate); grab(i, src.frame()); if (got % 5 === 0) { tell('read'); await new Promise(r=>setTimeout(r,0)); } }
   }
   // motion between neighbouring frames, as a fraction of B's width per frame, on a fw x fh grid
-  const grid = gridOf({fw, fh}), F = [new Float32Array(fw*fh*2)], cf = new Float32Array(fw*fh);
+  const grid = gridOf({fw, fh}), F = [new Float32Array(fw*fh*2)], G = [{tx:0, ty:0, s:0}], cf = new Float32Array(fw*fh);
   for (let i=1;i<n;i++){
     const {u, v, conf} = lkPair(grey[i-1], grey[i], gw, gh), f = new Float32Array(fw*fh*2);
     for (let y=0;y<fh;y++) for (let x=0;x<fw;x++){ let su=0, sv=0, sc=0; for (const [ox,oy] of [[0,0],[1,0],[0,1],[1,1]]) { const j=(2*y+oy)*gw+2*x+ox; su+=u[j]*conf[j]; sv+=v[j]*conf[j]; sc+=conf[j]; }
       const j=y*fw+x; cf[j] = sc*0.25; f[j*2] = sc ? su/sc/gw : 0; f[j*2+1] = sc ? sv/sc/gw : 0; }
-    // fit the whole shift and swell with the trustworthy places only, then let unsure places follow that fit
-    let W=0, tx=0, ty=0; for (let j=0;j<fw*fh;j++){ W+=cf[j]; tx+=cf[j]*f[j*2]; ty+=cf[j]*f[j*2+1]; }
-    tx = W ? tx/W : 0; ty = W ? ty/W : 0;
-    let sn=0, sd=0; for (let j=0;j<fw*fh;j++){ sn+=cf[j]*((f[j*2]-tx)*grid.gx[j]+(f[j*2+1]-ty)*grid.gy[j]); sd+=cf[j]*(grid.gx[j]*grid.gx[j]+grid.gy[j]*grid.gy[j]); }
-    const sc = sd ? sn/sd : 0;
-    for (let j=0;j<fw*fh;j++){ const c=cf[j], gxv=tx+sc*grid.gx[j], gyv=ty+sc*grid.gy[j]; f[j*2]=gxv+c*(f[j*2]-gxv); f[j*2+1]=gyv+c*(f[j*2+1]-gyv); }
+    const q = globalFit(grey[i-1], grey[i], gw, gh), g = {tx:q.tx/gw, ty:q.ty/gw, s:q.s}; localPart(f, cf, grid, fw*fh, g); G.push(g);
     F.push(f);
     if (i % 8 === 0) { got = i; tell('flow'); await new Promise(r=>setTimeout(r,0)); }
   }
   let cr=0, cg=0, cb=0; for (const c of color) for (let j=0;j<c.length;j+=4){ cr+=c[j]; cg+=c[j+1]; cb+=c[j+2]; }
   const cn = color.length*fw*fh;
-  const bf = {fw, fh, n, rate, dur:n/rate, aspect:src.w/src.h, F, color, cmean:[cr/cn/255, cg/cn/255, cb/cn/255]};
+  const bf = {fw, fh, n, rate, dur:n/rate, aspect:src.w/src.h, F, G, color, cmean:[cr/cn/255, cg/cn/255, cb/cn/255]};
   bf.grid = grid; bf.summary = summarize(bf);
   return bf;
+}
+// what is left at each place once the whole shift and swell are taken out; unsure places count for less
+function localPart(f, cf, grid, N, g){
+  for (let j=0;j<N;j++){ const c=cf[j]; f[j*2]=c*(f[j*2]-g.tx-g.s*grid.gx[j]); f[j*2+1]=c*(f[j*2+1]-g.ty-g.s*grid.gy[j]); }
 }
 function gridOf(bf){ const {fw,fh}=bf, gx=new Float32Array(fw*fh), gy=new Float32Array(fw*fh); let r2=0;
   for (let y=0;y<fh;y++) for (let x=0;x<fw;x++){ const j=y*fw+x; gx[j]=(x+0.5)/fw-0.5; gy[j]=((y+0.5)/fh-0.5)*fh/fw; r2+=gx[j]*gx[j]+gy[j]*gy[j]; }
   return {gx, gy, r2}; }
-// split a motion field into a shift of the whole, a swell (outward = closer), and what is left at each place
-function split(D, bf, out){
-  const N=bf.fw*bf.fh, {gx,gy,r2}=bf.grid; let tx=0, ty=0;
-  for (let j=0;j<N;j++){ tx+=D[j*2]; ty+=D[j*2+1]; } tx/=N; ty/=N;
-  let s=0; for (let j=0;j<N;j++) s+=(D[j*2]-tx)*gx[j]+(D[j*2+1]-ty)*gy[j]; s/=r2;
-  let loc=0;
-  for (let j=0;j<N;j++){ const lx=D[j*2]-tx-s*gx[j], ly=D[j*2+1]-ty-s*gy[j]; if (out){ out[j*2]=lx; out[j*2+1]=ly; } loc+=Math.hypot(lx,ly); }
-  return {tx, ty, s, loc:loc/N};
-}
 function summarize(bf){
-  let sp=0, vx=0, vy=0, dv=0, lc=0; const m = bf.n-1;
-  for (let i=1;i<bf.n;i++){ const q = split(bf.F[i], bf, null); sp+=Math.hypot(q.tx,q.ty); vx+=q.tx; vy+=q.ty; dv+=Math.abs(q.s); lc+=q.loc; }
+  let sp=0, vx=0, vy=0, dv=0, lc=0; const m = bf.n-1, N = bf.fw*bf.fh;
+  for (let i=1;i<bf.n;i++){ const g = bf.G[i], f = bf.F[i]; sp+=Math.hypot(g.tx,g.ty); vx+=g.tx; vy+=g.ty; dv+=Math.abs(g.s);
+    let l=0; for (let j=0;j<N;j++) l+=Math.hypot(f[j*2],f[j*2+1]); lc+=l/N; }
   return {speed:sp/m*bf.rate*100, dirX:vx, dirY:vy, consist: sp>0 ? Math.hypot(vx,vy)/sp : 0, div:dv/m*bf.rate*100, loc:lc/m*bf.rate*100};
 }
 // accumulate motion over time, letting it fall back with the chosen time constant; loop once first so the start is settled
 function integrate(){
   const bf = BF, N = bf.fw*bf.fh, k = Math.exp(-1/(bf.rate*P.leak)), D = new Float32Array(N*2);
-  for (let i=0;i<bf.n;i++){ const f=bf.F[i]; for (let j=0;j<N*2;j++) D[j]=D[j]*k+f[j]; }
+  let tx=0, ty=0, sc=0;
+  const step = i => { const f=bf.F[i], g=bf.G[i]; for (let j=0;j<N*2;j++) D[j]=D[j]*k+f[j]; tx=tx*k+g.tx; ty=ty*k+g.ty; sc=sc*k+g.s; };
+  for (let i=0;i<bf.n;i++) step(i);
   bf.TX = new Float32Array(bf.n); bf.TY = new Float32Array(bf.n); bf.S = new Float32Array(bf.n); bf.LOC = new Array(bf.n);
-  for (let i=0;i<bf.n;i++){ const f=bf.F[i]; for (let j=0;j<N*2;j++) D[j]=D[j]*k+f[j];
-    const out = new Float32Array(N*2), q = split(D, bf, out); bf.TX[i]=q.tx; bf.TY[i]=q.ty; bf.S[i]=q.s; bf.LOC[i]=out; }
+  for (let i=0;i<bf.n;i++){ step(i); bf.TX[i]=tx; bf.TY[i]=ty; bf.S[i]=sc; bf.LOC[i]=D.slice(); }
   bUp = [-1,-1,-1]; trajKey = '';
 }
 function showSummary(){
