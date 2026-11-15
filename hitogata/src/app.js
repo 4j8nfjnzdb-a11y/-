@@ -40,12 +40,18 @@ const S = {
   tex: { kind: 'sample', name: '見本のフェルト', video: null, file: null, lastT: -1 },
 };
 let R = null; const TR = new Tracker();
-const video = document.createElement('video');
-video.muted = true; video.playsInline = true; video.preload = 'auto'; video.crossOrigin = 'anonymous';
-Object.assign(video.style, { position: 'fixed', left: '0', top: '0', width: '2px', height: '2px', opacity: '0', pointerEvents: 'none' });
-const texVideo = document.createElement('video');
-texVideo.muted = true; texVideo.loop = true; texVideo.playsInline = true;
-Object.assign(texVideo.style, { position: 'fixed', left: '0', top: '0', width: '2px', height: '2px', opacity: '0', pointerEvents: 'none' });
+// hidden players: kept in the page and barely visible (some browsers stop presenting frames of
+// elements that are fully transparent); no crossOrigin, which can refuse a blob: URL in a sandbox
+function hiddenVideo(loop) {
+  const v = document.createElement('video');
+  v.muted = true; v.playsInline = true; v.preload = 'auto'; v.loop = !!loop;
+  v.setAttribute('muted', ''); v.setAttribute('playsinline', '');
+  Object.assign(v.style, { position: 'fixed', left: '0', bottom: '0', width: '2px', height: '2px', opacity: '0.01', pointerEvents: 'none' });
+  return v;
+}
+const video = hiddenVideo(false);       // the clip being worked on
+const plateVideo = hiddenVideo(false);  // a second player for estimating the empty street, so the preview is never blocked
+const texVideo = hiddenVideo(true);     // the felt / fur material
 const texCanvas = makeCanvas(16, 16), texCtx = texCanvas.getContext('2d');
 let MB = null;
 const yieldUI = () => new Promise((r) => { const c = new MessageChannel(); c.port1.onmessage = () => r(); c.port2.postMessage(0); });
@@ -97,10 +103,30 @@ function busyEnd() { $('busy').hidden = true; S.busy = null; }
 function effMethod() { return S.method === 'mp' && DET.mp.state === 'ready' ? 'mp' : 'bg'; }
 function frameDur() { return 1 / (S.src ? S.src.fps : 30); }
 function waitEvent(el, ev) { return new Promise((res) => el.addEventListener(ev, res, { once: true })); }
-async function seekVideo(t) {
-  const d = Math.abs(video.currentTime - t);
-  if (d < 1e-4) return;
-  const p = waitEvent(video, 'seeked'); video.currentTime = t; await p;
+// resolves on the event, rejects on a media error or after `ms`
+function waitMedia(el, ev, ms) {
+  return new Promise((res, rej) => {
+    const done = (f, x) => { clearTimeout(tm); el.removeEventListener(ev, onEv); el.removeEventListener('error', onErr); f(x); };
+    const onEv = () => done(res), onErr = () => done(rej, new Error(mediaError(el)));
+    const tm = setTimeout(() => done(rej, new Error(`${(ms / 1000).toFixed(0)} 秒待っても応答がありません`)), ms);
+    el.addEventListener(ev, onEv); el.addEventListener('error', onErr);
+  });
+}
+function mediaError(el) {
+  const c = el.error && el.error.code;
+  return c === 4 ? 'この形式はこのブラウザで再生できません（HEVC/H.265 の MOV などは開けないことがあります。H.264 の MP4 で試してください）'
+    : c === 3 ? '動画の中身を読めませんでした（ファイルが壊れているか、対応していない符号化です）'
+      : c === 2 ? 'ファイルを読み込めませんでした' : '動画を開けませんでした';
+}
+async function seekEl(el, t, ms = 5000) {
+  if (Math.abs(el.currentTime - t) < 1e-4 && el.readyState >= 2) return;
+  const p = waitMedia(el, 'seeked', ms); el.currentTime = t;
+  try { await p; } catch (e) { /* a slow seek must not freeze the page */ }
+  if (el.readyState < 2) { try { await waitMedia(el, 'canplay', 2000); } catch (e) { /* */ } }
+}
+const seekVideo = (t) => seekEl(video, t);
+function fixDuration(v) { // files written by a recorder may report an infinite duration until the end is read
+  return new Promise((res) => { const on = () => { v.removeEventListener('durationchange', on); const d = v.duration; v.currentTime = 0; res(isFinite(d) && d > 0 ? d : 10); }; v.addEventListener('durationchange', on); v.currentTime = 1e7; setTimeout(on, 4000); });
 }
 
 // ---------------------------------------------------------------- sources ---
@@ -131,22 +157,42 @@ async function openFile(file) {
   if (!file) return;
   if (!(file.type.startsWith('video/') || /\.(mp4|mov|m4v|webm|mkv)$/i.test(file.name))) { setVerdict('none', '開けません', '動画のファイルを選んでください（MP4・MOV・WebM など）。'); return; }
   stop();
-  if (S.src && S.src.url) URL.revokeObjectURL(S.src.url);
+  const prevUrl = S.src && S.src.url;
+  setVerdict('weak', '読み込み中', `${file.name} を開いています…`);
+  $('srcInfo').textContent = `${file.name} を開いています…`;
   const url = URL.createObjectURL(file);
-  video.src = url;
-  try { await Promise.race([waitEvent(video, 'loadeddata'), new Promise((_, rej) => video.addEventListener('error', () => rej(new Error('このブラウザでは再生できない形式です')), { once: true }))]); }
-  catch (e) { setVerdict('none', '開けません', e.message); return; }
-  let fps = 30, firstTs = 0;
-  try {
-    const mb = await loadMB();
-    const input = new mb.Input({ source: new mb.BlobSource(file), formats: mb.ALL_FORMATS });
-    const tr = await input.getPrimaryVideoTrack();
-    if (tr) { const st = await tr.computePacketStats(120); if (st.averagePacketRate > 1) fps = st.averagePacketRate; firstTs = await tr.getFirstTimestamp(); }
-  } catch (e) { /* fps stays 30 */ }
-  await setSource({ kind: 'file', id: `${file.name}|${file.size}|${file.lastModified}`, name: file.name, file, url, W: video.videoWidth, H: video.videoHeight, fps, dur: video.duration, firstTs });
+  video.src = url; video.load();
+  try { await waitMedia(video, 'loadedmetadata', 20000); }
+  catch (e) {
+    URL.revokeObjectURL(url);
+    const msg = `${file.name} を開けませんでした：${e.message}`;
+    setVerdict('none', '開けません', msg); $('srcInfo').textContent = msg;
+    if (S.src && S.src.kind === 'file' && prevUrl) { video.src = prevUrl; video.load(); }
+    return;
+  }
+  if (prevUrl) URL.revokeObjectURL(prevUrl);
+  let dur = video.duration; if (!isFinite(dur) || !(dur > 0)) dur = await fixDuration(video);
+  if (!video.videoWidth || !video.videoHeight) { setVerdict('none', '開けません', `${file.name} には映像がありません。`); return; }
+  const src = { kind: 'file', id: `${file.name}|${file.size}|${file.lastModified}`, name: file.name, file, url, W: video.videoWidth, H: video.videoHeight, fps: 30, dur, firstTs: 0 };
+  await setSource(src);
+  // show the first picture before anything slow happens
+  await seekVideo(0.001);
+  showVideoFrame(true);
   if (DET.mp.state === 'idle' || DET.mp.state === 'failed') DET.loadMP();
   setMethod(DET.mp.state === 'failed' ? 'bg' : 'mp', true);
-  await seekVideo(0.001); showVideoFrame(true);
+  // exact frame rate and first timestamp, in the background (used by the scan and export)
+  (async () => {
+    try {
+      const mb = await loadMB();
+      const input = new mb.Input({ source: new mb.BlobSource(file), formats: mb.ALL_FORMATS });
+      const tr = await input.getPrimaryVideoTrack();
+      if (tr && S.src === src) {
+        const st = await tr.computePacketStats(120); if (st.averagePacketRate > 1) src.fps = st.averagePacketRate;
+        src.firstTs = await tr.getFirstTimestamp();
+        if (S.src === src) { $('srcInfo').textContent = `${src.name}　${src.W}×${src.H} px・${src.fps.toFixed(2)} コマ/秒・${src.dur.toFixed(2)} 秒`; $('seek').max = Math.max(1, Math.round(src.dur * src.fps)); }
+      }
+    } catch (e) { /* stays at 30 frames per second */ }
+  })();
 }
 function setTextureCanvas(c, name) {
   const s = Math.min(1, 1024 / Math.max(c.width, c.height));
@@ -199,7 +245,9 @@ function methodUI() {
   if (S.src && S.src.kind === 'sample' && m === 'mp') note += '見本の人は描いた絵なので、MediaPipe ではほとんど見つかりません。';
   if (S.src && S.src.kind === 'sample' && m === 'bg') note = '見本は背景が動かないので、内蔵の背景差分で検出しています。';
   $('methodNote').textContent = note; $('methodNote').hidden = !note;
-  $('bgStatus').textContent = BG.plate ? (S.src && S.src.kind === 'sample' ? '背景：見本の空の街並み（人のいない画面）' : `背景：${BG.frames} コマの中央値から推定`) : '背景：まだ推定していません';
+  const job = plateJob && S.src && plateJob.src === S.src ? plateJob : null;
+  $('bgStatus').textContent = BG.plate ? (S.src && S.src.kind === 'sample' ? '背景：見本の空の街並み（人のいない画面）' : `背景：${BG.frames} コマの中央値から推定`)
+    : job && job.err ? '背景を推定できませんでした：' + job.err : job ? `背景（人のいない画面）を推定しています ${job.i} / ${job.n}。終わるまで内蔵の検出は働きません。` : '背景：まだ推定していません';
   $('bgRedo').hidden = !S.src || S.src.kind === 'sample';
 }
 DET.onStatus = () => {
@@ -207,17 +255,25 @@ DET.onStatus = () => {
   if (DET.mp.state === 'ready' && S.method === 'mp') { S.cache = null; redetect(); }
   if (DET.mp.state === 'failed' && S.method === 'mp' && S.src && S.src.kind === 'file' && !BG.plate) estimatePlate();
 };
-async function estimatePlate() {
-  if (!S.src || S.src.kind !== 'file' || S.busy) return;
-  const wasPlaying = S.playing; stop();
-  S.busy = { cancel: false };
-  const back = video.currentTime;
-  busy('背景（人のいない画面）を推定しています', 0);
-  try {
-    await BG.estimate(async (t) => { await seekVideo(t); return video; }, S.src.dur, 21, (i, n) => busy('背景（人のいない画面）を推定しています', i / n));
-  } finally { busyEnd(); }
-  await seekVideo(back); methodUI(); redetect();
-  if (wasPlaying) play();
+// the empty street for the built-in detector: estimated on a second player, so the preview keeps going
+let plateJob = null;
+function estimatePlate() {
+  if (!S.src || S.src.kind !== 'file') return Promise.resolve();
+  if (plateJob && plateJob.src === S.src) return plateJob.p;
+  const src = S.src, job = { src, i: 0, n: 21, err: '' };
+  plateJob = job;
+  job.p = (async () => {
+    methodUI();
+    try {
+      plateVideo.src = src.url; plateVideo.load();
+      await waitMedia(plateVideo, 'loadeddata', 20000);
+      const plate = await BG.estimate(async (t) => { await seekEl(plateVideo, t, 4000); return plateVideo; }, src.dur, job.n, (i) => { job.i = i; methodUI(); });
+      if (S.src === src) BG.plate = plate;
+    } catch (e) { job.err = e.message || String(e); }
+    plateVideo.removeAttribute('src'); plateVideo.load();
+    if (S.src === src) { methodUI(); redetect(); }
+  })();
+  return job.p;
 }
 function cacheGet(t) {
   const C = S.cache; if (!C || C.key !== cacheKey() || !(P.mode === 1 || C.faces)) return null;
@@ -696,7 +752,7 @@ function boot() {
   try { R = new Renderer($('cv')); }
   catch (e) { setVerdict('none', '動きません', 'このブラウザでは WebGL2 が使えないため動きません：' + e.message); return; }
   for (const d of DEFS) mountParam(d);
-  document.body.appendChild(video); document.body.appendChild(texVideo);
+  document.body.appendChild(video); document.body.appendChild(plateVideo); document.body.appendChild(texVideo);
   $('play').onclick = () => (S.playing ? stop() : play());
   $('stepB').onclick = () => step(-1); $('stepF').onclick = () => step(1);
   $('seek').addEventListener('input', () => { stop(); seekTo(+$('seek').value / S.src.fps); });
@@ -721,7 +777,7 @@ function boot() {
   $('faceIn').addEventListener('change', () => { const f = $('faceIn').files[0]; if (f) DET.useModelFile('face', f); $('faceIn').value = ''; });
   $('mpRetry').onclick = () => { DET.mp.state = 'idle'; DET.loadMP(); };
   $('mpForget').onclick = async () => { await DET.forgetModelFiles(); DET.mp.state = 'idle'; DET.loadMP(); };
-  $('bgRedo').onclick = () => { BG.plate = null; S.cache = null; estimatePlate(); };
+  $('bgRedo').onclick = () => { BG.plate = null; S.cache = null; plateJob = null; estimatePlate(); };
   $('modeSeg').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; P.mode = +b.dataset.mode; modeUI(); redetect(); scanSummary(); if (S.cache) analyzeSoon(); });
   $('kindSeg').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; P.faceKind = b.dataset.k; modeUI(); rerender(); });
   $('resetAll').onclick = () => { for (const d of DEFS) if (d.mode === P.mode || (d.mode === 0)) { P[d.k] = d.v; syncParam(d.k); } rerender(); if (S.cache) analyzeSoon(); };

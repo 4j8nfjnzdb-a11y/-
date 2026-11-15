@@ -8,6 +8,8 @@
 const MP_VER = '0.10.35';
 const MP_CDN = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VER}/`;
 const ASSETS = (window.HITOGATA_ASSETS || './');
+// absolute form of a path next to the page; document.baseURI also works in a srcdoc or sandboxed page
+function absUrl(u) { try { return new URL(u, document.baseURI).href; } catch (e) { return u; } }
 const MODEL_SRC = {
   pose: { file: 'pose_landmarker_full.task', url: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task' },
   face: { file: 'face_landmarker.task', url: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task' },
@@ -80,7 +82,7 @@ DET.loadMP = async function (opts = {}) {
     const prog = (g, t) => { mp.msg = `読み込み中 ${(g / 1e6).toFixed(1)}${t ? ' / ' + (t / 1e6).toFixed(1) : ''} MB`; if ((g / 4e5 | 0) !== mb) { mb = g / 4e5 | 0; DET.onStatus(); } };
     if (!mp.wasmUrl) { // the runtime fetches the binary itself; find a place that answers
       const errs = [];
-      for (const u of [new URL(ASSETS + 'mediapipe/vision_wasm_internal.wasm', location.href).href, MP_CDN + 'wasm/vision_wasm_internal.wasm']) {
+      for (const u of [absUrl(ASSETS + 'mediapipe/vision_wasm_internal.wasm'), MP_CDN + 'wasm/vision_wasm_internal.wasm']) {
         try { const r = await fetch(u, { cache: 'force-cache' }); if (r.ok) { if (r.body) r.body.cancel().catch(() => {}); mp.wasmUrl = u; break; } errs.push(`HTTP ${r.status}`); }
         catch (e) { errs.push(e.message || String(e)); }
       }
@@ -88,7 +90,7 @@ DET.loadMP = async function (opts = {}) {
     }
     const filesets = [
       { wasmLoaderPath: MP_CDN + 'wasm/vision_wasm_internal.js', wasmBinaryPath: mp.wasmUrl },
-      { wasmLoaderPath: new URL(ASSETS + 'mediapipe/vision_wasm_internal.js', location.href).href, wasmBinaryPath: mp.wasmUrl },
+      { wasmLoaderPath: absUrl(ASSETS + 'mediapipe/vision_wasm_internal.js'), wasmBinaryPath: mp.wasmUrl },
     ];
     mp.msg = 'モデルを読み込んでいます'; DET.onStatus();
     const pm = await modelBytes('pose', prog), fm = await modelBytes('face', prog);
@@ -111,7 +113,12 @@ DET.loadMP = async function (opts = {}) {
     mp.delegate = `姿勢 ${mp.pose.delegate}・顔 ${mp.face.delegate}`;
     mp.state = 'ready'; mp.msg = ''; mp.errors = 0;
   } catch (e) {
-    mp.state = 'failed'; mp.msg = String(e && e.message || e).slice(0, 400);
+    const m = String(e && e.message || e);
+    mp.state = 'failed';
+    mp.msg = /unsafe-eval|Content Security|WebAssembly\.instantiate/i.test(m)
+      ? 'このページの安全設定で、MediaPipe の実行部（WebAssembly）を動かせません。内蔵の検出（背景差分）で動かします。'
+      : /Failed to fetch|NetworkError|HTTP \d/.test(m) ? 'ファイルを取得できませんでした（' + m.slice(0, 160) + '）。下の「モデルを読み込めないとき」を見てください。'
+        : m.slice(0, 300);
   }
   DET.onStatus();
 };
@@ -286,7 +293,8 @@ const BG = {
     for (let i = 0; i < n; i++) { const img = await grabAt(dur * (i + 0.5) / n); shots.push(new Uint8ClampedArray(this.grab(img))); if (onProg) onProg(i + 1, n); }
     const N = this.DW * this.DH * 4, out = new Uint8ClampedArray(N), col = new Uint8Array(n);
     for (let i = 0; i < N; i++) { if ((i & 3) === 3) { out[i] = 255; continue; } for (let k = 0; k < n; k++) col[k] = shots[k][i]; col.sort(); out[i] = col[n >> 1]; }
-    this.plate = out; this.frames = n;
+    this.frames = n;
+    return out; // the caller decides whether it still applies
   },
 };
 function morph(src, w, h, r, dilate) { // separable max (dilate) / min (erode) on a 0/1 map
@@ -310,7 +318,7 @@ function skinYCC(r, g, b) {
 const _head = makeCanvas(96, 96), _hctx = _head.getContext('2d', { willReadFrequently: true });
 
 function detectBG(img, W, H, wantFaces, fMinPx) {
-  if (!BG.plate || BG.W !== W || BG.H !== H) return { persons: [], faces: [], note: '背景がまだありません' };
+  if (!BG.plate || BG.W !== W || BG.H !== H) return { persons: [], faces: [], note: '背景（人のいない画面）をまだ推定中か、推定できていません' };
   const w = BG.DW, h = BG.DH, d = BG.grab(img), P = BG.plate, N = w * h;
   const dist = new Float32Array(N), fg0 = new Uint8Array(N);
   const hist = new Uint32Array(256);
