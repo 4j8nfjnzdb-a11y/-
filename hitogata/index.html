@@ -1,0 +1,2728 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"></head><body style="margin:0">
+<title>ひとがた Hitogata</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=IBM+Plex+Mono:wght@400;500&family=Zen+Old+Mincho:wght@500&display=swap">
+<style>
+/* Layout: a bench instrument. The picture and its checks on the left stay in view;
+   the right column holds the material, detection, the mode's numbers and export.
+   One light theme on purpose (white and grey ground, as asked); colours are only for detection states. */
+:root{
+  --bg:#e8eaec; --panel:#fbfbfc; --well:#d9dde1; --ink:#1c1f23; --dim:#555c64; --faint:#878e97; --line:#cdd2d8;
+  --act:#24282d; --act-ink:#f4f5f6;
+  --ok:#2b5797; --held:#94660f; --off:#6e7680; --bad:#a3352b; --face:#1c6f62;
+  --f-title:"Zen Old Mincho","Hiragino Mincho ProN","Yu Mincho",serif;
+  --f-body:"BIZ UDPGothic","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:13.5px;line-height:1.55}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+button:disabled{cursor:default;opacity:.45}
+:focus-visible{outline:2px solid var(--act);outline-offset:2px}
+.app{max-width:1480px;margin:0 auto;padding-left:max(16px, env(safe-area-inset-left,0px));padding-right:max(16px, env(safe-area-inset-right,0px));padding-block:18px 48px;display:flex;flex-direction:column;gap:14px}
+.top{display:flex;align-items:baseline;gap:4px 18px;flex-wrap:wrap}
+.top h1{margin:0;font-family:var(--f-title);font-weight:500;font-size:clamp(28px,4vw,36px);letter-spacing:.12em;line-height:1.1}
+.top h1 small{font-family:var(--f-mono);font-size:11px;letter-spacing:.2em;color:var(--faint);margin-left:8px}
+.top p{margin:0;color:var(--dim);max-width:60ch;min-width:0;text-wrap:pretty}
+.mono{font-family:var(--f-mono);font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+.note{margin:0;color:var(--dim);font-size:12.5px;text-wrap:pretty}
+h2{margin:0;font-size:13px;font-weight:700;letter-spacing:.06em}
+h3{margin:6px 0 0;font-size:12px;font-weight:700;color:var(--dim);letter-spacing:.06em;border-top:1px solid var(--line);padding-top:8px}
+.main{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;align-items:start}
+@media (max-width:1020px){.main{grid-template-columns:minmax(0,1fr)}}
+.stageCol{display:flex;flex-direction:column;gap:10px;min-width:0}
+.side{display:flex;flex-direction:column;gap:12px;min-width:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.row{display:flex;align-items:center;gap:6px 8px;flex-wrap:wrap;min-width:0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:5px 11px;border-radius:4px;border:1px solid var(--line);background:var(--panel);font-size:13px;line-height:1.3;white-space:nowrap;cursor:pointer;user-select:none;-webkit-user-select:none}
+.btn:hover:not(:disabled){border-color:var(--faint)}
+.btn.primary{background:var(--act);color:var(--act-ink);border-color:var(--act)}
+.btn.small{padding:3px 8px;font-size:12px}
+.btn.big{padding:9px 22px;font-size:15px}
+.btn[aria-pressed="true"]{background:var(--act);color:var(--act-ink);border-color:var(--act)}
+#holdOrig.on{background:var(--act);color:var(--act-ink)}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:4px;overflow:hidden;background:var(--panel)}
+.seg button{border:0;background:none;padding:4px 10px;font-size:12.5px;color:var(--dim);border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--act);color:var(--act-ink)}
+.seg.wide{display:flex}.seg.wide button{flex:1}
+.field{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.flabel{font-size:12.5px;color:var(--dim)}
+.chk{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--dim)}
+
+/* stage */
+.stage{position:relative;background:var(--well);border:1px solid var(--line);border-radius:4px;overflow:hidden;display:flex;justify-content:center;align-items:center;min-height:200px}
+#cv{display:block;width:min(100%, calc(max(240px, 100vh - 330px) * var(--asp,1.7778)));height:auto;background:#000;cursor:crosshair}
+#ov{position:absolute;pointer-events:none}
+.testCover{position:absolute;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:16px;text-align:center}
+.testCover .q{margin:0;font-size:15px}
+.busy{position:absolute;left:10px;right:10px;bottom:10px;display:flex;align-items:center;gap:10px;background:rgba(251,251,252,.94);border:1px solid var(--line);border-radius:4px;padding:6px 10px;font-family:var(--f-mono);font-size:12px}
+.busy .bar{flex:1;height:2px;background:var(--line);overflow:hidden}
+.busy .bar i{display:block;height:100%;width:0;background:var(--act)}
+.transport{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.grow{flex:1 1 200px;min-width:120px}
+.viewRow{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap}
+.inline .prm{grid-template-columns:auto 4.6em 2.2em;gap:4px 6px}
+.inline .prm input[type=range]{display:none}
+
+/* verdict: why there is or isn't a visible effect */
+.verdict{display:flex;align-items:baseline;gap:10px;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--off);border-radius:4px;padding:8px 10px;font-size:13.5px}
+.verdict .pill{flex:none;font-size:12px;font-weight:700;padding:1px 8px;border-radius:999px;color:#fff;background:var(--off)}
+.verdict.none{border-left-color:var(--bad)}.verdict.none .pill{background:var(--bad)}
+.verdict.out{border-left-color:var(--held)}.verdict.out .pill{background:var(--held)}
+.verdict.on{border-left-color:var(--ok)}.verdict.on .pill{background:var(--ok)}
+.verdict.weak{border-left-color:var(--off)}.verdict.weak .pill{background:var(--off)}
+.chips{display:flex;flex-wrap:wrap;gap:4px 14px}
+.chips b{font-weight:500;color:var(--ink)}
+.checks{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+@media (max-width:760px){.checks{grid-template-columns:minmax(0,1fr)}}
+.zoomBox{position:relative;background:var(--well);border-radius:3px;min-height:220px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+#zoom{display:block;width:100%;height:auto}
+.zoomEmpty{position:absolute;margin:0;padding:16px;color:var(--dim);font-size:12.5px;text-align:center}
+select{border:1px solid var(--line);border-radius:4px;background:var(--panel);padding:3px 6px;font-size:12.5px;min-width:0;max-width:100%}
+.log{width:100%;border-collapse:collapse;font-size:12px}
+.log th,.log td{text-align:left;padding:3px 6px 3px 0;border-bottom:1px solid var(--line);vertical-align:top}
+.log th{color:var(--faint);font-weight:400}
+.log td{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.log td:last-child{font-family:var(--f-body);color:var(--dim);font-size:11.5px}
+
+/* parameters: label, number, unit, then a thin slider */
+.prm{display:grid;grid-template-columns:minmax(0,1fr) 5em 2.4em;align-items:center;gap:2px 6px}
+.prm label{font-size:12.5px;color:var(--ink);cursor:default;min-width:0}
+.prm input[type=number]{width:100%;border:1px solid var(--line);border-radius:3px;background:#fff;padding:2px 4px;font-family:var(--f-mono);font-size:12px;text-align:right;font-variant-numeric:tabular-nums}
+.prm .u{font-family:var(--f-mono);font-size:11.5px;color:var(--dim)}
+.prm input[type=range]{grid-column:1 / -1}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:14px;background:transparent;margin:0}
+input[type=range]::-webkit-slider-runnable-track{height:2px;background:var(--line)}
+input[type=range]::-moz-range-track{height:2px;background:var(--line)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;border-radius:50%;background:var(--act);margin-top:-4px;border:0}
+input[type=range]::-moz-range-thumb{width:10px;height:10px;border-radius:50%;background:var(--act);border:0}
+.texRow{display:flex;gap:10px;align-items:center}
+#texPrev{width:96px;height:64px;border:1px solid var(--line);border-radius:3px;background:var(--well);flex:none}
+.sel{user-select:all;-webkit-user-select:all;word-break:break-all;font-size:11px}
+details summary{cursor:pointer;color:var(--ink)}
+details p{margin:6px 0}
+.misses{margin:0;padding:0;list-style:none;max-height:260px;overflow:auto;display:flex;flex-direction:column;gap:2px}
+.misses button{width:100%;text-align:left;border:1px solid var(--line);background:#fff;border-radius:3px;padding:4px 8px;font-size:12px;display:grid;grid-template-columns:7.2em minmax(0,1fr);gap:8px}
+.misses button:hover{border-color:var(--faint)}
+.misses .t{font-family:var(--f-mono);font-variant-numeric:tabular-nums;color:var(--ink)}
+.misses .k{color:var(--dim)}
+.misses .k b{color:var(--bad);font-weight:700}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+</style>
+<div class="app">
+  <header class="top">
+    <h1>ひとがた <small>hitogata</small></h1>
+    <p>人の見た目だけを差し替えます。人の動きは元の映像の画素のままです。</p>
+  </header>
+
+  <main class="main">
+    <section class="stageCol" aria-label="映像">
+      <div class="stage" id="stage">
+        <canvas id="cv" aria-label="加工した映像"></canvas>
+        <canvas id="ov" aria-hidden="true"></canvas>
+        <div class="testCover" id="testCover" hidden>
+          <p class="q" id="testQ">いまの 3 秒に、加工による変化はありましたか。</p>
+          <div class="row">
+            <button class="btn big" id="ansYes" type="button">変化あり</button>
+            <button class="btn big" id="ansNo" type="button">変化なし</button>
+          </div>
+          <p class="mono" id="testCount"></p>
+        </div>
+        <div class="busy" id="busy" hidden>
+          <span id="busyText"></span><span class="bar"><i id="busyBar"></i></span>
+          <button class="btn small" id="busyCancel" type="button">中止</button>
+        </div>
+      </div>
+
+      <div class="transport">
+        <button class="btn primary" id="play" type="button" aria-pressed="false">再生</button>
+        <button class="btn" id="stepB" type="button" title="1コマ戻る">◀ 1コマ</button>
+        <button class="btn" id="stepF" type="button" title="1コマ進む">1コマ ▶</button>
+        <input type="range" id="seek" class="thin grow" min="0" max="1000" value="0" step="1" aria-label="再生位置">
+        <span class="mono" id="tc">0.00 / 0.00 秒</span>
+      </div>
+
+      <div class="viewRow">
+        <button class="btn" id="holdOrig" type="button">加工前を見る（押している間）</button>
+        <div class="seg" id="viewSeg" role="group" aria-label="表示">
+          <button type="button" data-v="0" aria-pressed="true">加工後</button>
+          <button type="button" data-v="2" aria-pressed="false">差分</button>
+        </div>
+        <div class="inline" id="pp-diffGain"></div>
+        <label class="chk"><input type="checkbox" id="showDet" checked> 検出の表示</label>
+      </div>
+
+      <div class="verdict" id="verdict"><span class="pill" id="vPill">—</span><span id="vText">準備しています</span></div>
+      <div class="chips mono" id="chips"></div>
+
+      <div class="checks">
+        <section class="card" aria-labelledby="zoomH">
+          <h2 id="zoomH">寄りの確認</h2>
+          <div class="row">
+            <label for="zoomSel">見る人</label>
+            <select id="zoomSel"><option value="">（映像の人をクリック）</option></select>
+          </div>
+          <div class="zoomBox"><canvas id="zoom"></canvas><p class="zoomEmpty" id="zoomEmpty">映像の中の人をクリックすると、その人を切り出して等倍（1画素＝1画素）で見せます。</p></div>
+        </section>
+        <section class="card" aria-labelledby="testH">
+          <h2 id="testH">閾値テスト</h2>
+          <p class="note">加工あり・なしをランダムに 3 秒ずつ見せます。見終わったら「変化あり／なし」で答えてください。20 回ごとに正答率を記録します。検出の枠と数値は隠れます。</p>
+          <div class="row">
+            <button class="btn" id="testStart" type="button">テストを始める</button>
+            <button class="btn" id="testStop" type="button" hidden>やめる</button>
+            <span class="mono" id="testNow"></span>
+          </div>
+          <table class="log" id="testLog"><thead><tr><th>記録</th><th>正答率</th><th>そのときの設定</th></tr></thead><tbody></tbody></table>
+          <div class="row">
+            <button class="btn small" id="testCopy" type="button">記録をコピー</button>
+            <button class="btn small" id="testClear" type="button">記録を消す</button>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <aside class="side">
+      <section class="card" aria-labelledby="srcH">
+        <h2 id="srcH">素材</h2>
+        <div class="row">
+          <label class="btn" for="fileIn">動画を開く</label>
+          <input type="file" id="fileIn" accept="video/*,.mp4,.mov,.m4v,.webm,.mkv" hidden>
+          <button class="btn" id="useSample" type="button">見本に戻す</button>
+        </div>
+        <p class="mono" id="srcInfo"></p>
+        <div class="row">
+          <label class="btn" for="texIn">質感の動画を開く</label>
+          <input type="file" id="texIn" accept="video/*,image/*" hidden>
+          <button class="btn" id="texSample" type="button">見本の質感</button>
+        </div>
+        <div class="texRow"><canvas id="texPrev" width="96" height="64"></canvas><p class="mono" id="texInfo"></p></div>
+      </section>
+
+      <section class="card" aria-labelledby="detH">
+        <h2 id="detH">検出</h2>
+        <div class="seg" id="methodSeg" role="group" aria-label="検出方式">
+          <button type="button" data-m="mp" aria-pressed="false">MediaPipe</button>
+          <button type="button" data-m="bg" aria-pressed="false">内蔵（背景差分）</button>
+        </div>
+        <p class="note" id="methodNote"></p>
+        <div id="mpBox">
+          <p class="mono" id="mpStatus"></p>
+          <div class="row">
+            <label class="btn small" for="poseIn">姿勢モデルを選ぶ (.task)</label><input type="file" id="poseIn" accept=".task" hidden>
+            <label class="btn small" for="faceIn">顔モデルを選ぶ (.task)</label><input type="file" id="faceIn" accept=".task" hidden>
+            <button class="btn small" id="mpRetry" type="button">読み込み直す</button>
+          </div>
+          <details class="note" id="mpHelp"><summary>モデルを読み込めないとき</summary>
+            <p>このページから配布元に接続できない環境では、次の 2 つのファイルを別の画面でダウンロードして、上のボタンで選んでください。選んだファイルはこのブラウザの中に保存され、次回から自動で使われます。</p>
+            <p class="mono sel">https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task</p>
+            <p class="mono sel">https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task</p>
+            <p>実行部そのものが読み込めないときは「内蔵（背景差分）」に切り替えてください。モデルを使わずに、固定カメラの映像で動きます。</p>
+            <button class="btn small" id="mpForget" type="button">保存したモデルを消す</button>
+          </details>
+          <div class="field"><span class="flabel">画面の分割</span>
+            <div class="seg" id="tileSeg" role="group" aria-label="画面の分割">
+              <button type="button" data-t="none" aria-pressed="true">なし</button>
+              <button type="button" data-t="2x2" aria-pressed="false">2×2</button>
+              <button type="button" data-t="3x3" aria-pressed="false">3×3</button>
+            </div>
+          </div>
+          <p class="note">引きの小さな人は、画面を分けると見つかりやすくなります。そのぶん遅くなります。</p>
+        </div>
+        <div id="bgBox">
+          <p class="mono" id="bgStatus"></p>
+          <button class="btn small" id="bgRedo" type="button">背景を推定し直す</button>
+        </div>
+        <div id="pp-hold"></div>
+        <p class="mono" id="detRate"></p>
+      </section>
+
+      <section class="card" aria-labelledby="modeH">
+        <h2 id="modeH">モード</h2>
+        <div class="seg wide" id="modeSeg" role="group" aria-label="モード">
+          <button type="button" data-mode="1" aria-pressed="true">ぬいぐるみ</button>
+          <button type="button" data-mode="2" aria-pressed="false">のっぺらぼう</button>
+        </div>
+        <div id="m2box">
+          <div class="field"><span class="flabel">面の種類</span>
+            <div class="seg" id="kindSeg" role="group" aria-label="面の種類">
+              <button type="button" data-k="skin" aria-pressed="true">肌</button>
+              <button type="button" data-k="felt" aria-pressed="false">フェルト</button>
+            </div>
+          </div>
+          <div id="pp-detail"></div><div id="pp-grain"></div><div id="pp-faceFeather"></div>
+          <h3>適用範囲</h3>
+          <div id="pp-fMin"></div><div id="pp-fMax"></div><div id="pp-rate2"></div>
+        </div>
+        <div id="texBox">
+          <h3>質感</h3>
+          <div id="pp-texSize"></div><div id="pp-shade"></div>
+        </div>
+        <div id="m1box">
+          <h3>ふくらみ</h3>
+          <div id="pp-dilate"></div><div id="pp-feather"></div><div id="pp-depth"></div><div id="pp-shadowAmt"></div>
+          <h3>毛羽</h3>
+          <div id="pp-furLen"></div><div id="pp-furDen"></div>
+          <h3>適用範囲</h3>
+          <div id="pp-hMin"></div><div id="pp-hMax"></div><div id="pp-rate1"></div>
+        </div>
+        <button class="btn small" id="resetAll" type="button">このモードの設定を初期値に戻す</button>
+      </section>
+
+      <section class="card" aria-labelledby="expH">
+        <h2 id="expH">書き出し</h2>
+        <div id="pp-rangeA"></div><div id="pp-rangeB"></div>
+        <p class="note" id="fmtNote"></p>
+        <h3>書き出す前の確認</h3>
+        <p class="note">範囲のすべてのコマを検出し、体や顔が見えているのに処理されていないコマを一覧にします。項目を押すとそのコマに飛びます。</p>
+        <div class="row"><button class="btn" id="scanBtn" type="button">範囲を走査する</button></div>
+        <p class="mono" id="scanSum"></p>
+        <ol class="misses" id="misses"></ol>
+        <div class="row"><button class="btn primary" id="expBtn" type="button">書き出す</button></div>
+        <p class="mono" id="expInfo"></p>
+        <div class="row"><button class="btn" id="saveBtn" type="button" hidden>保存する</button></div>
+      </section>
+    </aside>
+  </main>
+</div>
+
+<script>
+'use strict';
+// ---- small helpers shared by every part ----------------------------------
+
+const $ = (id) => document.getElementById(id);
+const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
+const lerp = (a, b, t) => a + (b - a) * t;
+const smooth01 = (t) => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
+const fmt = (x, d = 0) => (Number.isFinite(x) ? x.toFixed(d) : '–');
+
+// integer hash -> [0,1)
+function hash01(n) {
+  n = (n ^ 61) ^ (n >>> 16); n = Math.imul(n, 9); n ^= n >>> 4; n = Math.imul(n, 0x27d4eb2d); n ^= n >>> 15;
+  return (n >>> 0) / 4294967296;
+}
+// seeded generator (mulberry32)
+function rng(seed) {
+  let a = seed >>> 0;
+  return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+
+// One Euro filter (Casiez et al.): smooths jitter when slow, follows quickly when fast.
+// `speedScale` turns the speed into a unit that does not depend on the picture size.
+class OneEuro {
+  constructor(minCutoff = 1.0, beta = 1.0, dCutoff = 1.0) { this.minCutoff = minCutoff; this.beta = beta; this.dCutoff = dCutoff; this.x = null; this.dx = 0; this.t = null; }
+  static alpha(cutoff, dt) { const tau = 1 / (2 * Math.PI * cutoff); return 1 / (1 + tau / dt); }
+  reset(x, t) { this.x = x; this.dx = 0; this.t = t; }
+  filter(x, t, speedScale = 1) {
+    if (this.x === null || this.t === null || t <= this.t || t - this.t > 1) { this.reset(x, t); return x; }
+    const dt = t - this.t; this.t = t;
+    const dx = (x - this.x) / dt;
+    this.dx += OneEuro.alpha(this.dCutoff, dt) * (dx - this.dx);
+    const cutoff = this.minCutoff + this.beta * Math.abs(this.dx) * speedScale;
+    this.x += OneEuro.alpha(cutoff, dt) * (x - this.x);
+    return this.x;
+  }
+  // move without filtering (used while a track is held: shift by its last speed)
+  shift(d, t) { if (this.x !== null) this.x += d; this.t = t; }
+}
+
+function convexHull(pts) { // pts: array of [x,y]
+  const p = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  if (p.length < 3) return p;
+  const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lo = [], hi = [];
+  for (const q of p) { while (lo.length >= 2 && cross(lo[lo.length - 2], lo[lo.length - 1], q) <= 0) lo.pop(); lo.push(q); }
+  for (let i = p.length - 1; i >= 0; i--) { const q = p[i]; while (hi.length >= 2 && cross(hi[hi.length - 2], hi[hi.length - 1], q) <= 0) hi.pop(); hi.push(q); }
+  hi.pop(); lo.pop(); return lo.concat(hi);
+}
+// push every vertex of a convex polygon away from its centroid by `m` px
+function inflatePoly(poly, m) {
+  let cx = 0, cy = 0; for (const q of poly) { cx += q[0]; cy += q[1]; } cx /= poly.length; cy /= poly.length;
+  return poly.map(([x, y]) => { const dx = x - cx, dy = y - cy, l = Math.hypot(dx, dy) || 1; return [x + dx / l * m, y + dy / l * m]; });
+}
+function polyBox(poly) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (let i = 0; i < poly.length; i += 2) { const x = poly[i], y = poly[i + 1]; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  return [x0, y0, x1, y1];
+}
+function iou(a, b) {
+  const ix = Math.max(0, Math.min(a[2], b[2]) - Math.max(a[0], b[0])), iy = Math.max(0, Math.min(a[3], b[3]) - Math.max(a[1], b[1]));
+  const I = ix * iy, A = (a[2] - a[0]) * (a[3] - a[1]), B = (b[2] - b[0]) * (b[3] - b[1]);
+  return I / Math.max(1e-6, A + B - I);
+}
+function overlapMin(a, b) { // intersection over the smaller box
+  const ix = Math.max(0, Math.min(a[2], b[2]) - Math.max(a[0], b[0])), iy = Math.max(0, Math.min(a[3], b[3]) - Math.max(a[1], b[1]));
+  return ix * iy / Math.max(1e-6, Math.min((a[2] - a[0]) * (a[3] - a[1]), (b[2] - b[0]) * (b[3] - b[1])));
+}
+
+function makeCanvas(w, h) { const c = document.createElement('canvas'); c.width = Math.max(1, w | 0); c.height = Math.max(1, h | 0); return c; }
+const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// per-viewer conveniences only (remembered model files, test log); never required
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('hitogata:' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('hitogata:' + k, JSON.stringify(v)); } catch (e) { /* ignore */ } },
+};
+const idb = {
+  _db: null,
+  async open() {
+    if (this._db) return this._db;
+    this._db = await new Promise((res, rej) => { const r = indexedDB.open('hitogata', 1); r.onupgradeneeded = () => r.result.createObjectStore('files'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+    return this._db;
+  },
+  async get(k) { try { const db = await this.open(); return await new Promise((res) => { const q = db.transaction('files').objectStore('files').get(k); q.onsuccess = () => res(q.result || null); q.onerror = () => res(null); }); } catch (e) { return null; } },
+  async put(k, v) { try { const db = await this.open(); await new Promise((res) => { const tx = db.transaction('files', 'readwrite'); tx.objectStore('files').put(v, k); tx.oncomplete = res; tx.onerror = res; }); } catch (e) { /* ignore */ } },
+  async del(k) { try { const db = await this.open(); await new Promise((res) => { const tx = db.transaction('files', 'readwrite'); tx.objectStore('files').delete(k); tx.oncomplete = res; tx.onerror = res; }); } catch (e) { /* ignore */ } },
+};
+
+'use strict';
+// ---- built-in sample: a street with pedestrians, drawn frame by frame ------
+// Not a recording: a small pseudo-3D scene so the tool can be tried without a file.
+// Every walker has its own gait (cadence, stride, arm swing, lean) and one of them
+// hesitates, stops and looks back. Faces are drawn with eyes, brows, nose and mouth.
+
+const SAMPLE = (() => {
+  const W = 1280, H = 720, FPS = 30, DUR = 14;
+  const HOR = 212, FOC = 860, CAMH = 1.25;
+  const LIGHT = [-0.62, -0.78]; // screen direction toward the light (upper left)
+  const proj = (x, y, z) => [W / 2 + FOC * x / z, HOR - FOC * (y - CAMH) / z];
+
+  const shade = (c, f) => `rgb(${clamp(c[0] * f, 0, 255) | 0},${clamp(c[1] * f, 0, 255) | 0},${clamp(c[2] * f, 0, 255) | 0})`;
+
+  // ---- people -------------------------------------------------------------
+  // path: [t, x, z] keys (linear between keys); equal positions = standing still
+  const PEOPLE = [
+    { name: 'approach', k: 1.0, path: [[0, 1.4, 12.5], [7.4, 0.1, 2.15], [9.4, 0.02, 2.0], [14, 4.6, 2.5]], cad: 1.0, amp: 1.0, arm: 1.0, lean: 0.05,
+      top: [44, 58, 92], bot: [92, 94, 100], skin: [226, 184, 152], hair: [48, 34, 26], sleeve: 1, seed: 11 },
+    { name: 'hesitate', k: 0.96, path: [[0, 4.6, 4.2], [4.4, 0.9, 4.2], [6.4, 0.85, 4.2], [14, -4.2, 4.2]], cad: 1.06, amp: 0.92, arm: 0.7, lean: 0.03,
+      top: [196, 150, 52], bot: [40, 40, 46], skin: [176, 124, 92], hair: [22, 18, 16], sleeve: 1, seed: 23,
+      look: [[4.9, 0], [5.3, 1.9], [5.9, 1.9], [6.3, 0]] },
+    { name: 'pairA', k: 1.02, path: [[0, -6.2, 6.4], [14, 6.0, 6.4]], cad: 0.97, amp: 1.05, arm: 1.1, lean: 0.06,
+      top: [232, 232, 226], bot: [56, 82, 124], skin: [214, 166, 132], hair: [60, 42, 30], sleeve: 0, seed: 37 },
+    { name: 'pairB', k: 0.93, path: [[0, -5.6, 7.0], [14, 6.6, 7.0]], cad: 1.08, amp: 0.95, arm: 0.85, lean: 0.02,
+      top: [92, 104, 64], bot: [28, 28, 30], skin: [140, 98, 74], hair: [16, 14, 12], sleeve: 1, seed: 41 },
+    { name: 'away', k: 0.98, path: [[0, -1.5, 2.7], [14, -0.8, 10.5]], cad: 0.86, amp: 0.7, arm: 0.55, lean: 0.08,
+      top: [120, 122, 128], bot: [70, 64, 58], skin: [222, 180, 146], hair: [34, 26, 22], sleeve: 1, seed: 53 },
+    { name: 'far1', k: 1.0, path: [[0, 6.5, 10.5], [14, -6.5, 10.5]], cad: 1.1, amp: 1.0, arm: 1.0, lean: 0.04,
+      top: [150, 52, 46], bot: [60, 60, 66], skin: [210, 162, 128], hair: [30, 24, 20], sleeve: 1, seed: 61 },
+    { name: 'far2', k: 0.95, path: [[0, -7.5, 13.5], [14, 6.5, 13.5]], cad: 0.95, amp: 0.95, arm: 0.9, lean: 0.03,
+      top: [70, 92, 110], bot: [150, 132, 104], skin: [190, 140, 108], hair: [40, 30, 24], sleeve: 0, seed: 71 },
+    { name: 'far3', k: 1.04, path: [[0, 4.4, 16.5], [14, -5.8, 16.5]], cad: 0.9, amp: 0.85, arm: 0.8, lean: 0.05,
+      top: [36, 36, 40], bot: [88, 90, 96], skin: [230, 190, 160], hair: [90, 70, 50], sleeve: 1, seed: 83 },
+  ];
+  const OCCLUDERS = [
+    { kind: 'pole', x: -1.9, z: 5.3 },
+    { kind: 'planter', x: 2.9, z: 9.6 },
+  ];
+
+  function along(path, t) { // -> {x, z, vx, vz, speed}
+    if (t <= path[0][0]) return { x: path[0][1], z: path[0][2], vx: 0, vz: 0 };
+    for (let i = 1; i < path.length; i++) {
+      const [t1, x1, z1] = path[i], [t0, x0, z0] = path[i - 1];
+      if (t <= t1) { const u = (t - t0) / (t1 - t0); return { x: lerp(x0, x1, u), z: lerp(z0, z1, u), vx: (x1 - x0) / (t1 - t0), vz: (z1 - z0) / (t1 - t0) }; }
+    }
+    const l = path[path.length - 1]; return { x: l[1], z: l[2], vx: 0, vz: 0 };
+  }
+  function keyed(keys, t) {
+    if (!keys) return 0; if (t <= keys[0][0]) return keys[0][1];
+    for (let i = 1; i < keys.length; i++) if (t <= keys[i][0]) { const u = smooth01((t - keys[i - 1][0]) / (keys[i][0] - keys[i - 1][0])); return lerp(keys[i - 1][1], keys[i][1], u); }
+    return keys[keys.length - 1][1];
+  }
+  // distance walked up to t (integrated numerically once per person) and smoothed speed
+  for (const p of PEOPLE) {
+    const n = DUR * 60 + 1; p.dist = new Float32Array(n); p.spd = new Float32Array(n); p.dir = new Float32Array(n * 2);
+    let d = 0, fx = 0, fz = -1;
+    for (let i = 0; i < n; i++) {
+      const t = i / 60, a = along(p.path, t), s = Math.hypot(a.vx, a.vz);
+      if (s > 1e-3) { fx = a.vx / s; fz = a.vz / s; }
+      p.dist[i] = d; p.spd[i] = s; p.dir[2 * i] = fx; p.dir[2 * i + 1] = fz; d += s / 60;
+    }
+    // ease the speed so stopping and starting take a few steps
+    const sm = new Float32Array(n); let v = p.spd[0];
+    for (let i = 0; i < n; i++) { v += (p.spd[i] - v) * 0.07; sm[i] = v; }
+    p.spdS = sm;
+    // the very first frames: start already walking
+    for (let i = 0; i < 40 && i < n; i++) sm[i] = p.spd[i];
+    // smooth heading so turns are not instant
+    let hx = p.dir[0], hz = p.dir[1];
+    for (let i = 0; i < n; i++) { hx += (p.dir[2 * i] - hx) * 0.05; hz += (p.dir[2 * i + 1] - hz) * 0.05; const l = Math.hypot(hx, hz) || 1; p.dir[2 * i] = hx / l; p.dir[2 * i + 1] = hz / l; }
+    const r = rng(p.seed); p.jit = Array.from({ length: 64 }, () => r() * 2 - 1); // step-to-step irregularity
+  }
+
+  // ---- skeleton -----------------------------------------------------------
+  function pose(p, t) {
+    const i = clamp(Math.round(t * 60), 0, p.dist.length - 1);
+    const a = along(p.path, t), k = p.k;
+    const fx = p.dir[2 * i], fz = p.dir[2 * i + 1];
+    const rx = fz, rz = -fx; // the walker's right
+    const spd = p.spdS[i];
+    const amp = clamp(spd / 1.15, 0, 1.15) * p.amp;
+    const stride = 1.42 * k * (0.8 + 0.2 * p.amp);
+    const steps = p.dist[i] / stride;
+    const jj = p.jit[Math.floor(steps * 2) & 63] * 0.06;
+    const ph = steps * Math.PI * 2 * p.cad + jj;
+    const L1 = 0.45 * k, L2 = 0.44 * k;
+    const leg = (phase) => {
+      const th = amp * 0.42 * Math.sin(phase);
+      const tk = 0.08 + amp * 0.85 * Math.pow(Math.max(0, Math.cos(phase + 0.45)), 3);
+      return { th, tk, req: 0.075 * k + L1 * Math.cos(th) + L2 * Math.cos(th - tk) };
+    };
+    const lr = leg(ph + Math.PI), ll = leg(ph); // right / left
+    const pelY = Math.min(lr.req, ll.req, 0.95 * k);
+    const sway = 0.018 * k * Math.sin(ph) * amp;
+    const pelRot = 0.07 * amp * Math.sin(ph);
+    const lean = p.lean + 0.04 * amp;
+    // local (r, y, f) -> world
+    const W3 = (r, y, f) => [a.x + rx * r + fx * f, y, a.z + rz * r + fz * f];
+    const J = {};
+    const rot = (r, f, ang) => [r * Math.cos(ang) - f * Math.sin(ang), r * Math.sin(ang) + f * Math.cos(ang)];
+    for (const [side, s, L] of [['R', 1, lr], ['L', -1, ll]]) {
+      const [hr, hf] = rot(s * 0.095 * k, 0, pelRot);
+      const hip = [hr + sway, pelY, hf];
+      const knee = [hip[0], hip[1] - L1 * Math.cos(L.th), hip[2] + L1 * Math.sin(L.th)];
+      const sa = L.th - L.tk;
+      const ank = [knee[0], knee[1] - L2 * Math.cos(sa), knee[2] + L2 * Math.sin(sa)];
+      const toe = [ank[0], Math.max(0.02 * k, ank[1] - 0.055 * k), ank[2] + 0.19 * k];
+      J['hip' + side] = W3(...hip); J['knee' + side] = W3(...knee); J['ank' + side] = W3(...ank); J['toe' + side] = W3(...toe);
+      J['flexK' + side] = L.tk;
+    }
+    const pel = [sway, pelY, 0];
+    const neck = [sway * 0.4, pelY + 0.52 * k, lean * 0.5 * k];
+    const shRot = -pelRot * 1.3;
+    for (const [side, s, lph] of [['R', 1, ph + Math.PI], ['L', -1, ph]]) {
+      const [sr, sf] = rot(s * 0.185 * k, 0, shRot);
+      const sh = [neck[0] + sr, neck[1] - 0.03 * k, neck[2] + sf];
+      const ts = -amp * 0.36 * p.arm * Math.sin(lph);
+      const te = 0.22 + amp * 0.28 * p.arm * (0.5 + 0.5 * Math.sin(lph + 0.3));
+      const el = [sh[0] + s * 0.025 * k, sh[1] - 0.29 * k * Math.cos(ts), sh[2] + 0.29 * k * Math.sin(ts)];
+      const wr = [el[0] + s * 0.01 * k, el[1] - 0.26 * k * Math.cos(ts + te), el[2] + 0.26 * k * Math.sin(ts + te)];
+      J['sh' + side] = W3(...sh); J['el' + side] = W3(...el); J['wr' + side] = W3(...wr); J['flexE' + side] = te;
+    }
+    J.pel = W3(...pel); J.neck = W3(...neck);
+    J.head = W3(neck[0], neck[1] + 0.165 * k, neck[2] + 0.02 * k);
+    // facing relative to the camera ray (0 = toward the camera)
+    const ray = Math.atan2(a.x, a.z);
+    const bodyYaw = Math.atan2(fx, -fz) + ray; // walker heading vs. view direction
+    const headYaw = bodyYaw + keyed(p.look, t) * (fx >= 0 ? 1 : -1);
+    J.bodyYaw = bodyYaw; J.headYaw = headYaw; J.z = a.z;
+    return J;
+  }
+
+  // ---- drawing --------------------------------------------------------------
+  function capsule(ctx, A, B, wM, col, z) {
+    const [ax, ay] = proj(...A), [bx, by] = proj(...B);
+    const w = Math.max(1, wM * FOC / z);
+    let dx = bx - ax, dy = by - ay; const l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l;
+    let nx = -dy, ny = dx; if (nx * LIGHT[0] + ny * LIGHT[1] < 0) { nx = -nx; ny = -ny; }
+    const mx = (ax + bx) / 2, my = (ay + by) / 2;
+    const g = ctx.createLinearGradient(mx + nx * w / 2, my + ny * w / 2, mx - nx * w / 2, my - ny * w / 2);
+    g.addColorStop(0, shade(col, 1.18)); g.addColorStop(0.4, shade(col, 1.0)); g.addColorStop(1, shade(col, 0.58));
+    ctx.strokeStyle = g; ctx.lineWidth = w; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+    return { ax, ay, bx, by, w, nx, ny, dx, dy };
+  }
+  function folds(ctx, s, at, n, amount, col) { // short dark creases across a limb near `at` (0..1 along it)
+    if (amount < 0.05 || s.w < 3) return;
+    ctx.strokeStyle = shade(col, 0.5); ctx.lineCap = 'round';
+    for (let i = 0; i < n; i++) {
+      const u = at + (i - (n - 1) / 2) * 0.07;
+      const cx = lerp(s.ax, s.bx, u), cy = lerp(s.ay, s.by, u);
+      ctx.globalAlpha = clamp(amount, 0, 1) * 0.55;
+      ctx.lineWidth = Math.max(0.6, s.w * 0.07);
+      ctx.beginPath();
+      ctx.moveTo(cx + s.nx * s.w * 0.42, cy + s.ny * s.w * 0.42);
+      ctx.quadraticCurveTo(cx + s.dx * s.w * 0.18, cy + s.dy * s.w * 0.18, cx - s.nx * s.w * 0.3, cy - s.ny * s.w * 0.3);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+  function torso(ctx, J, p) {
+    const z = (J.pel[2] + J.neck[2]) / 2, k = p.k;
+    const [px, py] = proj(...J.pel), [nx, ny] = proj(...J.neck);
+    const c = Math.abs(Math.cos(J.bodyYaw)), s = Math.abs(Math.sin(J.bodyYaw));
+    const half = (rr, ff) => Math.sqrt((rr * c) ** 2 + (ff * s) ** 2) * k * FOC / z;
+    const wS = half(0.205, 0.12), wW = half(0.16, 0.11), wH = half(0.175, 0.12);
+    let dx = nx - px, dy = ny - py; const l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l;
+    const ox = -dy, oy = dx;
+    const at = (u, w) => [lerp(px, nx, u), lerp(py, ny, u), w];
+    const rows = [at(-0.04, wH), at(0.35, wW), at(0.82, wS), at(1.0, wS * 0.78)];
+    ctx.beginPath();
+    rows.forEach(([x, y, w], i) => (i ? ctx.lineTo(x + ox * w, y + oy * w) : ctx.moveTo(x + ox * w, y + oy * w)));
+    for (let i = rows.length - 1; i >= 0; i--) { const [x, y, w] = rows[i]; ctx.lineTo(x - ox * w, y - oy * w); }
+    ctx.closePath();
+    let lx = ox, ly = oy; if (lx * LIGHT[0] + ly * LIGHT[1] < 0) { lx = -lx; ly = -ly; }
+    const mx = (px + nx) / 2, my = (py + ny) / 2;
+    const g = ctx.createLinearGradient(mx + lx * wS, my + ly * wS, mx - lx * wS, my - ly * wS);
+    g.addColorStop(0, shade(p.top, 1.15)); g.addColorStop(0.45, shade(p.top, 0.98)); g.addColorStop(1, shade(p.top, 0.55));
+    ctx.fillStyle = g; ctx.fill();
+    // creases from the chest toward the waist, shifting with the twist
+    ctx.save(); ctx.clip();
+    const tw = Math.sin(J.bodyYaw * 2) * 0.2;
+    ctx.strokeStyle = shade(p.top, 0.6); ctx.lineCap = 'round';
+    for (let i = 0; i < 4; i++) {
+      const u = (i - 1.5) * 0.32 + tw;
+      ctx.globalAlpha = 0.35; ctx.lineWidth = Math.max(0.6, wS * 0.06);
+      const [x0, y0] = at(0.75, 0), [x1, y1] = at(0.22, 0);
+      ctx.beginPath(); ctx.moveTo(x0 + ox * wS * u, y0 + oy * wS * u);
+      ctx.quadraticCurveTo(x0 * 0.5 + x1 * 0.5 + ox * wS * (u * 0.5 + 0.12), y0 * 0.5 + y1 * 0.5 + oy * wS * (u * 0.5 + 0.12), x1 + ox * wW * u * 0.8, y1 + oy * wW * u * 0.8);
+      ctx.stroke();
+    }
+    // hem line
+    ctx.globalAlpha = 0.5; ctx.lineWidth = Math.max(0.8, wW * 0.08);
+    const [hx, hy] = at(0.02, 0); ctx.beginPath(); ctx.moveTo(hx + ox * wH * 1.1, hy + oy * wH * 1.1); ctx.lineTo(hx - ox * wH * 1.1, hy - oy * wH * 1.1); ctx.stroke();
+    ctx.restore(); ctx.globalAlpha = 1;
+  }
+  function head(ctx, J, p) {
+    const z = J.head[2], k = p.k;
+    const [cx, cy] = proj(...J.head);
+    const rw = 0.098 * k * FOC / z, rh = 0.122 * k * FOC / z;
+    const b = J.headYaw, cb = Math.cos(b), sb = Math.sin(b);
+    // neck
+    const [nx, ny] = proj(...J.neck);
+    ctx.strokeStyle = shade(p.skin, 0.86); ctx.lineWidth = rw * 0.95; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(nx, ny + rh * 0.15); ctx.lineTo(cx, cy + rh * 0.5); ctx.stroke();
+    // skin
+    const g = ctx.createRadialGradient(cx - rw * 0.35, cy - rh * 0.3, rw * 0.1, cx, cy, rh * 1.15);
+    g.addColorStop(0, shade(p.skin, 1.1)); g.addColorStop(0.55, shade(p.skin, 0.98)); g.addColorStop(1, shade(p.skin, 0.68));
+    ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(cx, cy, rw, rh, 0, 0, Math.PI * 2); ctx.fill();
+    // ears
+    for (const u of [Math.PI / 2, -Math.PI / 2]) {
+      const c = Math.cos(b + u); if (c < -0.25 || c > 0.6) continue;
+      const ex = cx + Math.sin(b + u) * rw * 0.97;
+      ctx.fillStyle = shade(p.skin, 0.85); ctx.beginPath(); ctx.ellipse(ex, cy + rh * 0.02, rw * 0.13, rh * 0.2, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    // features
+    const vis = (u) => Math.cos(b + u);
+    const X = (u, f = 0.93) => cx + Math.sin(b + u) * rw * f;
+    if (cb > -0.1) {
+      for (const u of [0.42, -0.42]) {
+        const c = vis(u); if (c < 0.2) continue;
+        const ex = X(u), ey = cy - rh * 0.04, ew = rw * 0.24 * c;
+        ctx.fillStyle = shade(p.skin, 0.72); ctx.beginPath(); ctx.ellipse(ex, ey - rh * 0.015, ew * 0.75, rh * 0.075, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#ece8e2'; ctx.beginPath(); ctx.ellipse(ex, ey, ew * 0.55, rh * 0.042, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#2a1d16'; ctx.beginPath(); ctx.ellipse(ex + sb * ew * 0.12, ey, Math.max(0.6, rh * 0.036 * Math.min(1, c * 1.3)), rh * 0.038, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#2b1f18'; ctx.lineWidth = Math.max(0.6, rh * 0.018); ctx.beginPath(); ctx.ellipse(ex, ey + rh * 0.006, ew * 0.58, rh * 0.046, 0, Math.PI * 1.08, Math.PI * 1.92); ctx.stroke();
+        // brow
+        ctx.strokeStyle = shade(p.hair, 1.1); ctx.lineWidth = Math.max(0.7, rh * 0.04);
+        ctx.beginPath(); ctx.ellipse(ex, cy - rh * 0.12, ew * 0.7, rh * 0.07, 0, Math.PI * 1.12, Math.PI * 1.88); ctx.stroke();
+      }
+      if (vis(0) > 0.1) {
+        const c = vis(0), nxp = X(0, 0.98);
+        // nose: side shadow, tip, nostrils
+        ctx.strokeStyle = shade(p.skin, 0.72); ctx.lineWidth = Math.max(0.6, rw * 0.06); ctx.globalAlpha = 0.8;
+        ctx.beginPath(); ctx.moveTo(nxp + rw * 0.05, cy - rh * 0.02); ctx.quadraticCurveTo(nxp + rw * 0.1, cy + rh * 0.12, nxp + rw * 0.04, cy + rh * 0.2); ctx.stroke();
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = shade(p.skin, 0.45);
+        for (const u of [0.13, -0.13]) { if (vis(u) < 0.2) continue; ctx.beginPath(); ctx.ellipse(X(u, 0.96), cy + rh * 0.215, rw * 0.045 * c, rh * 0.022, 0, 0, Math.PI * 2); ctx.fill(); }
+        ctx.fillStyle = shade(p.skin, 1.12); ctx.beginPath(); ctx.ellipse(nxp - rw * 0.02, cy + rh * 0.12, rw * 0.05, rh * 0.04, 0, 0, Math.PI * 2); ctx.fill();
+        // mouth
+        const mw = rw * 0.3 * c;
+        ctx.fillStyle = shade([176, 92, 84], p.skin[0] / 220);
+        ctx.beginPath(); ctx.ellipse(X(0, 0.95), cy + rh * 0.43, mw, rh * 0.048, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#3a1c18'; ctx.lineWidth = Math.max(0.6, rh * 0.017);
+        ctx.beginPath(); ctx.moveTo(X(0, 0.95) - mw * 0.95, cy + rh * 0.43); ctx.quadraticCurveTo(X(0, 0.95), cy + rh * 0.45, X(0, 0.95) + mw * 0.95, cy + rh * 0.43); ctx.stroke();
+      }
+      if (Math.abs(sb) > 0.55 && cb > -0.3) { // profile: the nose stands out of the outline
+        const sx = cx + Math.sign(sb) * rw * 0.96;
+        ctx.fillStyle = shade(p.skin, 0.95);
+        ctx.beginPath(); ctx.moveTo(sx, cy - rh * 0.05); ctx.lineTo(sx + Math.sign(sb) * rw * 0.2 * Math.abs(sb), cy + rh * 0.17); ctx.lineTo(sx, cy + rh * 0.22); ctx.fill();
+      }
+    }
+    // hair: the head minus the face region; whole head when seen from behind
+    ctx.save();
+    ctx.beginPath(); ctx.ellipse(cx, cy - rh * 0.02, rw * 1.05, rh * 1.04, 0, 0, Math.PI * 2);
+    const fv = clamp((cb + 0.2) / 1.2, 0, 1);
+    if (fv > 0.01) {
+      const fx = cx + sb * rw * 0.32, frx = rw * (0.25 + 0.6 * fv) * (0.55 + 0.45 * Math.abs(cb)), fry = rh * 0.8;
+      ctx.ellipse(fx, cy + rh * 0.2, frx, fry, 0, 0, Math.PI * 2);
+    }
+    const hg = ctx.createLinearGradient(cx - rw, cy - rh, cx + rw, cy + rh);
+    hg.addColorStop(0, shade(p.hair, 1.6)); hg.addColorStop(0.5, shade(p.hair, 1.0)); hg.addColorStop(1, shade(p.hair, 0.7));
+    ctx.fillStyle = hg; ctx.fill('evenodd');
+    ctx.restore();
+  }
+  function drawPerson(ctx, p, t) {
+    const J = pose(p, t), z = J.z, k = p.k;
+    const [gx, gy] = proj((J.ankR[0] + J.ankL[0]) / 2, 0, (J.ankR[2] + J.ankL[2]) / 2);
+    // soft cast shadow toward the right and back
+    const sw = 0.5 * FOC / z, sh = 0.12 * FOC / z;
+    ctx.save(); ctx.translate(gx + sw * 0.55, gy - sh * 0.2); ctx.scale(1, sh / sw);
+    const sg = ctx.createRadialGradient(0, 0, 0, 0, 0, sw); sg.addColorStop(0, 'rgba(20,22,26,0.26)'); sg.addColorStop(1, 'rgba(20,22,26,0)');
+    ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(0, 0, sw, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    // parts back to front
+    const parts = [];
+    for (const s of ['R', 'L']) {
+      parts.push({ z: (J['hip' + s][2] + J['ank' + s][2]) / 2 + 0.001, f: () => {
+        const th = capsule(ctx, J['hip' + s], J['knee' + s], 0.15 * k, p.bot, z);
+        const sn = capsule(ctx, J['knee' + s], J['ank' + s], 0.115 * k, p.bot, z);
+        folds(ctx, th, 0.88, 3, J['flexK' + s] * 1.2, p.bot); folds(ctx, sn, 0.1, 2, J['flexK' + s], p.bot);
+        capsule(ctx, J['ank' + s], J['toe' + s], 0.085 * k, [34, 32, 32], z);
+      } });
+      parts.push({ z: (J['sh' + s][2] + J['wr' + s][2]) / 2, f: () => {
+        const ua = capsule(ctx, J['sh' + s], J['el' + s], 0.1 * k, p.top, z);
+        const fa = capsule(ctx, J['el' + s], J['wr' + s], 0.082 * k, p.sleeve ? p.top : p.skin, z);
+        folds(ctx, ua, 0.9, 2, J['flexE' + s] * 1.4, p.top);
+        const [wx, wy] = proj(...J['wr' + s]);
+        ctx.fillStyle = shade(p.skin, 0.9); ctx.beginPath(); ctx.arc(wx, wy, 0.045 * k * FOC / z, 0, Math.PI * 2); ctx.fill();
+      } });
+    }
+    parts.push({ z: J.pel[2], f: () => torso(ctx, J, p) });
+    parts.push({ z: J.head[2] - 0.01, f: () => head(ctx, J, p) });
+    parts.sort((a, b) => b.z - a.z).forEach((q) => q.f());
+  }
+  function drawOccluder(ctx, o) {
+    if (o.kind === 'pole') {
+      const [x0, y0] = proj(o.x, 0, o.z), [, y1] = proj(o.x, 4.6, o.z), w = 0.13 * FOC / o.z;
+      const g = ctx.createLinearGradient(x0 - w / 2, 0, x0 + w / 2, 0); g.addColorStop(0, '#6f757b'); g.addColorStop(0.35, '#4a4f55'); g.addColorStop(1, '#25282c');
+      ctx.fillStyle = g; ctx.fillRect(x0 - w / 2, y1, w, y0 - y1);
+      ctx.fillStyle = '#2b2f33'; ctx.fillRect(x0 - w * 0.9, y0 - w * 0.6, w * 1.8, w * 0.6);
+    } else {
+      const [x0, y0] = proj(o.x - 0.9, 0, o.z), [x1, y1] = proj(o.x + 0.9, 0.62, o.z);
+      ctx.fillStyle = '#7d7a72'; ctx.fillRect(x0, y1, x1 - x0, y0 - y1);
+      ctx.fillStyle = '#5f5c55'; ctx.fillRect(x0, y1, x1 - x0, (y0 - y1) * 0.12);
+      const r = rng(5);
+      for (let i = 0; i < 60; i++) { const bx = lerp(x0, x1, r()), by = y1 - r() * (y0 - y1) * 0.9, br = (0.12 + r() * 0.18) * FOC / o.z; ctx.fillStyle = `rgb(${50 + r() * 30 | 0},${80 + r() * 40 | 0},${48 + r() * 24 | 0})`; ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2); ctx.fill(); }
+    }
+  }
+
+  // ---- static backdrop (drawn once) ---------------------------------------
+  const backdrop = makeCanvas(W, H);
+  (function drawBackdrop() {
+    const ctx = backdrop.getContext('2d'), r = rng(7);
+    const zF = 26, [, yBase] = proj(0, 0, zF);
+    ctx.fillStyle = '#a9aaa5'; ctx.fillRect(0, 0, W, yBase);
+    for (let i = 0; i < 2200; i++) { ctx.fillStyle = `rgba(${r() < 0.5 ? '255,255,255' : '40,40,40'},${r() * 0.05})`; ctx.fillRect(r() * W, r() * yBase, 1 + r() * 3, 1 + r() * 3); }
+    // upper floors: windows
+    for (let fl = 0; fl < 5; fl++) {
+      const yb = 4.0 + fl * 3.1;
+      for (let x = -16; x < 16; x += 2.6) {
+        const [ax, ay] = proj(x + 0.5, yb + 2.0, zF), [bx, by] = proj(x + 2.0, yb, zF);
+        if (by < 0) continue;
+        ctx.fillStyle = '#5f676c'; ctx.fillRect(ax - 2, ay - 2, bx - ax + 4, by - ay + 4);
+        const g = ctx.createLinearGradient(ax, ay, bx, by); g.addColorStop(0, '#5b7380'); g.addColorStop(0.6, '#33424b'); g.addColorStop(1, '#27323a');
+        ctx.fillStyle = g; ctx.fillRect(ax, ay, bx - ax, by - ay);
+        ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(ax, ay, (bx - ax) * 0.35, by - ay);
+      }
+      const [, ly] = proj(0, yb - 0.25, zF); ctx.fillStyle = '#8f908b'; ctx.fillRect(0, ly, W, 3);
+    }
+    // ground floor: shop fronts
+    const [, gfTop] = proj(0, 3.4, zF);
+    ctx.fillStyle = '#4c5156'; ctx.fillRect(0, gfTop, W, yBase - gfTop);
+    for (let x = -16; x < 16; x += 4.2) {
+      const [ax, ay] = proj(x + 0.35, 3.0, zF), [bx, by] = proj(x + 3.85, 0.05, zF);
+      const g = ctx.createLinearGradient(0, ay, 0, by); g.addColorStop(0, '#2d3a40'); g.addColorStop(0.5, '#44545a'); g.addColorStop(1, '#232c31');
+      ctx.fillStyle = g; ctx.fillRect(ax, ay, bx - ax, by - ay);
+      ctx.fillStyle = 'rgba(210,220,225,0.12)';
+      ctx.beginPath(); ctx.moveTo(ax + (bx - ax) * 0.1, ay); ctx.lineTo(ax + (bx - ax) * 0.3, ay); ctx.lineTo(ax + (bx - ax) * 0.12, by); ctx.lineTo(ax, by); ctx.fill();
+      const [sx, sy] = proj(x + 0.9, 3.25, zF), [tx, ty] = proj(x + 3.3, 3.05, zF);
+      ctx.fillStyle = ['#38645c', '#6b4a3a', '#3d4f72', '#6a6a40'][Math.abs(Math.round(x)) % 4]; ctx.fillRect(sx, sy, tx - sx, ty - sy);
+    }
+    // pavement in perspective
+    const g = ctx.createLinearGradient(0, yBase, 0, H); g.addColorStop(0, '#8e8d88'); g.addColorStop(1, '#b4b2ab');
+    ctx.fillStyle = g; ctx.fillRect(0, yBase, W, H - yBase);
+    ctx.strokeStyle = 'rgba(60,60,58,0.28)'; ctx.lineWidth = 1;
+    for (let z = 1.2; z < zF; z += 0.6) { const [, y] = proj(0, 0, z); ctx.globalAlpha = clamp(1.4 - z / 20, 0.15, 1); ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+    for (let x = -30; x <= 30; x += 0.6) { const [ax, ay] = proj(x, 0, zF), [bx, by] = proj(x, 0, 1.2); ctx.globalAlpha = 0.6; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); }
+    ctx.globalAlpha = 1;
+    for (let i = 0; i < 9000; i++) { const y = yBase + Math.pow(r(), 0.7) * (H - yBase); ctx.fillStyle = `rgba(${r() < 0.5 ? '255,255,255' : '30,30,30'},${r() * 0.07})`; ctx.fillRect(r() * W, y, 1 + r() * 2, 1); }
+    ctx.fillStyle = 'rgba(40,40,40,0.25)'; ctx.fillRect(0, yBase - 1, W, 3);
+  })();
+  // grain tiles: the sample looks like it came from a camera, so the face filter has real grain to match
+  const grain = Array.from({ length: 6 }, (_, n) => {
+    const c = makeCanvas(256, 256), x = c.getContext('2d'), im = x.createImageData(256, 256), r = rng(100 + n);
+    for (let i = 0; i < im.data.length; i += 4) { const v = 128 + (r() + r() + r() - 1.5) * 40; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 255; }
+    x.putImageData(im, 0, 0); return c;
+  });
+
+  const canvas = makeCanvas(W, H), ctx = canvas.getContext('2d');
+  const plate = makeCanvas(W, H);
+  (function () { const c = plate.getContext('2d'); c.drawImage(backdrop, 0, 0); OCCLUDERS.slice().sort((a, b) => b.z - a.z).forEach((o) => drawOccluder(c, o)); })();
+
+  function render(t) {
+    t = ((t % DUR) + DUR) % DUR;
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.drawImage(backdrop, 0, 0);
+    const items = PEOPLE.map((p) => ({ z: along(p.path, t).z, f: () => drawPerson(ctx, p, t) }))
+      .concat(OCCLUDERS.map((o) => ({ z: o.z, f: () => drawOccluder(ctx, o) })));
+    items.sort((a, b) => b.z - a.z).forEach((q) => q.f());
+    const gi = Math.floor(t * FPS) % grain.length;
+    ctx.globalCompositeOperation = 'overlay'; ctx.globalAlpha = 0.32;
+    const pat = ctx.createPattern(grain[gi], 'repeat'); const off = (Math.floor(t * FPS) * 97) % 256;
+    ctx.save(); ctx.translate(-off, -((off * 3) % 256)); ctx.fillStyle = pat; ctx.fillRect(off, (off * 3) % 256, W, H); ctx.restore();
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    return canvas;
+  }
+
+  // ---- sample felt: tileable fibres on an off-white wool ground ------------
+  function felt(size = 512) {
+    const c = makeCanvas(size, size), x = c.getContext('2d'), r = rng(2024);
+    x.fillStyle = 'rgb(128,142,158)'; x.fillRect(0, 0, size, size);
+    // low-frequency mottling (clumps of wool)
+    for (let i = 0; i < 260; i++) {
+      const cx = r() * size, cy = r() * size, rad = 10 + r() * 46, dark = r() < 0.5;
+      for (const ox of [-size, 0, size]) for (const oy of [-size, 0, size]) {
+        const g = x.createRadialGradient(cx + ox, cy + oy, 0, cx + ox, cy + oy, rad);
+        g.addColorStop(0, dark ? 'rgba(70,82,98,0.14)' : 'rgba(200,210,222,0.12)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+        x.fillStyle = g; x.fillRect(cx + ox - rad, cy + oy - rad, rad * 2, rad * 2);
+      }
+    }
+    // fibres
+    x.lineCap = 'round';
+    for (let i = 0; i < 14000; i++) {
+      const cx = r() * size, cy = r() * size, a = r() * Math.PI * 2, len = 3 + r() * 13, bend = (r() - 0.5) * 0.9;
+      const v = r(), col = v < 0.45 ? `rgba(62,74,90,${0.14 + r() * 0.18})` : `rgba(206,216,228,${0.14 + r() * 0.22})`;
+      x.strokeStyle = col; x.lineWidth = 0.5 + r() * 0.9;
+      for (const ox of [-size, 0, size]) for (const oy of [-size, 0, size]) {
+        const sx = cx + ox, sy = cy + oy; if (sx < -30 || sy < -30 || sx > size + 30 || sy > size + 30) continue;
+        x.beginPath(); x.moveTo(sx, sy);
+        x.quadraticCurveTo(sx + Math.cos(a + bend) * len * 0.5, sy + Math.sin(a + bend) * len * 0.5, sx + Math.cos(a) * len, sy + Math.sin(a) * len); x.stroke();
+      }
+    }
+    // a few pills
+    for (let i = 0; i < 160; i++) { const cx = r() * size, cy = r() * size, rad = 0.8 + r() * 1.8; x.fillStyle = r() < 0.5 ? 'rgba(66,78,92,0.35)' : 'rgba(214,222,232,0.45)'; x.beginPath(); x.arc(cx, cy, rad, 0, Math.PI * 2); x.fill(); }
+    return c;
+  }
+
+  return { W, H, FPS, DUR, render, plate, felt, frames: Math.round(DUR * FPS) };
+})();
+
+'use strict';
+// ---- detection: MediaPipe (pose masks + face landmarks) and the built-in fallback ----
+//
+// Every detector returns, in source pixels:
+//   persons: [{ box:[x0,y0,x1,y1], mask:{x,y,w,h,gw,gh,data:Uint8Array}, lm:Float32Array(33*3)|null, meanL, score }]
+//   faces:   [{ kind:'lm', lm:Float32Array(FACE_IDX.length*2) } | { kind:'ell', ell:[cx,cy,rx,ry,ang] }]  (+ box, width)
+
+const MP_VER = '0.10.35';
+const MP_CDN = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VER}/`;
+const ASSETS = (window.HITOGATA_ASSETS || './');
+const MODEL_SRC = {
+  pose: { file: 'pose_landmarker_full.task', url: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task' },
+  face: { file: 'face_landmarker.task', url: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task' },
+};
+
+// face landmark subsets (MediaPipe face mesh indices)
+const FI = {
+  oval: [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109],
+  eyeR: [33, 246, 161, 160, 159, 158, 157, 173, 133, 155, 154, 153, 145, 144, 163, 7],
+  eyeL: [263, 466, 388, 387, 386, 385, 384, 398, 362, 382, 381, 380, 374, 373, 390, 249],
+  browR: [70, 63, 105, 66, 107, 55, 65, 52, 53, 46],
+  browL: [300, 293, 334, 296, 336, 285, 295, 282, 283, 276],
+  lips: [61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291, 375, 321, 405, 314, 17, 84, 181, 91, 146],
+  nose: [1, 2, 4, 5, 195, 98, 327, 64, 294, 49, 279, 129, 358, 97, 326],
+};
+const FACE_IDX = [].concat(FI.oval, FI.eyeR, FI.eyeL, FI.browR, FI.browL, FI.lips, FI.nose);
+const FG = {}; { let o = 0; for (const k of ['oval', 'eyeR', 'eyeL', 'browR', 'browL', 'lips', 'nose']) { FG[k] = [o, FI[k].length]; o += FI[k].length; } }
+const fpos = (lm, idx) => { const j = FACE_IDX.indexOf(idx); return [lm[2 * j], lm[2 * j + 1]]; };
+
+const DET = {
+  mp: { state: 'idle', msg: '', vision: null, pose: null, face: null, delegate: '', origin: { pose: '', face: '' } },
+  tiles: 'none',
+  lastMs: 0,
+  onStatus: () => {},
+};
+
+// ---------------------------------------------------------------- loading ---
+async function fetchBytes(url, onProg) {
+  const r = await fetch(url, { cache: 'force-cache' });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const total = +r.headers.get('content-length') || 0;
+  if (!r.body || !onProg) return new Uint8Array(await r.arrayBuffer());
+  const rd = r.body.getReader(), parts = []; let got = 0;
+  for (;;) { const { done, value } = await rd.read(); if (done) break; parts.push(value); got += value.length; onProg(got, total); }
+  const out = new Uint8Array(got); let o = 0; for (const p of parts) { out.set(p, o); o += p.length; } return out;
+}
+async function firstBytes(cands, onProg) {
+  const errs = [];
+  for (const [label, get] of cands) {
+    try { const b = await get(); if (b && b.length > 1000) return { bytes: b, origin: label }; errs.push(label + ': 空'); }
+    catch (e) { errs.push(label + ': ' + (e && e.message || e)); }
+  }
+  throw new Error(errs.join(' / '));
+}
+async function fetchB64(url, onProg) { // the published page keeps models as base64 text next to it
+  const txt = new TextDecoder().decode(await fetchBytes(url, onProg)).replace(/\s+/g, '');
+  if (Uint8Array.fromBase64) return Uint8Array.fromBase64(txt);
+  const bin = atob(txt), out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+async function modelBytes(kind, onProg) {
+  return firstBytes([
+    ['選んだファイル', async () => { const v = await idb.get('model:' + kind); return v ? new Uint8Array(v) : null; }],
+    ['同じ場所のファイル', () => fetchB64(ASSETS + 'models/' + MODEL_SRC[kind].file + '.b64.txt', onProg)],
+    ['公式の配布元', () => fetchBytes(MODEL_SRC[kind].url, onProg)],
+  ]);
+}
+
+DET.loadMP = async function (opts = {}) {
+  const mp = DET.mp;
+  if (mp.state === 'loading') return;
+  mp.state = 'loading'; mp.msg = '実行部を読み込んでいます'; DET.onStatus();
+  try {
+    if (!mp.vision) {
+      try { mp.vision = await import(MP_CDN + 'vision_bundle.mjs'); }
+      catch (e) { mp.vision = await import(ASSETS + 'mediapipe/vision_bundle.mjs'); }
+    }
+    let mb = 0;
+    const prog = (g, t) => { mp.msg = `読み込み中 ${(g / 1e6).toFixed(1)}${t ? ' / ' + (t / 1e6).toFixed(1) : ''} MB`; if ((g / 4e5 | 0) !== mb) { mb = g / 4e5 | 0; DET.onStatus(); } };
+    if (!mp.wasmUrl) { // the runtime fetches the binary itself; find a place that answers
+      const errs = [];
+      for (const u of [ASSETS + 'mediapipe/vision_wasm_internal.wasm', MP_CDN + 'wasm/vision_wasm_internal.wasm']) {
+        try { const r = await fetch(u, { cache: 'force-cache' }); if (r.ok) { if (r.body) r.body.cancel().catch(() => {}); mp.wasmUrl = u; break; } errs.push(`HTTP ${r.status}`); }
+        catch (e) { errs.push(e.message || String(e)); }
+      }
+      if (!mp.wasmUrl) throw new Error('実行部（wasm）を取得できません：' + errs.join(' / '));
+    }
+    const filesets = [
+      { wasmLoaderPath: MP_CDN + 'wasm/vision_wasm_internal.js', wasmBinaryPath: mp.wasmUrl },
+      { wasmLoaderPath: ASSETS + 'mediapipe/vision_wasm_internal.js', wasmBinaryPath: mp.wasmUrl },
+    ];
+    mp.msg = 'モデルを読み込んでいます'; DET.onStatus();
+    const pm = await modelBytes('pose', prog), fm = await modelBytes('face', prog);
+    mp.origin = { pose: pm.origin, face: fm.origin };
+    const make = async (Cls, bytes, extra) => {
+      let last;
+      for (const fs of filesets) for (const delegate of (opts.cpu ? ['CPU'] : ['GPU', 'CPU'])) {
+        try { const t = await Cls.createFromOptions(fs, Object.assign({ baseOptions: { modelAssetBuffer: bytes, delegate }, runningMode: 'IMAGE' }, extra)); mp.delegate = delegate; return t; }
+        catch (e) { last = e; }
+      }
+      throw last;
+    };
+    mp.msg = '準備しています'; DET.onStatus();
+    if (mp.pose) try { mp.pose.close(); } catch (e) { /* */ }
+    if (mp.face) try { mp.face.close(); } catch (e) { /* */ }
+    mp.pose = await make(mp.vision.PoseLandmarker, pm.bytes, { numPoses: 6, outputSegmentationMasks: true, minPoseDetectionConfidence: 0.35, minPosePresenceConfidence: 0.35, minTrackingConfidence: 0.35 });
+    mp.face = await make(mp.vision.FaceLandmarker, fm.bytes, { numFaces: 6, minFaceDetectionConfidence: 0.35, minFacePresenceConfidence: 0.35, outputFaceBlendshapes: false });
+    mp.state = 'ready'; mp.msg = '';
+  } catch (e) {
+    mp.state = 'failed'; mp.msg = String(e && e.message || e).slice(0, 400);
+  }
+  DET.onStatus();
+};
+DET.useModelFile = async function (kind, file) {
+  const buf = await file.arrayBuffer();
+  await idb.put('model:' + kind, buf);
+  store.set('modelName:' + kind, file.name);
+  DET.mp.state = 'idle';
+  await DET.loadMP();
+};
+DET.forgetModelFiles = async function () { await idb.del('model:pose'); await idb.del('model:face'); store.set('modelName:pose', null); store.set('modelName:face', null); };
+
+// --------------------------------------------------------- shared helpers ---
+const _small = makeCanvas(160, 90), _sctx = _small.getContext('2d', { willReadFrequently: true });
+function smallLum(img, W, H) { // luminance thumbnail for per-person brightness
+  const sw = 160, sh = Math.max(1, Math.round(160 * H / W));
+  if (_small.height !== sh) _small.height = sh;
+  _sctx.drawImage(img, 0, 0, sw, sh);
+  const d = _sctx.getImageData(0, 0, sw, sh).data, L = new Float32Array(sw * sh);
+  for (let i = 0; i < L.length; i++) L[i] = (0.299 * d[4 * i] + 0.587 * d[4 * i + 1] + 0.114 * d[4 * i + 2]) / 255;
+  return { L, sw, sh, sx: sw / W, sy: sh / H };
+}
+function maskMeanL(m, sl) {
+  let s = 0, n = 0;
+  const x0 = Math.max(0, Math.floor(m.x * sl.sx)), x1 = Math.min(sl.sw - 1, Math.ceil((m.x + m.w) * sl.sx));
+  const y0 = Math.max(0, Math.floor(m.y * sl.sy)), y1 = Math.min(sl.sh - 1, Math.ceil((m.y + m.h) * sl.sy));
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    const mx = Math.floor(((x + 0.5) / sl.sx - m.x) / m.w * m.gw), my = Math.floor(((y + 0.5) / sl.sy - m.y) / m.h * m.gh);
+    if (mx < 0 || my < 0 || mx >= m.gw || my >= m.gh || m.data[my * m.gw + mx] < 128) continue;
+    s += sl.L[y * sl.sw + x]; n++;
+  }
+  return n ? s / n : 0.45;
+}
+function nmsPersons(c) {
+  c.sort((a, b) => (a.trunc - b.trunc) || (b.area - a.area));
+  const keep = [];
+  for (const p of c) {
+    if (keep.some((k) => iou(k.box, p.box) > 0.5 || (overlapMin(k.box, p.box) > 0.8 && (p.box[3] - p.box[1]) < 1.6 * (k.box[3] - k.box[1]) && (k.box[3] - k.box[1]) < 1.6 * (p.box[3] - p.box[1])))) continue;
+    keep.push(p);
+  }
+  return keep;
+}
+function nmsFaces(c) {
+  c.sort((a, b) => b.width - a.width);
+  const keep = [];
+  for (const f of c) { if (keep.some((k) => iou(k.box, f.box) > 0.3 || overlapMin(k.box, f.box) > 0.6)) continue; keep.push(f); }
+  return keep;
+}
+function tileRects(W, H, mode) {
+  const r = [{ x: 0, y: 0, w: W, h: H, full: true }];
+  const grid = mode === '2x2' ? [2, 0.6] : mode === '3x3' ? [3, 0.44] : null;
+  if (grid) {
+    const [n, f] = grid, tw = W * f, th = H * f;
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) r.push({ x: Math.round((W - tw) * i / (n - 1)), y: Math.round((H - th) * j / (n - 1)), w: Math.round(tw), h: Math.round(th) });
+  }
+  return r;
+}
+
+// ------------------------------------------------------------- MediaPipe ---
+const _tile = makeCanvas(64, 64), _tctx = _tile.getContext('2d');
+const _crop = makeCanvas(256, 256), _cctx = _crop.getContext('2d');
+
+function faceFromMP(lms, map) { // lms: normalized landmarks of the crop; map: (x,y)->[sx,sy]
+  const lm = new Float32Array(FACE_IDX.length * 2);
+  FACE_IDX.forEach((idx, j) => { const p = lms[idx]; const [x, y] = map(p.x, p.y); lm[2 * j] = x; lm[2 * j + 1] = y; });
+  const [o0, on] = FG.oval;
+  const box = polyBox(lm.subarray(2 * o0, 2 * (o0 + on)));
+  const a = fpos(lm, 234), b = fpos(lm, 454);
+  return { kind: 'lm', lm, box, width: Math.hypot(b[0] - a[0], b[1] - a[1]) };
+}
+
+function detectMP(img, W, H, wantFaces, fMinPx) {
+  const mp = DET.mp, persons = [], faces = [];
+  const sl = smallLum(img, W, H);
+  for (const tl of tileRects(W, H, DET.tiles)) {
+    const s = Math.min(1, (tl.full ? 960 : 640) / Math.max(tl.w, tl.h));
+    const tw = Math.max(16, Math.round(tl.w * s)), th = Math.max(16, Math.round(tl.h * s));
+    if (_tile.width !== tw || _tile.height !== th) { _tile.width = tw; _tile.height = th; }
+    _tctx.drawImage(img, tl.x, tl.y, tl.w, tl.h, 0, 0, tw, th);
+    mp.pose.detect(_tile, (r) => {
+      for (let i = 0; i < r.landmarks.length; i++) {
+        const mk = r.segmentationMasks && r.segmentationMasks[i]; if (!mk) continue;
+        const m = mk.getAsFloat32Array(), mw = mk.width, mh = mk.height;
+        let x0 = mw, y0 = mh, x1 = -1, y1 = -1, area = 0;
+        for (let y = 0; y < mh; y++) for (let x = 0; x < mw; x++) if (m[y * mw + x] > 0.5) { area++; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+        if (area < 30) continue;
+        const pad = 3; x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(mw - 1, x1 + pad); y1 = Math.min(mh - 1, y1 + pad);
+        const gw = x1 - x0 + 1, gh = y1 - y0 + 1, data = new Uint8Array(gw * gh);
+        for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) data[y * gw + x] = clamp(m[(y + y0) * mw + x + x0] * 255 + 0.5, 0, 255);
+        const kx = tl.w / mw, ky = tl.h / mh;
+        const mask = { x: tl.x + x0 * kx, y: tl.y + y0 * ky, w: gw * kx, h: gh * ky, gw, gh, data };
+        const lm = new Float32Array(33 * 3); let vis = 0;
+        r.landmarks[i].forEach((p, j) => { lm[3 * j] = tl.x + p.x * tl.w; lm[3 * j + 1] = tl.y + p.y * tl.h; lm[3 * j + 2] = p.visibility == null ? 1 : p.visibility; vis += lm[3 * j + 2]; });
+        const edge = 2 / s;
+        const trunc = tl.full ? 0 : ((mask.x <= tl.x + edge && tl.x > 0) || (mask.y <= tl.y + edge && tl.y > 0) || (mask.x + mask.w >= tl.x + tl.w - edge && tl.x + tl.w < W) || (mask.y + mask.h >= tl.y + tl.h - edge && tl.y + tl.h < H)) ? 1 : 0;
+        persons.push({ box: [mask.x, mask.y, mask.x + mask.w, mask.y + mask.h], mask, lm, score: vis / 33, trunc, area: area * kx * ky });
+      }
+    });
+  }
+  const keep = nmsPersons(persons);
+  for (const p of keep) { p.meanL = maskMeanL(p.mask, sl); delete p.area; delete p.trunc; }
+  if (wantFaces) {
+    // whole picture first, then a close crop around every head the pose found
+    const s = Math.min(1, 960 / Math.max(W, H)), tw = Math.round(W * s), th = Math.round(H * s);
+    if (_tile.width !== tw || _tile.height !== th) { _tile.width = tw; _tile.height = th; }
+    _tctx.drawImage(img, 0, 0, W, H, 0, 0, tw, th);
+    const r0 = mp.face.detect(_tile);
+    for (const f of r0.faceLandmarks) faces.push(faceFromMP(f, (x, y) => [x * W, y * H]));
+    for (const p of keep) {
+      const lm = p.lm, pts = [];
+      for (let j = 0; j <= 10; j++) if (lm[3 * j + 2] > 0.5) pts.push([lm[3 * j], lm[3 * j + 1]]);
+      if (pts.length < 3) continue;
+      const cx = pts.reduce((a, q) => a + q[0], 0) / pts.length, cy = pts.reduce((a, q) => a + q[1], 0) / pts.length;
+      const d = (a, b) => Math.hypot(lm[3 * a] - lm[3 * b], lm[3 * a + 1] - lm[3 * b + 1]);
+      const est = Math.max(d(7, 8) * 1.05, d(2, 5) * 2.0, (p.box[3] - p.box[1]) * 0.09);
+      if (est < fMinPx * 0.55) continue;
+      if (faces.some((f) => cx > f.box[0] && cx < f.box[2] && cy > f.box[1] && cy < f.box[3])) continue;
+      const side = Math.max(32, est * 2.6), sx = cx - side / 2, sy = cy - side * 0.48;
+      _cctx.clearRect(0, 0, 256, 256);
+      _cctx.drawImage(img, sx, sy, side, side, 0, 0, 256, 256);
+      const r1 = mp.face.detect(_crop);
+      for (const f of r1.faceLandmarks) faces.push(faceFromMP(f, (x, y) => [sx + x * side, sy + y * side]));
+    }
+  }
+  return { persons: keep, faces: nmsFaces(faces) };
+}
+
+// ------------------------------------------------- built-in (no model) ---
+// A still camera is assumed: the empty street ("plate") is the per-pixel median of
+// frames spread over the clip; whatever differs from it, and is not a cast shadow, is a person.
+const BG = {
+  DW: 0, DH: 0, plate: null, W: 0, H: 0, frames: 0,
+  cv: makeCanvas(16, 16), ctx: null,
+  setSize(W, H) { this.W = W; this.H = H; this.DW = Math.min(480, W); this.DH = Math.max(1, Math.round(this.DW * H / W)); this.cv.width = this.DW; this.cv.height = this.DH; this.ctx = this.cv.getContext('2d', { willReadFrequently: true }); this.plate = null; },
+  grab(img) { this.ctx.drawImage(img, 0, 0, this.W, this.H, 0, 0, this.DW, this.DH); return this.ctx.getImageData(0, 0, this.DW, this.DH).data; },
+  setPlate(img) { this.plate = new Uint8ClampedArray(this.grab(img)); this.frames = 0; },
+  async estimate(grabAt, dur, n = 21, onProg) {
+    const shots = [];
+    for (let i = 0; i < n; i++) { const img = await grabAt(dur * (i + 0.5) / n); shots.push(new Uint8ClampedArray(this.grab(img))); if (onProg) onProg(i + 1, n); }
+    const N = this.DW * this.DH * 4, out = new Uint8ClampedArray(N), col = new Uint8Array(n);
+    for (let i = 0; i < N; i++) { if ((i & 3) === 3) { out[i] = 255; continue; } for (let k = 0; k < n; k++) col[k] = shots[k][i]; col.sort(); out[i] = col[n >> 1]; }
+    this.plate = out; this.frames = n;
+  },
+};
+function morph(src, w, h, r, dilate) { // separable max (dilate) / min (erode) on a 0/1 map
+  const tmp = new Uint8Array(w * h), out = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    let v = dilate ? 0 : 1; const a = Math.max(0, x - r), b = Math.min(w - 1, x + r), row = y * w;
+    for (let i = a; i <= b; i++) { const s = src[row + i]; if (dilate ? s : !s) { v = dilate ? 1 : 0; break; } }
+    tmp[row + x] = v;
+  }
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    let v = dilate ? 0 : 1; const a = Math.max(0, y - r), b = Math.min(h - 1, y + r);
+    for (let i = a; i <= b; i++) { const s = tmp[i * w + x]; if (dilate ? s : !s) { v = dilate ? 1 : 0; break; } }
+    out[y * w + x] = v;
+  }
+  return out;
+}
+function skinYCC(r, g, b) {
+  const cr = 128 + 0.5 * r - 0.4187 * g - 0.0813 * b, cb = 128 - 0.1687 * r - 0.3313 * g + 0.5 * b;
+  return cr > 135 && cr < 175 && cb > 80 && cb < 128 && r > 60 && r > b;
+}
+const _head = makeCanvas(96, 96), _hctx = _head.getContext('2d', { willReadFrequently: true });
+
+function detectBG(img, W, H, wantFaces, fMinPx) {
+  if (!BG.plate || BG.W !== W || BG.H !== H) return { persons: [], faces: [], note: '背景がまだありません' };
+  const w = BG.DW, h = BG.DH, d = BG.grab(img), P = BG.plate, N = w * h;
+  const dist = new Float32Array(N), fg0 = new Uint8Array(N);
+  const hist = new Uint32Array(256);
+  for (let i = 0; i < N; i++) {
+    const r = d[4 * i], g = d[4 * i + 1], b = d[4 * i + 2], R = P[4 * i], G = P[4 * i + 1], B = P[4 * i + 2];
+    const v = Math.sqrt((r - R) ** 2 + (g - G) ** 2 + (b - B) ** 2); dist[i] = v; hist[Math.min(255, v | 0)]++;
+  }
+  let acc = 0, med = 0; for (let k = 0; k < 256; k++) { acc += hist[k]; if (acc >= N / 2) { med = k; break; } }
+  const thr = Math.max(24, med * 3.2);
+  let nfg = 0;
+  const sh = new Uint8Array(N);
+  for (let i = 0; i < N; i++) {
+    if (dist[i] <= thr) continue;
+    const r = d[4 * i], g = d[4 * i + 1], b = d[4 * i + 2], R = P[4 * i], G = P[4 * i + 1], B = P[4 * i + 2];
+    const l = r + g + b + 3, L = R + G + B + 3, ratio = l / L;
+    const cd = Math.abs(r / l - R / L) + Math.abs(g / l - G / L) + Math.abs(b / l - B / L);
+    if (ratio > 0.35 && ratio < 0.95 && cd < 0.07) { sh[i] = 1; continue; } // looks like a cast shadow: darker, same colour
+    fg0[i] = 1; nfg++;
+  }
+  // Grey trousers on grey pavement also look like shadow. A cast shadow lies flat on the ground;
+  // a leg hangs straight down from the body. Keep a shadow-like vertical run only when it starts
+  // right under a body and is long compared with that body's height.
+  {
+    const fb = morph(morph(fg0, w, h, 2, true), w, h, 2, false);
+    const lab = new Int32Array(N), st = new Int32Array(N), top = [0], bot = [0]; let nl = 0;
+    for (let i0 = 0; i0 < N; i0++) {
+      if (!fb[i0] || lab[i0]) continue;
+      nl++; let sp = 0, y0 = h, y1 = 0; st[sp++] = i0; lab[i0] = nl;
+      while (sp) {
+        const i = st[--sp], x = i % w, y = (i / w) | 0; if (y < y0) y0 = y; if (y > y1) y1 = y;
+        if (x > 0 && fb[i - 1] && !lab[i - 1]) { lab[i - 1] = nl; st[sp++] = i - 1; }
+        if (x < w - 1 && fb[i + 1] && !lab[i + 1]) { lab[i + 1] = nl; st[sp++] = i + 1; }
+        if (y > 0 && fb[i - w] && !lab[i - w]) { lab[i - w] = nl; st[sp++] = i - w; }
+        if (y < h - 1 && fb[i + w] && !lab[i + w]) { lab[i + w] = nl; st[sp++] = i + w; }
+      }
+      top.push(y0); bot.push(y1);
+    }
+    for (let x = 0; x < w; x++) {
+      let y = 0;
+      while (y < h) {
+        if (!sh[y * w + x]) { y++; continue; }
+        const a = y; while (y < h && sh[y * w + x]) y++;
+        let c = 0; for (let k = 1; k <= 2 && !c; k++) if (a - k >= 0) c = lab[(a - k) * w + x];
+        if (c && y - a >= Math.max(6, 0.12 * (bot[c] - top[c] + 1))) for (let yy = a; yy < y; yy++) { fg0[yy * w + x] = 1; nfg++; }
+      }
+    }
+  }
+  let fg = morph(morph(fg0, w, h, 2, true), w, h, 2, false); // close
+  fg = morph(morph(fg, w, h, 1, false), w, h, 1, true);      // open
+  // fill holes: anything not reachable from the border is inside a person
+  const outside = new Uint8Array(N), st = new Int32Array(N); let sp = 0;
+  const push = (i) => { if (!fg[i] && !outside[i]) { outside[i] = 1; st[sp++] = i; } };
+  for (let x = 0; x < w; x++) { push(x); push((h - 1) * w + x); }
+  for (let y = 0; y < h; y++) { push(y * w); push(y * w + w - 1); }
+  while (sp) { const i = st[--sp], x = i % w, y = (i / w) | 0; if (x > 0) push(i - 1); if (x < w - 1) push(i + 1); if (y > 0) push(i - w); if (y < h - 1) push(i + w); }
+  for (let i = 0; i < N; i++) if (!outside[i]) fg[i] = 1;
+  // connected components
+  const lab = new Int32Array(N); let nl = 0; const comps = [];
+  for (let i0 = 0; i0 < N; i0++) {
+    if (!fg[i0] || lab[i0]) continue;
+    nl++; lab[i0] = nl; sp = 0; st[sp++] = i0;
+    let x0 = w, y0 = h, x1 = 0, y1 = 0, area = 0;
+    while (sp) {
+      const i = st[--sp], x = i % w, y = (i / w) | 0; area++;
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+      if (x > 0 && fg[i - 1] && !lab[i - 1]) { lab[i - 1] = nl; st[sp++] = i - 1; }
+      if (x < w - 1 && fg[i + 1] && !lab[i + 1]) { lab[i + 1] = nl; st[sp++] = i + 1; }
+      if (y > 0 && fg[i - w] && !lab[i - w]) { lab[i - w] = nl; st[sp++] = i - w; }
+      if (y < h - 1 && fg[i + w] && !lab[i + w]) { lab[i + w] = nl; st[sp++] = i + w; }
+    }
+    comps.push({ ids: [nl], x0, y0, x1, y1, area });
+  }
+  // join pieces of one person split by an occluder or a gap
+  let merged = true;
+  while (merged) {
+    merged = false;
+    for (let a = 0; a < comps.length && !merged; a++) for (let b = a + 1; b < comps.length && !merged; b++) {
+      const A = comps[a], B = comps[b];
+      const ox = Math.min(A.x1, B.x1) - Math.max(A.x0, B.x0), minW = Math.min(A.x1 - A.x0, B.x1 - B.x0) + 1;
+      const gap = Math.max(A.y0, B.y0) - Math.min(A.y1, B.y1), hh = Math.max(A.y1 - A.y0, B.y1 - B.y0) + 1;
+      if (ox > 0.5 * minW && gap < 0.22 * hh) {
+        A.ids.push(...B.ids); A.x0 = Math.min(A.x0, B.x0); A.y0 = Math.min(A.y0, B.y0); A.x1 = Math.max(A.x1, B.x1); A.y1 = Math.max(A.y1, B.y1); A.area += B.area;
+        comps.splice(b, 1); merged = true;
+      }
+    }
+  }
+  const sx = W / w, sy = H / h, persons = [], faces = [];
+  let sumL = 0;
+  for (const c of comps) {
+    if (c.area < N * 0.00035 || c.y1 - c.y0 < 8) continue;
+    const ids = new Uint8Array(nl + 1); for (const q of c.ids) ids[q] = 1; const pad = 2;
+    const x0 = Math.max(0, c.x0 - pad), y0 = Math.max(0, c.y0 - pad), x1 = Math.min(w - 1, c.x1 + pad), y1 = Math.min(h - 1, c.y1 + pad);
+    const gw = x1 - x0 + 1, gh = y1 - y0 + 1, bin = new Uint8Array(gw * gh), data = new Uint8Array(gw * gh);
+    let sl = 0, n = 0;
+    for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) {
+      const i = (y + y0) * w + x + x0; if (!ids[lab[i]]) continue;
+      bin[y * gw + x] = 1; sl += 0.299 * d[4 * i] + 0.587 * d[4 * i + 1] + 0.114 * d[4 * i + 2]; n++;
+    }
+    for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) { // 3x3 soften
+      let s = 0; for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) { const xx = x + i, yy = y + j; if (xx >= 0 && yy >= 0 && xx < gw && yy < gh) s += bin[yy * gw + xx]; }
+      data[y * gw + x] = Math.round(s / 9 * 255);
+    }
+    const mask = { x: x0 * sx, y: y0 * sy, w: gw * sx, h: gh * sy, gw, gh, data };
+    const p = { box: [c.x0 * sx, c.y0 * sy, (c.x1 + 1) * sx, (c.y1 + 1) * sy], mask, lm: null, meanL: n ? sl / n / 255 : 0.45, score: 1 };
+    persons.push(p); sumL += c.area;
+    if (wantFaces) { const f = faceFromSkin(img, p, fMinPx); if (f) faces.push(f); }
+  }
+  const note = nfg > N * 0.4 ? '画面の大部分が背景と違います（カメラが動いている？）' : '';
+  return { persons, faces, note };
+}
+function faceFromSkin(img, p, fMinPx) {
+  const [bx0, by0, bx1, by1] = p.box, bh = by1 - by0;
+  if (bh * 0.115 < fMinPx * 0.55 || bh < 40) return null;
+  // head column: where the person's mask is, in the top band
+  const m = p.mask; let cx = 0, n = 0;
+  const band = Math.floor(m.gh * 0.12);
+  for (let y = 0; y < band; y++) for (let x = 0; x < m.gw; x++) if (m.data[y * m.gw + x] > 128) { cx += x; n++; }
+  if (!n) return null;
+  cx = m.x + (cx / n + 0.5) / m.gw * m.w;
+  const side = bh * 0.2, sx = cx - side / 2, sy = by0 - bh * 0.01;
+  const S = 96; _hctx.clearRect(0, 0, S, S);
+  _hctx.drawImage(img, sx, sy, side, side, 0, 0, S, S);
+  const d = _hctx.getImageData(0, 0, S, S).data, sk = new Uint8Array(S * S);
+  for (let i = 0; i < S * S; i++) {
+    const X = sx + (i % S + 0.5) / S * side, Y = sy + ((i / S | 0) + 0.5) / S * side;
+    const mx = Math.floor((X - m.x) / m.w * m.gw), my = Math.floor((Y - m.y) / m.h * m.gh);
+    if (mx < 0 || my < 0 || mx >= m.gw || my >= m.gh || m.data[my * m.gw + mx] < 100) continue;
+    if (skinYCC(d[4 * i], d[4 * i + 1], d[4 * i + 2])) sk[i] = 1;
+  }
+  // largest skin blob
+  const lab = new Int32Array(S * S), st = new Int32Array(S * S); let best = 0, bestN = 0, nl = 0;
+  for (let i0 = 0; i0 < S * S; i0++) {
+    if (!sk[i0] || lab[i0]) continue; nl++; let sp = 0, cnt = 0; st[sp++] = i0; lab[i0] = nl;
+    while (sp) { const i = st[--sp], x = i % S, y = (i / S) | 0; cnt++; for (const j of [x > 0 ? i - 1 : -1, x < S - 1 ? i + 1 : -1, y > 0 ? i - S : -1, y < S - 1 ? i + S : -1]) if (j >= 0 && sk[j] && !lab[j]) { lab[j] = nl; st[sp++] = j; } }
+    if (cnt > bestN) { bestN = cnt; best = nl; }
+  }
+  if (bestN < S * S * 0.09) return null; // the back of a head, or covered
+  // rows: fill holes per row (eyes, mouth) and cut the neck where the blob narrows
+  const rows = []; let maxW = 0;
+  for (let y = 0; y < S; y++) { let a = -1, b = -1; for (let x = 0; x < S; x++) if (lab[y * S + x] === best) { if (a < 0) a = x; b = x; } rows.push([a, b]); if (a >= 0) maxW = Math.max(maxW, b - a + 1); }
+  let top = rows.findIndex((r) => r[0] >= 0), bot = top;
+  if (top < 0) return null;
+  let widest = top; for (let y = top; y < S; y++) { if (rows[y][0] >= 0 && rows[y][1] - rows[y][0] + 1 >= maxW * 0.97) widest = y; }
+  for (let y = top; y < S; y++) { const r = rows[y]; if (r[0] < 0) break; if (y > widest && r[1] - r[0] + 1 < maxW * 0.62) break; bot = y; }
+  let m00 = 0, m10 = 0, m01 = 0, m20 = 0, m02 = 0, m11 = 0;
+  for (let y = top; y <= bot; y++) { const [a, b] = rows[y]; for (let x = a; x <= b; x++) { m00++; m10 += x; m01 += y; m20 += x * x; m02 += y * y; m11 += x * y; } }
+  if (m00 < 30) return null;
+  const mx = m10 / m00, my = m01 / m00, cxx = m20 / m00 - mx * mx, cyy = m02 / m00 - my * my, cxy = m11 / m00 - mx * my;
+  const tr = cxx + cyy, det = cxx * cyy - cxy * cxy, l1 = tr / 2 + Math.sqrt(Math.max(0, tr * tr / 4 - det)), l2 = tr / 2 - Math.sqrt(Math.max(0, tr * tr / 4 - det));
+  let ang = 0.5 * Math.atan2(2 * cxy, cxx - cyy); // major axis angle
+  let rx = 2 * Math.sqrt(Math.max(1, l2)), ry = 2 * Math.sqrt(Math.max(1, l1));
+  ang -= Math.PI / 2; // measure from the vertical so ry is the face height
+  if (ang < -Math.PI / 2) ang += Math.PI; if (ang > Math.PI / 2) ang -= Math.PI;
+  if (Math.abs(ang) > 0.6) ang = 0;
+  const k = side / S;
+  const ell = [sx + (mx + 0.5) * k, sy + (my + 0.5) * k, rx * k * 1.02, ry * k * 1.02, ang, 0];
+  ell[5] = clamp((sy + (top + 0.5) * k - ell[1]) / ell[3], -1.2, -0.3); // hairline, in units of ry
+  const width = ell[2] * 2;
+  if (width < 6) return null;
+  return { kind: 'ell', ell, box: [ell[0] - ell[2], ell[1] - ell[3], ell[0] + ell[2], ell[1] + ell[3]], width };
+}
+
+// --------------------------------------------------------------- entry ---
+// method: 'mp' | 'bg'
+DET.detect = function (img, W, H, method, wantFaces, fMinPx) {
+  const t0 = performance.now();
+  let r;
+  if (method === 'mp' && DET.mp.state === 'ready') r = detectMP(img, W, H, wantFaces, fMinPx);
+  else r = detectBG(img, W, H, wantFaces, fMinPx);
+  DET.lastMs = performance.now() - t0;
+  r.method = method; r.W = W; r.H = H;
+  return r;
+};
+
+'use strict';
+// ---- tracking and temporal smoothing -------------------------------------
+// Only the masks and anchor points are smoothed. The picture itself is never
+// interpolated: every output frame is built from that frame's own pixels.
+//
+// Flicker control for body masks (per person, on a fixed grid):
+//  1. two thresholds: in above 0.6, out below 0.4, otherwise each cell keeps its last decision,
+//  2. a cell joins at once (the leading edge never lags) but leaves only after two frames
+//     in a row say so, which removes one-frame drop-outs,
+//  3. when detection drops, the last mask is kept for the hold time, moving at the last speed.
+// On the built-in sample this cuts cells that flip and flip back from 447 to 95 per frame.
+// Shifting the old mask by the person's motion before comparing was tried and made it worse
+// (1519): the centre of a walking body sways with the legs, so the shift itself jitters.
+
+const HI = 0.6, LO = 0.4;
+const REID = 1.2; // seconds a lost track is remembered so the same person keeps its number
+
+class Tracker {
+  constructor() { this.reset(16, 16); }
+  reset(W, H) {
+    this.W = W; this.H = H;
+    this.gs = Math.min(1, 960 / Math.max(W, H));
+    this.GW = Math.max(1, Math.round(W * this.gs)); this.GH = Math.max(1, Math.round(H * this.gs));
+    this.persons = []; this.faces = []; this.nextP = 1; this.nextF = 1; this.lastT = null;
+    this.union = new Uint8Array(this.GW * this.GH); this.label = new Uint8Array(this.GW * this.GH);
+    this.pool = [];
+  }
+  clear() { this.reset(this.W, this.H); }
+  _buf() { return this.pool.pop() || new Uint8Array(this.GW * this.GH); }
+  _free(t) { if (t.st) { for (const b of t.st.concat(t.pd)) { b.fill(0); b.__r = null; this.pool.push(b); } t.st = null; t.pd = null; } }
+
+  // det: detector output for this frame; t: seconds; P: parameters; withMasks: false for the fast scan analysis
+  update(det, t, P, withMasks = true) {
+    const dt = this.lastT === null ? 0 : t - this.lastT;
+    if (this.lastT !== null && (dt <= 0 || dt > 1.0)) { // a jump in time (seek): start over
+      for (const tr of this.persons) this._free(tr);
+      this.persons = []; this.faces = [];
+    }
+    this.lastT = t;
+    const hold = P.hold;
+    this._persons(det.persons || [], t, Math.max(0, dt), hold, withMasks);
+    this._faces(det.faces || [], t, Math.max(0, dt), hold);
+    return this.state(t, P, withMasks);
+  }
+
+  // ------------------------------------------------------------- persons ---
+  _persons(dets, t, dt, hold, withMasks) {
+    const tracks = this.persons;
+    const pred = tracks.map((tr) => { const e = tr.state === 'held' ? dt : Math.min(t - tr.lastSeen, 1); const ox = tr.vx * e, oy = tr.vy * e; return [tr.box[0] + ox, tr.box[1] + oy, tr.box[2] + ox, tr.box[3] + oy]; });
+    const pairs = [];
+    tracks.forEach((tr, i) => dets.forEach((d, j) => {
+      const s = iou(pred[i], d.box);
+      if (s > 0.15) pairs.push([s, i, j]);
+      else {
+        const h = Math.max(pred[i][3] - pred[i][1], d.box[3] - d.box[1]);
+        const dist = Math.hypot((pred[i][0] + pred[i][2] - d.box[0] - d.box[2]) / 2, (pred[i][1] + pred[i][3] - d.box[1] - d.box[3]) / 2);
+        const hr = (d.box[3] - d.box[1]) / Math.max(1, pred[i][3] - pred[i][1]);
+        if (dist < 0.5 * h && hr > 0.6 && hr < 1.66) pairs.push([0.1 * (1 - dist / (0.5 * h)), i, j]);
+      }
+    }));
+    pairs.sort((a, b) => b[0] - a[0]);
+    const ut = new Set(), ud = new Set();
+    for (const [, i, j] of pairs) { if (ut.has(i) || ud.has(j)) continue; ut.add(i); ud.add(j); this._seePerson(tracks[i], dets[j], t, withMasks); }
+    tracks.forEach((tr, i) => { if (!ut.has(i)) this._missPerson(tr, t, dt, hold, withMasks); });
+    dets.forEach((d, j) => { if (!ud.has(j)) { const tr = this._newPerson(d, t); tracks.push(tr); this._seePerson(tr, d, t, withMasks); } });
+    this.persons = tracks.filter((tr) => { if (t - tr.lastSeen > REID) { this._free(tr); return false; } return true; });
+  }
+  _newPerson(d, t) {
+    const id = this.nextP++;
+    return { id, rand: hash01(id * 7919 + 13), born: t, lastSeen: t, seen: 0, box: d.box.slice(), vx: 0, vy: 0,
+      fx: new OneEuro(1.2, 0.8), fy: new OneEuro(1.2, 0.8), fh: new OneEuro(0.5, 0.3), fax: new OneEuro(1.0, 0.8), fay: new OneEuro(1.0, 0.8),
+      aoff: [0, 0], meanL: d.meanL || 0.45, lm: null, st: null, cur: 0, rect: null, sub: [0, 0], applied: false, fresh: true, state: 'seen' };
+  }
+  _seePerson(tr, d, t, withMasks) {
+    const ncx = (d.box[0] + d.box[2]) / 2, ncy = (d.box[1] + d.box[3]) / 2;
+    const gap = t - tr.lastSeen, cen = Tracker.centroid(d.mask), oc = tr.cen;
+    if (gap > 0 && gap < 0.5 && !tr.fresh && oc) { const k = 1 - Math.exp(-gap / 0.12); tr.vx += ((cen[0] - oc[0]) / gap - tr.vx) * k; tr.vy += ((cen[1] - oc[1]) / gap - tr.vy) * k; }
+    const relost = tr.state === 'lost';
+    // compared in place: moving the old mask by the person's motion made edges flicker more (measured)
+    if (withMasks) this._maskUpdate(tr, d.mask, relost || tr.fresh ? null : [0, 0]);
+    tr.cen = cen;
+    tr.box = d.box.slice(); tr.lastSeen = t; tr.seen++; tr.fresh = false; tr.state = 'seen';
+    tr.meanL += ((d.meanL || tr.meanL) - tr.meanL) * 0.3;
+    tr.lm = d.lm;
+    const h = d.box[3] - d.box[1];
+    tr.sx = tr.fx.filter(ncx, t, 1 / h); tr.sy = tr.fy.filter(ncy, t, 1 / h); tr.sh = tr.fh.filter(h, t, 1 / h);
+    // texture anchor: the torso when the pose is known, else the box centre (kept continuous)
+    let ax = ncx + tr.aoff[0], ay = ncy + tr.aoff[1];
+    if (d.lm) {
+      let x = 0, y = 0, n = 0;
+      for (const j of [11, 12, 23, 24]) if (d.lm[3 * j + 2] > 0.5) { x += d.lm[3 * j]; y += d.lm[3 * j + 1]; n++; }
+      if (n >= 3) { ax = x / n; ay = y / n; tr.aoff[0] += (ax - ncx - tr.aoff[0]) * 0.3; tr.aoff[1] += (ay - ncy - tr.aoff[1]) * 0.3; }
+    }
+    tr.ax = tr.fax.filter(ax, t, 1 / h); tr.ay = tr.fay.filter(ay, t, 1 / h);
+  }
+  _missPerson(tr, t, dt, hold, withMasks) {
+    const since = t - tr.lastSeen;
+    if (since <= hold + 1e-6 && tr.state !== 'lost') {
+      tr.state = 'held';
+      const ox = tr.vx * dt, oy = tr.vy * dt;
+      tr.box = [tr.box[0] + ox, tr.box[1] + oy, tr.box[2] + ox, tr.box[3] + oy];
+      tr.fx.shift(ox, t); tr.fy.shift(oy, t); tr.fax.shift(ox, t); tr.fay.shift(oy, t);
+      tr.sx += ox; tr.sy += oy; tr.ax += ox; tr.ay += oy;
+      if (withMasks) this._maskShift(tr, ox * this.gs, oy * this.gs);
+      if (tr.cen) tr.cen = [tr.cen[0] + ox, tr.cen[1] + oy];
+    } else tr.state = 'lost';
+  }
+  _maskUpdate(tr, m, shift) {
+    const GW = this.GW, GH = this.GH, gs = this.gs;
+    if (!tr.st) { tr.st = [this._buf(), this._buf()]; tr.pd = [this._buf(), this._buf()]; tr.cur = 0; tr.rect = null; }
+    const A = tr.st[tr.cur], B = tr.st[1 - tr.cur], PA = tr.pd[tr.cur], PB = tr.pd[1 - tr.cur];
+    let sx = 0, sy = 0;
+    if (shift) { tr.sub[0] += shift[0]; tr.sub[1] += shift[1]; sx = Math.round(tr.sub[0]); sy = Math.round(tr.sub[1]); tr.sub[0] -= sx; tr.sub[1] -= sy; }
+    const prevR = shift && tr.rect ? tr.rect : null;
+    const nx0 = clamp(Math.floor(m.x * gs) - 1, 0, GW - 1), ny0 = clamp(Math.floor(m.y * gs) - 1, 0, GH - 1);
+    const nx1 = clamp(Math.ceil((m.x + m.w) * gs) + 1, 0, GW - 1), ny1 = clamp(Math.ceil((m.y + m.h) * gs) + 1, 0, GH - 1);
+    let x0 = nx0, y0 = ny0, x1 = nx1, y1 = ny1;
+    if (prevR) { x0 = Math.min(x0, clamp(prevR[0] + sx, 0, GW - 1)); y0 = Math.min(y0, clamp(prevR[1] + sy, 0, GH - 1)); x1 = Math.max(x1, clamp(prevR[2] + sx, 0, GW - 1)); y1 = Math.max(y1, clamp(prevR[3] + sy, 0, GH - 1)); }
+    if (B.__r) { const r = B.__r; for (let y = r[1]; y <= r[3]; y++) { B.fill(0, y * GW + r[0], y * GW + r[2] + 1); PB.fill(0, y * GW + r[0], y * GW + r[2] + 1); } }
+    const kx = m.gw / m.w, ky = m.gh / m.h;
+    let rx0 = GW, ry0 = GH, rx1 = -1, ry1 = -1;
+    for (let y = y0; y <= y1; y++) {
+      const sy0 = ((y + 0.5) / gs - m.y) * ky - 0.5;
+      for (let x = x0; x <= x1; x++) {
+        let v = 0; // this frame's detection, bilinear
+        const sx0 = ((x + 0.5) / gs - m.x) * kx - 0.5;
+        if (sx0 > -1 && sy0 > -1 && sx0 < m.gw && sy0 < m.gh) {
+          const ix = Math.floor(sx0), iy = Math.floor(sy0), fx = sx0 - ix, fy = sy0 - iy;
+          const g = (i, j) => (i < 0 || j < 0 || i >= m.gw || j >= m.gh ? 0 : m.data[j * m.gw + i]);
+          v = ((g(ix, iy) * (1 - fx) + g(ix + 1, iy) * fx) * (1 - fy) + (g(ix, iy + 1) * (1 - fx) + g(ix + 1, iy + 1) * fx) * fy) / 255;
+        }
+        let pv = 0, pp = 0;
+        if (prevR) { const px = x - sx, py = y - sy; if (px >= prevR[0] && px <= prevR[2] && py >= prevR[1] && py <= prevR[3]) { pv = A[py * GW + px]; pp = PA[py * GW + px]; } }
+        // two thresholds; leaving takes two frames in a row, entering is immediate (no lag at the leading edge)
+        let inside, pend = 0;
+        if (!prevR) inside = v > 0.5;
+        else if (pv >= 128) { if (v < LO) { pend = pp + 1; inside = pend < 2; if (!inside) pend = 0; } else inside = true; }
+        else inside = v > HI;
+        const o = inside ? Math.max(128, Math.round(v * 255)) : Math.min(127, Math.round(v * 255));
+        const i = y * GW + x; B[i] = o; PB[i] = pend;
+        if (o >= 8) { if (x < rx0) rx0 = x; if (x > rx1) rx1 = x; if (y < ry0) ry0 = y; if (y > ry1) ry1 = y; }
+      }
+    }
+    B.__r = [x0, y0, x1, y1];
+    tr.rect = rx1 >= 0 ? [rx0, ry0, rx1, ry1] : null;
+    tr.cur = 1 - tr.cur;
+  }
+  _maskShift(tr, dx, dy) {
+    if (!tr.st || !tr.rect) return;
+    tr.sub[0] += dx; tr.sub[1] += dy;
+    const sx = Math.round(tr.sub[0]), sy = Math.round(tr.sub[1]); tr.sub[0] -= sx; tr.sub[1] -= sy;
+    if (!sx && !sy) return;
+    const GW = this.GW, GH = this.GH, A = tr.st[tr.cur], B = tr.st[1 - tr.cur], PA = tr.pd[tr.cur], PB = tr.pd[1 - tr.cur], r = tr.rect;
+    if (B.__r) { const q = B.__r; for (let y = q[1]; y <= q[3]; y++) { B.fill(0, y * GW + q[0], y * GW + q[2] + 1); PB.fill(0, y * GW + q[0], y * GW + q[2] + 1); } }
+    const n = [clamp(r[0] + sx, 0, GW - 1), clamp(r[1] + sy, 0, GH - 1), clamp(r[2] + sx, 0, GW - 1), clamp(r[3] + sy, 0, GH - 1)];
+    for (let y = n[1]; y <= n[3]; y++) for (let x = n[0]; x <= n[2]; x++) { const px = x - sx, py = y - sy, i = y * GW + x; if (px >= r[0] && px <= r[2] && py >= r[1] && py <= r[3]) { B[i] = A[py * GW + px]; PB[i] = PA[py * GW + px]; } }
+    B.__r = n; tr.rect = n; tr.cur = 1 - tr.cur;
+  }
+  static centroid(m) { // centre of mass of the mask: steadier than the box centre while legs swing
+    let sx = 0, sy = 0, n = 0;
+    for (let y = 0; y < m.gh; y++) for (let x = 0; x < m.gw; x++) if (m.data[y * m.gw + x] >= 128) { sx += x; sy += y; n++; }
+    return n ? [m.x + (sx / n + 0.5) / m.gw * m.w, m.y + (sy / n + 0.5) / m.gh * m.h] : [m.x + m.w / 2, m.y + m.h / 2];
+  }
+
+  // --------------------------------------------------------------- faces ---
+  _faces(dets, t, dt, hold) {
+    const tracks = this.faces;
+    const pairs = [];
+    tracks.forEach((tr, i) => dets.forEach((d, j) => {
+      const e = Math.min(t - tr.lastSeen, 1), ox = tr.vx * e, oy = tr.vy * e;
+      const pb = [tr.box[0] + ox, tr.box[1] + oy, tr.box[2] + ox, tr.box[3] + oy];
+      const s = iou(pb, d.box);
+      if (s > 0.1) pairs.push([s, i, j]);
+      else { const dist = Math.hypot((pb[0] + pb[2] - d.box[0] - d.box[2]) / 2, (pb[1] + pb[3] - d.box[1] - d.box[3]) / 2); if (dist < 0.6 * Math.max(tr.width, d.width)) pairs.push([0.05 * (1 - dist / (0.6 * Math.max(tr.width, d.width))), i, j]); }
+    }));
+    pairs.sort((a, b) => b[0] - a[0]);
+    const ut = new Set(), ud = new Set();
+    for (const [, i, j] of pairs) { if (ut.has(i) || ud.has(j)) continue; ut.add(i); ud.add(j); this._seeFace(tracks[i], dets[j], t); }
+    tracks.forEach((tr, i) => {
+      if (ut.has(i)) return;
+      if (t - tr.lastSeen <= hold + 1e-6 && tr.state !== 'lost') {
+        tr.state = 'held'; const ox = tr.vx * dt, oy = tr.vy * dt;
+        tr.box = [tr.box[0] + ox, tr.box[1] + oy, tr.box[2] + ox, tr.box[3] + oy];
+        tr.cx.shift(ox, t); tr.cy.shift(oy, t); tr.c[0] += ox; tr.c[1] += oy;
+      } else tr.state = 'lost';
+    });
+    dets.forEach((d, j) => { if (!ud.has(j)) { const tr = { id: this.nextF++, born: t, lastSeen: t, kind: d.kind, vx: 0, vy: 0, fresh: true, applied: false, state: 'seen', box: d.box, width: d.width }; tr.rand = hash01(tr.id * 104729 + 7); tracks.push(tr); this._seeFace(tr, d, t); } });
+    this.faces = tracks.filter((tr) => t - tr.lastSeen <= REID);
+  }
+  _seeFace(tr, d, t) {
+    if (tr.kind !== d.kind) { tr.kind = d.kind; tr.fresh = true; }
+    const ocx = (tr.box[0] + tr.box[2]) / 2, ocy = (tr.box[1] + tr.box[3]) / 2, ncx = (d.box[0] + d.box[2]) / 2, ncy = (d.box[1] + d.box[3]) / 2;
+    const gap = t - tr.lastSeen;
+    if (!tr.fresh && gap > 0 && gap < 0.5) { const k = 1 - Math.exp(-gap / 0.12); tr.vx += ((ncx - ocx) / gap - tr.vx) * k; tr.vy += ((ncy - ocy) / gap - tr.vy) * k; }
+    tr.box = d.box; tr.lastSeen = t; tr.state = 'seen';
+    const w = d.width;
+    if (tr.fresh) { tr.cx = new OneEuro(1.5, 1.0); tr.cy = new OneEuro(1.5, 1.0); tr.fw = new OneEuro(0.8, 0.4); tr.fr = new OneEuro(1.2, 0.6); tr.q = null; }
+    if (d.kind === 'lm') {
+      const lm = d.lm, n = lm.length / 2;
+      let cx = 0, cy = 0; for (let i = 0; i < n; i++) { cx += lm[2 * i]; cy += lm[2 * i + 1]; } cx /= n; cy /= n;
+      const a = fpos(lm, 33), b = fpos(lm, 263), roll = Math.atan2(b[1] - a[1], b[0] - a[0]);
+      const c = Math.cos(-roll), s = Math.sin(-roll), q = new Float32Array(lm.length);
+      for (let i = 0; i < n; i++) { const dx = lm[2 * i] - cx, dy = lm[2 * i + 1] - cy; q[2 * i] = (c * dx - s * dy) / w; q[2 * i + 1] = (s * dx + c * dy) / w; }
+      const k = tr.q && !tr.fresh ? 1 - Math.exp(-Math.max(gap, 1 / 60) / 0.05) : 1;
+      if (!tr.q || tr.fresh) tr.q = q; else for (let i = 0; i < q.length; i++) tr.q[i] += (q[i] - tr.q[i]) * k;
+      tr.c = [tr.cx.filter(cx, t, 1 / w), tr.cy.filter(cy, t, 1 / w)];
+      tr.roll = tr.fr.filter(roll, t, 1);
+    } else {
+      const [ex, ey, rx, ry, ang, top] = d.ell;
+      if (tr.fresh) { tr.frx = new OneEuro(0.8, 0.4); tr.fry = new OneEuro(0.8, 0.4); tr.ftop = new OneEuro(0.6, 0.2); }
+      tr.c = [tr.cx.filter(ex, t, 1 / w), tr.cy.filter(ey, t, 1 / w)];
+      tr.rx = tr.frx.filter(rx, t, 1 / w); tr.ry = tr.fry.filter(ry, t, 1 / w); tr.roll = tr.fr.filter(ang, t, 1);
+      tr.top = tr.ftop.filter(top == null ? -1 : top, t, 1);
+    }
+    tr.width = tr.fw.filter(w, t, 1 / w);
+    tr.fresh = false;
+  }
+  faceGeom(tr) {
+    const c = tr.c, w = tr.width, roll = tr.roll, cs = Math.cos(roll), sn = Math.sin(roll);
+    const toW = (qx, qy) => [c[0] + (cs * qx - sn * qy) * w, c[1] + (sn * qx + cs * qy) * w];
+    if (tr.kind === 'lm') {
+      const q = tr.q, grp = (k) => { const [o, n] = FG[k]; const r = []; for (let i = 0; i < n; i++) r.push([q[2 * (o + i)], q[2 * (o + i) + 1]]); return r; };
+      const ovalL = grp('oval');
+      const brows = grp('browR').concat(grp('browL'));
+      const browTop = Math.min(...brows.map((p) => p[1])), ys = ovalL.map((p) => p[1]);
+      const fh = Math.max(...ys) - Math.min(...ys);
+      const cut = browTop - 0.14 * fh; // keep the forehead and fringe untouched
+      const oval = ovalL.map(([x, y]) => toW(x, Math.max(y, cut)));
+      const m = 0.03 + 1.2 / Math.max(1, w);
+      const feats = ['eyeR', 'eyeL', 'browR', 'browL', 'lips', 'nose'].map((k) => inflatePoly(convexHull(grp(k)), k === 'lips' ? m * 1.2 : m).map(([x, y]) => toW(x, y)));
+      return { oval, feats, center: c, width: w, roll, dark: false };
+    }
+    const n = 32, oval = [];
+    const cut = (tr.top == null ? -1 : tr.top) * tr.ry / w + 0.03; // keep the hairline untouched
+    for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; oval.push(toW(Math.cos(a) * tr.rx / w, Math.max(cut, Math.sin(a) * tr.ry / w))); }
+    return { oval, feats: [], center: c, width: w, roll, dark: true };
+  }
+
+  // ------------------------------------------------------- frame state ---
+  state(t, P, withMasks) {
+    const out = { t, persons: [], faces: [], c: { pSeen: 0, pHeld: 0, pApplied: 0, pSize: 0, pRate: 0, fSeen: 0, fHeld: 0, fApplied: 0, fSize: 0, fRate: 0, noFace: 0 } };
+    const C = out.c;
+    for (const tr of this.persons) {
+      if (tr.state === 'lost') continue;
+      const h = tr.sh;
+      const lo = tr.applied ? P.hMin * 0.96 : P.hMin, hi = tr.applied ? P.hMax * 1.04 : P.hMax;
+      const sizeOK = h >= lo && h <= hi, rateOK = tr.rand * 100 < P.rate1;
+      tr.applied = P.mode === 1 && sizeOK && rateOK;
+      if (tr.state === 'seen') C.pSeen++; else C.pHeld++;
+      if (P.mode === 1) { if (tr.applied) C.pApplied++; else if (!sizeOK) C.pSize++; else C.pRate++; }
+      out.persons.push({ id: tr.id, state: tr.state, applied: tr.applied, reason: tr.applied ? '' : (!sizeOK ? 'size' : 'rate'), box: [tr.sx - (tr.box[2] - tr.box[0]) / 2, tr.sy - h / 2, tr.sx + (tr.box[2] - tr.box[0]) / 2, tr.sy + h / 2], rawBox: tr.box, anchor: [tr.ax, tr.ay], scale: h, height: h, meanL: tr.meanL, rand: tr.rand, since: t - tr.lastSeen, track: tr });
+    }
+    // faces: link to the person whose head they sit on (so "per person" rates agree)
+    for (const tr of this.faces) {
+      if (tr.state === 'lost') continue;
+      const cx = tr.c[0], cy = tr.c[1];
+      let owner = null;
+      for (const p of out.persons) { const b = p.rawBox, hh = b[3] - b[1]; if (cx > b[0] && cx < b[2] && cy > b[1] - hh * 0.05 && cy < b[1] + hh * 0.3) { owner = p; break; } }
+      const rand = owner ? owner.rand : tr.rand;
+      const lo = tr.applied ? P.fMin * 0.96 : P.fMin, hi = tr.applied ? P.fMax * 1.04 : P.fMax;
+      const sizeOK = tr.width >= lo && tr.width <= hi, rateOK = rand * 100 < P.rate2;
+      tr.applied = P.mode === 2 && sizeOK && rateOK;
+      if (tr.state === 'seen') C.fSeen++; else C.fHeld++;
+      if (P.mode === 2) { if (tr.applied) C.fApplied++; else if (!sizeOK) C.fSize++; else C.fRate++; }
+      const g = this.faceGeom(tr);
+      out.faces.push(Object.assign(g, { id: tr.id, state: tr.state, applied: tr.applied, reason: tr.applied ? '' : (!sizeOK ? 'size' : 'rate'), box: tr.box, personId: owner ? owner.id : 0, since: t - tr.lastSeen }));
+      if (owner) owner.hasFace = true;
+    }
+    // persons whose pose shows a face we did not find (MediaPipe only)
+    for (const p of out.persons) {
+      const lm = p.track.lm; if (!lm || p.hasFace || p.state !== 'seen') continue;
+      if (lm[2] > 0.85 && lm[3 * 2 + 2] > 0.85 && lm[3 * 5 + 2] > 0.85) {
+        const est = Math.max(Math.hypot(lm[21] - lm[24], lm[22] - lm[25]) * 1.05, Math.hypot(lm[6] - lm[15], lm[7] - lm[16]) * 2.0);
+        if (est >= P.fMin) { p.faceMissing = true; C.noFace++; }
+      }
+    }
+    if (withMasks) this.compose(out);
+    return out;
+  }
+  // union of applied masks + which person owns each grid cell
+  compose(out) {
+    const U = this.union, Lb = this.label, GW = this.GW;
+    U.fill(0); Lb.fill(0);
+    let slot = 0; out.rect = null;
+    const ap = out.persons.filter((p) => p.applied && p.track.st && p.track.rect);
+    for (const p of ap) {
+      if (slot >= 31) break;
+      p.slot = ++slot;
+      const tr = p.track, A = tr.st[tr.cur], r = tr.rect;
+      for (let y = r[1]; y <= r[3]; y++) for (let x = r[0]; x <= r[2]; x++) {
+        const i = y * GW + x, v = A[i];
+        if (v > U[i] || (v === U[i] && v > 0 && p.height > (ap[Lb[i] - 1] || p).height)) { U[i] = v; Lb[i] = slot; }
+      }
+      out.rect = out.rect ? [Math.min(out.rect[0], r[0]), Math.min(out.rect[1], r[1]), Math.max(out.rect[2], r[2]), Math.max(out.rect[3], r[3])] : r.slice();
+    }
+    out.slots = ap.filter((p) => p.slot);
+  }
+}
+
+'use strict';
+// ---- WebGL2 compositing ---------------------------------------------------
+// All textures are stored top row first; FBO pixel (x, y) is picture pixel (x, y).
+// Only the final pass to the canvas flips.
+
+const GLSL = '#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp isampler2D;\n';
+const VS_FULL = GLSL + 'layout(location=0) in vec2 a; void main(){ gl_Position = vec4(a, 0.0, 1.0); }';
+const VS_POLY = GLSL + 'layout(location=0) in vec2 a; uniform vec2 uSize; void main(){ gl_Position = vec4(a / uSize * 2.0 - 1.0, 0.0, 1.0); }';
+
+const FS_COLOR = GLSL + 'uniform vec4 uColor; out vec4 o; void main(){ o = uColor; }';
+
+const FS_SEED = GLSL + `
+uniform sampler2D uMask; uniform vec2 uSize; layout(location=0) out ivec4 o;
+float m(vec2 p){ return texture(uMask, p / uSize).r; }
+void main(){
+  vec2 p = gl_FragCoord.xy;
+  bool b = m(p) >= 0.5 && (m(p + vec2(1, 0)) < 0.5 || m(p - vec2(1, 0)) < 0.5 || m(p + vec2(0, 1)) < 0.5 || m(p - vec2(0, 1)) < 0.5);
+  o = b ? ivec4(ivec2(p), 0, 0) : ivec4(-1, -1, 0, 0);
+}`;
+
+const FS_JFA = GLSL + `
+uniform isampler2D uSeed; uniform int uStep; layout(location=0) out ivec4 o;
+void main(){
+  ivec2 p = ivec2(gl_FragCoord.xy), sz = textureSize(uSeed, 0);
+  ivec2 best = ivec2(-1); float bd = 1e20;
+  for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
+    ivec2 q = p + ivec2(i, j) * uStep;
+    if (q.x < 0 || q.y < 0 || q.x >= sz.x || q.y >= sz.y) continue;
+    ivec2 s = texelFetch(uSeed, q, 0).xy;
+    if (s.x < 0) continue;
+    vec2 d = vec2(s - p); float dd = dot(d, d);
+    if (dd < bd) { bd = dd; best = s; }
+  }
+  o = ivec4(best, 0, 0);
+}`;
+
+const HASH = `
+vec4 hash4(vec2 p){ vec4 q = fract(vec4(p.xyxy) * vec4(0.1031, 0.1030, 0.0973, 0.1099)); q += dot(q, q.wzxy + 33.33); return fract((q.xxyz + q.yzzw) * q.zywx); }
+float lum(vec3 c){ return dot(c, vec3(0.299, 0.587, 0.114)); }`;
+
+const FS_PLUSH = GLSL + HASH + `
+uniform sampler2D uSrc, uMask, uLabel, uTex; uniform isampler2D uSeed;
+uniform vec2 uSize; uniform float uTexAspect, uTexFrac;
+uniform vec2 uAnchor[32]; uniform float uScale[32]; uniform vec2 uOff[32]; uniform float uMeanL[32]; uniform float uRand[32];
+uniform float uDilate, uFeather, uShadeG, uDepth, uShadowAmt, uFurLen, uFurDen;
+out vec4 o;
+int slotAt(vec2 p){ return int(texture(uLabel, p / uSize).r * 255.0 + 0.5); }
+vec2 tcoord(vec2 p, int k){ float th = max(uScale[k] * uTexFrac, 2.0); return vec2((p.x - uAnchor[k].x) / (th * uTexAspect), (p.y - uAnchor[k].y) / th) + uOff[k]; }
+void main(){
+  vec2 p = gl_FragCoord.xy, uv = p / uSize;
+  vec3 src = texture(uSrc, uv).rgb;
+  bool inside = texture(uMask, uv).r >= 0.5;
+  ivec2 sd = texelFetch(uSeed, ivec2(p), 0).xy;
+  float dist; vec2 seed; int slot;
+  if (sd.x < 0) { if (!inside) { o = vec4(src, 1.0); return; } dist = 1e4; seed = p; slot = slotAt(p); }
+  else { seed = vec2(sd) + 0.5; dist = length(seed - p); slot = inside ? slotAt(p) : slotAt(seed); if (slot <= 0) slot = slotAt(seed); }
+  if (slot <= 0) { o = vec4(src, 1.0); return; }
+  int k = slot - 1;
+  float e = (inside ? -dist : dist) - uDilate;      // signed distance to the puffed outline, < 0 inside
+  if (e > uFeather * 0.5 + uFurLen + 1.0) { o = vec4(src, 1.0); return; }
+  // brightness of this body under the felt (taken a little inside the outline for outer pixels)
+  vec2 qs = inside ? p : seed + (seed - p) / max(dist, 1e-3) * 1.5;
+  float L = lum(texture(uSrc, qs / uSize).rgb) + 0.02;
+  float lr = log(L / (uMeanL[k] + 0.02)); lr = lr > 0.0 ? lr / (1.0 + 0.9 * lr) : lr;
+  float S = exp(uShadeG * clamp(lr, -2.2, 1.0));
+  float dn = clamp(-e / max(uDepth, 1e-3), 0.0, 1.0);
+  float sh = uDepth > 0.0 ? 1.0 - uShadowAmt * pow(1.0 - dn, 1.6) : 1.0;
+  vec3 body = texture(uTex, tcoord(p, k)).rgb * S * sh;
+  float aBody = 1.0 - smoothstep(-uFeather * 0.5 - 0.5, uFeather * 0.5 + 0.5, e);
+  float aFur = 0.0; vec3 fur = vec3(0.0);
+  if (uFurLen > 0.0 && e > -0.5 && e < uFurLen + 0.5 && dist < 1e3) {
+    vec2 an = uAnchor[k];
+    vec2 nrm = (p - seed) / max(dist, 1e-3); if (inside) nrm = -nrm;
+    vec2 tg = vec2(-nrm.y, nrm.x);
+    float lean = (hash4(floor((seed - an) / 3.0) + uRand[k] * 913.0).x - 0.5) * 0.9;
+    vec2 root = seed;
+    ivec2 s2 = texelFetch(uSeed, ivec2(p - tg * lean * max(e, 0.0)), 0).xy;
+    if (s2.x >= 0) root = vec2(s2) + 0.5;
+    vec4 h = hash4(floor(root - an) + uRand[k] * 1777.0);
+    float len = uFurLen * (0.35 + 0.65 * h.y);
+    if (h.x < uFurDen && e < len) {
+      float tt = max(e, 0.0) / len;
+      aFur = (1.0 - tt) * 0.92;
+      fur = texture(uTex, tcoord(root, k)).rgb * S * (1.0 - 0.5 * uShadowAmt * step(0.0, uDepth - 0.001)) * mix(0.95, 1.12, tt) * (0.85 + 0.3 * h.z);
+    }
+  }
+  float a = max(aBody, aFur);
+  vec3 col = aBody >= aFur ? body : fur;
+  o = vec4(mix(src, col, a), 1.0);
+}`;
+
+const FS_DOWN = GLSL + `
+uniform sampler2D uSrc; uniform int uF; out vec4 o;
+void main(){
+  ivec2 p = ivec2(gl_FragCoord.xy) * uF, sz = textureSize(uSrc, 0);
+  vec4 s = vec4(0.0); float n = 0.0;
+  int st = max(1, uF / 4);
+  for (int j = 0; j < 8; j++) { if (j * st >= uF) break; for (int i = 0; i < 8; i++) { if (i * st >= uF) break;
+    ivec2 q = min(p + ivec2(i, j) * st, sz - 1); s += texelFetch(uSrc, q, 0); n += 1.0; } }
+  o = s / n;
+}`;
+
+const FS_BLUR = GLSL + `
+uniform sampler2D uT; uniform vec2 uDir; uniform float uSigma; out vec4 o;
+void main(){
+  vec2 sz = vec2(textureSize(uT, 0)), uv = gl_FragCoord.xy / sz;
+  if (uSigma < 0.35) { o = texture(uT, uv); return; }
+  float stp = max(1.0, uSigma * 3.0 / 20.0);
+  vec4 acc = vec4(0.0); float ws = 0.0;
+  for (int i = -20; i <= 20; i++) {
+    float x = float(i) * stp; if (abs(x) > uSigma * 3.0 + stp) continue;
+    float w = exp(-0.5 * x * x / (uSigma * uSigma));
+    acc += w * texture(uT, uv + uDir * x / sz); ws += w;
+  }
+  o = acc / ws;
+}`;
+
+// weights for the smooth face layer: inside the face, not on eyes/brows/mouth/nose,
+// and (where asked) not much darker or redder than the skin around it
+const FS_WEIGHT = GLSL + HASH + `
+uniform sampler2D uD, uE, uM; uniform int uPass; out vec4 o;
+void main(){
+  ivec2 p = ivec2(gl_FragCoord.xy);
+  vec3 d = texelFetch(uD, p, 0).rgb; vec4 e = texelFetch(uE, p, 0);
+  float w = e.b * (1.0 - e.r);
+  if (uPass == 1) {
+    vec4 m = texelFetch(uM, p, 0);
+    if (m.a > 1e-4 && e.g > 0.5) {
+      vec3 mean = m.rgb / m.a;
+      w *= 1.0 - smoothstep(0.03, 0.09, lum(mean) - lum(d));
+      w *= 1.0 - smoothstep(0.03, 0.08, (d.r - d.g) - (mean.r - mean.g));
+    }
+  }
+  o = vec4(d * w, w);
+}`;
+
+const FS_LOW = GLSL + `
+uniform sampler2D uN1, uN2, uD; out vec4 o;
+void main(){
+  ivec2 p = ivec2(gl_FragCoord.xy);
+  vec4 a = texelFetch(uN1, p, 0), b = texelFetch(uN2, p, 0); vec3 d = texelFetch(uD, p, 0).rgb;
+  vec3 lb = b.a > 1e-4 ? b.rgb / b.a : d;
+  vec3 la = a.a > 1e-4 ? a.rgb / a.a : lb;
+  o = vec4(mix(lb, la, smoothstep(0.06, 0.3, a.a)), 1.0);
+}`;
+
+// face: the smooth layer plus skin grain. The grain is cut from the cheeks in small square
+// pieces; each piece's source is chosen at random among cheek spots that the weight map
+// marks as plain skin, so an eye corner or a nostril can never be repeated over the face.
+// Four offset layers with tent weights hide the piece edges.
+const FS_FACE = GLSL + HASH + `
+uniform sampler2D uSrc, uLow, uSoft, uLab, uTex, uW; uniform vec2 uSize, uLowScale;
+uniform vec2 uC[16]; uniform vec2 uRot[16]; uniform float uPatch[16], uFW[16], uSeed[16]; uniform vec2 uOff[16];
+uniform float uGrain, uKind, uShadeG, uTexFrac, uTexAspect; out vec4 o;
+vec3 low(vec2 p){ return texture(uLow, p * uLowScale).rgb; }
+float ok(vec2 p){ return texture(uW, p * uLowScale).a; }
+vec2 rot(vec2 v, vec2 r){ return vec2(r.x * v.x - r.y * v.y, r.y * v.x + r.x * v.y); }
+vec3 piece(int i, vec2 q, vec2 off, out float w){
+  vec2 qq = q + off, cell = floor(qq), r = fract(qq) - 0.5;
+  w = (1.0 - 2.0 * abs(r.x)) * (1.0 - 2.0 * abs(r.y));
+  float P = uPatch[i], W = uFW[i];
+  vec2 src = vec2(-1e9);
+  for (int k = 0; k < 8; k++) {
+    vec4 h = hash4(cell * 1.37 + off * 9.1 + float(k) * 17.31 + uSeed[i]);
+    vec2 l = vec2((h.x < 0.5 ? -1.0 : 1.0) * mix(0.1, 0.33, h.y), mix(-0.02, 0.26, h.z)) * W;
+    if (k >= 6) l = vec2(mix(-0.3, 0.3, h.y), mix(-0.2, 0.35, h.z)) * W; // anywhere on plain skin
+    vec2 c = uC[i] + rot(l, uRot[i]);
+    if (ok(c) > 0.9 && ok(c + rot(vec2(P, P) * 0.6, uRot[i])) > 0.9 && ok(c - rot(vec2(P, P) * 0.6, uRot[i])) > 0.9
+        && ok(c + rot(vec2(P, -P) * 0.6, uRot[i])) > 0.9 && ok(c - rot(vec2(P, -P) * 0.6, uRot[i])) > 0.9) { src = c; break; }
+  }
+  if (src.x < -1e8) { w = 0.0; return vec3(0.0); }
+  vec4 h2 = hash4(cell * 2.11 + off * 5.3 + uSeed[i] + 3.7);
+  if (h2.x < 0.5) r.x = -r.x;
+  if (h2.y < 0.5) r = r.yx;
+  vec2 sp = src + rot(r * P, uRot[i]);
+  return clamp(texture(uSrc, sp / uSize).rgb - low(sp), -0.07, 0.07);
+}
+void main(){
+  vec2 p = gl_FragCoord.xy, uv = p / uSize;
+  vec3 src = texture(uSrc, uv).rgb;
+  float F = texture(uSoft, uv).r;
+  int i = int(texture(uLab, uv).r * 255.0 + 0.5) - 1;
+  if (F < 0.002 || i < 0) { o = vec4(src, 1.0); return; }
+  vec2 d = p - uC[i];
+  vec2 lq = rot(d, vec2(uRot[i].x, -uRot[i].y));
+  vec3 res;
+  if (uKind < 0.5) {
+    vec2 q = lq / uPatch[i];
+    float w0, w1, w2, w3;
+    vec3 g = piece(i, q, vec2(0.0), w0) * w0 + piece(i, q, vec2(0.5, 0.0), w1) * w1 + piece(i, q, vec2(0.0, 0.5), w2) * w2 + piece(i, q, vec2(0.5), w3) * w3;
+    float n = sqrt(w0 * w0 + w1 * w1 + w2 * w2 + w3 * w3);
+    vec3 H = n > 1e-3 ? g / n : vec3(0.0);
+    res = low(p) + H * uGrain;
+  } else {
+    float th = max(uFW[i] * 7.0 * uTexFrac, 2.0);
+    vec2 tuv = vec2(lq.x / (th * uTexAspect), lq.y / th) + uOff[i];
+    float lr = log((lum(low(p)) + 0.02) / (lum(low(uC[i])) + 0.02)); lr = lr > 0.0 ? lr / (1.0 + 0.9 * lr) : lr;
+    float S = exp(uShadeG * clamp(lr, -2.2, 1.0));
+    res = texture(uTex, tuv).rgb * S;
+  }
+  o = vec4(mix(src, clamp(res, 0.0, 1.0), F), 1.0);
+}`;
+
+const FS_DISP = GLSL + HASH + `
+uniform sampler2D uOut, uSrc; uniform vec2 uSize; uniform int uMode; uniform float uGain; out vec4 o;
+void main(){
+  vec2 uv = vec2(gl_FragCoord.x, uSize.y - gl_FragCoord.y) / uSize;
+  vec3 a = texture(uOut, uv).rgb, b = texture(uSrc, uv).rgb, c;
+  if (uMode == 0) c = a; else if (uMode == 1) c = b;
+  else c = clamp(vec3(lum(b) * 0.22) + abs(a - b) * uGain, 0.0, 1.0);
+  o = vec4(c, 1.0);
+}`;
+
+const FS_MEASURE = GLSL + `
+uniform sampler2D uOut, uSrc; out vec4 o;
+void main(){
+  vec2 cell = gl_FragCoord.xy - 0.5, n = vec2(64.0, 36.0);
+  float sum = 0.0, cnt = 0.0;
+  for (int j = 0; j < 4; j++) for (int i = 0; i < 4; i++) {
+    vec2 uv = (cell + (vec2(i, j) + 0.5) / 4.0) / n;
+    vec3 d = abs(texture(uOut, uv).rgb - texture(uSrc, uv).rgb);
+    float m = max(d.r, max(d.g, d.b));
+    if (m > 3.0 / 255.0) { sum += m; cnt += 1.0; }
+  }
+  o = vec4(sum / 16.0, cnt / 16.0, 0.0, 1.0);
+}`;
+
+class Renderer {
+  constructor(canvas) {
+    const gl = canvas.getContext('webgl2', { preserveDrawingBuffer: true, alpha: false, antialias: false, premultipliedAlpha: false });
+    if (!gl) throw new Error('WebGL2 が使えません');
+    this.gl = gl; this.canvas = canvas;
+    this.half = !!gl.getExtension('EXT_color_buffer_float');
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    const P = (vs, fs) => this._prog(vs, fs);
+    this.p = {
+      color: P(VS_POLY, FS_COLOR), seed: P(VS_FULL, FS_SEED), jfa: P(VS_FULL, FS_JFA), plush: P(VS_FULL, FS_PLUSH),
+      down: P(VS_FULL, FS_DOWN), blur: P(VS_FULL, FS_BLUR), weight: P(VS_FULL, FS_WEIGHT), low: P(VS_FULL, FS_LOW),
+      face: P(VS_FULL, FS_FACE), disp: P(VS_FULL, FS_DISP), measure: P(VS_FULL, FS_MEASURE),
+    };
+    this.vao = gl.createVertexArray(); gl.bindVertexArray(this.vao);
+    this.fullBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, this.fullBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    this.polyBuf = gl.createBuffer();
+    gl.enableVertexAttribArray(0);
+    this.W = 0; this.H = 0; this.tex = {}; this.work = null;
+    this.texAspect = 1;
+    this.tex.felt = this._tex(1, 1, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.LINEAR);
+    this.measureFbo = this._target(64, 36, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.NEAREST);
+    this.measureBuf = new Uint8Array(64 * 36 * 4);
+    this.maxSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+  }
+  _prog(vs, fs) {
+    const gl = this.gl, mk = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) + '\n' + src.split('\n').slice(0, 3).join(' ')); return s; };
+    const p = gl.createProgram(); gl.attachShader(p, mk(gl.VERTEX_SHADER, vs)); gl.attachShader(p, mk(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+    const u = {}; const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+    for (let i = 0; i < n; i++) { const a = gl.getActiveUniform(p, i); const name = a.name.replace(/\[0\]$/, ''); u[name] = gl.getUniformLocation(p, a.name); }
+    return { p, u };
+  }
+  _tex(w, h, ifmt, fmt, type, filter, wrap) {
+    const gl = this.gl, t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texImage2D(gl.TEXTURE_2D, 0, ifmt, w, h, 0, fmt, type, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap || gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap || gl.CLAMP_TO_EDGE);
+    t.w = w; t.h = h; return t;
+  }
+  _target(w, h, ifmt, fmt, type, filter) {
+    const gl = this.gl, t = this._tex(w, h, ifmt, fmt, type, filter), f = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, f); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0);
+    t.fbo = f; return t;
+  }
+  _free(t) { if (!t) return; const gl = this.gl; if (t.fbo) gl.deleteFramebuffer(t.fbo); gl.deleteTexture(t); }
+  resize(W, H, GW, GH) {
+    const gl = this.gl;
+    if (W > this.maxSize || H > this.maxSize) throw new Error(`この端末では ${this.maxSize}px より大きい映像を扱えません`);
+    this.canvas.width = W; this.canvas.height = H;
+    for (const k of ['src', 'out', 'seedA', 'seedB', 'lab', 'soft', 'softT', 'mask', 'label']) { this._free(this.tex[k]); this.tex[k] = null; }
+    this._freeWork();
+    this.W = W; this.H = H;
+    const T = this.tex;
+    T.src = this._target(W, H, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.LINEAR);
+    T.out = this._target(W, H, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.LINEAR);
+    T.seedA = this._target(W, H, gl.RG16I, gl.RG_INTEGER, gl.SHORT, gl.NEAREST);
+    T.seedB = this._target(W, H, gl.RG16I, gl.RG_INTEGER, gl.SHORT, gl.NEAREST);
+    T.lab = this._target(W, H, gl.R8, gl.RED, gl.UNSIGNED_BYTE, gl.NEAREST);
+    T.soft = this._target(W, H, gl.R8, gl.RED, gl.UNSIGNED_BYTE, gl.LINEAR);
+    T.softT = this._target(W, H, gl.R8, gl.RED, gl.UNSIGNED_BYTE, gl.LINEAR);
+    T.mask = this._tex(GW, GH, gl.R8, gl.RED, gl.UNSIGNED_BYTE, gl.LINEAR);
+    T.label = this._tex(GW, GH, gl.R8, gl.RED, gl.UNSIGNED_BYTE, gl.NEAREST);
+    this.GW = GW; this.GH = GH;
+  }
+  _freeWork() { if (!this.work) return; for (const k in this.work) if (this.work[k] && this.work[k].fbo) this._free(this.work[k]); this.work = null; }
+  _ensureWork(f) {
+    if (this.work && this.work.f === f) return this.work;
+    this._freeWork();
+    const gl = this.gl, w = Math.ceil(this.W / f), h = Math.ceil(this.H / f);
+    const ff = this.half ? [gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT] : [gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE];
+    const mk = () => this._target(w, h, ...ff, gl.LINEAR);
+    this.work = { f, w, h, D: mk(), E: this._target(w, h, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.LINEAR), M: mk(), T: mk(), A: mk(), N1: mk(), N2: mk(), low: mk() };
+    return this.work;
+  }
+  upload(img) { // source frame
+    const gl = this.gl; gl.bindTexture(gl.TEXTURE_2D, this.tex.src);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, this.W, this.H, gl.RGBA, gl.UNSIGNED_BYTE, img);
+  }
+  uploadTexture(img, w, h) { // the felt / fur material
+    const gl = this.gl; gl.bindTexture(gl.TEXTURE_2D, this.tex.felt);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, img);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.MIRRORED_REPEAT); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.MIRRORED_REPEAT);
+    this.texAspect = w / h;
+  }
+  uploadMasks(union, label) {
+    const gl = this.gl;
+    gl.bindTexture(gl.TEXTURE_2D, this.tex.mask); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, this.GW, this.GH, gl.RED, gl.UNSIGNED_BYTE, union);
+    gl.bindTexture(gl.TEXTURE_2D, this.tex.label); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, this.GW, this.GH, gl.RED, gl.UNSIGNED_BYTE, label);
+  }
+  _use(pr, target, w, h) {
+    const gl = this.gl; gl.useProgram(pr.p);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, target ? target.fbo : null);
+    gl.viewport(0, 0, w || (target ? target.w : this.W), h || (target ? target.h : this.H));
+  }
+  _bind(pr, name, unit, tex) { const gl = this.gl; gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform1i(pr.u[name], unit); }
+  _full() { const gl = this.gl; gl.bindBuffer(gl.ARRAY_BUFFER, this.fullBuf); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0); gl.drawArrays(gl.TRIANGLES, 0, 3); }
+  _poly(pts) { // convex / star-shaped polygon as a fan around its centroid
+    const gl = this.gl, n = pts.length; if (n < 3) return;
+    let cx = 0, cy = 0; for (const q of pts) { cx += q[0]; cy += q[1]; }
+    const a = new Float32Array((n + 2) * 2); a[0] = cx / n; a[1] = cy / n;
+    for (let i = 0; i <= n; i++) { const q = pts[i % n]; a[2 + 2 * i] = q[0]; a[3 + 2 * i] = q[1]; }
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.polyBuf); gl.bufferData(gl.ARRAY_BUFFER, a, gl.STREAM_DRAW);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0); gl.drawArrays(gl.TRIANGLE_FAN, 0, n + 2);
+  }
+  _blur(src, tmp, dst, sigma) {
+    const gl = this.gl, pr = this.p.blur;
+    this._use(pr, tmp); this._bind(pr, 'uT', 0, src); gl.uniform2f(pr.u.uDir, 1, 0); gl.uniform1f(pr.u.uSigma, sigma); this._full();
+    this._use(pr, dst); this._bind(pr, 'uT', 0, tmp); gl.uniform2f(pr.u.uDir, 0, 1); gl.uniform1f(pr.u.uSigma, sigma); this._full();
+  }
+  _copySrcToOut() {
+    const gl = this.gl;
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.tex.src.fbo); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.tex.out.fbo);
+    gl.blitFramebuffer(0, 0, this.W, this.H, 0, 0, this.W, this.H, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+  }
+
+  // ---------------------------------------------------------------- plush ---
+  plush(fs, P) {
+    const gl = this.gl, T = this.tex, slots = fs.slots || [];
+    if (!slots.length) { this._copySrcToOut(); return 0; }
+    // seeds on the outline, then jump flooding out to the furthest distance any setting reaches
+    let pr = this.p.seed; this._use(pr, T.seedA); this._bind(pr, 'uMask', 0, T.mask); gl.uniform2f(pr.u.uSize, this.W, this.H); this._full();
+    const reach = P.dilate + P.feather + P.furLen + P.depth + 4;
+    let step = 1; while (step < reach) step *= 2;
+    let a = T.seedA, b = T.seedB;
+    pr = this.p.jfa;
+    for (; step >= 1; step >>= 1) { this._use(pr, b); this._bind(pr, 'uSeed', 0, a); gl.uniform1i(pr.u.uStep, step); this._full(); [a, b] = [b, a]; }
+    pr = this.p.plush; this._use(pr, T.out);
+    this._bind(pr, 'uSrc', 0, T.src); this._bind(pr, 'uMask', 1, T.mask); this._bind(pr, 'uLabel', 2, T.label); this._bind(pr, 'uTex', 3, T.felt); this._bind(pr, 'uSeed', 4, a);
+    const n = 32, an = new Float32Array(n * 2), sc = new Float32Array(n), off = new Float32Array(n * 2), ml = new Float32Array(n), rd = new Float32Array(n);
+    for (const s of slots) { const k = s.slot - 1; an[2 * k] = s.anchor[0]; an[2 * k + 1] = s.anchor[1]; sc[k] = s.scale; off[2 * k] = hash01(s.id * 31 + 1) * 7.3; off[2 * k + 1] = hash01(s.id * 57 + 3) * 5.1; ml[k] = s.meanL; rd[k] = s.rand; }
+    gl.uniform2fv(pr.u.uAnchor, an); gl.uniform1fv(pr.u.uScale, sc); gl.uniform2fv(pr.u.uOff, off); gl.uniform1fv(pr.u.uMeanL, ml); gl.uniform1fv(pr.u.uRand, rd);
+    gl.uniform2f(pr.u.uSize, this.W, this.H); gl.uniform1f(pr.u.uTexAspect, this.texAspect); gl.uniform1f(pr.u.uTexFrac, P.texSize / 100);
+    gl.uniform1f(pr.u.uDilate, P.dilate); gl.uniform1f(pr.u.uFeather, P.feather); gl.uniform1f(pr.u.uShadeG, P.shade / 100);
+    gl.uniform1f(pr.u.uDepth, P.depth); gl.uniform1f(pr.u.uShadowAmt, P.shadowAmt / 100); gl.uniform1f(pr.u.uFurLen, P.furLen); gl.uniform1f(pr.u.uFurDen, P.furDen / 100);
+    this._full();
+    return slots.length;
+  }
+
+  // ---------------------------------------------------------- no face ---
+  face(fs, P) {
+    const gl = this.gl, T = this.tex;
+    const faces = fs.faces.filter((f) => f.applied).slice(0, 16);
+    if (!faces.length) { this._copySrcToOut(); return 0; }
+    const f = clamp(Math.round(P.detail / 3), 1, 8), sig = P.detail / f, Wk = this._ensureWork(f);
+    // E: r = features, g = where to reject dark/red outliers, b = face region (work resolution)
+    let pr = this.p.color; this._use(pr, Wk.E); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.enable(gl.BLEND); gl.blendEquation(gl.MAX); gl.blendFunc(gl.ONE, gl.ONE);
+    gl.uniform2f(pr.u.uSize, this.W, this.H);
+    for (const fc of faces) {
+      gl.uniform4f(pr.u.uColor, 0, fc.dark ? 1 : 0, 1, 0); this._poly(fc.oval);
+      for (const h of fc.feats) { gl.uniform4f(pr.u.uColor, 0, 1, 0, 0); this._poly(inflatePoly(h, fc.width * 0.05 + 2)); }
+      for (const h of fc.feats) { gl.uniform4f(pr.u.uColor, 1, 0, 0, 0); this._poly(h); }
+    }
+    // label (full res, slightly larger than the soft mask) and the soft mask itself
+    pr = this.p.color; this._use(pr, T.lab); gl.clear(gl.COLOR_BUFFER_BIT); gl.uniform2f(pr.u.uSize, this.W, this.H);
+    faces.forEach((fc, i) => { gl.uniform4f(pr.u.uColor, (i + 1) / 255, 0, 0, 0); this._poly(inflatePoly(fc.oval, P.faceFeather + 3)); });
+    this._use(pr, T.soft); gl.clear(gl.COLOR_BUFFER_BIT); gl.uniform2f(pr.u.uSize, this.W, this.H); gl.uniform4f(pr.u.uColor, 1, 0, 0, 0);
+    for (const fc of faces) this._poly(inflatePoly(fc.oval, -P.faceFeather * 0.5));
+    gl.disable(gl.BLEND); gl.blendEquation(gl.FUNC_ADD);
+    if (P.faceFeather > 0.3) this._blur(T.soft, T.softT, T.soft, P.faceFeather / 2.5);
+    // smooth face layer: down-sample, local mean, outlier weights, two widths of normalized blur
+    pr = this.p.down; this._use(pr, Wk.D); this._bind(pr, 'uSrc', 0, T.src); gl.uniform1i(pr.u.uF, f); this._full();
+    pr = this.p.weight; this._use(pr, Wk.T); this._bind(pr, 'uD', 0, Wk.D); this._bind(pr, 'uE', 1, Wk.E); this._bind(pr, 'uM', 2, Wk.D); gl.uniform1i(pr.u.uPass, 0); this._full();
+    this._blur(Wk.T, Wk.A, Wk.M, sig);
+    pr = this.p.weight; this._use(pr, Wk.T); this._bind(pr, 'uD', 0, Wk.D); this._bind(pr, 'uE', 1, Wk.E); this._bind(pr, 'uM', 2, Wk.M); gl.uniform1i(pr.u.uPass, 1); this._full();
+    this._blur(Wk.T, Wk.A, Wk.N1, sig);
+    this._blur(Wk.T, Wk.A, Wk.N2, sig * 3.5);
+    pr = this.p.low; this._use(pr, Wk.low); this._bind(pr, 'uN1', 0, Wk.N1); this._bind(pr, 'uN2', 1, Wk.N2); this._bind(pr, 'uD', 2, Wk.D); this._full();
+    // composite
+    pr = this.p.face; this._use(pr, T.out);
+    this._bind(pr, 'uSrc', 0, T.src); this._bind(pr, 'uLow', 1, Wk.low); this._bind(pr, 'uSoft', 2, T.soft); this._bind(pr, 'uLab', 3, T.lab); this._bind(pr, 'uTex', 4, T.felt); this._bind(pr, 'uW', 5, Wk.T);
+    const n = 16, C = new Float32Array(n * 2), R = new Float32Array(n * 2), Pt = new Float32Array(n), FW = new Float32Array(n), SD = new Float32Array(n), O = new Float32Array(n * 2);
+    faces.forEach((fc, i) => {
+      C[2 * i] = fc.center[0]; C[2 * i + 1] = fc.center[1]; R[2 * i] = Math.cos(fc.roll); R[2 * i + 1] = Math.sin(fc.roll);
+      Pt[i] = Math.max(3, fc.width * 0.09); FW[i] = fc.width; SD[i] = hash01(fc.id * 13 + 1) * 97;
+      O[2 * i] = hash01(fc.id * 17 + 5) * 6.1; O[2 * i + 1] = hash01(fc.id * 29 + 9) * 4.3;
+    });
+    gl.uniform2fv(pr.u.uC, C); gl.uniform2fv(pr.u.uRot, R); gl.uniform1fv(pr.u.uPatch, Pt); gl.uniform1fv(pr.u.uFW, FW);
+    gl.uniform1fv(pr.u.uSeed, SD); gl.uniform2fv(pr.u.uOff, O);
+    gl.uniform2f(pr.u.uSize, this.W, this.H); gl.uniform2f(pr.u.uLowScale, 1 / (Wk.w * f), 1 / (Wk.h * f));
+    gl.uniform1f(pr.u.uGrain, P.grain / 100); gl.uniform1f(pr.u.uKind, P.faceKind === 'felt' ? 1 : 0);
+    gl.uniform1f(pr.u.uShadeG, P.shade / 100); gl.uniform1f(pr.u.uTexFrac, P.texSize / 100); gl.uniform1f(pr.u.uTexAspect, this.texAspect);
+    this._full();
+    return faces.length;
+  }
+
+  process(fs, P) { return P.mode === 1 ? this.plush(fs, P) : this.face(fs, P); }
+  display(mode, gain) { // 0 processed, 1 original, 2 difference
+    const gl = this.gl, pr = this.p.disp; this._use(pr, null, this.W, this.H);
+    this._bind(pr, 'uOut', 0, this.tex.out); this._bind(pr, 'uSrc', 1, this.tex.src);
+    gl.uniform2f(pr.u.uSize, this.W, this.H); gl.uniform1i(pr.u.uMode, mode); gl.uniform1f(pr.u.uGain, gain); this._full();
+  }
+  measure() { // share of the picture that changed, and how much on average where it did
+    const gl = this.gl, pr = this.p.measure; this._use(pr, this.measureFbo);
+    this._bind(pr, 'uOut', 0, this.tex.out); this._bind(pr, 'uSrc', 1, this.tex.src); this._full();
+    gl.readPixels(0, 0, 64, 36, gl.RGBA, gl.UNSIGNED_BYTE, this.measureBuf);
+    let s = 0, c = 0; for (let i = 0; i < 64 * 36; i++) { s += this.measureBuf[4 * i]; c += this.measureBuf[4 * i + 1]; }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    return { area: c / (64 * 36 * 255), mean: c > 0 ? s / c : 0 };
+  }
+}
+
+'use strict';
+// ---- the app: parameters, playback, checks, scan and export --------------
+
+const MB_URL = 'https://cdn.jsdelivr.net/npm/mediabunny@1.65.0/dist/bundles/mediabunny.min.mjs';
+const FACE_MIN_DETECT = 20; // px: smaller heads are not searched for faces (independent of the apply range)
+
+// every number carries a unit; defaults show the effect clearly
+const DEFS = [
+  { k: 'hold', label: '保持時間（検出が途切れたとき）', unit: '秒', min: 0, max: 1, step: 0.01, v: 0.2 },
+  { k: 'texSize', label: '質感の大きさ（身長に対して）', unit: '%', min: 5, max: 200, step: 1, v: 45, mode: 0 },
+  { k: 'shade', label: '陰影の残し具合', unit: '%', min: 0, max: 100, step: 1, v: 70, mode: 0 },
+  { k: 'dilate', label: '膨張', unit: 'px', min: 0, max: 20, step: 0.5, v: 6, mode: 1 },
+  { k: 'feather', label: '縁のぼかし', unit: 'px', min: 0, max: 20, step: 0.5, v: 3, mode: 1 },
+  { k: 'depth', label: '縁の内側の影：深さ', unit: 'px', min: 0, max: 80, step: 1, v: 22, mode: 1 },
+  { k: 'shadowAmt', label: '縁の内側の影：濃さ', unit: '%', min: 0, max: 100, step: 1, v: 45, mode: 1 },
+  { k: 'furLen', label: '長さ', unit: 'px', min: 0, max: 20, step: 0.5, v: 3, mode: 1 },
+  { k: 'furDen', label: '密度（縁の画素のうち毛の生える割合）', unit: '%', min: 0, max: 100, step: 1, v: 30, mode: 1 },
+  { k: 'hMin', label: '身長の下限', unit: 'px', min: 0, max: 2000, step: 1, v: 0, mode: 1 },
+  { k: 'hMax', label: '身長の上限', unit: 'px', min: 0, max: 2000, step: 1, v: 2000, mode: 1, top: true },
+  { k: 'rate1', label: '適用率（人ごとにランダムで固定）', unit: '%', min: 0, max: 100, step: 1, v: 100, mode: 1 },
+  { k: 'detail', label: '取り除く細部の大きさ', unit: 'px', min: 2, max: 40, step: 0.5, v: 10, mode: 2 },
+  { k: 'grain', label: '肌のきめの量（頬と比べて）', unit: '%', min: 0, max: 200, step: 1, v: 100, mode: 2 },
+  { k: 'faceFeather', label: '輪郭の縁のぼかし', unit: 'px', min: 0, max: 20, step: 0.5, v: 5, mode: 2 },
+  { k: 'fMin', label: '顔幅の下限', unit: 'px', min: 0, max: 600, step: 1, v: 60, mode: 2 },
+  { k: 'fMax', label: '顔幅の上限', unit: 'px', min: 0, max: 2000, step: 1, v: 2000, mode: 2, top: true },
+  { k: 'rate2', label: '適用率（人ごとにランダムで固定）', unit: '%', min: 0, max: 100, step: 1, v: 100, mode: 2 },
+  { k: 'diffGain', label: '差分の強調', unit: '倍', min: 1, max: 16, step: 0.5, v: 4 },
+  { k: 'rangeA', label: '開始', unit: '秒', min: 0, max: 14, step: 0.01, v: 0 },
+  { k: 'rangeB', label: '終了', unit: '秒', min: 0, max: 14, step: 0.01, v: 14, top: true },
+];
+const DEF = Object.fromEntries(DEFS.map((d) => [d.k, d]));
+const P = Object.assign({ mode: 1, faceKind: 'skin' }, Object.fromEntries(DEFS.map((d) => [d.k, d.v])));
+
+const S = {
+  src: null, method: 'bg', view: 0, hold: false, showDet: true,
+  t: 0, playing: false, frameIdx: -1, t0: 0, p0: 0,
+  lastDet: null, lastFS: null, lastM: null, img: null,
+  stats: { n: 0, p: 0, f: 0 },
+  cache: null, scan: null, test: null, zoomId: 0, busy: null, result: null,
+  tex: { kind: 'sample', name: '見本のフェルト', video: null, file: null, lastT: -1 },
+};
+let R = null; const TR = new Tracker();
+const video = document.createElement('video');
+video.muted = true; video.playsInline = true; video.preload = 'auto'; video.crossOrigin = 'anonymous';
+Object.assign(video.style, { position: 'fixed', left: '0', top: '0', width: '2px', height: '2px', opacity: '0', pointerEvents: 'none' });
+const texVideo = document.createElement('video');
+texVideo.muted = true; texVideo.loop = true; texVideo.playsInline = true;
+Object.assign(texVideo.style, { position: 'fixed', left: '0', top: '0', width: '2px', height: '2px', opacity: '0', pointerEvents: 'none' });
+const texCanvas = makeCanvas(16, 16), texCtx = texCanvas.getContext('2d');
+let MB = null;
+const yieldUI = () => new Promise((r) => { const c = new MessageChannel(); c.port1.onmessage = () => r(); c.port2.postMessage(0); });
+async function loadMB() {
+  if (MB) return MB;
+  try { MB = await import(MB_URL); } catch (e) { MB = await import(ASSETS + 'mediabunny.min.mjs'); }
+  return MB;
+}
+
+// ------------------------------------------------------------ parameters ---
+function decimals(step) { const s = String(step); return s.includes('.') ? s.split('.')[1].length : 0; }
+function mountParam(d) {
+  const host = $('pp-' + d.k); if (!host) return;
+  const id = 'p_' + d.k;
+  host.innerHTML = `<div class="prm"><label for="${id}" title="ダブルクリックで初期値">${d.label}</label><input type="number" id="${id}" min="${d.min}" max="${d.max}" step="${d.step}"><span class="u">${d.unit}</span><input type="range" id="${id}_r" min="${d.min}" max="${d.max}" step="${d.step}" aria-label="${d.label}（${d.unit}）"></div>`;
+  const num = $(id), rg = $(id + '_r');
+  rg.addEventListener('input', () => setParam(d.k, +rg.value));
+  num.addEventListener('change', () => { const v = +num.value; setParam(d.k, Number.isFinite(v) ? clamp(v, d.min, d.max) : d.v); });
+  host.querySelector('label').addEventListener('dblclick', () => setParam(d.k, d.v));
+  syncParam(d.k);
+}
+function syncParam(k) {
+  const d = DEF[k], num = $('p_' + k), rg = $('p_' + k + '_r'); if (!num) return;
+  num.value = (+P[k]).toFixed(decimals(d.step)); rg.value = P[k];
+}
+function setLimit(k, max, keepTop) {
+  const d = DEF[k], wasTop = P[k] >= d.max - 1e-9;
+  d.max = max; if (d.top) d.v = max;
+  const num = $('p_' + k), rg = $('p_' + k + '_r'); if (num) { num.max = max; rg.max = max; }
+  if ((keepTop && wasTop) || P[k] > max) P[k] = max;
+  syncParam(k);
+}
+function setParam(k, v) {
+  P[k] = v; syncParam(k);
+  if (k === 'rangeA' && P.rangeB < v) { P.rangeB = v; syncParam('rangeB'); }
+  if (k === 'rangeB' && P.rangeA > v) { P.rangeA = v; syncParam('rangeA'); }
+  if (k === 'rangeA' || k === 'rangeB') { scanSummary(); return; }
+  rerender();
+  if (S.cache && ['hold', 'hMin', 'hMax', 'rate1', 'fMin', 'fMax', 'rate2'].includes(k)) analyzeSoon();
+}
+
+// --------------------------------------------------------------- helpers ---
+function seg(id, attr, val) { for (const b of $(id).querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset[attr] === String(val))); }
+function busy(text, frac) {
+  $('busy').hidden = false; $('busyText').textContent = text;
+  $('busyBar').style.width = frac == null ? '0' : (clamp(frac, 0, 1) * 100).toFixed(1) + '%';
+}
+function busyEnd() { $('busy').hidden = true; S.busy = null; }
+function effMethod() { return S.method === 'mp' && DET.mp.state === 'ready' ? 'mp' : 'bg'; }
+function frameDur() { return 1 / (S.src ? S.src.fps : 30); }
+function waitEvent(el, ev) { return new Promise((res) => el.addEventListener(ev, res, { once: true })); }
+async function seekVideo(t) {
+  const d = Math.abs(video.currentTime - t);
+  if (d < 1e-4) return;
+  const p = waitEvent(video, 'seeked'); video.currentTime = t; await p;
+}
+
+// ---------------------------------------------------------------- sources ---
+async function setSource(src) {
+  S.src = src; S.cache = null; S.scan = null; S.result = null; $('saveBtn').hidden = true; $('expInfo').textContent = '';
+  R.resize(src.W, src.H, Math.max(1, Math.round(src.W * Math.min(1, 960 / Math.max(src.W, src.H)))), Math.max(1, Math.round(src.H * Math.min(1, 960 / Math.max(src.W, src.H)))));
+  TR.reset(src.W, src.H);
+  BG.setSize(src.W, src.H);
+  document.documentElement.style.setProperty('--asp', (src.W / src.H).toFixed(4));
+  setLimit('hMin', Math.round(src.H * 1.5)); setLimit('hMax', Math.round(src.H * 1.5), true);
+  setLimit('fMin', Math.round(src.W * 0.6)); setLimit('fMax', Math.round(src.W), true);
+  setLimit('rangeA', +src.dur.toFixed(2)); setLimit('rangeB', +src.dur.toFixed(2), true);
+  P.rangeA = 0; P.rangeB = +src.dur.toFixed(2); syncParam('rangeA'); syncParam('rangeB');
+  S.stats = { n: 0, p: 0, f: 0 }; S.zoomId = 0;
+  $('srcInfo').textContent = `${src.name}　${src.W}×${src.H} px・${src.fps.toFixed(2)} コマ/秒・${src.dur.toFixed(2)} 秒`;
+  $('seek').max = Math.max(1, Math.round(src.dur * src.fps));
+  scanSummary(); renderMisses(); fmtNote();
+}
+async function useSample() {
+  stop();
+  video.removeAttribute('src'); video.load();
+  await setSource({ kind: 'sample', id: 'sample', name: '見本（描いた街の映像・音なし）', W: SAMPLE.W, H: SAMPLE.H, fps: SAMPLE.FPS, dur: SAMPLE.DUR, firstTs: 0 });
+  BG.setPlate(SAMPLE.plate);
+  setMethod('bg', true);
+  S.t = 2.0; showSampleFrame(); play();
+}
+async function openFile(file) {
+  if (!file) return;
+  if (!(file.type.startsWith('video/') || /\.(mp4|mov|m4v|webm|mkv)$/i.test(file.name))) { setVerdict('none', '開けません', '動画のファイルを選んでください（MP4・MOV・WebM など）。'); return; }
+  stop();
+  if (S.src && S.src.url) URL.revokeObjectURL(S.src.url);
+  const url = URL.createObjectURL(file);
+  video.src = url;
+  try { await Promise.race([waitEvent(video, 'loadeddata'), new Promise((_, rej) => video.addEventListener('error', () => rej(new Error('このブラウザでは再生できない形式です')), { once: true }))]); }
+  catch (e) { setVerdict('none', '開けません', e.message); return; }
+  let fps = 30, firstTs = 0;
+  try {
+    const mb = await loadMB();
+    const input = new mb.Input({ source: new mb.BlobSource(file), formats: mb.ALL_FORMATS });
+    const tr = await input.getPrimaryVideoTrack();
+    if (tr) { const st = await tr.computePacketStats(120); if (st.averagePacketRate > 1) fps = st.averagePacketRate; firstTs = await tr.getFirstTimestamp(); }
+  } catch (e) { /* fps stays 30 */ }
+  await setSource({ kind: 'file', id: `${file.name}|${file.size}|${file.lastModified}`, name: file.name, file, url, W: video.videoWidth, H: video.videoHeight, fps, dur: video.duration, firstTs });
+  if (DET.mp.state === 'idle' || DET.mp.state === 'failed') DET.loadMP();
+  setMethod(DET.mp.state === 'failed' ? 'bg' : 'mp', true);
+  await seekVideo(0.001); showVideoFrame(true);
+}
+function setTextureCanvas(c, name) {
+  const s = Math.min(1, 1024 / Math.max(c.width, c.height));
+  texCanvas.width = Math.max(1, Math.round(c.width * s)); texCanvas.height = Math.max(1, Math.round(c.height * s));
+  texCtx.drawImage(c, 0, 0, texCanvas.width, texCanvas.height);
+  R.uploadTexture(texCanvas, texCanvas.width, texCanvas.height);
+  const pv = $('texPrev').getContext('2d'); pv.drawImage(texCanvas, 0, 0, 96, 64);
+  if (name) $('texInfo').textContent = name;
+}
+function useSampleTexture() {
+  texVideo.pause(); texVideo.removeAttribute('src');
+  S.tex = { kind: 'sample', name: '見本のフェルト（描いたもの）', video: null, file: null, lastT: -1 };
+  setTextureCanvas(SAMPLE.felt(512), S.tex.name); rerender();
+}
+async function openTexture(file) {
+  if (!file) return;
+  if (file.type.startsWith('image/')) {
+    const bmp = await createImageBitmap(file);
+    texVideo.pause(); S.tex = { kind: 'image', name: file.name, video: null, file, lastT: -1 };
+    setTextureCanvas(bmp, `${file.name}　${bmp.width}×${bmp.height} px（静止画）`); rerender(); return;
+  }
+  texVideo.src = URL.createObjectURL(file);
+  try { await waitEvent(texVideo, 'loadeddata'); } catch (e) { return; }
+  texVideo.play().catch(() => {});
+  S.tex = { kind: 'video', name: file.name, video: texVideo, file, lastT: -1 };
+  setTextureCanvas(texVideo, `${file.name}　${texVideo.videoWidth}×${texVideo.videoHeight} px・${texVideo.duration.toFixed(1)} 秒（繰り返し）`);
+  rerender();
+}
+function updateTexture() {
+  const v = S.tex.video; if (!v || v.readyState < 2) return;
+  if (v.currentTime === S.tex.lastT) return;
+  S.tex.lastT = v.currentTime; setTextureCanvas(v);
+}
+
+// -------------------------------------------------------------- detection ---
+function setMethod(m, quiet) {
+  S.method = m; seg('methodSeg', 'm', m);
+  if (m === 'mp' && (DET.mp.state === 'idle' || DET.mp.state === 'failed') && !quiet) DET.loadMP();
+  if (effMethod() === 'bg' && S.src && S.src.kind === 'file' && !BG.plate) estimatePlate();
+  methodUI(); redetect();
+}
+function methodUI() {
+  const mp = DET.mp, m = S.method;
+  $('mpBox').hidden = m !== 'mp'; $('bgBox').hidden = m !== 'bg' && effMethod() !== 'bg';
+  const stTxt = { idle: 'まだ読み込んでいません', loading: '読み込み中：' + mp.msg, ready: `読み込み済み（${mp.delegate === 'GPU' ? 'GPU' : 'CPU'}）・姿勢モデル：${mp.origin.pose}・顔モデル：${mp.origin.face}`, failed: '読み込めませんでした：' + mp.msg };
+  $('mpStatus').textContent = 'MediaPipe：' + stTxt[mp.state];
+  $('mpHelp').open = mp.state === 'failed';
+  let note = '';
+  if (m === 'mp' && mp.state !== 'ready') note = 'MediaPipe の準備ができるまで、内蔵の検出で動かしています。';
+  if (S.src && S.src.kind === 'sample' && m === 'mp') note += '見本の人は描いた絵なので、MediaPipe ではほとんど見つかりません。';
+  if (S.src && S.src.kind === 'sample' && m === 'bg') note = '見本は背景が動かないので、内蔵の背景差分で検出しています。';
+  $('methodNote').textContent = note; $('methodNote').hidden = !note;
+  $('bgStatus').textContent = BG.plate ? (S.src && S.src.kind === 'sample' ? '背景：見本の空の街並み（人のいない画面）' : `背景：${BG.frames} コマの中央値から推定`) : '背景：まだ推定していません';
+  $('bgRedo').hidden = !S.src || S.src.kind === 'sample';
+}
+DET.onStatus = () => {
+  methodUI();
+  if (DET.mp.state === 'ready' && S.method === 'mp') { S.cache = null; redetect(); }
+  if (DET.mp.state === 'failed' && S.method === 'mp' && S.src && S.src.kind === 'file' && !BG.plate) estimatePlate();
+};
+async function estimatePlate() {
+  if (!S.src || S.src.kind !== 'file' || S.busy) return;
+  const wasPlaying = S.playing; stop();
+  S.busy = { cancel: false };
+  const back = video.currentTime;
+  busy('背景（人のいない画面）を推定しています', 0);
+  try {
+    await BG.estimate(async (t) => { await seekVideo(t); return video; }, S.src.dur, 21, (i, n) => busy('背景（人のいない画面）を推定しています', i / n));
+  } finally { busyEnd(); }
+  await seekVideo(back); methodUI(); redetect();
+  if (wasPlaying) play();
+}
+function cacheGet(t) {
+  const C = S.cache; if (!C || C.key !== cacheKey() || !(P.mode === 1 || C.faces)) return null;
+  let lo = 0, hi = C.times.length - 1; if (hi < 0) return null;
+  while (lo < hi) { const m = (lo + hi) >> 1; if (C.times[m] < t) lo = m + 1; else hi = m; }
+  let best = lo; if (lo > 0 && Math.abs(C.times[lo - 1] - t) < Math.abs(C.times[lo] - t)) best = lo - 1;
+  return Math.abs(C.times[best] - t) < 0.5 * frameDur() ? C.dets[best] : null;
+}
+function cacheKey() { const m = effMethod(); return `${S.src.id}|${m}|${m === 'mp' ? DET.tiles + DET.mp.origin.pose : BG.frames}`; }
+
+// ------------------------------------------------------------ the frame ---
+function processFrame(img, t, o = {}) {
+  const src = S.src;
+  let det = cacheGet(t);
+  if (!det) det = DET.detect(img, src.W, src.H, effMethod(), P.mode === 2, FACE_MIN_DETECT);
+  S.lastDet = det;
+  R.upload(img);
+  const fs = (TR.lastT === null || Math.abs(t - TR.lastT) > 1e-6) ? TR.update(det, t, P, P.mode === 1) : TR.state(t, P, P.mode === 1);
+  S.lastFS = fs; S.t = t;
+  if (P.mode === 1) R.uploadMasks(TR.union, TR.label);
+  if (!o.export) updateTexture();
+  R.process(fs, P);
+  if (o.count) { S.stats.n++; if (fs.c.pSeen) S.stats.p++; if (fs.c.fSeen) S.stats.f++; }
+  return fs;
+}
+function show(o = {}) {
+  const T = S.test;
+  const mode = T && T.phase === 'show' ? (T.cond ? 0 : 1) : (S.hold ? 1 : S.view);
+  R.display(mode, P.diffGain);
+  if (o.export) return;
+  S.lastM = (T || !S.lastFS) ? null : R.measure();
+  drawOverlay(); verdict(); drawZoom(); timecode();
+}
+function rerender() {
+  if (!S.lastDet || !S.src || S.busy) return;
+  // re-detect only when the detection inputs changed; otherwise recompose with the current tracks
+  const fs = TR.state(S.t, P, P.mode === 1); S.lastFS = fs;
+  if (P.mode === 1) R.uploadMasks(TR.union, TR.label);
+  R.process(fs, P); show();
+}
+function redetect() {
+  if (!S.src || S.busy) return;
+  TR.clear();
+  if (S.src.kind === 'sample') { const tf = S.frameIdx / S.src.fps; processFrame(SAMPLE.render(tf), tf); show(); }
+  else if (video.readyState >= 2) { processFrame(video, S.t); show(); }
+}
+function showSampleFrame(count) {
+  const fi = Math.floor(S.t * SAMPLE.FPS + 1e-6) % SAMPLE.frames;
+  S.frameIdx = fi; const tf = fi / SAMPLE.FPS;
+  processFrame(SAMPLE.render(tf), tf, { count }); show();
+}
+function showVideoFrame(force, mediaTime) {
+  const t = mediaTime != null ? mediaTime : video.currentTime;
+  if (!force && Math.abs(t - TR.lastT) < 1e-6) return;
+  processFrame(video, t, { count: S.playing }); show();
+}
+
+// --------------------------------------------------------------- playback ---
+function play() {
+  if (!S.src || S.busy) return;
+  S.playing = true; $('play').textContent = '停止'; $('play').setAttribute('aria-pressed', 'true');
+  if (S.src.kind === 'file') video.play().catch(() => {});
+  else { S.t0 = S.t; S.p0 = performance.now(); }
+}
+function stop() {
+  S.playing = false; $('play').textContent = '再生'; $('play').setAttribute('aria-pressed', 'false');
+  if (!video.paused) video.pause();
+}
+async function seekTo(t) {
+  if (!S.src) return;
+  t = clamp(t, 0, Math.max(0, S.src.dur - frameDur() * 0.5));
+  if (S.src.kind === 'sample') { S.t = t; S.t0 = t; S.p0 = performance.now(); showSampleFrame(); }
+  else { await seekVideo(t + 1e-3); if (!('requestVideoFrameCallback' in video)) showVideoFrame(true); }
+}
+function step(n) { stop(); seekTo((S.src.kind === 'sample' ? S.frameIdx / S.src.fps : S.t) + n * frameDur()); }
+function onVideoFrame(now, meta) {
+  if (S.src && S.src.kind === 'file' && !S.busy) showVideoFrame(false, meta.mediaTime);
+  video.requestVideoFrameCallback(onVideoFrame);
+}
+function tick(now) {
+  if (S.src && S.src.kind === 'sample' && S.playing && !S.busy) {
+    S.t = (S.t0 + (now - S.p0) / 1000) % S.src.dur;
+    const fi = Math.floor(S.t * SAMPLE.FPS) % SAMPLE.frames;
+    if (fi !== S.frameIdx) showSampleFrame(true);
+  }
+  if (S.src && S.src.kind === 'file' && !('requestVideoFrameCallback' in video) && !S.busy && Math.abs(video.currentTime - TR.lastT) > 1e-4) showVideoFrame(false);
+  requestAnimationFrame(tick);
+}
+function timecode() {
+  const src = S.src; if (!src) return;
+  const fi = Math.round(S.t * src.fps);
+  $('tc').textContent = `${S.t.toFixed(2)} / ${src.dur.toFixed(2)} 秒・コマ ${fi}`;
+  if (document.activeElement !== $('seek')) $('seek').value = fi;
+}
+
+// ------------------------------------------------- overlay and the verdict ---
+const COL = {};
+function readColors() { const cs = getComputedStyle(document.documentElement); for (const k of ['ok', 'held', 'off', 'bad', 'face', 'ink']) COL[k] = cs.getPropertyValue('--' + k).trim(); }
+function drawOverlay() {
+  const ov = $('ov'), cv = $('cv'), dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth, h = cv.clientHeight;
+  ov.style.left = cv.offsetLeft + 'px'; ov.style.top = cv.offsetTop + 'px'; ov.style.width = w + 'px'; ov.style.height = h + 'px';
+  if (ov.width !== Math.round(w * dpr) || ov.height !== Math.round(h * dpr)) { ov.width = Math.round(w * dpr); ov.height = Math.round(h * dpr); }
+  const c = ov.getContext('2d'); c.clearRect(0, 0, ov.width, ov.height);
+  const fs = S.lastFS; if (!S.showDet || S.test || !fs || !S.src) return;
+  const k = ov.width / S.src.W;
+  c.font = `${Math.round(11 * dpr)}px ${getComputedStyle(document.body).fontFamily}`; c.textBaseline = 'bottom';
+  const tag = (x, y, text, col) => {
+    const pw = c.measureText(text).width + 8 * dpr, ph = 15 * dpr;
+    y = Math.max(ph, y);
+    c.fillStyle = col; c.fillRect(x, y - ph, pw, ph); c.fillStyle = '#fff'; c.fillText(text, x + 4 * dpr, y - 2 * dpr);
+  };
+  for (const p of fs.persons) {
+    const b = p.rawBox, col = p.state === 'held' ? COL.held : p.applied ? COL.ok : COL.off;
+    c.strokeStyle = col; c.lineWidth = (p.applied ? 2 : 1.25) * dpr; c.setLineDash(p.applied && p.state !== 'held' ? [] : [5 * dpr, 4 * dpr]);
+    c.strokeRect(b[0] * k, b[1] * k, (b[2] - b[0]) * k, (b[3] - b[1]) * k);
+    let t = `#${p.id} 身長 ${Math.round(p.height)}px`;
+    if (p.state === 'held') t += ` 保持 ${p.since.toFixed(2)}秒`;
+    if (P.mode === 1 && !p.applied) t += p.reason === 'size' ? ' 範囲外' : ' 適用率で外す';
+    tag(b[0] * k, b[1] * k, t, col);
+    if (p.faceMissing && P.mode === 2) tag(b[0] * k, b[1] * k + 17 * dpr, '顔が見えているのに顔を検出できていない', COL.bad);
+    if (p.id === S.zoomId) { c.setLineDash([]); c.strokeStyle = COL.ink; c.lineWidth = 1 * dpr; c.strokeRect(b[0] * k - 3 * dpr, b[1] * k - 3 * dpr, (b[2] - b[0]) * k + 6 * dpr, (b[3] - b[1]) * k + 6 * dpr); }
+  }
+  for (const f of fs.faces) {
+    const col = f.state === 'held' ? COL.held : f.applied ? COL.face : COL.off;
+    c.strokeStyle = col; c.lineWidth = (f.applied ? 2 : 1.25) * dpr; c.setLineDash(f.applied && f.state !== 'held' ? [] : [4 * dpr, 3 * dpr]);
+    c.beginPath(); f.oval.forEach(([x, y], i) => (i ? c.lineTo(x * k, y * k) : c.moveTo(x * k, y * k))); c.closePath(); c.stroke();
+    let t = `顔#${f.id} 幅 ${Math.round(f.width)}px`;
+    if (f.state === 'held') t += ' 保持';
+    if (P.mode === 2 && !f.applied) t += f.reason === 'size' ? ' 範囲外' : ' 適用率で外す';
+    const bx = Math.min(...f.oval.map((q) => q[0])), by = Math.max(...f.oval.map((q) => q[1]));
+    tag(bx * k, by * k + 17 * dpr, t, col);
+  }
+  c.setLineDash([]);
+}
+function setVerdict(kind, pill, text) {
+  const v = $('verdict'); v.className = 'verdict ' + kind; $('vPill').textContent = pill; $('vText').textContent = text;
+}
+function verdict() {
+  const fs = S.lastFS, m = S.lastM; if (!fs) return;
+  const c = fs.c, eff = effMethod();
+  const meth = eff === 'mp' ? `MediaPipe（${DET.mp.delegate}）` : '内蔵（背景差分）';
+  const note = S.lastDet && S.lastDet.note ? `・${S.lastDet.note}` : '';
+  const pct = (x) => (x * 100).toFixed(x < 0.1 ? 1 : 0) + '%';
+  if (P.mode === 1) {
+    const n = c.pSeen + c.pHeld;
+    if (!n) setVerdict('none', '検出なし', `このコマでは人を検出していません（${meth}${note}）。効果が見えないのは検出の失敗です。`);
+    else if (!c.pApplied) setVerdict('out', '範囲外', `人を ${n} 人検出していますが、適用は 0 人です（身長が範囲外 ${c.pSize} 人・適用率で外れた ${c.pRate} 人）。`);
+    else if (m && m.mean < 0.03) setVerdict('weak', '効果が弱い', `${c.pApplied} 人に適用していますが、変化はわずかです（変わった部分の平均の差 ${pct(m.mean)}）。設定が弱めです。`);
+    else setVerdict('on', '適用中', `${c.pApplied} / ${n} 人に適用しています。画面の ${m ? pct(m.area) : '–'} が変わり、変わった部分の平均の差は ${m ? pct(m.mean) : '–'} です。`);
+  } else {
+    const n = c.fSeen + c.fHeld, np = c.pSeen + c.pHeld;
+    if (!n) setVerdict('none', '検出なし', np ? `人は ${np} 人いますが、顔を検出していません（${meth}${note}）。${c.noFace ? `うち ${c.noFace} 人は顔が見えているはずです。` : '後ろ向きか、顔が小さすぎる可能性があります。'}` : `このコマでは人も顔も検出していません（${meth}${note}）。効果が見えないのは検出の失敗です。`);
+    else if (!c.fApplied) setVerdict('out', '範囲外', `顔を ${n} つ検出していますが、適用は 0 です（顔幅が範囲外 ${c.fSize}・適用率で外れた ${c.fRate}）。`);
+    else if (m && m.mean < 0.02) setVerdict('weak', '効果が弱い', `${c.fApplied} つの顔に適用していますが、変化はわずかです（平均の差 ${pct(m.mean)}）。`);
+    else setVerdict('on', '適用中', `${c.fApplied} / ${n} の顔に適用しています。画面の ${m ? pct(m.area) : '–'} が変わり、平均の差は ${m ? pct(m.mean) : '–'} です。${c.noFace ? `顔を検出できていない人が ${c.noFace} 人います。` : ''}`);
+  }
+  const chips = [
+    `検出 <b>${meth}</b>`, `処理 <b>${DET.lastMs.toFixed(0)} ms</b>/コマ`,
+    `人 <b>検出 ${c.pSeen}・保持 ${c.pHeld}</b>`,
+  ];
+  if (P.mode === 2) chips.push(`顔 <b>検出 ${c.fSeen}・保持 ${c.fHeld}</b>`);
+  $('chips').innerHTML = chips.map((s) => `<span>${s}</span>`).join('');
+  const st = S.stats;
+  $('detRate').textContent = st.n ? `再生中に処理したコマ ${st.n}：人を検出 ${(st.p / st.n * 100).toFixed(0)}%${P.mode === 2 ? `・顔を検出 ${(st.f / st.n * 100).toFixed(0)}%` : ''}` : '再生すると、検出できたコマの割合をここに出します。';
+  zoomOptions();
+}
+
+// ---------------------------------------------------------- close look ---
+function zoomOptions() {
+  const sel = $('zoomSel'), fs = S.lastFS; if (!fs) return;
+  const ids = fs.persons.map((p) => p.id).sort((a, b) => a - b);
+  if (S.zoomId && !ids.includes(S.zoomId)) ids.push(S.zoomId);
+  const key = ids.join(',');
+  if (sel.dataset.key === key) return;
+  sel.dataset.key = key;
+  sel.innerHTML = '<option value="">（映像の人をクリック）</option>' + ids.map((id) => `<option value="${id}">人 #${id}</option>`).join('');
+  sel.value = S.zoomId ? String(S.zoomId) : '';
+}
+function drawZoom() {
+  const zc = $('zoom'), fs = S.lastFS;
+  if (S.test) { zc.hidden = true; $('zoomEmpty').hidden = false; $('zoomEmpty').textContent = '閾値テスト中は隠しています。'; return; }
+  if (!S.zoomId || !fs) { zc.hidden = true; $('zoomEmpty').hidden = false; $('zoomEmpty').textContent = '映像の中の人をクリックすると、その人を切り出して等倍（1画素＝1画素）で見せます。'; return; }
+  const p = fs.persons.find((q) => q.id === S.zoomId);
+  if (!p) { zc.hidden = true; $('zoomEmpty').hidden = false; $('zoomEmpty').textContent = `人 #${S.zoomId} はこのコマにいません（検出されていないか、画面の外です）。`; return; }
+  zc.hidden = false; $('zoomEmpty').hidden = true;
+  const dpr = window.devicePixelRatio || 1, cw = Math.max(120, zc.parentElement.clientWidth), w = Math.round(cw * dpr), h = Math.round(w * 4 / 3);
+  if (zc.width !== w || zc.height !== h) { zc.width = w; zc.height = h; }
+  let cx = (p.box[0] + p.box[2]) / 2, cy = (p.box[1] + p.box[3]) / 2;
+  if (P.mode === 2) { const f = fs.faces.find((q) => q.personId === p.id); if (f) { cx = f.center[0]; cy = f.center[1] + h * 0.15; } }
+  const sx = Math.round(cx - w / 2), sy = Math.round(cy - h / 2), x = zc.getContext('2d');
+  x.imageSmoothingEnabled = false; x.fillStyle = '#9aa0a6'; x.fillRect(0, 0, w, h);
+  const ix = Math.max(0, sx), iy = Math.max(0, sy), iw = Math.min(S.src.W, sx + w) - ix, ih = Math.min(S.src.H, sy + h) - iy;
+  if (iw > 0 && ih > 0) x.drawImage($('cv'), ix, iy, iw, ih, ix - sx, iy - sy, iw, ih);
+}
+
+// --------------------------------------------------------- threshold test ---
+function testDesc() {
+  if (P.mode === 1) return `ぬいぐるみ・陰影 ${P.shade}%・質感 ${P.texSize}%・膨張 ${P.dilate}px・ぼかし ${P.feather}px・影 ${P.depth}px/${P.shadowAmt}%・毛羽 ${P.furLen}px/${P.furDen}%・身長 ${P.hMin}–${P.hMax}px・適用率 ${P.rate1}%`;
+  return `のっぺらぼう（${P.faceKind === 'skin' ? '肌' : 'フェルト'}）・細部 ${P.detail}px・きめ ${P.grain}%・縁 ${P.faceFeather}px・顔幅 ${P.fMin}–${P.fMax}px・適用率 ${P.rate2}%`;
+}
+function testStart() {
+  if (!S.src || S.busy) return;
+  S.test = { phase: 'show', cond: true, trials: [], timer: 0 };
+  $('testStart').hidden = true; $('testStop').hidden = false; $('chips').hidden = true; $('verdict').hidden = true;
+  testNext();
+}
+function testStop() {
+  if (!S.test) return; clearTimeout(S.test.timer); S.test = null;
+  $('testCover').hidden = true; $('testStart').hidden = false; $('testStop').hidden = true; $('chips').hidden = false; $('verdict').hidden = false; $('testNow').textContent = '';
+  stop(); rerender();
+}
+async function testNext() {
+  const T = S.test; if (!T) return;
+  T.cond = Math.random() < 0.5; T.phase = 'show'; $('testCover').hidden = true;
+  const n = T.trials.length % 20;
+  $('testNow').textContent = `${n + 1} / 20 回目を見せています`;
+  stop(); await seekTo(Math.random() * Math.max(0, S.src.dur - 3.2)); play();
+  T.timer = setTimeout(() => { if (S.test !== T) return; stop(); T.phase = 'ask'; $('testCover').hidden = false; $('testCount').textContent = `${n + 1} / 20 回目`; $('testNow').textContent = '答えを待っています'; }, 3000);
+}
+function testAnswer(yes) {
+  const T = S.test; if (!T || T.phase !== 'ask') return;
+  T.trials.push({ cond: T.cond, ans: yes });
+  if (T.trials.length % 20 === 0) {
+    const last = T.trials.slice(-20), ok = last.filter((x) => x.cond === x.ans).length;
+    const hits = last.filter((x) => x.cond && x.ans).length, fa = last.filter((x) => !x.cond && x.ans).length;
+    const log = store.get('testlog', []);
+    log.unshift({ at: new Date().toLocaleString('ja-JP'), ok, n: 20, hits, nOn: last.filter((x) => x.cond).length, fa, nOff: last.filter((x) => !x.cond).length, desc: testDesc(), src: S.src.name });
+    store.set('testlog', log.slice(0, 200)); S.testLog = log; renderTestLog();
+  }
+  testNext();
+}
+function renderTestLog() {
+  const log = S.testLog || store.get('testlog', []);
+  $('testLog').querySelector('tbody').innerHTML = log.length ? log.map((e) => `<tr><td>${e.at}</td><td>${Math.round(e.ok / e.n * 100)}%（${e.ok}/${e.n}）<br>加工ありを「あり」${e.hits}/${e.nOn}・加工なしを「あり」${e.fa}/${e.nOff}</td><td>${e.desc}<br>${e.src}</td></tr>`).join('') : '<tr><td colspan="3">まだ記録はありません。</td></tr>';
+}
+
+// ------------------------------------------------------------------ scan ---
+async function scan() {
+  if (!S.src || S.busy) return;
+  stop(); testStop();
+  const src = S.src, t0 = P.rangeA, t1 = P.rangeB, method = effMethod();
+  if (method === 'bg' && !BG.plate) { await estimatePlate(); if (!BG.plate) return; }
+  S.busy = { cancel: false };
+  const C = { key: cacheKey(), faces: P.mode === 2, times: [], dets: [], t0, t1 };
+  const total = Math.max(1, Math.round((t1 - t0) * src.fps));
+  const t00 = performance.now();
+  const step = (t, img) => {
+    const d = DET.detect(img, src.W, src.H, method, C.faces, FACE_MIN_DETECT);
+    for (const p of d.persons) delete p.score;
+    C.times.push(t); C.dets.push(d);
+    const n = C.times.length, el = (performance.now() - t00) / 1000;
+    busy(`走査中 ${n} / 約 ${total} コマ（残り約 ${Math.max(0, el / n * (total - n)).toFixed(0)} 秒）`, n / total);
+  };
+  try {
+    if (src.kind === 'sample') {
+      for (let i = Math.ceil(t0 * src.fps - 1e-6); i / src.fps < t1 - 1e-6; i++) { if (S.busy.cancel) break; const t = i / src.fps; step(t, SAMPLE.render(t)); if (i % 4 === 0) await yieldUI(); }
+    } else {
+      const mb = await loadMB();
+      const input = new mb.Input({ source: new mb.BlobSource(src.file), formats: mb.ALL_FORMATS });
+      const track = await input.getPrimaryVideoTrack();
+      const sink = new mb.CanvasSink(track, { poolSize: 2 });
+      let i = 0;
+      for await (const wc of sink.canvases(src.firstTs + t0, src.firstTs + t1)) { if (S.busy.cancel) break; step(wc.timestamp - src.firstTs, wc.canvas); if (++i % 2 === 0) await yieldUI(); }
+    }
+  } catch (e) { busyEnd(); $('scanSum').textContent = '走査できませんでした：' + (e.message || e); return; }
+  const cancelled = S.busy.cancel; busyEnd();
+  S.cache = C; C.partial = cancelled;
+  analyze(); TR.clear(); seekTo(S.t);
+}
+let analyzeTimer = 0;
+function analyzeSoon() { clearTimeout(analyzeTimer); analyzeTimer = setTimeout(analyze, 150); }
+function analyze() {
+  const C = S.cache; if (!C || !S.src) return;
+  const src = S.src, tr = new Tracker(); tr.reset(src.W, src.H);
+  const fr = [];
+  for (let i = 0; i < C.times.length; i++) {
+    const fs = tr.update(C.dets[i], C.times[i], P, false);
+    fr.push({ p: new Map(fs.persons.map((p) => [p.id, p])), f: new Map(fs.faces.map((f) => [f.id, f])), c: fs.c });
+  }
+  const items = [], mode = P.mode, fd = frameDur();
+  const gaps = (kind, label) => {
+    const by = new Map();
+    fr.forEach((x, i) => x[kind].forEach((v, id) => { if (!by.has(id)) by.set(id, []); by.get(id).push(i); }));
+    for (const [id, idx] of by) for (let j = 1; j < idx.length; j++) if (idx[j] - idx[j - 1] > 1) {
+      const a = fr[idx[j - 1]][kind].get(id), b = fr[idx[j]][kind].get(id);
+      if (a.applied || b.applied) items.push({ a: idx[j - 1] + 1, b: idx[j] - 1, id, text: `${label} #${id} の検出が途切れ、<b>処理されていない</b>` });
+    }
+    return by;
+  };
+  let pIds;
+  if (mode === 1) pIds = gaps('p', '人'); else { gaps('f', '顔'); pIds = new Map(); fr.forEach((x, i) => x.p.forEach((v, id) => { if (!pIds.has(id)) pIds.set(id, []); pIds.get(id).push(i); })); }
+  if (mode === 2) { // a face that should be visible but was not found, merged into runs
+    const runs = new Map();
+    fr.forEach((x, i) => x.p.forEach((p, id) => {
+      if (!p.faceMissing) return;
+      const r = runs.get(id); if (r && r.b === i - 1) r.b = i; else { if (r) items.push(r); runs.set(id, { a: i, b: i, id, text: `人 #${id} の顔が見えているのに<b>顔を検出できていない</b>` }); }
+    }));
+    for (const r of runs.values()) items.push(r);
+  }
+  // people who appear or vanish in the middle of the picture: frames before/after may have been missed
+  const W = src.W, H = src.H, inside = (b) => b[0] > W * 0.02 && b[2] < W * 0.98 && b[1] > H * 0.02 && b[3] < H * 0.98;
+  for (const [id, idx] of pIds) {
+    if (idx.length < src.fps * 0.6) continue;
+    const first = fr[idx[0]].p.get(id), last = fr[idx[idx.length - 1]].p.get(id);
+    if (mode === 1 && !first.applied && !last.applied) continue;
+    if (idx[0] > 0 && inside(first.rawBox)) items.push({ a: idx[0], b: idx[0], id, text: `人 #${id} が画面の中で急に現れる（前のコマで見落としの可能性・要確認）` });
+    if (idx[idx.length - 1] < fr.length - 1 && inside(last.rawBox)) items.push({ a: idx[idx.length - 1], b: idx[idx.length - 1], id, text: `人 #${id} が画面の中で急に消える（後のコマで見落としの可能性・要確認）` });
+  }
+  items.sort((x, y) => x.a - y.a);
+  const n = fr.length, pF = fr.filter((x) => x.c.pSeen > 0).length, fF = fr.filter((x) => x.c.fSeen > 0).length;
+  const cov = []; for (const idx of pIds.values()) cov.push(idx.length / (idx[idx.length - 1] - idx[0] + 1));
+  S.scan = { n, pF, fF, cov: cov.length ? cov.reduce((a, b) => a + b, 0) / cov.length : 0, items, mode, faces: C.faces, partial: C.partial };
+  scanSummary(); renderMisses();
+}
+function scanSummary() {
+  const s = S.scan, C = S.cache, el = $('scanSum');
+  if (!s || !C) { el.textContent = 'まだ走査していません。'; return; }
+  const stale = C.key !== cacheKey() || (P.mode === 2 && !C.faces) || Math.abs(C.t0 - P.rangeA) > 1e-6 || Math.abs(C.t1 - P.rangeB) > 1e-6;
+  const pct = (a) => (a / Math.max(1, s.n) * 100).toFixed(1) + '%';
+  el.innerHTML = `${C.t0.toFixed(2)}–${C.t1.toFixed(2)} 秒・${s.n} コマ${s.partial ? '（途中で中止）' : ''}<br>人を検出したコマ ${pct(s.pF)}（${s.pF}/${s.n}）${C.faces ? `・顔を検出したコマ ${pct(s.fF)}（${s.fF}/${s.n}）` : ''}<br>人ごとの検出率（現れてから消えるまで）平均 ${(s.cov * 100).toFixed(1)}%<br>処理されていない疑いのある箇所 ${s.items.length} 件${stale ? '<br><b>設定・範囲・検出方式が走査のときと違います。走査し直してください。</b>' : ''}`;
+}
+function renderMisses() {
+  const ol = $('misses'), s = S.scan, C = S.cache;
+  if (!s || !C) { ol.innerHTML = ''; return; }
+  if (!s.items.length) { ol.innerHTML = '<li class="note">見つかりませんでした。</li>'; return; }
+  ol.innerHTML = s.items.slice(0, 400).map((it, i) => {
+    const a = C.times[it.a], b = C.times[it.b], n = it.b - it.a + 1;
+    return `<li><button type="button" data-i="${i}"><span class="t">${a.toFixed(2)}${n > 1 ? '–' + b.toFixed(2) : ''}秒</span><span class="k">${n > 1 ? n + 'コマ・' : ''}${it.text}</span></button></li>`;
+  }).join('');
+}
+async function jumpTo(i) {
+  const it = S.scan.items[i], t = S.cache.times[it.a];
+  stop(); testStop(); S.showDet = true; $('showDet').checked = true; S.zoomId = it.id;
+  // run the tracker up to this frame from a little earlier so hold and smoothing match the export
+  const C = S.cache; TR.clear();
+  const from = Math.max(0, it.a - Math.ceil(S.src.fps * 1.5));
+  for (let j = from; j < it.a; j++) TR.update(C.dets[j], C.times[j], P, P.mode === 1);
+  await seekTo(t);
+}
+
+// ---------------------------------------------------------------- export ---
+async function pickFormat(mb, W, H) {
+  try { if (await mb.canEncodeVideo('avc', { width: W, height: H })) return { container: 'mp4', vcodec: 'avc', ext: 'mp4', label: 'MP4（H.264）' }; } catch (e) { /* */ }
+  for (const c of ['vp9', 'vp8']) { try { if (await mb.canEncodeVideo(c, { width: W, height: H })) return { container: 'webm', vcodec: c, ext: 'webm', label: `WebM（${c.toUpperCase()}）` }; } catch (e) { /* */ } }
+  return null;
+}
+async function fmtNote() {
+  const el = $('fmtNote'); el.textContent = '書き出しの形式を調べています…';
+  try {
+    const mb = await loadMB(); const f = await pickFormat(mb, S.src.W, S.src.H);
+    el.textContent = f ? `${f.label}・${S.src.W}×${S.src.H} px（元の解像度）・コマごとに処理${S.src.kind === 'file' ? '・音声は元の動画から' : '・見本は音なし'}${f.container === 'webm' ? '。このブラウザでは H.264 で書き出せないため WebM にします。' : ''}` : 'このブラウザでは動画を書き出せません（WebCodecs の動画エンコーダーがありません）。';
+  } catch (e) { el.textContent = '書き出し用の部品を読み込めませんでした：' + (e.message || e); }
+}
+async function texFeeder(mb) {
+  const tx = S.tex;
+  if (tx.kind !== 'video') return { at: async () => {} };
+  const input = new mb.Input({ source: new mb.BlobSource(tx.file), formats: mb.ALL_FORMATS });
+  const track = await input.getPrimaryVideoTrack();
+  const first = await track.getFirstTimestamp(), dur = Math.max(1e-3, (await track.computeDuration()) - first);
+  const s = Math.min(1, 1024 / Math.max(track.displayWidth, track.displayHeight));
+  const sink = new mb.CanvasSink(track, { width: Math.max(2, Math.round(track.displayWidth * s)), height: Math.max(2, Math.round(track.displayHeight * s)), poolSize: 3 });
+  let it = null, cur = null, nxt = null;
+  return {
+    async at(tt) {
+      const q = first + (tt % dur);
+      if (!it || (cur && q < cur.timestamp - 1e-6)) { it = sink.canvases(first); cur = (await it.next()).value || null; nxt = (await it.next()).value || null; }
+      while (nxt && nxt.timestamp <= q + 1e-6) { cur = nxt; nxt = (await it.next()).value || null; }
+      if (cur) R.uploadTexture(cur.canvas, cur.canvas.width, cur.canvas.height);
+    },
+  };
+}
+async function doExport() {
+  if (!S.src || S.busy) return;
+  stop(); testStop();
+  const src = S.src, t0 = P.rangeA, t1 = P.rangeB;
+  if (t1 - t0 < frameDur()) { $('expInfo').textContent = '範囲が短すぎます。'; return; }
+  if (effMethod() === 'bg' && !BG.plate) { await estimatePlate(); if (!BG.plate) return; }
+  S.busy = { cancel: false }; S.result = null; $('saveBtn').hidden = true;
+  busy('書き出しの準備をしています', 0);
+  const total = Math.max(1, Math.round((t1 - t0) * src.fps)); let n = 0; const tStart = performance.now();
+  const prog = () => { const el = (performance.now() - tStart) / 1000; busy(`書き出し中 ${n} / 約 ${total} コマ（残り約 ${Math.max(0, el / Math.max(1, n) * (total - n)).toFixed(0)} 秒）`, n / total); };
+  let blob = null, fmt = null, audioNote = '';
+  try {
+    const mb = await loadMB();
+    fmt = await pickFormat(mb, src.W, src.H);
+    if (!fmt) throw new Error('このブラウザには動画のエンコーダーがありません');
+    const tex = await texFeeder(mb);
+    TR.clear();
+    const output = new mb.Output({ format: fmt.container === 'mp4' ? new mb.Mp4OutputFormat({ fastStart: 'in-memory' }) : new mb.WebMOutputFormat(), target: new mb.BufferTarget() });
+    const cv = $('cv');
+    if (src.kind === 'file') {
+      const input = new mb.Input({ source: new mb.BlobSource(src.file), formats: mb.ALL_FORMATS });
+      const conv = await mb.Conversion.init({
+        input, output, trim: { start: src.firstTs + t0, end: src.firstTs + t1 },
+        video: {
+          codec: fmt.vcodec, forceTranscode: true, allowTransformationMetadata: false, quality: mb.QUALITY_HIGH, processedWidth: src.W, processedHeight: src.H,
+          process: async (sample) => {
+            if (S.busy && S.busy.cancel) { conv.cancel(); return null; }
+            const t = t0 + sample.timestamp;
+            await tex.at(t - t0);
+            processFrame(sample.toCanvasImageSource(), t, { export: true }); show({ export: true });
+            n++; if (n % 3 === 0) { prog(); await yieldUI(); }
+            return new VideoFrame(cv, { timestamp: sample.microsecondTimestamp, duration: sample.microsecondDuration });
+          },
+        },
+        audio: fmt.container === 'mp4' ? {} : { codec: 'opus' },
+      });
+      if (!conv.isValid) throw new Error('変換を組めませんでした：' + conv.discardedTracks.map((d) => `${d.track.type}: ${d.reason}`).join(', '));
+      const da = conv.discardedTracks.filter((d) => d.track.type === 'audio');
+      const ua = conv.utilizedTracks.filter((tk) => tk.type === 'audio');
+      audioNote = ua.length ? '・音声あり（元の動画から）' : da.length ? `・音声なし（${da.map((d) => d.reason).join(', ')}）` : '・元の動画に音声なし';
+      await conv.execute();
+    } else {
+      const vs = new mb.CanvasSource(cv, { codec: fmt.vcodec, bitrate: mb.QUALITY_HIGH });
+      output.addVideoTrack(vs, { frameRate: src.fps });
+      await output.start();
+      for (let i = Math.ceil(t0 * src.fps - 1e-6); i / src.fps < t1 - 1e-6; i++) {
+        if (S.busy.cancel) break;
+        const t = i / src.fps;
+        await tex.at(t - t0);
+        processFrame(SAMPLE.render(t), t, { export: true }); show({ export: true });
+        await vs.add(t - Math.ceil(t0 * src.fps - 1e-6) / src.fps, 1 / src.fps);
+        n++; if (n % 3 === 0) { prog(); await yieldUI(); }
+      }
+      if (S.busy.cancel) { await output.cancel(); throw new Error('中止しました'); }
+      await output.finalize();
+      audioNote = '・見本は音なし';
+    }
+    blob = new Blob([output.target.buffer], { type: fmt.container === 'mp4' ? 'video/mp4' : 'video/webm' });
+  } catch (e) {
+    busyEnd(); TR.clear();
+    $('expInfo').textContent = (S.busy && S.busy.cancel) || /cancel/i.test(String(e && e.name)) ? '中止しました。' : '書き出せませんでした：' + (e && e.message || e);
+    redetect(); return;
+  }
+  busyEnd(); TR.clear();
+  const base = (src.kind === 'sample' ? 'mihon' : src.name.replace(/\.[^.]+$/, '')).replace(/[\\/:*?"<>|]/g, '_');
+  const name = `${base}_hitogata_${P.mode === 1 ? 'nuigurumi' : 'nopperabo'}_${t0.toFixed(1)}-${t1.toFixed(1)}s.${fmt.ext}`;
+  S.result = { blob, name };
+  $('expInfo').textContent = `${name}\n${fmt.label}・${src.W}×${src.H} px・${(t1 - t0).toFixed(2)} 秒・${n} コマ・${(blob.size / 1e6).toFixed(1)} MB${audioNote}・処理 ${((performance.now() - tStart) / 1000).toFixed(0)} 秒`;
+  $('saveBtn').hidden = false;
+  seekTo(t0);
+}
+async function save() {
+  const r = S.result; if (!r) return;
+  const dl = (window.claude && window.claude.use) ? await window.claude.use('downloads').catch(() => null) : null;
+  if (dl) {
+    try { await dl.save({ filename: r.name, data: r.blob }); $('expInfo').textContent += '\n保存しました。'; }
+    catch (e) { $('expInfo').textContent += `\n保存できませんでした（${e && e.code || e}）。`; }
+    return;
+  }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(r.blob); a.download = r.name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+}
+
+// ------------------------------------------------------------------ wiring ---
+function modeUI() {
+  seg('modeSeg', 'mode', P.mode); seg('kindSeg', 'k', P.faceKind);
+  $('m1box').hidden = P.mode !== 1; $('m2box').hidden = P.mode !== 2;
+  $('texBox').hidden = !(P.mode === 1 || P.faceKind === 'felt');
+  $('pp-grain').hidden = P.faceKind !== 'skin';
+}
+function boot() {
+  readColors();
+  try { R = new Renderer($('cv')); }
+  catch (e) { setVerdict('none', '動きません', 'このブラウザでは WebGL2 が使えないため動きません：' + e.message); return; }
+  for (const d of DEFS) mountParam(d);
+  document.body.appendChild(video); document.body.appendChild(texVideo);
+  $('play').onclick = () => (S.playing ? stop() : play());
+  $('stepB').onclick = () => step(-1); $('stepF').onclick = () => step(1);
+  $('seek').addEventListener('input', () => { stop(); seekTo(+$('seek').value / S.src.fps); });
+  const hold = (on) => { S.hold = on; $('holdOrig').classList.toggle('on', on); if (S.lastFS) show(); };
+  const ho = $('holdOrig');
+  ho.addEventListener('pointerdown', (e) => { ho.setPointerCapture(e.pointerId); hold(true); });
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) ho.addEventListener(ev, () => hold(false));
+  ho.addEventListener('keydown', (e) => { if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) { e.preventDefault(); hold(true); } });
+  ho.addEventListener('keyup', (e) => { if (e.key === ' ' || e.key === 'Enter') hold(false); });
+  $('viewSeg').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; S.view = +b.dataset.v; seg('viewSeg', 'v', S.view); if (S.lastFS) show(); });
+  $('showDet').addEventListener('change', () => { S.showDet = $('showDet').checked; drawOverlay(); });
+  $('fileIn').addEventListener('change', () => { openFile($('fileIn').files[0]); $('fileIn').value = ''; });
+  $('useSample').onclick = () => useSample();
+  $('texIn').addEventListener('change', () => { openTexture($('texIn').files[0]); $('texIn').value = ''; });
+  $('texSample').onclick = () => useSampleTexture();
+  const stage = $('stage');
+  stage.addEventListener('dragover', (e) => { e.preventDefault(); });
+  stage.addEventListener('drop', (e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) openFile(f); });
+  $('methodSeg').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setMethod(b.dataset.m); });
+  $('tileSeg').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; DET.tiles = b.dataset.t; seg('tileSeg', 't', DET.tiles); redetect(); scanSummary(); });
+  $('poseIn').addEventListener('change', () => { const f = $('poseIn').files[0]; if (f) DET.useModelFile('pose', f); $('poseIn').value = ''; });
+  $('faceIn').addEventListener('change', () => { const f = $('faceIn').files[0]; if (f) DET.useModelFile('face', f); $('faceIn').value = ''; });
+  $('mpRetry').onclick = () => { DET.mp.state = 'idle'; DET.loadMP(); };
+  $('mpForget').onclick = async () => { await DET.forgetModelFiles(); DET.mp.state = 'idle'; DET.loadMP(); };
+  $('bgRedo').onclick = () => { BG.plate = null; S.cache = null; estimatePlate(); };
+  $('modeSeg').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; P.mode = +b.dataset.mode; modeUI(); redetect(); scanSummary(); if (S.cache) analyzeSoon(); });
+  $('kindSeg').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; P.faceKind = b.dataset.k; modeUI(); rerender(); });
+  $('resetAll').onclick = () => { for (const d of DEFS) if (d.mode === P.mode || (d.mode === 0)) { P[d.k] = d.v; syncParam(d.k); } rerender(); if (S.cache) analyzeSoon(); };
+  $('zoomSel').addEventListener('change', () => { S.zoomId = +$('zoomSel').value || 0; drawZoom(); drawOverlay(); });
+  $('cv').addEventListener('click', (e) => {
+    const fs = S.lastFS; if (!fs || S.test) return;
+    const r = $('cv').getBoundingClientRect(), x = (e.clientX - r.left) / r.width * S.src.W, y = (e.clientY - r.top) / r.height * S.src.H;
+    const hit = fs.persons.filter((p) => x >= p.rawBox[0] && x <= p.rawBox[2] && y >= p.rawBox[1] && y <= p.rawBox[3]).sort((a, b) => (a.rawBox[2] - a.rawBox[0]) * (a.rawBox[3] - a.rawBox[1]) - (b.rawBox[2] - b.rawBox[0]) * (b.rawBox[3] - b.rawBox[1]))[0];
+    S.zoomId = hit ? hit.id : 0; zoomOptions(); $('zoomSel').value = S.zoomId ? String(S.zoomId) : ''; drawZoom(); drawOverlay();
+  });
+  $('testStart').onclick = testStart; $('testStop').onclick = testStop;
+  $('ansYes').onclick = () => testAnswer(true); $('ansNo').onclick = () => testAnswer(false);
+  $('testCopy').onclick = () => {
+    const log = store.get('testlog', []);
+    const txt = log.map((e) => `${e.at}\t${Math.round(e.ok / e.n * 100)}%\t${e.ok}/${e.n}\t${e.desc}\t${e.src}`).join('\n');
+    if (navigator.clipboard) navigator.clipboard.writeText(txt).catch(() => {});
+  };
+  $('testClear').onclick = () => { store.set('testlog', []); S.testLog = []; renderTestLog(); };
+  renderTestLog();
+  $('scanBtn').onclick = scan; $('expBtn').onclick = doExport; $('saveBtn').onclick = save;
+  $('misses').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) jumpTo(+b.dataset.i); });
+  $('busyCancel').onclick = () => { if (S.busy) S.busy.cancel = true; };
+  window.addEventListener('resize', () => { drawOverlay(); drawZoom(); });
+  if ('requestVideoFrameCallback' in video) video.requestVideoFrameCallback(onVideoFrame);
+  video.addEventListener('ended', () => { if (S.playing && !S.test) { video.currentTime = 0; video.play().catch(() => {}); } });
+  modeUI();
+  useSampleTexture();
+  useSample();
+  requestAnimationFrame(tick);
+  DET.loadMP({ cpu: !!window.HITOGATA_CPU });
+}
+boot();
+
+</script>
+
+</body></html>

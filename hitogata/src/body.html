@@ -1,0 +1,175 @@
+<div class="app">
+  <header class="top">
+    <h1>ひとがた <small>hitogata</small></h1>
+    <p>人の見た目だけを差し替えます。人の動きは元の映像の画素のままです。</p>
+  </header>
+
+  <main class="main">
+    <section class="stageCol" aria-label="映像">
+      <div class="stage" id="stage">
+        <canvas id="cv" aria-label="加工した映像"></canvas>
+        <canvas id="ov" aria-hidden="true"></canvas>
+        <div class="testCover" id="testCover" hidden>
+          <p class="q" id="testQ">いまの 3 秒に、加工による変化はありましたか。</p>
+          <div class="row">
+            <button class="btn big" id="ansYes" type="button">変化あり</button>
+            <button class="btn big" id="ansNo" type="button">変化なし</button>
+          </div>
+          <p class="mono" id="testCount"></p>
+        </div>
+        <div class="busy" id="busy" hidden>
+          <span id="busyText"></span><span class="bar"><i id="busyBar"></i></span>
+          <button class="btn small" id="busyCancel" type="button">中止</button>
+        </div>
+      </div>
+
+      <div class="transport">
+        <button class="btn primary" id="play" type="button" aria-pressed="false">再生</button>
+        <button class="btn" id="stepB" type="button" title="1コマ戻る">◀ 1コマ</button>
+        <button class="btn" id="stepF" type="button" title="1コマ進む">1コマ ▶</button>
+        <input type="range" id="seek" class="thin grow" min="0" max="1000" value="0" step="1" aria-label="再生位置">
+        <span class="mono" id="tc">0.00 / 0.00 秒</span>
+      </div>
+
+      <div class="viewRow">
+        <button class="btn" id="holdOrig" type="button">加工前を見る（押している間）</button>
+        <div class="seg" id="viewSeg" role="group" aria-label="表示">
+          <button type="button" data-v="0" aria-pressed="true">加工後</button>
+          <button type="button" data-v="2" aria-pressed="false">差分</button>
+        </div>
+        <div class="inline" id="pp-diffGain"></div>
+        <label class="chk"><input type="checkbox" id="showDet" checked> 検出の表示</label>
+      </div>
+
+      <div class="verdict" id="verdict"><span class="pill" id="vPill">—</span><span id="vText">準備しています</span></div>
+      <div class="chips mono" id="chips"></div>
+
+      <div class="checks">
+        <section class="card" aria-labelledby="zoomH">
+          <h2 id="zoomH">寄りの確認</h2>
+          <div class="row">
+            <label for="zoomSel">見る人</label>
+            <select id="zoomSel"><option value="">（映像の人をクリック）</option></select>
+          </div>
+          <div class="zoomBox"><canvas id="zoom"></canvas><p class="zoomEmpty" id="zoomEmpty">映像の中の人をクリックすると、その人を切り出して等倍（1画素＝1画素）で見せます。</p></div>
+        </section>
+        <section class="card" aria-labelledby="testH">
+          <h2 id="testH">閾値テスト</h2>
+          <p class="note">加工あり・なしをランダムに 3 秒ずつ見せます。見終わったら「変化あり／なし」で答えてください。20 回ごとに正答率を記録します。検出の枠と数値は隠れます。</p>
+          <div class="row">
+            <button class="btn" id="testStart" type="button">テストを始める</button>
+            <button class="btn" id="testStop" type="button" hidden>やめる</button>
+            <span class="mono" id="testNow"></span>
+          </div>
+          <table class="log" id="testLog"><thead><tr><th>記録</th><th>正答率</th><th>そのときの設定</th></tr></thead><tbody></tbody></table>
+          <div class="row">
+            <button class="btn small" id="testCopy" type="button">記録をコピー</button>
+            <button class="btn small" id="testClear" type="button">記録を消す</button>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <aside class="side">
+      <section class="card" aria-labelledby="srcH">
+        <h2 id="srcH">素材</h2>
+        <div class="row">
+          <label class="btn" for="fileIn">動画を開く</label>
+          <input type="file" id="fileIn" accept="video/*,.mp4,.mov,.m4v,.webm,.mkv" hidden>
+          <button class="btn" id="useSample" type="button">見本に戻す</button>
+        </div>
+        <p class="mono" id="srcInfo"></p>
+        <div class="row">
+          <label class="btn" for="texIn">質感の動画を開く</label>
+          <input type="file" id="texIn" accept="video/*,image/*" hidden>
+          <button class="btn" id="texSample" type="button">見本の質感</button>
+        </div>
+        <div class="texRow"><canvas id="texPrev" width="96" height="64"></canvas><p class="mono" id="texInfo"></p></div>
+      </section>
+
+      <section class="card" aria-labelledby="detH">
+        <h2 id="detH">検出</h2>
+        <div class="seg" id="methodSeg" role="group" aria-label="検出方式">
+          <button type="button" data-m="mp" aria-pressed="false">MediaPipe</button>
+          <button type="button" data-m="bg" aria-pressed="false">内蔵（背景差分）</button>
+        </div>
+        <p class="note" id="methodNote"></p>
+        <div id="mpBox">
+          <p class="mono" id="mpStatus"></p>
+          <div class="row">
+            <label class="btn small" for="poseIn">姿勢モデルを選ぶ (.task)</label><input type="file" id="poseIn" accept=".task" hidden>
+            <label class="btn small" for="faceIn">顔モデルを選ぶ (.task)</label><input type="file" id="faceIn" accept=".task" hidden>
+            <button class="btn small" id="mpRetry" type="button">読み込み直す</button>
+          </div>
+          <details class="note" id="mpHelp"><summary>モデルを読み込めないとき</summary>
+            <p>このページから配布元に接続できない環境では、次の 2 つのファイルを別の画面でダウンロードして、上のボタンで選んでください。選んだファイルはこのブラウザの中に保存され、次回から自動で使われます。</p>
+            <p class="mono sel">https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task</p>
+            <p class="mono sel">https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task</p>
+            <p>実行部そのものが読み込めないときは「内蔵（背景差分）」に切り替えてください。モデルを使わずに、固定カメラの映像で動きます。</p>
+            <button class="btn small" id="mpForget" type="button">保存したモデルを消す</button>
+          </details>
+          <div class="field"><span class="flabel">画面の分割</span>
+            <div class="seg" id="tileSeg" role="group" aria-label="画面の分割">
+              <button type="button" data-t="none" aria-pressed="true">なし</button>
+              <button type="button" data-t="2x2" aria-pressed="false">2×2</button>
+              <button type="button" data-t="3x3" aria-pressed="false">3×3</button>
+            </div>
+          </div>
+          <p class="note">引きの小さな人は、画面を分けると見つかりやすくなります。そのぶん遅くなります。</p>
+        </div>
+        <div id="bgBox">
+          <p class="mono" id="bgStatus"></p>
+          <button class="btn small" id="bgRedo" type="button">背景を推定し直す</button>
+        </div>
+        <div id="pp-hold"></div>
+        <p class="mono" id="detRate"></p>
+      </section>
+
+      <section class="card" aria-labelledby="modeH">
+        <h2 id="modeH">モード</h2>
+        <div class="seg wide" id="modeSeg" role="group" aria-label="モード">
+          <button type="button" data-mode="1" aria-pressed="true">ぬいぐるみ</button>
+          <button type="button" data-mode="2" aria-pressed="false">のっぺらぼう</button>
+        </div>
+        <div id="m2box">
+          <div class="field"><span class="flabel">面の種類</span>
+            <div class="seg" id="kindSeg" role="group" aria-label="面の種類">
+              <button type="button" data-k="skin" aria-pressed="true">肌</button>
+              <button type="button" data-k="felt" aria-pressed="false">フェルト</button>
+            </div>
+          </div>
+          <div id="pp-detail"></div><div id="pp-grain"></div><div id="pp-faceFeather"></div>
+          <h3>適用範囲</h3>
+          <div id="pp-fMin"></div><div id="pp-fMax"></div><div id="pp-rate2"></div>
+        </div>
+        <div id="texBox">
+          <h3>質感</h3>
+          <div id="pp-texSize"></div><div id="pp-shade"></div>
+        </div>
+        <div id="m1box">
+          <h3>ふくらみ</h3>
+          <div id="pp-dilate"></div><div id="pp-feather"></div><div id="pp-depth"></div><div id="pp-shadowAmt"></div>
+          <h3>毛羽</h3>
+          <div id="pp-furLen"></div><div id="pp-furDen"></div>
+          <h3>適用範囲</h3>
+          <div id="pp-hMin"></div><div id="pp-hMax"></div><div id="pp-rate1"></div>
+        </div>
+        <button class="btn small" id="resetAll" type="button">このモードの設定を初期値に戻す</button>
+      </section>
+
+      <section class="card" aria-labelledby="expH">
+        <h2 id="expH">書き出し</h2>
+        <div id="pp-rangeA"></div><div id="pp-rangeB"></div>
+        <p class="note" id="fmtNote"></p>
+        <h3>書き出す前の確認</h3>
+        <p class="note">範囲のすべてのコマを検出し、体や顔が見えているのに処理されていないコマを一覧にします。項目を押すとそのコマに飛びます。</p>
+        <div class="row"><button class="btn" id="scanBtn" type="button">範囲を走査する</button></div>
+        <p class="mono" id="scanSum"></p>
+        <ol class="misses" id="misses"></ol>
+        <div class="row"><button class="btn primary" id="expBtn" type="button">書き出す</button></div>
+        <p class="mono" id="expInfo"></p>
+        <div class="row"><button class="btn" id="saveBtn" type="button" hidden>保存する</button></div>
+      </section>
+    </aside>
+  </main>
+</div>
