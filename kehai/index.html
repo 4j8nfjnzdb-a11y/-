@@ -55,14 +55,17 @@ select{background:var(--well);border:1px solid var(--line);padding:4px 6px;borde
 .testbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--panel);border:1px solid var(--ink);padding:10px 12px}
 .testbar .ans{flex:1;min-width:120px;min-height:48px;font-size:15px}
 #tProg{font:500 13px var(--f-mono);font-variant-numeric:tabular-nums;min-width:7em}
-.meter{background:var(--panel);border:1px solid var(--line);padding:10px 12px;display:grid;grid-template-columns:minmax(0,1fr) 180px;gap:12px;align-items:start}
-.meter dl{margin:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 14px}
-.meter div.m{min-width:0}
-.meter dt{color:var(--dim);font-size:11px}
-.meter dd{margin:0;font:500 14px var(--f-mono);font-variant-numeric:tabular-nums}
-.meter dd small{font:400 11px var(--f-mono);color:var(--dim)}
-#hist{width:100%;height:64px;background:var(--well);border:1px solid var(--line);display:block}
-.histcap{display:flex;justify-content:space-between;font:400 10px var(--f-mono);color:var(--faint)}
+.meter{background:var(--panel);border:1px solid var(--line);padding:10px 12px;display:grid;grid-template-columns:minmax(0,1fr) 190px;gap:12px;align-items:start}
+dl.read{margin:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 14px}
+dl.read div{min-width:0}
+dl.read dt{color:var(--dim);font-size:11px}
+dl.read dd{margin:0;font:500 14px var(--f-mono);font-variant-numeric:tabular-nums}
+dl.read dd small{font:400 11px var(--f-mono);color:var(--dim)}
+dl.read dd.warn small{color:var(--mark)}
+.side{display:flex;flex-direction:column;gap:6px;min-width:0}
+#traj{width:100%;aspect-ratio:1/1;max-width:100%;background:var(--well);border:1px solid var(--line);display:block}
+#hist{width:100%;height:54px;background:var(--well);border:1px solid var(--line);display:block}
+.cap{display:flex;justify-content:space-between;font:400 10px var(--f-mono);color:var(--faint)}
 #meterHide{color:var(--dim);margin:0;grid-column:1/-1}
 section{background:var(--panel);border:1px solid var(--line);padding:10px 12px 12px}
 h2{font:600 12px var(--f-body);margin:0 0 8px;letter-spacing:.06em;display:flex;justify-content:space-between;gap:8px;align-items:baseline}
@@ -84,6 +87,9 @@ input[type=range]::-moz-range-thumb{width:5px;height:16px;background:var(--ink);
 .file{display:flex;gap:8px;align-items:center;padding:3px 0;min-width:0}
 .file b{font-weight:600;width:1.2em}
 .file span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dim);font-size:12px}
+.bprops{margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
+.bprops h3{font:500 11px var(--f-body);color:var(--dim);margin:0 0 4px}
+.sw{display:inline-block;width:12px;height:12px;border:1px solid var(--line);vertical-align:-1px;margin-right:6px}
 .vh{position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:.01;overflow:hidden;pointer-events:none}
 .vh video{width:2px;height:2px}
 .tw{overflow-x:auto;margin-top:8px;max-height:260px;overflow-y:auto;border:1px solid var(--line);background:var(--well)}
@@ -103,14 +109,16 @@ progress{width:100%;height:6px;accent-color:var(--ink)}
   #cv{max-height:38vh}
   .stage.zoom{max-height:46vh}
   .meter{grid-template-columns:minmax(0,1fr)}
-  .meter dl{grid-template-columns:repeat(2,minmax(0,1fr))}
+  dl.read{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .side{flex-direction:row}
+  .side > div{flex:1;min-width:0}
 }
 </style>
 
 <div class="wrap">
   <header>
     <h1>気配<span>Kehai</span></h1>
-    <p>景色の一部だけを、別の映像の動きで押し引きする。</p>
+    <p>景色の一部を、別の映像（B）の動き方そのままに動かす。</p>
   </header>
 
   <div class="left">
@@ -130,17 +138,21 @@ progress{width:100%;height:6px;accent-color:var(--ink)}
       </div>
     </div>
     <div class="meter">
-      <dl id="meterBody">
-        <div class="m"><dt>実際の変位（最大／マスク内平均）</dt><dd id="mDisp">–</dd></div>
-        <div class="m"><dt>加工前との差（マスク内平均）</dt><dd id="mDiff">–</dd></div>
-        <div class="m"><dt>Bの動き（Δの間の差、平均）</dt><dd id="mBmove">–</dd></div>
-        <div class="m"><dt>輝度の平均</dt><dd id="mMean">–</dd></div>
-        <div class="m"><dt>上位5%／下位5%の輝度</dt><dd id="mHiLo">–</dd></div>
-        <div class="m"><dt>明暗の幅（上位5%−下位5%）</dt><dd id="mRange">–</dd></div>
-        <div class="m"><dt>黒に近い画素（輝度8以下）</dt><dd id="mBlack">–</dd></div>
-        <div class="m"><dt>反射光ごしの明暗比</dt><dd id="mVeil">–</dd></div>
+      <dl class="read" id="meterBody">
+        <div><dt>実際の変位（最大／マスク内平均）</dt><dd id="mDisp">–</dd></div>
+        <div><dt>上限をかける前の変位（マスク内平均）</dt><dd id="mRaw">–</dd></div>
+        <div><dt>いまの全体の移動（横, 縦）</dt><dd id="mMove">–</dd></div>
+        <div><dt>いまの奥行き（拡大・縮小）</dt><dd id="mDepth">–</dd></div>
+        <div><dt>加工前との差（マスク内平均）</dt><dd id="mDiff">–</dd></div>
+        <div><dt>輝度の平均</dt><dd id="mMean">–</dd></div>
+        <div><dt>上位5%／下位5%の輝度</dt><dd id="mHiLo">–</dd></div>
+        <div><dt>黒に近い画素（輝度8以下）</dt><dd id="mBlack">–</dd></div>
+        <div><dt>反射光ごしの明暗比</dt><dd id="mVeil">–</dd></div>
       </dl>
-      <div id="histBox"><canvas id="hist" width="256" height="64"></canvas><div class="histcap"><span>0</span><span>輝度（0〜255）</span><span>255</span></div></div>
+      <div class="side" id="sideBox">
+        <div><canvas id="traj" width="380" height="380"></canvas><div class="cap"><span>全体の移動の軌跡</span><span id="trajScale"></span></div></div>
+        <div><canvas id="hist" width="256" height="54"></canvas><div class="cap"><span>0</span><span>輝度</span><span>255</span></div></div>
+      </div>
       <p id="meterHide" hidden>テスト中は計測の表示を隠しています。</p>
     </div>
   </div>
@@ -151,11 +163,21 @@ progress{width:100%;height:6px;accent-color:var(--ink)}
       <div class="file"><b>A</b><span id="nameA">見本の景色</span><button id="pickA">景色の動画を選ぶ</button></div>
       <div class="file"><b>B</b><span id="nameB">見本の細胞</span><button id="pickB">動きの元を選ぶ</button></div>
       <input type="file" id="fileA" accept="video/*" class="vh" tabindex="-1" aria-hidden="true"><input type="file" id="fileB" accept="video/*" class="vh" tabindex="-1" aria-hidden="true"><div id="holder" class="vh" aria-hidden="true"></div>
-      <p class="note" id="srcNote">いま映っているのは内蔵の見本です。Aに三脚で撮った景色、Bに細胞や動物の接写を入れてください。Bは画面には映りません。</p>
+      <p class="note" id="srcNote">いま映っているのは内蔵の見本です。Aに三脚で撮った景色、Bに細胞や動物の接写を入れてください。Bは画面には映らず、動き方と色だけが入ります。</p>
+      <div class="bprops">
+        <h3>Bの動き方（読み取った値）</h3>
+        <dl class="read">
+          <div><dt>全体の速さ</dt><dd id="bpSpeed">–</dd></div>
+          <div><dt>主な向き</dt><dd id="bpDir">–</dd></div>
+          <div><dt>奥行きの変化</dt><dd id="bpDiv">–</dd></div>
+          <div><dt>形のゆがみの速さ</dt><dd id="bpLoc">–</dd></div>
+          <div><dt>平均の色</dt><dd id="bpCol">–</dd></div>
+        </dl>
+      </div>
     </section>
 
     <section>
-      <h2>マスク <small>変形させる範囲</small></h2>
+      <h2>マスク <small>動かす範囲</small></h2>
       <div class="line">
         <button id="mDraw">描く</button><button id="mErase">消す</button><button id="mClear">全部消す</button>
         <label><input type="checkbox" id="mShow"> マスクを表示</label>
@@ -164,12 +186,15 @@ progress{width:100%;height:6px;accent-color:var(--ink)}
     </section>
 
     <section>
-      <h2>変位 <small>Bの動きで、マスク内の景色を押し引きする</small></h2>
-      <div class="line"><label>動きの取り出し方 <select id="motion">
-        <option value="diff">時間差分（Bが動いた場所だけ）</option>
-        <option value="grad">明るさの傾き（Bの明るい所で膨らむ）</option>
-      </select></label></div>
+      <h2>動きの量 <small>Bの動きを、そのままの速さで景色に移す</small></h2>
       <div id="rowsDisp"></div>
+      <p class="note">Bが1秒にB幅の1%動けば、倍率1倍で景色もその幅の1%ぶん動きます。「戻るまでの時間」が長いほど動きが積み重なって大きく流れ、短いほど速い動きだけが残ります。</p>
+    </section>
+
+    <section>
+      <h2>Bから何を取るか</h2>
+      <div id="rowsMix"></div>
+      <p class="note">全体の移動はBの画面全体がずれる動き、奥行きは広がる・縮む動き、局所はBの場所ごとの動きです。局所の動きはBの同じ位置から取るので、Bのどこが動いたかが景色のどこが動くかになります。</p>
     </section>
 
     <section>
@@ -185,11 +210,11 @@ progress{width:100%;height:6px;accent-color:var(--ink)}
     </section>
 
     <section>
-      <h2>閾値テスト <small>見分けられる変位を測る</small></h2>
-      <p class="note" style="margin-top:0">1回3秒、加工ありか加工なし（変位0 px、粒子とリセットは同じ）を無作為に見せます。どちらだったかは画面に出ません。見たら「変化あり／なし」で答えてください。20回で正答率をそのときの変位と一緒に記録します。50%前後なら見分けられていません。</p>
+      <h2>閾値テスト <small>見分けられる動きを測る</small></h2>
+      <p class="note" style="margin-top:0">1回3秒、加工ありか加工なし（動きも色も0、粒子とリセットは同じ）を無作為に見せます。どちらだったかは画面に出ません。見たら「変化あり／なし」で答えてください。20回で正答率を、そのあいだの実際の変位と一緒に記録します。50%前後なら見分けられていません。</p>
       <div class="line"><button id="tStart" class="pri">テストを始める（20回）</button></div>
       <p class="note" id="tLast"></p>
-      <div class="tw"><table><thead><tr><th>日時</th><th>変位 px</th><th>幅比 %</th><th>取り出し方</th><th>増幅 倍</th><th>Δ 秒</th><th>正答率 %</th><th>あり→あり</th><th>なし→あり</th></tr></thead><tbody id="tBody"></tbody></table></div>
+      <div class="tw"><table><thead><tr><th>日時</th><th>実測の変位 px</th><th>幅比 %</th><th>上限 px</th><th>倍率 倍</th><th>戻り 秒</th><th>正答率 %</th><th>あり→あり</th><th>なし→あり</th></tr></thead><tbody id="tBody"></tbody></table></div>
       <div class="line" style="margin-top:6px"><button id="tCopy">テキストでコピー</button><button id="tClear">記録を消す</button></div>
       <textarea id="copyBox" hidden readonly aria-label="記録のテキスト"></textarea>
     </section>
@@ -224,40 +249,46 @@ progress{width:100%;height:6px;accent-color:var(--ink)}
 <script>
 "use strict";
 const $ = id => document.getElementById(id);
-const KEY = 'kehai.v2', TKEY = 'kehai.v2.tests';
+const KEY = 'kehai.v3', TKEY = 'kehai.v3.tests';
 
 /* ---------- parameters: every one has a unit ---------- */
 const DEFS = {
-  brush:  {g:'Mask',  label:'筆の太さ',                         unit:'px',    min:4,    max:600, step:1,    v:120},
-  edge:   {g:'Mask',  label:'縁のぼかし',                       unit:'px',    min:0,    max:300, step:1,    v:60},
-  amp:    {g:'Disp',  label:'変位の上限',                       unit:'px',    min:0,    max:40,  step:0.1,  v:6},
-  gainM:  {g:'Disp',  label:'動きの増幅（時間差分にかける）',   unit:'倍',    min:1,    max:20,  step:0.1,  v:4,  only:'diff'},
-  delta:  {g:'Disp',  label:'比べるコマの間隔 Δ（Bの時間で）',  unit:'秒',    min:0.03, max:1,   step:0.01, v:0.1,only:'diff'},
-  smooth: {g:'Disp',  label:'Bをぼかす半径（景色の画素で）',    unit:'px',    min:2,    max:200, step:1,    v:12},
-  bRate:  {g:'Disp',  label:'Bの時間の伸縮',                    unit:'倍',    min:0.25, max:4,   step:0.05, v:1},
-  bStart: {g:'Disp',  label:'Bの開始位置',                      unit:'秒',    min:0,    max:60,  step:0.1,  v:0},
-  zoom:   {g:'Zoom',  label:'拡大率（1倍＝元の1画素を画面の1画素で）', unit:'倍', min:1, max:8,  step:1,    v:2},
-  vWhite: {g:'Veil',  label:'画面の白の明るさ',                 unit:'cd/m²', min:100,  max:1500,step:10,   v:500},
-  vRefl:  {g:'Veil',  label:'画面に映りこむ反射光',             unit:'cd/m²', min:0,    max:200, step:1,    v:25},
-  gAmt:   {g:'Grain', label:'量（輝度の振れ）',                 unit:'/255',  min:0,    max:24,  step:0.5,  v:2},
-  gSize:  {g:'Grain', label:'粒の大きさ',                       unit:'px',    min:1,    max:6,   step:0.1,  v:1.2},
-  gRate:  {g:'Grain', label:'時間変化の速さ',                   unit:'回/秒', min:1,    max:60,  step:1,    v:24},
-  rEvery: {g:'Reset', label:'間隔',                             unit:'秒',    min:1,    max:60,  step:0.5,  v:6},
-  rJit:   {g:'Reset', label:'間隔のランダム幅（±）',            unit:'秒',    min:0,    max:20,  step:0.5,  v:0},
-  rLen:   {g:'Reset', label:'長さ',                             unit:'ミリ秒',min:20,   max:500, step:10,   v:80},
-  rEv:    {g:'Reset', label:'明るさの変化',                     unit:'EV',    min:-0.5, max:0.5, step:0.01, v:0.08},
-  rShake: {g:'Reset', label:'揺れの幅',                         unit:'px',    min:0,    max:8,   step:0.1,  v:1.5},
-  oFps:   {g:'Out',   label:'コマ数',                           unit:'コマ/秒',min:1,   max:120, step:0.001,v:30, noSlider:true},
-  oFrom:  {g:'Out',   label:'開始',                             unit:'秒',    min:0,    max:1e5, step:0.01, v:0,  noSlider:true},
-  oTo:    {g:'Out',   label:'終了',                             unit:'秒',    min:0,    max:1e5, step:0.01, v:0,  noSlider:true},
-  oMbps:  {g:'Out',   label:'ビットレート',                     unit:'Mbps',  min:1,    max:200, step:0.5,  v:16, noSlider:true},
+  brush:  {g:'Mask', label:'筆の太さ',                                   unit:'px',    min:4,    max:600, step:1,    v:120},
+  edge:   {g:'Mask', label:'縁のぼかし',                                 unit:'px',    min:0,    max:300, step:1,    v:60},
+  mScale: {g:'Disp', label:'動きの倍率（Bの動きを景色の上で何倍にするか）', unit:'倍',  min:0.1,  max:20,  step:0.1,  v:1},
+  leak:   {g:'Disp', label:'動きが元に戻るまでの時間',                   unit:'秒',    min:0.1,  max:10,  step:0.1,  v:1},
+  amp:    {g:'Disp', label:'変位の上限（ここでなだらかに頭打ち）',       unit:'px',    min:1,    max:200, step:0.5,  v:80},
+  bRate:  {g:'Disp', label:'Bの時間の伸縮',                              unit:'倍',    min:0.25, max:4,   step:0.05, v:1},
+  bStart: {g:'Disp', label:'Bの開始位置',                                unit:'秒',    min:0,    max:60,  step:0.1,  v:0},
+  wG:     {g:'Mix',  label:'全体の移動',                                 unit:'%',     min:0,    max:300, step:5,    v:100},
+  wZ:     {g:'Mix',  label:'奥行き（拡大・縮小）',                       unit:'%',     min:0,    max:300, step:5,    v:100},
+  wL:     {g:'Mix',  label:'局所の動き（場所ごとのゆがみ）',             unit:'%',     min:0,    max:300, step:5,    v:100},
+  wX:     {g:'Mix',  label:'横（X）方向',                                unit:'%',     min:0,    max:300, step:5,    v:100},
+  wY:     {g:'Mix',  label:'縦（Y）方向',                                unit:'%',     min:0,    max:300, step:5,    v:100},
+  wC:     {g:'Mix',  label:'色（Bの色むらとその変化）',                  unit:'%',     min:0,    max:100, step:1,    v:30},
+  zoom:   {g:'Zoom', label:'拡大率（1倍＝元の1画素を画面の1画素で）',    unit:'倍',    min:1,    max:8,   step:1,    v:2},
+  vWhite: {g:'Veil', label:'画面の白の明るさ',                           unit:'cd/m²', min:100,  max:1500,step:10,   v:500},
+  vRefl:  {g:'Veil', label:'画面に映りこむ反射光',                       unit:'cd/m²', min:0,    max:200, step:1,    v:25},
+  gAmt:   {g:'Grain',label:'量（輝度の振れ）',                           unit:'/255',  min:0,    max:24,  step:0.5,  v:2},
+  gSize:  {g:'Grain',label:'粒の大きさ',                                 unit:'px',    min:1,    max:6,   step:0.1,  v:1.2},
+  gRate:  {g:'Grain',label:'時間変化の速さ',                             unit:'回/秒', min:1,    max:60,  step:1,    v:24},
+  rEvery: {g:'Reset',label:'間隔',                                       unit:'秒',    min:1,    max:60,  step:0.5,  v:6},
+  rJit:   {g:'Reset',label:'間隔のランダム幅（±）',                      unit:'秒',    min:0,    max:20,  step:0.5,  v:0},
+  rLen:   {g:'Reset',label:'長さ',                                       unit:'ミリ秒',min:20,   max:500, step:10,   v:80},
+  rEv:    {g:'Reset',label:'明るさの変化',                               unit:'EV',    min:-0.5, max:0.5, step:0.01, v:0.08},
+  rShake: {g:'Reset',label:'揺れの幅',                                   unit:'px',    min:0,    max:8,   step:0.1,  v:1.5},
+  oFps:   {g:'Out',  label:'コマ数',                                     unit:'コマ/秒',min:1,   max:120, step:0.001,v:30, noSlider:true},
+  oFrom:  {g:'Out',  label:'開始',                                       unit:'秒',    min:0,    max:1e5, step:0.01, v:0,  noSlider:true},
+  oTo:    {g:'Out',  label:'終了',                                       unit:'秒',    min:0,    max:1e5, step:0.01, v:0,  noSlider:true},
+  oMbps:  {g:'Out',  label:'ビットレート',                               unit:'Mbps',  min:1,    max:200, step:0.5,  v:16, noSlider:true},
 };
 const NOSAVE = new Set(['oFps','oFrom','oTo','oMbps','bStart']);
 const P = {}, UI = {};
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch(e) {}
-function persist(){ try { const o={}; for(const k in P) if(!NOSAVE.has(k)) o[k]=P[k]; o._rType=$('rType').value; o._motion=$('motion').value; localStorage.setItem(KEY, JSON.stringify(o)); } catch(e) {} }
+function persist(){ try { const o={}; for(const k in P) if(!NOSAVE.has(k)) o[k]=P[k]; o._rType=$('rType').value; localStorage.setItem(KEY, JSON.stringify(o)); } catch(e) {} }
 const clamp = (x,a,b) => Math.min(b, Math.max(a, x));
+const lerp = (a,b,f) => a + (b-a)*f;
 
 for (const k in DEFS) {
   const d = DEFS[k];
@@ -286,8 +317,6 @@ for (const k in DEFS) {
 }
 function setParam(k, v){ P[k]=v; UI[k].num.value=v; if (UI[k].rng.type==='range') UI[k].rng.value=v; }
 if (saved._rType) $('rType').value = saved._rType;
-if (saved._motion) $('motion').value = saved._motion;
-const isDiff = () => $('motion').value === 'diff';
 
 /* ---------- sources: a video file, or a drawn sample ---------- */
 class VidSrc {
@@ -296,7 +325,6 @@ class VidSrc {
   get playing(){ return !this.v.paused; }
   play(){ const p=this.v.play(); if (p) p.catch(()=>{}); }
   pause(){ this.v.pause(); }
-  setRate(r){ if (this.v.playbackRate !== r) this.v.playbackRate = r; }
   seek(t){ const v=this.v; t=clamp(t,0,Math.max(0,this.dur-0.001));
     return new Promise(res => {
       if (Math.abs(v.currentTime-t) < 1e-4 && !v.seeking && v.readyState >= 2) return res();
@@ -341,15 +369,155 @@ function makeSampleA(){
     c.fillStyle='#22221f'; c.beginPath(); c.arc(px,py-41,5.5,0,6.3); c.fill();
   });
 }
-/* built-in sample B: soft bright bodies drifting and swelling, like cells under a microscope */
+/* built-in sample B: textured bodies that drift together, swell and wander, like cells under a microscope */
 function makeSampleB(){
-  const r=rng32(3), cells=[]; for(let i=0;i<9;i++) cells.push({x:r(),y:r(),ax:0.1+r()*0.25,ay:0.1+r()*0.25,fx:1+(r()*3|0),fy:1+(r()*3|0),p:r()*6.3,q:r()*6.3,rad:0.1+r()*0.12,fr:1+(r()*4|0)});
+  const r=rng32(3), cells=[]; for(let i=0;i<14;i++) cells.push({x:r(),y:r(),ax:0.03+r()*0.06,ay:0.03+r()*0.06,fx:1+(r()*2|0),fy:1+(r()*2|0),p:r()*6.3,q:r()*6.3,rad:0.06+r()*0.07,fr:1+(r()*2|0),tone:150+r()*90|0});
   return new SynthSrc(256,144,8,(c,t,W,H)=>{
-    c.globalCompositeOperation='source-over'; c.fillStyle='#1c1c1c'; c.fillRect(0,0,W,H); c.globalCompositeOperation='lighter';
-    const k=t/8*6.283;
-    for(const o of cells){ const cx=(o.x+o.ax*Math.sin(k*o.fx+o.p))*W, cy=(o.y+o.ay*Math.sin(k*o.fy+o.q))*H, rad=o.rad*W*(1+0.3*Math.sin(k*o.fr+o.p));
-      const g=c.createRadialGradient(cx,cy,0,cx,cy,rad); g.addColorStop(0,'rgba(210,210,210,.85)'); g.addColorStop(1,'rgba(210,210,210,0)'); c.fillStyle=g; c.fillRect(cx-rad,cy-rad,rad*2,rad*2); }
+    const k=t/8*6.283, dx=0.06*Math.sin(k), dy=0.035*Math.sin(2*k+1), sc=1+0.08*Math.sin(k+0.6);
+    c.globalCompositeOperation='source-over'; c.fillStyle='#262420'; c.fillRect(0,0,W,H);
+    for(const o of cells){
+      const cx=(0.5+((o.x-0.5)+o.ax*Math.sin(k*o.fx+o.p))*sc+dx)*W, cy=(0.5+((o.y-0.5)+o.ay*Math.sin(k*o.fy+o.q))*sc+dy)*H, rad=o.rad*W*sc*(1+0.15*Math.sin(k*o.fr+o.p));
+      const g=c.createRadialGradient(cx-rad*0.3,cy-rad*0.3,rad*0.1,cx,cy,rad); g.addColorStop(0,`rgb(${o.tone},${o.tone-30},${o.tone-70})`); g.addColorStop(0.7,`rgba(${o.tone-40},${o.tone-60},${o.tone-90},.9)`); g.addColorStop(1,'rgba(38,36,32,0)');
+      c.fillStyle=g; c.beginPath(); c.arc(cx,cy,rad,0,6.3); c.fill();
+      c.fillStyle='rgba(30,26,20,.55)'; c.beginPath(); c.arc(cx+rad*0.15,cy+rad*0.1,rad*0.28,0,6.3); c.fill();
+    }
   });
+}
+
+/* ---------- B: read once, then measure its motion (optical flow) ----------
+   Every frame of B is read into a small grey picture; Lucas-Kanade flow between neighbouring frames gives
+   how each part of B moved. Preview, still frames and export all look up these same numbers. */
+function down2(L){ const W=L.w>>1, H=L.h>>1, o=new Float32Array(W*H), I=L.I, w=L.w;
+  for (let y=0;y<H;y++) for (let x=0;x<W;x++){ const j=2*y*w+2*x; o[y*W+x]=(I[j]+I[j+1]+I[j+w]+I[j+w+1])*0.25; } return {I:o, w:W, h:H}; }
+function box(a, W, H, r, tmp){
+  for (let y=0;y<H;y++){ const o=y*W; let s=0; for (let x=-r;x<=r;x++) s+=a[o+clamp(x,0,W-1)];
+    for (let x=0;x<W;x++){ tmp[o+x]=s; s+=a[o+Math.min(W-1,x+r+1)]-a[o+Math.max(0,x-r)]; } }
+  for (let x=0;x<W;x++){ let s=0; for (let y=-r;y<=r;y++) s+=tmp[clamp(y,0,H-1)*W+x];
+    for (let y=0;y<H;y++){ a[y*W+x]=s; s+=tmp[Math.min(H-1,y+r+1)*W+x]-tmp[Math.max(0,y-r)*W+x]; } }
+}
+const LAM = 120, CONF_K = 300;
+function lkPair(a, b, w, h){
+  const pa=[{I:a,w,h}], pb=[{I:b,w,h}];
+  while (pa[pa.length-1].w > 24 && pa.length < 4) { pa.push(down2(pa[pa.length-1])); pb.push(down2(pb[pb.length-1])); }
+  let u=null, v=null, pw=0, ph=0;
+  for (let L=pa.length-1; L>=0; L--) {
+    const I0=pa[L].I, I1=pb[L].I, W=pa[L].w, H=pa[L].h, N=W*H;
+    const nu=new Float32Array(N), nv=new Float32Array(N);
+    if (u) for (let y=0;y<H;y++) for (let x=0;x<W;x++){ const j=Math.min(ph-1,y>>1)*pw+Math.min(pw-1,x>>1); nu[y*W+x]=u[j]*2; nv[y*W+x]=v[j]*2; }
+    u=nu; v=nv; pw=W; ph=H;
+    const gx=new Float32Array(N), gy=new Float32Array(N);
+    for (let y=0;y<H;y++) for (let x=0;x<W;x++){ const i=y*W+x;
+      gx[i]=(I0[y*W+Math.min(W-1,x+1)]-I0[y*W+Math.max(0,x-1)])*0.5; gy[i]=(I0[Math.min(H-1,y+1)*W+x]-I0[Math.max(0,y-1)*W+x])*0.5; }
+    const xx=new Float32Array(N), xy=new Float32Array(N), yy=new Float32Array(N), xt=new Float32Array(N), yt=new Float32Array(N), tmp=new Float32Array(N);
+    for (let it=0; it<3; it++){
+      for (let y=0;y<H;y++) for (let x=0;x<W;x++){
+        const i=y*W+x, sx=clamp(x+u[i],0,W-1.001), sy=clamp(y+v[i],0,H-1.001), x0=sx|0, y0=sy|0, fx=sx-x0, fy=sy-y0, j=y0*W+x0;
+        const J=(I1[j]*(1-fx)+I1[j+1]*fx)*(1-fy)+(I1[j+W]*(1-fx)+I1[j+W+1]*fx)*fy;
+        const t=J-I0[i], ix=gx[i], iy=gy[i];
+        xx[i]=ix*ix; xy[i]=ix*iy; yy[i]=iy*iy; xt[i]=ix*t; yt[i]=iy*t;
+      }
+      box(xx,W,H,2,tmp); box(xy,W,H,2,tmp); box(yy,W,H,2,tmp); box(xt,W,H,2,tmp); box(yt,W,H,2,tmp);
+      for (let i=0;i<N;i++){ const A_=xx[i]+LAM, D_=yy[i]+LAM, C_=xy[i], det=A_*D_-C_*C_;
+        u[i]+=clamp(-(D_*xt[i]-C_*yt[i])/det,-2,2); v[i]+=clamp(-(A_*yt[i]-C_*xt[i])/det,-2,2); }
+    }
+    if (L === 0) { // how trustworthy the motion is at each place: the smaller eigenvalue of the structure tensor
+      const conf = new Float32Array(N);
+      for (let i=0;i<N;i++){ const h2=(xx[i]-yy[i])*0.5, lm=(xx[i]+yy[i])*0.5-Math.sqrt(h2*h2+xy[i]*xy[i]); conf[i]=lm/(lm+CONF_K); }
+      return {u, v, conf};
+    }
+  }
+}
+let BF = null, loadingB = false, bSample = true, bUp = [-1,-1,-1];
+async function decodeB(src, prog){
+  const gw = Math.min(128, src.w & ~1), gh = Math.max(16, Math.round(gw*src.h/src.w) & ~1), fw = gw>>1, fh = gh>>1;
+  const rate = Math.min(30, 450/src.dur), n = Math.max(3, Math.floor(src.dur*rate));
+  const gc = document.createElement('canvas'); gc.width=gw; gc.height=gh; const gx = gc.getContext('2d', {willReadFrequently:true});
+  const cc = document.createElement('canvas'); cc.width=fw; cc.height=fh; const cx = cc.getContext('2d', {willReadFrequently:true});
+  const grey = new Array(n).fill(null), color = new Array(n).fill(null); let got = 0;
+  const grab = (i, f) => {
+    if (f) { gx.drawImage(f,0,0,gw,gh); cx.drawImage(f,0,0,fw,fh); }
+    const d = gx.getImageData(0,0,gw,gh).data, g = new Float32Array(gw*gh);
+    for (let j=0;j<gw*gh;j++) g[j] = 0.2126*d[j*4]+0.7152*d[j*4+1]+0.0722*d[j*4+2];
+    if (!grey[i]) got++; grey[i] = g; color[i] = new Uint8Array(cx.getImageData(0,0,fw,fh).data.buffer.slice(0));
+  };
+  const tell = (what) => { if (prog) prog(what, got, n); };
+  if (!src.isVideo) { for (let i=0;i<n;i++) grab(i, src.frameAt(i/rate)); }
+  else {
+    // first pass: play once and keep each frame as it shows. If the browser will not play, this ends at once.
+    const v = src.v; v.loop = false; v.playbackRate = 1; await src.seek(0);
+    await new Promise(res => {
+      let last = -1, moved = performance.now(), done = false;
+      const end = () => { if (done) return; done = true; clearInterval(dog); v.pause(); res(); };
+      const dog = setInterval(() => { if (performance.now() - moved > 1500) end(); tell('read'); }, 250);
+      const step = (now, meta) => {
+        if (done) return;
+        const t = meta ? meta.mediaTime : v.currentTime;
+        if (t !== last) { last = t; moved = performance.now(); const i = Math.round(t*rate); if (i >= 0 && i < n && !grey[i] && v.readyState >= 2) grab(i, v); }
+        if (v.ended || t >= src.dur - 0.5/rate) return end();
+        if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(step); else requestAnimationFrame(() => step());
+      };
+      const pp = v.play(); if (pp) pp.catch(end);
+      if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(step); else requestAnimationFrame(() => step());
+    });
+    // second pass: seek to every frame the first pass missed
+    for (let i=0;i<n;i++) { if (grey[i]) continue; await src.seek(i/rate); grab(i, src.frame()); if (got % 5 === 0) { tell('read'); await new Promise(r=>setTimeout(r,0)); } }
+  }
+  // motion between neighbouring frames, as a fraction of B's width per frame, on a fw x fh grid
+  const grid = gridOf({fw, fh}), F = [new Float32Array(fw*fh*2)], cf = new Float32Array(fw*fh);
+  for (let i=1;i<n;i++){
+    const {u, v, conf} = lkPair(grey[i-1], grey[i], gw, gh), f = new Float32Array(fw*fh*2);
+    for (let y=0;y<fh;y++) for (let x=0;x<fw;x++){ let su=0, sv=0, sc=0; for (const [ox,oy] of [[0,0],[1,0],[0,1],[1,1]]) { const j=(2*y+oy)*gw+2*x+ox; su+=u[j]*conf[j]; sv+=v[j]*conf[j]; sc+=conf[j]; }
+      const j=y*fw+x; cf[j] = sc*0.25; f[j*2] = sc ? su/sc/gw : 0; f[j*2+1] = sc ? sv/sc/gw : 0; }
+    // fit the whole shift and swell with the trustworthy places only, then let unsure places follow that fit
+    let W=0, tx=0, ty=0; for (let j=0;j<fw*fh;j++){ W+=cf[j]; tx+=cf[j]*f[j*2]; ty+=cf[j]*f[j*2+1]; }
+    tx = W ? tx/W : 0; ty = W ? ty/W : 0;
+    let sn=0, sd=0; for (let j=0;j<fw*fh;j++){ sn+=cf[j]*((f[j*2]-tx)*grid.gx[j]+(f[j*2+1]-ty)*grid.gy[j]); sd+=cf[j]*(grid.gx[j]*grid.gx[j]+grid.gy[j]*grid.gy[j]); }
+    const sc = sd ? sn/sd : 0;
+    for (let j=0;j<fw*fh;j++){ const c=cf[j], gxv=tx+sc*grid.gx[j], gyv=ty+sc*grid.gy[j]; f[j*2]=gxv+c*(f[j*2]-gxv); f[j*2+1]=gyv+c*(f[j*2+1]-gyv); }
+    F.push(f);
+    if (i % 8 === 0) { got = i; tell('flow'); await new Promise(r=>setTimeout(r,0)); }
+  }
+  let cr=0, cg=0, cb=0; for (const c of color) for (let j=0;j<c.length;j+=4){ cr+=c[j]; cg+=c[j+1]; cb+=c[j+2]; }
+  const cn = color.length*fw*fh;
+  const bf = {fw, fh, n, rate, dur:n/rate, aspect:src.w/src.h, F, color, cmean:[cr/cn/255, cg/cn/255, cb/cn/255]};
+  bf.grid = grid; bf.summary = summarize(bf);
+  return bf;
+}
+function gridOf(bf){ const {fw,fh}=bf, gx=new Float32Array(fw*fh), gy=new Float32Array(fw*fh); let r2=0;
+  for (let y=0;y<fh;y++) for (let x=0;x<fw;x++){ const j=y*fw+x; gx[j]=(x+0.5)/fw-0.5; gy[j]=((y+0.5)/fh-0.5)*fh/fw; r2+=gx[j]*gx[j]+gy[j]*gy[j]; }
+  return {gx, gy, r2}; }
+// split a motion field into a shift of the whole, a swell (outward = closer), and what is left at each place
+function split(D, bf, out){
+  const N=bf.fw*bf.fh, {gx,gy,r2}=bf.grid; let tx=0, ty=0;
+  for (let j=0;j<N;j++){ tx+=D[j*2]; ty+=D[j*2+1]; } tx/=N; ty/=N;
+  let s=0; for (let j=0;j<N;j++) s+=(D[j*2]-tx)*gx[j]+(D[j*2+1]-ty)*gy[j]; s/=r2;
+  let loc=0;
+  for (let j=0;j<N;j++){ const lx=D[j*2]-tx-s*gx[j], ly=D[j*2+1]-ty-s*gy[j]; if (out){ out[j*2]=lx; out[j*2+1]=ly; } loc+=Math.hypot(lx,ly); }
+  return {tx, ty, s, loc:loc/N};
+}
+function summarize(bf){
+  let sp=0, vx=0, vy=0, dv=0, lc=0; const m = bf.n-1;
+  for (let i=1;i<bf.n;i++){ const q = split(bf.F[i], bf, null); sp+=Math.hypot(q.tx,q.ty); vx+=q.tx; vy+=q.ty; dv+=Math.abs(q.s); lc+=q.loc; }
+  return {speed:sp/m*bf.rate*100, dirX:vx, dirY:vy, consist: sp>0 ? Math.hypot(vx,vy)/sp : 0, div:dv/m*bf.rate*100, loc:lc/m*bf.rate*100};
+}
+// accumulate motion over time, letting it fall back with the chosen time constant; loop once first so the start is settled
+function integrate(){
+  const bf = BF, N = bf.fw*bf.fh, k = Math.exp(-1/(bf.rate*P.leak)), D = new Float32Array(N*2);
+  for (let i=0;i<bf.n;i++){ const f=bf.F[i]; for (let j=0;j<N*2;j++) D[j]=D[j]*k+f[j]; }
+  bf.TX = new Float32Array(bf.n); bf.TY = new Float32Array(bf.n); bf.S = new Float32Array(bf.n); bf.LOC = new Array(bf.n);
+  for (let i=0;i<bf.n;i++){ const f=bf.F[i]; for (let j=0;j<N*2;j++) D[j]=D[j]*k+f[j];
+    const out = new Float32Array(N*2), q = split(D, bf, out); bf.TX[i]=q.tx; bf.TY[i]=q.ty; bf.S[i]=q.s; bf.LOC[i]=out; }
+  bUp = [-1,-1,-1]; trajKey = '';
+}
+function showSummary(){
+  const s = BF.summary, dirs = ['→ 右','↘ 右下','↓ 下','↙ 左下','← 左','↖ 左上','↑ 上','↗ 右上'];
+  const ang = Math.atan2(s.dirY, s.dirX), di = ((Math.round(ang/(Math.PI/4))%8)+8)%8;
+  $('bpSpeed').innerHTML = s.speed.toFixed(2)+' <small>B幅の%/秒</small>';
+  $('bpDir').innerHTML = (s.speed < 0.05 ? '– ' : dirs[di]+' ')+'<small>一貫性 '+(s.consist*100).toFixed(0)+' %</small>';
+  $('bpDiv').innerHTML = s.div.toFixed(2)+' <small>%/秒</small>';
+  $('bpLoc').innerHTML = s.loc.toFixed(2)+' <small>B幅の%/秒</small>';
+  const c = BF.cmean.map(x => Math.round(x*255)); const sw = document.createElement('span'); sw.className='sw'; sw.style.background='rgb('+c.join(',')+')';
+  $('bpCol').textContent = ''; $('bpCol').append(sw, document.createTextNode(c.join(', ')));
 }
 
 /* ---------- WebGL ---------- */
@@ -359,13 +527,13 @@ const VS = `#version 300 es
 in vec2 p; void main(){ gl_Position=vec4(p,0.,1.); }`;
 const FS = `#version 300 es
 precision highp float; precision highp int;
-uniform sampler2D uA, uB, uBp, uM;
-uniform vec2 uRes, uSrc, uOff, uBScale, uBSize, uShake, uBRange;
-uniform float uK, uAmp, uSmooth, uMGain, uGain, uGAmt, uGSize, uVeil, uFlipY, uShowMask;
-uniform int uMode, uSeed, uMotion; // mode 0 processed, 1 original, 2 displacement readout, 3 difference view; motion 0 time difference, 1 slope
+uniform sampler2D uA, uL0, uL1, uC, uM;
+uniform vec2 uRes, uSrc, uOff, uBScale, uShake, uT, uCen, uW;
+uniform float uK, uAmp, uS, uLerp, uLScale, uWL, uWC, uGain, uGAmt, uGSize, uVeil, uFlipY, uShowMask;
+uniform vec3 uBMean;
+uniform int uMode, uSeed; // mode 0 processed, 1 original, 2 displacement readout, 3 difference view
 uniform vec3 uMaskCol;
 out vec4 o;
-const vec3 W = vec3(0.2126, 0.7152, 0.0722);
 uint hsh(uvec3 v){ v = v*1664525u + 1013904223u; v.x += v.y*v.z; v.y += v.z*v.x; v.z += v.x*v.y; v ^= v >> 16u; v.x += v.y*v.z; v.y += v.z*v.x; v.z += v.x*v.y; return v.x ^ v.y ^ v.z; }
 float rnd(ivec2 c, int s){ return float(hsh(uvec3(uvec2(c + 32768), uint(s))) >> 8u) / 16777216.0; }
 float tri(ivec2 c){ return rnd(c, uSeed) + rnd(c, uSeed + 7919) - 1.0; }
@@ -376,50 +544,39 @@ float grain(vec2 px){
   vec2 w = f*f + (1.-f)*(1.-f);
   return v / sqrt(max(w.x*w.y, 1e-4));
 }
-float L(sampler2D s, vec2 uv, float lod){ return textureLod(s, uv, lod).r; }
-// displacement in units of the cap (length <= 1), in the direction the scenery is sampled from
-vec2 dispAt(vec2 uv){
-  vec2 buv = (uv - 0.5) * uBScale + 0.5;
-  vec2 rB = uSmooth / uSrc * uBScale;
-  float lod = max(0., log2(max(1., uSmooth / uSrc.x * uBScale.x * uBSize.x)) - 0.5);
-  float range = max(uBRange.y - uBRange.x, 0.04);
-  vec2 g = vec2(0.); float dt = 0.;
-  if (uMotion == 0) {
-    dt = L(uB, buv, lod) - L(uBp, buv, lod);
-    for (int i = 0; i < 8; i++) { float a = float(i) * 0.7853982; vec2 dir = vec2(cos(a), sin(a)); vec2 q = buv + dir * rB;
-      float c = L(uB, q, lod), p = L(uBp, q, lod); g += dir * (c + p) * 0.5; dt += c - p; }
-    dt /= 9.;
-    // where B got brighter or darker, push along its brightness slope: the scenery moves the way B moved
-    vec2 gn = g * 0.5 / range;
-    vec2 dir = gn / max(length(gn), 0.08);
-    vec2 d = dir * (dt / range) * uMGain;
-    float l = length(d); if (l > 1.) d /= l;
-    return d;
-  }
-  for (int i = 0; i < 8; i++) { float a = float(i) * 0.7853982; vec2 dir = vec2(cos(a), sin(a)); g += dir * L(uB, buv + dir * rB, lod); }
-  vec2 d = g * 0.5 / range * 1.6;
-  float l = length(d); if (l > 1.) d /= l;
-  return d;
+// how far the scenery at px has moved, in pixels: the whole shift, the swell about the mask's centre, and B's own motion at this place
+vec2 motion(vec2 px, vec2 buv){
+  vec2 loc = mix(texture(uL0, buv).rg, texture(uL1, buv).rg, uLerp) * uLScale * uWL;
+  vec2 mv = (uT + loc) * uW;
+  vec2 rel = px - uCen;
+  return mv + rel * uS;
 }
 void main(){
   float fy = mix(uRes.y - gl_FragCoord.y, gl_FragCoord.y, uFlipY);
   vec2 px = vec2(gl_FragCoord.x, fy) / uK + uOff;
   vec2 uv = px / uSrc;
+  vec2 buv = (uv - 0.5) * uBScale + 0.5;
   float m = texture(uM, uv).r;
-  vec2 disp = dispAt(uv) * uAmp * m;
-  if (uMode == 2) { o = vec4(length(disp) / 40., m, 0., 1.); return; }
+  vec2 raw = motion(px, buv);
+  float l = length(raw);
+  vec2 cap = (uAmp > 0.01 && l > 0.) ? raw * (uAmp * tanh(l / uAmp) / l) : vec2(0.);
+  vec2 d = cap * m;
+  if (uMode == 2) { o = vec4(length(d) / 200., m, min(1., l * (uAmp > 0.01 ? 1. : 0.) / 800.), 1.); return; }
   vec3 a0 = texture(uA, uv).rgb;
   if (uMode == 1) { o = vec4(a0, 1.); return; }
-  vec3 c = clamp(texture(uA, uv + (disp + uShake) / uSrc).rgb * uGain, 0., 1.);
+  // sample from where the content came from, so it appears moved by d
+  vec3 c = texture(uA, uv + (uShake - d) / uSrc).rgb * uGain;
+  c += (texture(uC, buv).rgb - uBMean) * uWC * m;
+  c = clamp(c, 0., 1.);
   if (uMode == 3) { o = vec4(clamp(a0 * 0.25 + abs(c - a0) * 10., 0., 1.), 1.); return; }
   c += grain(px) * uGAmt / 255.;
   c = clamp(c, 0., 1.);
-  if (uVeil > 0.) { vec3 l = pow(c, vec3(2.2)); l = (l + uVeil) / (1. + uVeil); c = pow(l, vec3(1./2.2)); }
+  if (uVeil > 0.) { vec3 lv = pow(c, vec3(2.2)); lv = (lv + uVeil) / (1. + uVeil); c = pow(lv, vec3(1./2.2)); }
   c = mix(c, uMaskCol, uShowMask * m * 0.45);
   o = vec4(c, 1.);
 }`;
 function sh(type, src){ const s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s); if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
-let U = {}, texA, texB, texBp, texM, fbo, fboTex;
+let U = {}, texA, texL0, texL1, texC, texM, fbo, fboTex;
 const SW = 128; let SH = 72;
 function initGL(){
   const pr = gl.createProgram(); gl.attachShader(pr, sh(gl.VERTEX_SHADER,VS)); gl.attachShader(pr, sh(gl.FRAGMENT_SHADER,FS)); gl.linkProgram(pr);
@@ -427,14 +584,13 @@ function initGL(){
   gl.useProgram(pr);
   const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,b); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
   const loc = gl.getAttribLocation(pr,'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
-  for (const n of ['uA','uB','uBp','uM','uRes','uSrc','uOff','uBScale','uBSize','uShake','uBRange','uK','uAmp','uSmooth','uMGain','uGain','uGAmt','uGSize','uVeil','uFlipY','uShowMask','uMode','uSeed','uMotion','uMaskCol']) U[n]=gl.getUniformLocation(pr,n);
-  const mk = (unit, min, wrap) => { const t=gl.createTexture(); gl.activeTexture(gl.TEXTURE0+unit); gl.bindTexture(gl.TEXTURE_2D,t);
-    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,min); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,wrap); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,wrap);
+  for (const n of ['uA','uL0','uL1','uC','uM','uRes','uSrc','uOff','uBScale','uShake','uT','uCen','uW','uK','uAmp','uS','uLerp','uLScale','uWL','uWC','uGain','uGAmt','uGSize','uVeil','uFlipY','uShowMask','uBMean','uMode','uSeed','uMaskCol']) U[n]=gl.getUniformLocation(pr,n);
+  const mk = (unit, min) => { const t=gl.createTexture(); gl.activeTexture(gl.TEXTURE0+unit); gl.bindTexture(gl.TEXTURE_2D,t);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,min); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,min===gl.NEAREST?gl.NEAREST:gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
     gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([0,0,0,255])); return t; };
-  texA = mk(0, gl.LINEAR, gl.CLAMP_TO_EDGE); texB = mk(1, gl.LINEAR_MIPMAP_LINEAR, gl.MIRRORED_REPEAT); texM = mk(2, gl.LINEAR, gl.CLAMP_TO_EDGE);
-  fboTex = mk(3, gl.NEAREST, gl.CLAMP_TO_EDGE); texBp = mk(4, gl.LINEAR_MIPMAP_LINEAR, gl.MIRRORED_REPEAT);
-  gl.uniform1i(U.uA,0); gl.uniform1i(U.uB,1); gl.uniform1i(U.uM,2); gl.uniform1i(U.uBp,4);
+  texA = mk(0, gl.LINEAR); texL0 = mk(1, gl.LINEAR); texM = mk(2, gl.LINEAR); fboTex = mk(3, gl.NEAREST); texL1 = mk(4, gl.LINEAR); texC = mk(5, gl.LINEAR);
+  gl.uniform1i(U.uA,0); gl.uniform1i(U.uL0,1); gl.uniform1i(U.uM,2); gl.uniform1i(U.uL1,4); gl.uniform1i(U.uC,5);
   fbo = gl.createFramebuffer();
   gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
 }
@@ -443,15 +599,13 @@ function sizeFBO(){ SH = Math.max(8, Math.round(SW * A.h / A.w)); gl.activeTextu
   gl.bindFramebuffer(gl.FRAMEBUFFER,fbo); gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,fboTex,0); gl.bindFramebuffer(gl.FRAMEBUFFER,null); }
 
 /* ---------- state ---------- */
-let A = null, B = null, exporting = false, holdOrig = false;
-let BF = null, bUp = [-1,-1], loadingB = false, flashMask = 0;
-let maskCv = document.createElement('canvas'), maskCx = null, maskEmpty = true, maskBox = null;
+let A = null, exporting = false, holdOrig = false, flashMask = 0;
+let maskCv = document.createElement('canvas'), maskCx = null, maskEmpty = true, maskBox = null, maskCen = [0,0];
 let tool = null, events = [], geom = {crop:null};
 
 function bSpan(){ return Math.max(0.05, BF.dur - P.bStart); }
 function bTime(t){ return P.bStart + ((t * P.bRate) % bSpan()); }
-function prevOf(bt){ let p = bt - P.delta; if (p < P.bStart) p += bSpan(); return p; }
-const bIdx = bt => clamp(Math.round(bt * BF.rate), 0, BF.n - 1);
+function bScale(){ const ar = A.w/A.h, br = BF.aspect; return ar > br ? [1, br/ar] : [ar/br, 1]; }
 
 function buildEvents(){
   events = []; $('ticks').textContent = '';
@@ -469,93 +623,50 @@ function resetAt(t){
   }
   return {gain, sx, sy};
 }
-
-/* ---------- B: read once, start to end, into small grey frames ----------
-   Nothing depends on B playing: the preview, a still frame and the export all look up the same frames. */
-function upB(unit, tex, i){ gl.activeTexture(gl.TEXTURE0+unit); gl.bindTexture(gl.TEXTURE_2D, tex);
-  gl.texImage2D(gl.TEXTURE_2D,0,gl.R8,BF.w,BF.h,0,gl.RED,gl.UNSIGNED_BYTE,BF.frames[i]); gl.generateMipmap(gl.TEXTURE_2D); }
-function uploadB(t){
-  const bt = bTime(t), c = bIdx(bt), p = bIdx(prevOf(bt));
-  if (c !== bUp[0]) { upB(1, texB, c); bUp[0] = c; }
-  if (isDiff() && p !== bUp[1]) { upB(4, texBp, p); bUp[1] = p; }
+// where B is at output time t, and the motion it hands to the scenery, in the scenery's pixels
+function motionAt(t){
+  const fi = bTime(t) * BF.rate, i0 = Math.min(BF.n-1, Math.floor(fi)), i1 = (i0+1) % BF.n, f = clamp(fi - i0, 0, 1);
+  const k = A.w / bScale()[0] * P.mScale;
+  const g = P.wG/100, wx = P.wX/100, wy = P.wY/100;
+  const tx = lerp(BF.TX[i0], BF.TX[i1], f) * k * g, ty = lerp(BF.TY[i0], BF.TY[i1], f) * k * g;
+  const s = lerp(BF.S[i0], BF.S[i1], f) * P.mScale * P.wZ/100;
+  return {i0, i1, f, k, tx, ty, s, wx, wy};
+}
+function upField(unit, tex, i){ gl.activeTexture(gl.TEXTURE0+unit); gl.bindTexture(gl.TEXTURE_2D, tex); gl.texImage2D(gl.TEXTURE_2D,0,gl.RG16F,BF.fw,BF.fh,0,gl.RG,gl.FLOAT,BF.LOC[i]); }
+function uploadB(m){
+  if (m.i0 !== bUp[0]) { upField(1, texL0, m.i0); bUp[0] = m.i0; }
+  if (m.i1 !== bUp[1]) { upField(4, texL1, m.i1); bUp[1] = m.i1; }
+  if (m.i0 !== bUp[2]) { gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, texC); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,BF.fw,BF.fh,0,gl.RGBA,gl.UNSIGNED_BYTE,BF.color[m.i0]); bUp[2] = m.i0; }
 }
 function uploadA(){ const fa = A.frame(); if (fa) { gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,texA); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,fa); } }
-async function decodeB(src, prog){
-  const w = Math.min(256, src.w), h = Math.max(2, Math.round(w*src.h/src.w));
-  const rate = Math.min(30, 450/src.dur), n = Math.max(2, Math.floor(src.dur*rate));
-  const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d', {willReadFrequently:true});
-  const frames = new Array(n).fill(null), hist = new Uint32Array(256); let got = 0;
-  const grab = (i, f) => {
-    if (f) x.drawImage(f,0,0,w,h);
-    const d = x.getImageData(0,0,w,h).data, Lm = new Uint8Array(w*h);
-    for (let j = 0; j < w*h; j++) { const y = Math.round(0.2126*d[j*4]+0.7152*d[j*4+1]+0.0722*d[j*4+2]); Lm[j] = y; if ((j & 7) === 0) hist[y]++; }
-    if (!frames[i]) got++; frames[i] = Lm;
-  };
-  const tell = () => { if (prog) prog(got, n); };
-  if (!src.isVideo) { for (let i = 0; i < n; i++) grab(i, src.frameAt(i/rate)); }
-  else {
-    // first pass: play once and keep each frame as it shows (fast). If the browser will not play, this ends at once.
-    const v = src.v; v.loop = false; v.playbackRate = 1; await src.seek(0);
-    await new Promise(res => {
-      let last = -1, moved = performance.now(), done = false;
-      const end = () => { if (done) return; done = true; clearInterval(dog); v.pause(); res(); };
-      const dog = setInterval(() => { if (performance.now() - moved > 1500) end(); tell(); }, 250);
-      const step = (now, meta) => {
-        if (done) return;
-        const t = meta ? meta.mediaTime : v.currentTime;
-        if (t !== last) { last = t; moved = performance.now(); const i = Math.round(t*rate); if (i >= 0 && i < n && !frames[i] && v.readyState >= 2) grab(i, v); }
-        if (v.ended || t >= src.dur - 0.5/rate) return end();
-        if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(step); else requestAnimationFrame(() => step());
-      };
-      const pp = v.play(); if (pp) pp.catch(end);
-      if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(step); else requestAnimationFrame(() => step());
-    });
-    // second pass: seek to every frame the first pass missed
-    for (let i = 0; i < n; i++) {
-      if (frames[i]) continue;
-      await src.seek(i/rate); grab(i, src.frame());
-      if (got % 5 === 0) { tell(); await new Promise(r => setTimeout(r, 0)); }
-    }
-  }
-  let tot = 0; for (const v of hist) tot += v;
-  let lo = 0, hi = 255, a = 0; for (let i=0;i<256;i++){ a+=hist[i]; if (a>=tot*0.05){ lo=i; break; } } a=0; for (let i=255;i>=0;i--){ a+=hist[i]; if (a>=tot*0.05){ hi=i; break; } }
-  // how much B changes over 0.1 s, averaged over the clip: near 0 means there is no motion to take
-  const step = Math.max(1, Math.round(rate*0.1)); let mv = 0, cnt = 0;
-  for (let i = step; i < n; i += Math.max(1, (n/40)|0)) { const p = frames[i], q = frames[i-step]; let sm = 0; for (let j=0;j<p.length;j+=4) sm += Math.abs(p[j]-q[j]); mv += sm/(p.length/4); cnt++; }
-  return {w, h, n, rate, dur:src.dur, frames, range:[lo/255, hi/255], motion: cnt ? mv/cnt : 0};
-}
-function bMotionAt(t){
-  if (!isDiff()) return null;
-  const bt = bTime(t), a = BF.frames[bIdx(bt)], b = BF.frames[bIdx(prevOf(bt))]; let sm = 0;
-  for (let j = 0; j < a.length; j += 2) sm += Math.abs(a[j]-b[j]);
-  return sm / (a.length/2);
-}
 
 /* ---------- drawing ---------- */
 function draw(t, w, h, o){
-  const crop = o.crop, k = w / (crop ? crop.w : A.w), ar = A.w/A.h, br = BF.w/BF.h, r = resetAt(t);
+  const crop = o.crop, k = w / (crop ? crop.w : A.w), r = resetAt(t), m = motionAt(t), bs = bScale(), off = !!o.off;
+  uploadB(m);
   gl.viewport(0,0,w,h);
   gl.uniform2f(U.uRes,w,h); gl.uniform2f(U.uSrc,A.w,A.h); gl.uniform1f(U.uK,k); gl.uniform2f(U.uOff, crop?crop.x:0, crop?crop.y:0);
-  gl.uniform2f(U.uBScale, ar>br ? 1 : ar/br, ar>br ? br/ar : 1); gl.uniform2f(U.uBSize,BF.w,BF.h);
-  gl.uniform2f(U.uBRange,BF.range[0],BF.range[1]);
-  gl.uniform1f(U.uAmp, o.amp != null ? o.amp : P.amp); gl.uniform1f(U.uSmooth,P.smooth); gl.uniform1f(U.uMGain,P.gainM);
-  gl.uniform1i(U.uMotion, isDiff() ? 0 : 1);
+  gl.uniform2f(U.uBScale, bs[0], bs[1]);
+  gl.uniform2f(U.uT, m.tx, m.ty); gl.uniform1f(U.uS, m.s); gl.uniform1f(U.uLerp, m.f); gl.uniform1f(U.uLScale, m.k); gl.uniform1f(U.uWL, P.wL/100);
+  gl.uniform2f(U.uW, m.wx, m.wy); gl.uniform2f(U.uCen, maskCen[0], maskCen[1]);
+  gl.uniform1f(U.uAmp, off ? 0 : P.amp); gl.uniform1f(U.uWC, off ? 0 : P.wC/100); gl.uniform3f(U.uBMean, BF.cmean[0], BF.cmean[1], BF.cmean[2]);
   gl.uniform2f(U.uShake,r.sx,r.sy); gl.uniform1f(U.uGain,r.gain);
   gl.uniform1f(U.uGAmt,P.gAmt); gl.uniform1f(U.uGSize,P.gSize); gl.uniform1i(U.uSeed, Math.floor(t*P.gRate + 1e-6) % 100000);
   gl.uniform1f(U.uVeil, o.veil ? P.vRefl/P.vWhite : 0); gl.uniform1i(U.uMode,o.mode||0); gl.uniform1f(U.uFlipY,o.flip?1:0);
   gl.uniform3f(U.uMaskCol,0.86,0.2,0.3); gl.uniform1f(U.uShowMask,o.mask?1:0);
   gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+  return m;
 }
 
 /* ---------- readings: what actually moved, in numbers ---------- */
 const buf = new Uint8Array(SW*200*4), buf2 = new Uint8Array(SW*200*4), hist = new Uint32Array(256);
 let lastStat = 0;
-function measure(t){
+function measure(t, quiet){
   gl.bindFramebuffer(gl.FRAMEBUFFER,fbo);
   const n = SW*SH;
-  draw(t,SW,SH,{flip:true,mode:2}); gl.readPixels(0,0,SW,SH,gl.RGBA,gl.UNSIGNED_BYTE,buf);
-  let dmax=0, dsum=0, dn=0; for (let i=0;i<n;i++){ const d=buf[i*4]/255*40; if (d>dmax) dmax=d; if (buf[i*4+1]>127){ dsum+=d; dn++; } }
-  const inMask = new Uint8Array(n); for (let i=0;i<n;i++) inMask[i] = buf[i*4+1]>127 ? 1 : 0;
+  const m = draw(t,SW,SH,{flip:true,mode:2}); gl.readPixels(0,0,SW,SH,gl.RGBA,gl.UNSIGNED_BYTE,buf);
+  let dmax=0, dsum=0, rsum=0, dn=0; const inMask = new Uint8Array(n);
+  for (let i=0;i<n;i++){ const d=buf[i*4]/255*200; if (d>dmax) dmax=d; if (buf[i*4+1]>127){ inMask[i]=1; dsum+=d; rsum+=buf[i*4+2]/255*800; dn++; } }
   draw(t,SW,SH,{flip:true,mode:3}); gl.readPixels(0,0,SW,SH,gl.RGBA,gl.UNSIGNED_BYTE,buf2);
   draw(t,SW,SH,{flip:true}); gl.readPixels(0,0,SW,SH,gl.RGBA,gl.UNSIGNED_BYTE,buf);
   hist.fill(0); let sum = 0, dif = 0, difn = 0;
@@ -564,25 +675,48 @@ function measure(t){
   draw(t,SW,SH,{flip:true,mode:1}); gl.readPixels(0,0,SW,SH,gl.RGBA,gl.UNSIGNED_BYTE,buf);
   gl.bindFramebuffer(gl.FRAMEBUFFER,null);
   for (let i=0;i<n;i++) if (inMask[i]) { let s=0; for (let c=0;c<3;c++) s += Math.max(0, buf2[i*4+c] - buf[i*4+c]*0.25)/10; dif += s/3; difn++; }
+  const stats = {dmax, dmean: dn ? dsum/dn : 0, raw: dn ? rsum/dn : 0, diff: difn ? dif/difn : 0, tx:m.tx*m.wx, ty:m.ty*m.wy, s:m.s, mean:sum/n, i0:m.i0};
+  window.__stats = stats;
+  if (quiet) return stats;
   let lo=0, hi=255, acc=0; for (let i=0;i<256;i++){ acc+=hist[i]; if (acc>=n*0.05){ lo=i; break; } }
   acc=0; for (let i=255;i>=0;i--){ acc+=hist[i]; if (acc>=n*0.05){ hi=i; break; } }
   let black=0; for (let i=0;i<=8;i++) black+=hist[i];
   const v = P.vRefl/P.vWhite, lin = y => (Math.pow(y/255,2.2)+v), ratio = lin(hi)/lin(lo), bare = Math.pow(Math.max(hi,1)/Math.max(lo,1),2.2);
-  const stats = {mean:sum/n, lo, hi, black:black/n, dmax, dmean: dn? dsum/dn : 0, diff: difn ? dif/difn : 0, ratio, bare};
   const pct = x => (x / A.w * 100).toFixed(2);
-  $('mDisp').innerHTML = maskEmpty ? '0 <small>px（マスクが空）</small>' : dmax.toFixed(2)+' / '+stats.dmean.toFixed(2)+' <small>px（幅の '+pct(dmax)+' %）</small>';
-  $('mDiff').innerHTML = maskEmpty ? '– ' : stats.diff.toFixed(2)+' <small>/255</small>';
-  const bm = bMotionAt(t); stats.bmove = bm;
-  $('mBmove').innerHTML = bm == null ? '– <small>（傾きの方式）</small>' : bm.toFixed(2)+' <small>/255'+(bm < 0.3 ? '・ほぼ動いていない' : '')+'</small>';
-  $('mMean').textContent = stats.mean.toFixed(1); $('mHiLo').textContent = hi+' / '+lo; $('mRange').textContent = hi-lo;
-  $('mBlack').innerHTML = (stats.black*100).toFixed(1)+' <small>%</small>';
+  $('mDisp').innerHTML = maskEmpty ? '0 <small>px（マスクが空）</small>' : dmax.toFixed(1)+' / '+stats.dmean.toFixed(1)+' <small>px（幅の '+pct(stats.dmean)+' %）</small>';
+  const sat = stats.raw > P.amp*1.5;
+  $('mRaw').className = sat ? 'warn' : '';
+  $('mRaw').innerHTML = maskEmpty ? '–' : stats.raw.toFixed(1)+' <small>px'+(sat ? '・上限で頭打ち。倍率を下げるとBごとの差が戻ります' : '')+'</small>';
+  $('mMove').innerHTML = stats.tx.toFixed(1)+', '+stats.ty.toFixed(1)+' <small>px</small>';
+  $('mDepth').innerHTML = (stats.s*100>=0?'+':'')+(stats.s*100).toFixed(2)+' <small>%</small>';
+  $('mDiff').innerHTML = maskEmpty ? '–' : stats.diff.toFixed(2)+' <small>/255</small>';
+  $('mMean').textContent = stats.mean.toFixed(1); $('mHiLo').textContent = hi+' / '+lo;
+  $('mBlack').innerHTML = (black/n*100).toFixed(1)+' <small>%</small>';
   $('mVeil').innerHTML = ratio.toFixed(1)+' : 1 <small>（暗室では '+(bare>999?'999+':bare.toFixed(1))+' : 1）</small>';
-  const hc=$('hist'), hx=hc.getContext('2d'), cs=getComputedStyle(document.documentElement); hx.clearRect(0,0,256,64);
+  const hc=$('hist'), hx=hc.getContext('2d'), cs=getComputedStyle(document.documentElement); hx.clearRect(0,0,256,54);
   let mx=1; for (let i=1;i<255;i++) if (hist[i]>mx) mx=hist[i];
-  hx.fillStyle=cs.getPropertyValue('--dim'); for (let i=0;i<256;i++){ const hh=Math.min(64,hist[i]/mx*60); hx.fillRect(i,64-hh,1,hh); }
-  hx.fillStyle=cs.getPropertyValue('--mark'); hx.fillRect(lo,0,1,64); hx.fillRect(hi,0,1,64);
-  window.__stats = stats;
+  hx.fillStyle=cs.getPropertyValue('--dim'); for (let i=0;i<256;i++){ const hh=Math.min(54,hist[i]/mx*50); hx.fillRect(i,54-hh,1,hh); }
+  hx.fillStyle=cs.getPropertyValue('--mark'); hx.fillRect(lo,0,1,54); hx.fillRect(hi,0,1,54);
+  drawTraj(m);
   return stats;
+}
+// the path the whole shift takes over one loop of B, and where it is now
+let trajKey = '', trajPts = null, trajR = 1;
+function drawTraj(m){
+  const c = $('traj'), x = c.getContext('2d'), W = c.width, cs = getComputedStyle(document.documentElement);
+  const key = [BF.n, P.leak, P.mScale, P.wG, P.wX, P.wY, A.w, BF.aspect].join('|');
+  if (key !== trajKey) {
+    trajKey = key; const k = A.w / bScale()[0] * P.mScale * P.wG/100; trajPts = []; trajR = 1;
+    for (let i=0;i<BF.n;i++){ const px = BF.TX[i]*k*P.wX/100, py = BF.TY[i]*k*P.wY/100; trajPts.push([px,py]); trajR = Math.max(trajR, Math.abs(px), Math.abs(py)); }
+    trajR = Math.ceil(trajR*1.15);
+    $('trajScale').textContent = '±'+trajR+' px';
+  }
+  const sc = (W/2-12)/trajR, cx = W/2;
+  x.clearRect(0,0,W,W);
+  x.strokeStyle = cs.getPropertyValue('--line'); x.lineWidth = 1; x.beginPath(); x.moveTo(cx,8); x.lineTo(cx,W-8); x.moveTo(8,cx); x.lineTo(W-8,cx); x.stroke();
+  x.strokeStyle = cs.getPropertyValue('--dim'); x.lineWidth = 2; x.beginPath();
+  trajPts.forEach((p,i) => { const X = cx+p[0]*sc, Y = cx+p[1]*sc; i ? x.lineTo(X,Y) : x.moveTo(X,Y); }); x.stroke();
+  x.fillStyle = cs.getPropertyValue('--mark'); x.beginPath(); x.arc(cx+m.tx*m.wx*sc, cx+m.ty*m.wy*sc, 7, 0, 6.3); x.fill();
 }
 
 /* ---------- preview (light) ---------- */
@@ -602,7 +736,7 @@ function tick(){
   requestAnimationFrame(tick);
   if (!A || !BF || exporting) return;
   const t = A.time;
-  uploadB(t); uploadA();
+  uploadA();
   geom = viewGeom();
   if (cv.width !== geom.w || cv.height !== geom.h) { cv.width = geom.w; cv.height = geom.h; }
   cv.style.width = geom.crop ? geom.css+'px' : '';
@@ -620,7 +754,10 @@ function tick(){
   if (document.activeElement !== $('seek')) $('seek').value = t / A.dur;
   $('time').textContent = fmtT(t)+' / '+fmtT(A.dur)+' 秒';
   $('play').textContent = A.playing ? '止める' : '再生';
-  const now = performance.now(); if (!test.on && now - lastStat > 250) { lastStat = now; measure(t); }
+  const now = performance.now();
+  if (now - lastStat > 250) { lastStat = now;
+    if (!test.on) measure(t);
+    else if (performance.now() - test.t0 < SHOW_MS) { const s = measure(t, true); test.dSum += s.dmean; test.dN++; } }
 }
 
 /* ---------- mask ---------- */
@@ -641,12 +778,13 @@ function pushMask(withBox){
   for (let i=0;i<w*h;i++){ f[i]=d[i*4+3]/255; if (d[i*4+3]>8) any=true; }
   maskEmpty = !any;
   const r = Math.round(P.edge * w / A.w / 3), bl = boxBlur(f,w,h,r), u8 = new Uint8Array(w*h);
-  let x0=w, y0=h, x1=-1, y1=-1;
-  for (let i=0;i<w*h;i++){ const v = Math.round(clamp(bl[i],0,1)*255); u8[i]=v; if (v>3){ const x=i%w, y=(i/w)|0; if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; } }
+  let x0=w, y0=h, x1=-1, y1=-1, sw=0, sx=0, sy=0;
+  for (let i=0;i<w*h;i++){ const v = Math.round(clamp(bl[i],0,1)*255); u8[i]=v; if (v>3){ const x=i%w, y=(i/w)|0; if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; sw+=v; sx+=v*x; sy+=v*y; } }
+  maskCen = sw ? [(sx/sw+0.5)*A.w/w, (sy/sw+0.5)*A.h/h] : [A.w/2, A.h/2];
   if (withBox) {
     if (x1 < 0) maskBox = null;
-    else { const sx=A.w/w, sy=A.h/h, m=8; const bx=clamp(Math.floor(x0*sx)-m,0,A.w-1), by=clamp(Math.floor(y0*sy)-m,0,A.h-1);
-      maskBox = {x:bx, y:by, w:Math.min(A.w, Math.ceil((x1+1)*sx)+m) - bx, h:Math.min(A.h, Math.ceil((y1+1)*sy)+m) - by}; }
+    else { const kx=A.w/w, ky=A.h/h, m=8; const bx=clamp(Math.floor(x0*kx)-m,0,A.w-1), by=clamp(Math.floor(y0*ky)-m,0,A.h-1);
+      maskBox = {x:bx, y:by, w:Math.min(A.w, Math.ceil((x1+1)*kx)+m) - bx, h:Math.min(A.h, Math.ceil((y1+1)*ky)+m) - by}; }
   }
   gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D,texM); gl.texImage2D(gl.TEXTURE_2D,0,gl.R8,w,h,0,gl.RED,gl.UNSIGNED_BYTE,u8);
 }
@@ -671,6 +809,11 @@ const endStroke = () => { if (lastPt) pushMask(true); lastPt=null; }; cv.addEven
 function setTool(t){ tool = tool===t ? null : t; $('mDraw').classList.toggle('on',tool==='draw'); $('mErase').classList.toggle('on',tool==='erase'); $('stage').classList.toggle('paint',!!tool); }
 $('mDraw').onclick = () => setTool('draw'); $('mErase').onclick = () => setTool('erase');
 $('mClear').onclick = () => { maskCx.clearRect(0,0,maskCv.width,maskCv.height); pushMask(true); };
+function defaultMask(){
+  const w = maskCv.width, h = maskCv.height;
+  maskCx.clearRect(0,0,w,h); maskCx.fillStyle = '#fff'; maskCx.beginPath(); maskCx.ellipse(w*0.2, h*0.45, w*0.13, h*0.22, 0, 0, 6.3); maskCx.fill();
+  pushMask(true); flashMask = performance.now() + 2500;
+}
 
 /* ---------- loading ---------- */
 function loadVideo(file){
@@ -694,22 +837,18 @@ function setA(src, name){
   setParam('oFrom',0); setParam('oTo', +A.dur.toFixed(2)); UI.oTo.num.max = UI.oFrom.num.max = A.dur;
   setParam('oMbps', clamp(Math.round(A.w*A.h*30*0.25/1e6*2)/2, 2, 120));
   $('outSize').textContent = (A.w&~1)+' × '+(A.h&~1)+' px';
-  buildEvents(); fpsTouched = false; updateHints();
+  buildEvents(); fpsTouched = false; trajKey = '';
   if (A.isVideo && A.v.requestVideoFrameCallback) { const ts=[]; const cb=(n,m)=>{ if (A.v!==src.v) return; ts.push(m.mediaTime); if (ts.length<24) src.v.requestVideoFrameCallback(cb); else { const d=[]; for(let i=1;i<ts.length;i++){ const x=ts[i]-ts[i-1]; if (x>0.001) d.push(x); } d.sort((a,b)=>a-b); let f=1/d[0]; for (const c of [23.976,24,25,29.97,30,50,59.94,60]) if (Math.abs(f-c)/c < 0.02) { f=c; break; } if (!fpsTouched && isFinite(f) && f>1 && f<=120) setParam('oFps', +f.toFixed(3)); } }; src.v.requestVideoFrameCallback(cb); }
 }
 async function setB(src, name, sample){
   const note = $('srcNote'); loadingB = true;
-  try { BF = await decodeB(src, (i, n) => { if (!sample) note.textContent = name+' を読み取っています（'+i+' / '+n+' コマ）'; }); }
+  try { const bf = await decodeB(src, (what, i, n) => { if (!sample) note.textContent = name+(what==='read' ? ' を読み取っています（' : ' の動きを解析しています（')+i+' / '+n+' コマ）'; });
+    BF = bf; integrate(); }
   finally { loadingB = false; if (src.isVideo) src.dispose(); }
-  bUp = [-1,-1]; bSample = !!sample;
+  bSample = !!sample;
   $('nameB').textContent = name+'（'+BF.n+' コマ・'+BF.dur.toFixed(1)+' 秒）';
   UI.bStart.num.max = UI.bStart.rng.max = Math.max(0, +(BF.dur-0.1).toFixed(1)); setParam('bStart', 0);
-}
-let bSample = true;
-function defaultMask(){
-  const w = maskCv.width, h = maskCv.height;
-  maskCx.clearRect(0,0,w,h); maskCx.fillStyle = '#fff'; maskCx.beginPath(); maskCx.ellipse(w*0.2, h*0.45, w*0.13, h*0.22, 0, 0, 6.3); maskCx.fill();
-  pushMask(true); flashMask = performance.now() + 2500;
+  showSummary();
 }
 UI.oFps.num.addEventListener('input', () => { fpsTouched = true; });
 async function pick(which, file){
@@ -717,11 +856,12 @@ async function pick(which, file){
   const note = $('srcNote'); note.textContent = file.name + ' を読み込んでいます…';
   try { const s = await loadVideo(file);
     if (which==='A') { setA(s, file.name); defaultMask(); A.play();
-      note.textContent = 'Aを読み込みました。左寄りに仮のマスクを置いたので、すぐに変形がかかります（赤く光った所）。範囲は「全部消す」→「描く」で塗り直してください。' + (bSample ? 'Bはまだ内蔵の見本です。' : ''); }
+      note.textContent = 'Aを読み込みました。左寄りに仮のマスクを置いたので、すぐに動きがかかります（赤く光った所）。範囲は「全部消す」→「描く」で塗り直してください。' + (bSample ? 'Bはまだ内蔵の見本です。' : ''); }
     else { s.pause(); await setB(s, file.name);
-      note.textContent = BF.motion < 0.3
-        ? 'Bを読み込みましたが、コマの間でほとんど変化がありません（0.1秒あたり平均 '+BF.motion.toFixed(2)+' /255）。動きのない映像か、このブラウザでコマを読み取れていません。'
-        : 'Bを読み込みました（0.1秒あたりの変化 平均 '+BF.motion.toFixed(2)+' /255）。Bは画面には映らず、動きだけがAのマスク内に入ります。' + (A.isVideo ? '' : 'Aはまだ内蔵の見本です。'); }
+      const q = BF.summary, quiet = q.speed < 0.05 && q.loc < 0.05 && q.div < 0.05;
+      note.textContent = quiet
+        ? 'Bを読み込みましたが、ほとんど動きが読み取れませんでした。動きのない映像か、このブラウザでコマを読み取れていません。'
+        : 'Bを読み込みました。下に読み取った動き方が出ています。Bは画面には映らず、動き方と色だけが入ります。' + (A.isVideo ? '' : 'Aはまだ内蔵の見本です。'); }
   } catch(e) { note.textContent = file.name + ' は読み込めませんでした（' + (e.message==='decode' ? 'このブラウザで再生できない形式' : '映像が出てこない') + '）。iPhoneの動画はSafariかClaudeアプリで、それ以外はMP4（H.264）に変換して、もう一度選んでください。'; }
   $('fileA').value = ''; $('fileB').value = '';
 }
@@ -729,18 +869,18 @@ $('pickA').onclick = () => $('fileA').click(); $('pickB').onclick = () => $('fil
 $('fileA').onchange = e => pick('A', e.target.files[0]); $('fileB').onchange = e => pick('B', e.target.files[0]);
 
 /* ---------- controls ---------- */
-function updateHints(){
-  if (!A) return;
-  const h = UI.amp.hint; h.hidden = false; h.textContent = '＝ 出力の幅 '+A.w+' px の '+(P.amp/A.w*100).toFixed(2)+' %';
-}
 function showRows(){
-  const d = isDiff(); for (const k in DEFS) if (DEFS[k].only) UI[k].row.hidden = DEFS[k].only === 'diff' ? !d : d;
   const t = $('rType').value; for (const k of ['rEvery','rJit','rLen']) UI[k].row.hidden = t==='none'; UI.rEv.row.hidden = t!=='lum'; UI.rShake.row.hidden = t!=='shake';
   UI.zoom.row.hidden = !$('zoomOn').checked;
   UI.vWhite.row.hidden = UI.vRefl.row.hidden = !$('veil').checked;
 }
-function onParam(k){ if (k==='edge') pushMask(true); if (k==='rEvery'||k==='rJit') buildEvents(); if (k==='amp') updateHints(); persist(); }
-$('motion').onchange = () => { bUp = [-1,-1]; showRows(); persist(); };
+let leakTimer = 0;
+function onParam(k){
+  if (k==='edge') pushMask(true);
+  if (k==='rEvery'||k==='rJit') buildEvents();
+  if (k==='leak' && BF) { clearTimeout(leakTimer); leakTimer = setTimeout(integrate, 120); }
+  persist();
+}
 $('rType').onchange = () => { buildEvents(); showRows(); persist(); };
 $('zoomOn').onchange = showRows; $('veil').onchange = showRows;
 $('play').onclick = () => { if (!A || exporting || test.on) return; A.playing ? A.pause() : A.play(); };
@@ -755,23 +895,22 @@ let records = [];
 try { records = JSON.parse(localStorage.getItem(TKEY) || '[]') || []; } catch(e) {}
 function saveRecords(){ try { localStorage.setItem(TKEY, JSON.stringify(records)); } catch(e) {} }
 const TRIALS = 20, SHOW_MS = 3000;
-const lockIds = ['motion','view','zoomOn','mShow','play','seek','orig','export','pickA','pickB','mDraw','mErase','mClear','tStart'];
+const lockIds = ['view','zoomOn','mShow','play','seek','orig','export','pickA','pickB','mDraw','mErase','mClear','tStart'];
 function lockForTest(on){
-  for (const k in DEFS) if (DEFS[k].g === 'Disp') { UI[k].num.disabled = on; if (UI[k].rng.type === 'range') UI[k].rng.disabled = on; }
+  for (const k in DEFS) if (DEFS[k].g === 'Disp' || DEFS[k].g === 'Mix') { UI[k].num.disabled = on; if (UI[k].rng.type === 'range') UI[k].rng.disabled = on; }
   for (const id of lockIds) $(id).disabled = on;
-  $('testbar').hidden = !on; $('meterBody').hidden = $('histBox').hidden = on; $('meterHide').hidden = !on;
+  $('testbar').hidden = !on; $('meterBody').hidden = $('sideBox').hidden = on; $('meterHide').hidden = !on;
 }
 function startTest(){
   if (!A || !BF || exporting || test.on || loadingB) return;
-  if (maskEmpty) { $('tLast').textContent = 'マスクが空です。先に変形させる範囲を塗ってください。'; return; }
+  if (maskEmpty) { $('tLast').textContent = 'マスクが空です。先に動かす範囲を塗ってください。'; return; }
   if (tool) setTool(tool); hold(false);
-  Object.assign(test, {on:true, n:0, correct:0, sigN:0, hits:0, noiseN:0, fas:0,
-    snap:{amp:P.amp, pct:P.amp/A.w*100, motion:$('motion').value, gain:P.gainM, delta:P.delta}});
+  Object.assign(test, {on:true, n:0, correct:0, sigN:0, hits:0, noiseN:0, fas:0, dSum:0, dN:0, snap:{amp:P.amp, mScale:P.mScale, leak:P.leak}});
   lockForTest(true); A.play(); nextTrial(); $('tYes').focus();
 }
 function nextTrial(){ test.sig = Math.random() < 0.5; test.t0 = performance.now(); $('tProg').textContent = (test.n+1)+' / '+TRIALS+' 回'; }
 function renderTest(t){
-  if (performance.now() - test.t0 < SHOW_MS) draw(t, cv.width, cv.height, {veil:$('veil').checked, amp: test.sig ? test.snap.amp : 0});
+  if (performance.now() - test.t0 < SHOW_MS) draw(t, cv.width, cv.height, {veil:$('veil').checked, off: !test.sig});
   else { gl.bindFramebuffer(gl.FRAMEBUFFER,null); gl.viewport(0,0,cv.width,cv.height); gl.clearColor(0.5,0.5,0.5,1); gl.clear(gl.COLOR_BUFFER_BIT); $('tProg').textContent = (test.n+1)+' / '+TRIALS+' 回・答えてください'; }
 }
 function answer(yes){
@@ -782,10 +921,11 @@ function answer(yes){
   window.__test = {n:test.n, correct:test.correct};
   if (test.n < TRIALS) { nextTrial(); return; }
   const s = test.snap, acc = test.correct / TRIALS * 100, d = new Date(), p2 = x => String(x).padStart(2,'0');
+  const disp = test.dN ? test.dSum/test.dN : 0;
   records.unshift({at: d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())+' '+p2(d.getHours())+':'+p2(d.getMinutes()),
-    amp:s.amp, pct:s.pct, motion:s.motion, gain:s.gain, delta:s.delta, acc, hits:test.hits, sigN:test.sigN, fas:test.fas, noiseN:test.noiseN});
+    disp, pct: disp/A.w*100, amp:s.amp, mScale:s.mScale, leak:s.leak, acc, hits:test.hits, sigN:test.sigN, fas:test.fas, noiseN:test.noiseN});
   saveRecords(); renderRecords();
-  $('tLast').textContent = '正答率 '+acc.toFixed(0)+' %（20回中 '+test.correct+' 回）を、変位 '+s.amp+' px で記録しました。';
+  $('tLast').textContent = '正答率 '+acc.toFixed(0)+' %（20回中 '+test.correct+' 回）を、実測の変位 平均 '+disp.toFixed(1)+' px で記録しました。';
   stopTest();
 }
 function stopTest(){ if (!test.on) return; test.on = false; lockForTest(false); }
@@ -797,15 +937,14 @@ document.addEventListener('keydown', e => {
   else if (e.key === 'ArrowLeft') { e.preventDefault(); answer(false); }
   else if (e.key === 'Escape') { stopTest(); $('tLast').textContent = '途中でやめました。記録はしていません。'; }
 });
-const motionName = m => m === 'diff' ? '時間差分' : '明るさの傾き';
-function recordCells(r){ const d = r.motion === 'diff'; return [r.at, r.amp.toFixed(1), r.pct.toFixed(2), motionName(r.motion), d ? r.gain.toFixed(1) : '–', d ? r.delta.toFixed(2) : '–', r.acc.toFixed(0), r.hits+'/'+r.sigN, r.fas+'/'+r.noiseN]; }
+function recordCells(r){ return [r.at, r.disp.toFixed(1), r.pct.toFixed(2), r.amp.toFixed(1), r.mScale.toFixed(1), r.leak.toFixed(1), r.acc.toFixed(0), r.hits+'/'+r.sigN, r.fas+'/'+r.noiseN]; }
 function renderRecords(){
   const tb = $('tBody'); tb.textContent = '';
   if (!records.length) { const tr = document.createElement('tr'), td = document.createElement('td'); td.colSpan = 9; td.className = 'empty'; td.textContent = 'まだ記録はありません。'; tr.append(td); tb.append(tr); return; }
   for (const r of records) { const tr = document.createElement('tr'); for (const c of recordCells(r)) { const td = document.createElement('td'); td.textContent = c; tr.append(td); } tb.append(tr); }
 }
 $('tCopy').onclick = () => {
-  const head = ['日時','変位 px','幅比 %','取り出し方','増幅 倍','Δ 秒','正答率 %','あり→あり','なし→あり'];
+  const head = ['日時','実測の変位 px','幅比 %','上限 px','倍率 倍','戻り 秒','正答率 %','あり→あり','なし→あり'];
   const text = [head, ...records.map(recordCells)].map(r => r.join('\t')).join('\n');
   const box = $('copyBox');
   const fallback = () => { box.hidden = false; box.value = text; box.focus(); box.select(); $('tLast').textContent = 'コピーできなかったので、下の欄を選択してあります。手動でコピーしてください。'; };
@@ -860,7 +999,7 @@ async function runExport(){
     for (let i = 0; i < n && !cancelled && !err; i++) {
       const t = from + i/fps;
       await A.seek(Math.min(A.dur - 0.5/fps, t + (A.isVideo ? 0.25/fps : 0)));
-      uploadB(t); uploadA(); draw(t, w, h, {});
+      uploadA(); draw(t, w, h, {});
       const frame = new VideoFrame(cv, {timestamp: Math.round(i*1e6/fps), duration: Math.round(1e6/fps)});
       enc.encode(frame, {keyFrame: i % gop === 0}); frame.close();
       while (enc.encodeQueueSize > 3) await sleep(4);
@@ -891,11 +1030,11 @@ $('save').onclick = async () => {
   const a = document.createElement('a'); a.href = URL.createObjectURL(outBlob); a.download = outName; document.body.append(a); a.click(); a.remove();
 };
 
-/* ---------- start with the built-in sample ---------- */
+/* ---------- start with the built-in samples ---------- */
 (async function start(){
   try { initGL(); } catch(e) { $('msg').textContent = 'このブラウザではWebGL2が使えないため、動きません。'; return; }
-  await setB(makeSampleB(), '見本の細胞', true);
   setA(makeSampleA(), '見本の景色');
+  await setB(makeSampleB(), '見本の細胞', true);
   // sample mask: the tree at the left edge, away from where the eye rests
   const g = maskCx.createRadialGradient(70,134,0,70,134,62); g.addColorStop(0,'#fff'); g.addColorStop(0.75,'#fff'); g.addColorStop(1,'rgba(255,255,255,0)');
   maskCx.fillStyle = g; maskCx.beginPath(); maskCx.ellipse(70,134,52,62,0,0,6.3); maskCx.fill(); pushMask(true);
