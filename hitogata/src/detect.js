@@ -80,7 +80,7 @@ DET.loadMP = async function (opts = {}) {
     const prog = (g, t) => { mp.msg = `読み込み中 ${(g / 1e6).toFixed(1)}${t ? ' / ' + (t / 1e6).toFixed(1) : ''} MB`; if ((g / 4e5 | 0) !== mb) { mb = g / 4e5 | 0; DET.onStatus(); } };
     if (!mp.wasmUrl) { // the runtime fetches the binary itself; find a place that answers
       const errs = [];
-      for (const u of [ASSETS + 'mediapipe/vision_wasm_internal.wasm', MP_CDN + 'wasm/vision_wasm_internal.wasm']) {
+      for (const u of [new URL(ASSETS + 'mediapipe/vision_wasm_internal.wasm', location.href).href, MP_CDN + 'wasm/vision_wasm_internal.wasm']) {
         try { const r = await fetch(u, { cache: 'force-cache' }); if (r.ok) { if (r.body) r.body.cancel().catch(() => {}); mp.wasmUrl = u; break; } errs.push(`HTTP ${r.status}`); }
         catch (e) { errs.push(e.message || String(e)); }
       }
@@ -88,15 +88,15 @@ DET.loadMP = async function (opts = {}) {
     }
     const filesets = [
       { wasmLoaderPath: MP_CDN + 'wasm/vision_wasm_internal.js', wasmBinaryPath: mp.wasmUrl },
-      { wasmLoaderPath: ASSETS + 'mediapipe/vision_wasm_internal.js', wasmBinaryPath: mp.wasmUrl },
+      { wasmLoaderPath: new URL(ASSETS + 'mediapipe/vision_wasm_internal.js', location.href).href, wasmBinaryPath: mp.wasmUrl },
     ];
     mp.msg = 'モデルを読み込んでいます'; DET.onStatus();
     const pm = await modelBytes('pose', prog), fm = await modelBytes('face', prog);
     mp.origin = { pose: pm.origin, face: fm.origin };
-    const make = async (Cls, bytes, extra) => {
+    const make = async (Cls, bytes, extra, delegates) => {
       let last;
-      for (const fs of filesets) for (const delegate of (opts.cpu ? ['CPU'] : ['GPU', 'CPU'])) {
-        try { const t = await Cls.createFromOptions(fs, Object.assign({ baseOptions: { modelAssetBuffer: bytes, delegate }, runningMode: 'IMAGE' }, extra)); mp.delegate = delegate; return t; }
+      for (const fs of filesets) for (const delegate of delegates) {
+        try { const t = await Cls.createFromOptions(fs, Object.assign({ baseOptions: { modelAssetBuffer: bytes, delegate }, runningMode: 'IMAGE' }, extra)); t.delegate = delegate; return t; }
         catch (e) { last = e; }
       }
       throw last;
@@ -104,9 +104,12 @@ DET.loadMP = async function (opts = {}) {
     mp.msg = '準備しています'; DET.onStatus();
     if (mp.pose) try { mp.pose.close(); } catch (e) { /* */ }
     if (mp.face) try { mp.face.close(); } catch (e) { /* */ }
-    mp.pose = await make(mp.vision.PoseLandmarker, pm.bytes, { numPoses: 6, outputSegmentationMasks: true, minPoseDetectionConfidence: 0.35, minPosePresenceConfidence: 0.35, minTrackingConfidence: 0.35 });
-    mp.face = await make(mp.vision.FaceLandmarker, fm.bytes, { numFaces: 6, minFaceDetectionConfidence: 0.35, minFacePresenceConfidence: 0.35, outputFaceBlendshapes: false });
-    mp.state = 'ready'; mp.msg = '';
+    // The pose task runs on the CPU: on many GPUs MediaPipe cannot read the body masks back
+    // (it reads them as RED/FLOAT, which most drivers refuse) and returns empty masks.
+    mp.pose = await make(mp.vision.PoseLandmarker, pm.bytes, { numPoses: 6, outputSegmentationMasks: true, minPoseDetectionConfidence: 0.35, minPosePresenceConfidence: 0.35, minTrackingConfidence: 0.35 }, ['CPU']);
+    mp.face = await make(mp.vision.FaceLandmarker, fm.bytes, { numFaces: 6, minFaceDetectionConfidence: 0.35, minFacePresenceConfidence: 0.35, outputFaceBlendshapes: false }, opts.cpu ? ['CPU'] : ['GPU', 'CPU']);
+    mp.delegate = `姿勢 ${mp.pose.delegate}・顔 ${mp.face.delegate}`;
+    mp.state = 'ready'; mp.msg = ''; mp.errors = 0;
   } catch (e) {
     mp.state = 'failed'; mp.msg = String(e && e.message || e).slice(0, 400);
   }
@@ -168,6 +171,32 @@ function tileRects(W, H, mode) {
 }
 
 // ------------------------------------------------------------- MediaPipe ---
+// If a pose comes back without a usable mask, its shape is approximated from the skeleton
+// so the person is still treated as detected (marked approx).
+const _lmc = makeCanvas(64, 64), _lmx = _lmc.getContext('2d', { willReadFrequently: true });
+const LIMBS = [[11, 13], [13, 15], [12, 14], [14, 16], [15, 17], [15, 19], [16, 18], [16, 20], [23, 25], [25, 27], [24, 26], [26, 28], [27, 31], [28, 32], [11, 23], [12, 24], [11, 12], [23, 24]];
+function maskFromLandmarks(lm, W, H) {
+  const vis = (j) => lm[3 * j + 2] > 0.3;
+  const P = (j) => [lm[3 * j], lm[3 * j + 1]];
+  let n = 0, x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (let j = 0; j < 33; j++) if (vis(j)) { n++; const [x, y] = P(j); x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+  if (n < 8 || !vis(11) || !vis(12)) return null;
+  const sw = Math.hypot(P(11)[0] - P(12)[0], P(11)[1] - P(12)[1]), lw = Math.max(3, sw * 0.42);
+  const head = Math.max(sw * 0.38, vis(7) && vis(8) ? Math.hypot(P(7)[0] - P(8)[0], P(7)[1] - P(8)[1]) * 0.62 : 0);
+  const pad = Math.max(lw, head) * 1.2;
+  x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad * 1.4); x1 = Math.min(W, x1 + pad); y1 = Math.min(H, y1 + pad * 0.6);
+  const k = Math.min(1, 200 / Math.max(1, y1 - y0)), gw = Math.max(4, Math.round((x1 - x0) * k)), gh = Math.max(4, Math.round((y1 - y0) * k));
+  _lmc.width = gw; _lmc.height = gh;
+  const c = _lmx, L = (j) => [(lm[3 * j] - x0) * k, (lm[3 * j + 1] - y0) * k];
+  c.fillStyle = c.strokeStyle = '#fff'; c.lineCap = 'round'; c.lineJoin = 'round'; c.lineWidth = lw * k;
+  if (vis(23) && vis(24)) { c.beginPath(); for (const j of [11, 12, 24, 23]) c.lineTo(...L(j)); c.closePath(); c.fill(); c.stroke(); }
+  for (const [a, b] of LIMBS) if (vis(a) && vis(b)) { c.beginPath(); c.moveTo(...L(a)); c.lineTo(...L(b)); c.stroke(); }
+  if (vis(0)) { const m = [(L(11)[0] + L(12)[0]) / 2, (L(11)[1] + L(12)[1]) / 2]; c.beginPath(); c.moveTo(...m); c.lineTo(...L(0)); c.stroke(); c.beginPath(); c.arc(L(0)[0], L(0)[1] - head * k * 0.25, head * k, 0, Math.PI * 2); c.fill(); }
+  const d = c.getImageData(0, 0, gw, gh).data, data = new Uint8Array(gw * gh);
+  for (let i = 0; i < data.length; i++) data[i] = d[4 * i + 3];
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0, gw, gh, data };
+}
+
 const _tile = makeCanvas(64, 64), _tctx = _tile.getContext('2d');
 const _crop = makeCanvas(256, 256), _cctx = _crop.getContext('2d');
 
@@ -190,21 +219,28 @@ function detectMP(img, W, H, wantFaces, fMinPx) {
     _tctx.drawImage(img, tl.x, tl.y, tl.w, tl.h, 0, 0, tw, th);
     mp.pose.detect(_tile, (r) => {
       for (let i = 0; i < r.landmarks.length; i++) {
-        const mk = r.segmentationMasks && r.segmentationMasks[i]; if (!mk) continue;
-        const m = mk.getAsFloat32Array(), mw = mk.width, mh = mk.height;
-        let x0 = mw, y0 = mh, x1 = -1, y1 = -1, area = 0;
-        for (let y = 0; y < mh; y++) for (let x = 0; x < mw; x++) if (m[y * mw + x] > 0.5) { area++; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
-        if (area < 30) continue;
-        const pad = 3; x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(mw - 1, x1 + pad); y1 = Math.min(mh - 1, y1 + pad);
-        const gw = x1 - x0 + 1, gh = y1 - y0 + 1, data = new Uint8Array(gw * gh);
-        for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) data[y * gw + x] = clamp(m[(y + y0) * mw + x + x0] * 255 + 0.5, 0, 255);
-        const kx = tl.w / mw, ky = tl.h / mh;
-        const mask = { x: tl.x + x0 * kx, y: tl.y + y0 * ky, w: gw * kx, h: gh * ky, gw, gh, data };
         const lm = new Float32Array(33 * 3); let vis = 0;
         r.landmarks[i].forEach((p, j) => { lm[3 * j] = tl.x + p.x * tl.w; lm[3 * j + 1] = tl.y + p.y * tl.h; lm[3 * j + 2] = p.visibility == null ? 1 : p.visibility; vis += lm[3 * j + 2]; });
+        const mk = r.segmentationMasks && r.segmentationMasks[i];
+        let mask = null, area = 0, approx = false;
+        if (mk) {
+          let m = null; try { m = mk.getAsFloat32Array(); } catch (e) { m = null; }
+          const mw = mk.width, mh = mk.height;
+          let x0 = mw, y0 = mh, x1 = -1, y1 = -1;
+          if (m) for (let y = 0; y < mh; y++) for (let x = 0; x < mw; x++) if (m[y * mw + x] > 0.5) { area++; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+          if (area >= 30) {
+            const pad = 3; x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(mw - 1, x1 + pad); y1 = Math.min(mh - 1, y1 + pad);
+            const gw = x1 - x0 + 1, gh = y1 - y0 + 1, data = new Uint8Array(gw * gh);
+            for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) data[y * gw + x] = clamp(m[(y + y0) * mw + x + x0] * 255 + 0.5, 0, 255);
+            const kx = tl.w / mw, ky = tl.h / mh;
+            mask = { x: tl.x + x0 * kx, y: tl.y + y0 * ky, w: gw * kx, h: gh * ky, gw, gh, data };
+            area *= kx * ky;
+          }
+        }
+        if (!mask) { mask = maskFromLandmarks(lm, W, H); approx = true; if (!mask) continue; area = mask.w * mask.h * 0.4; DET.approxCount++; }
         const edge = 2 / s;
         const trunc = tl.full ? 0 : ((mask.x <= tl.x + edge && tl.x > 0) || (mask.y <= tl.y + edge && tl.y > 0) || (mask.x + mask.w >= tl.x + tl.w - edge && tl.x + tl.w < W) || (mask.y + mask.h >= tl.y + tl.h - edge && tl.y + tl.h < H)) ? 1 : 0;
-        persons.push({ box: [mask.x, mask.y, mask.x + mask.w, mask.y + mask.h], mask, lm, score: vis / 33, trunc, area: area * kx * ky });
+        persons.push({ box: [mask.x, mask.y, mask.x + mask.w, mask.y + mask.h], mask, lm, score: vis / 33, trunc, area, approx });
       }
     });
   }
@@ -439,11 +475,20 @@ function faceFromSkin(img, p, fMinPx) {
 
 // --------------------------------------------------------------- entry ---
 // method: 'mp' | 'bg'
+DET.approxCount = 0;
 DET.detect = function (img, W, H, method, wantFaces, fMinPx) {
-  const t0 = performance.now();
-  let r;
-  if (method === 'mp' && DET.mp.state === 'ready') r = detectMP(img, W, H, wantFaces, fMinPx);
-  else r = detectBG(img, W, H, wantFaces, fMinPx);
+  const t0 = performance.now(), mp = DET.mp;
+  let r = null;
+  if (method === 'mp' && mp.state === 'ready') {
+    try { r = detectMP(img, W, H, wantFaces, fMinPx); mp.errors = 0; }
+    catch (e) {
+      // keep going with the built-in detector; give up on MediaPipe after repeated errors
+      mp.errors = (mp.errors || 0) + 1; mp.lastError = String(e && e.message || e).slice(0, 300);
+      if (mp.errors >= 3) { mp.state = 'failed'; mp.msg = '検出中にエラーが続きました：' + mp.lastError; setTimeout(() => DET.onStatus(), 0); }
+      r = detectBG(img, W, H, wantFaces, fMinPx);
+      r.note = 'MediaPipe でエラー（' + mp.lastError + '）。このコマは内蔵の検出を使いました';
+    }
+  } else r = detectBG(img, W, H, wantFaces, fMinPx);
   DET.lastMs = performance.now() - t0;
   r.method = method; r.W = W; r.H = H;
   return r;

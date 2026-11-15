@@ -39,8 +39,8 @@ vec4 hash4(vec2 p){ vec4 q = fract(vec4(p.xyxy) * vec4(0.1031, 0.1030, 0.0973, 0
 float lum(vec3 c){ return dot(c, vec3(0.299, 0.587, 0.114)); }`;
 
 const FS_PLUSH = GLSL + HASH + `
-uniform sampler2D uSrc, uMask, uLabel, uTex; uniform isampler2D uSeed;
-uniform vec2 uSize; uniform float uTexAspect, uTexFrac;
+uniform sampler2D uSrc, uMask, uLabel, uTex, uBase; uniform isampler2D uSeed;
+uniform vec2 uSize, uBaseScale; uniform float uTexAspect, uTexFrac;
 uniform vec2 uAnchor[32]; uniform float uScale[32]; uniform vec2 uOff[32]; uniform float uMeanL[32]; uniform float uRand[32];
 uniform float uDilate, uFeather, uShadeG, uDepth, uShadowAmt, uFurLen, uFurDen;
 out vec4 o;
@@ -58,11 +58,18 @@ void main(){
   int k = slot - 1;
   float e = (inside ? -dist : dist) - uDilate;      // signed distance to the puffed outline, < 0 inside
   if (e > uFeather * 0.5 + uFurLen + 1.0) { o = vec4(src, 1.0); return; }
-  // brightness of this body under the felt (taken a little inside the outline for outer pixels)
-  vec2 qs = inside ? p : seed + (seed - p) / max(dist, 1e-3) * 1.5;
+  // brightness of this body under the felt, read 3.5 px inside the outline near the edge
+  // (edge pixels are mixed with the background). It is split into a broad part (colour of the
+  // clothes, light across the body) and the relief (folds, twist): the relief is kept as set,
+  // the broad part only at 40%, so a black shirt becomes darker felt, not a black hole.
+  vec2 inw = inside ? (p - seed) / max(dist, 1e-3) : (seed - p) / max(dist, 1e-3);
+  vec2 qs = (dist < 1e3 && (!inside || dist < 3.5)) ? seed + inw * 3.5 : p;
   float L = lum(texture(uSrc, qs / uSize).rgb) + 0.02;
-  float lr = log(L / (uMeanL[k] + 0.02)); lr = lr > 0.0 ? lr / (1.0 + 0.9 * lr) : lr;
-  float S = exp(uShadeG * clamp(lr, -2.2, 1.0));
+  vec4 bb = texture(uBase, qs * uBaseScale);
+  float B = (bb.g > 1e-3 ? bb.r / bb.g : L - 0.02) + 0.02;
+  float ld = log(L / B), lb = log(B / (uMeanL[k] + 0.02));
+  ld = ld > 0.0 ? ld / (1.0 + 0.9 * ld) : ld; lb = lb > 0.0 ? lb / (1.0 + 0.9 * lb) : lb;
+  float S = exp(uShadeG * (clamp(ld, -2.0, 1.0) + 0.4 * clamp(lb, -2.2, 1.0)));
   float dn = clamp(-e / max(uDepth, 1e-3), 0.0, 1.0);
   float sh = uDepth > 0.0 ? 1.0 - uShadowAmt * pow(1.0 - dn, 1.6) : 1.0;
   vec3 body = texture(uTex, tcoord(p, k)).rgb * S * sh;
@@ -87,6 +94,20 @@ void main(){
   float a = max(aBody, aFur);
   vec3 col = aBody >= aFur ? body : fur;
   o = vec4(mix(src, col, a), 1.0);
+}`;
+
+// luminance inside the body masks and the mask itself, at a reduced size
+const FS_LUMM = GLSL + HASH + `
+uniform sampler2D uSrc, uMask; uniform int uF; out vec4 o;
+void main(){
+  vec2 sz = vec2(textureSize(uSrc, 0)), base = floor(gl_FragCoord.xy) * float(uF);
+  float s = 0.0, m = 0.0;
+  for (int j = 0; j < 4; j++) for (int i = 0; i < 4; i++) {
+    vec2 q = (base + (vec2(i, j) + 0.5) * float(uF) / 4.0) / sz;
+    float mm = step(0.5, texture(uMask, q).r);
+    s += lum(texture(uSrc, q).rgb) * mm; m += mm;
+  }
+  o = vec4(s / 16.0, m / 16.0, 0.0, 1.0);
 }`;
 
 const FS_DOWN = GLSL + `
@@ -125,7 +146,7 @@ void main(){
   float w = e.b * (1.0 - e.r);
   if (uPass == 1) {
     vec4 m = texelFetch(uM, p, 0);
-    if (m.a > 1e-4 && e.g > 0.5) {
+    if (m.a > 1e-4) {
       vec3 mean = m.rgb / m.a;
       w *= 1.0 - smoothstep(0.03, 0.09, lum(mean) - lum(d));
       w *= 1.0 - smoothstep(0.03, 0.08, (d.r - d.g) - (mean.r - mean.g));
@@ -144,13 +165,14 @@ void main(){
   o = vec4(mix(lb, la, smoothstep(0.06, 0.3, a.a)), 1.0);
 }`;
 
-// face: the smooth layer plus skin grain. The grain is cut from the cheeks in small square
+// face: the smooth layer plus skin grain. Plain skin keeps its own detail; eyes, brows, nose,
+// mouth and small dark spots get the smooth layer plus grain cut from the cheeks in small square
 // pieces; each piece's source is chosen at random among cheek spots that the weight map
 // marks as plain skin, so an eye corner or a nostril can never be repeated over the face.
 // Four offset layers with tent weights hide the piece edges.
 const FS_FACE = GLSL + HASH + `
-uniform sampler2D uSrc, uLow, uSoft, uLab, uTex, uW; uniform vec2 uSize, uLowScale;
-uniform vec2 uC[16]; uniform vec2 uRot[16]; uniform float uPatch[16], uFW[16], uSeed[16]; uniform vec2 uOff[16];
+uniform sampler2D uSrc, uLow, uSoft, uLab, uTex, uW, uE, uN1, uEB; uniform vec2 uSize, uLowScale;
+uniform vec2 uC[16]; uniform vec2 uRot[16]; uniform float uPatch[16], uFW[16], uSeed[16], uKeepY[16]; uniform vec2 uOff[16];
 uniform float uGrain, uKind, uShadeG, uTexFrac, uTexAspect; out vec4 o;
 vec3 low(vec2 p){ return texture(uLow, p * uLowScale).rgb; }
 float ok(vec2 p){ return texture(uW, p * uLowScale).a; }
@@ -173,7 +195,10 @@ vec3 piece(int i, vec2 q, vec2 off, out float w){
   if (h2.x < 0.5) r.x = -r.x;
   if (h2.y < 0.5) r = r.yx;
   vec2 sp = src + rot(r * P, uRot[i]);
-  return clamp(texture(uSrc, sp / uSize).rgb - low(sp), -0.07, 0.07);
+  // only the finest grain (pores, sensor noise): the pixel minus its 3x3 neighbourhood
+  vec2 px = 1.0 / uSize, u = sp * px; vec3 n9 = vec3(0.0);
+  for (int j = -1; j <= 1; j++) for (int i2 = -1; i2 <= 1; i2++) n9 += texture(uSrc, u + vec2(i2, j) * px).rgb * (j == 0 ? 2.0 : 1.0) * (i2 == 0 ? 2.0 : 1.0);
+  return clamp(texture(uSrc, u).rgb - n9 / 16.0, -0.05, 0.05);
 }
 void main(){
   vec2 p = gl_FragCoord.xy, uv = p / uSize;
@@ -183,6 +208,11 @@ void main(){
   if (F < 0.002 || i < 0) { o = vec4(src, 1.0); return; }
   vec2 d = p - uC[i];
   vec2 lq = rot(d, vec2(uRot[i].x, -uRot[i].y));
+  // hair over the forehead and temples stays: dark, above the brows, away from eyes and brows
+  float near = texture(uE, p * uLowScale).g;
+  float ky = uKeepY[i] + smoothstep(0.25, 0.4, abs(lq.x) / uFW[i]) * 0.15 * uFW[i]; // lower at the temples
+  float keep = smoothstep(0.05, 0.14, lum(low(p)) - lum(src)) * (1.0 - near) * (1.0 - smoothstep(ky - 2.0, ky + 2.0, lq.y));
+  F *= 1.0 - keep;
   vec3 res;
   if (uKind < 0.5) {
     vec2 q = lq / uPatch[i];
@@ -190,7 +220,12 @@ void main(){
     vec3 g = piece(i, q, vec2(0.0), w0) * w0 + piece(i, q, vec2(0.5, 0.0), w1) * w1 + piece(i, q, vec2(0.0, 0.5), w2) * w2 + piece(i, q, vec2(0.5), w3) * w3;
     float n = sqrt(w0 * w0 + w1 * w1 + w2 * w2 + w3 * w3);
     vec3 H = n > 1e-3 ? g / n : vec3(0.0);
-    res = low(p) + H * uGrain;
+    // plain skin keeps its own detail (it is the skin's own grain); only where the weight map
+    // marks eyes, brows, nose, mouth or small dark spots is the detail replaced by cheek grain
+    // plain = skin here and within about one "detail size" around (so creases around the eyes and lips go too)
+    float frac = texture(uN1, p * uLowScale).a / max(texture(uEB, p * uLowScale).b, 1e-3);
+    float plain = smoothstep(0.55, 0.95, ok(p)) * smoothstep(0.8, 0.97, frac);
+    res = low(p) + mix(H * uGrain, src - low(p), plain);
   } else {
     float th = max(uFW[i] * 7.0 * uTexFrac, 2.0);
     vec2 tuv = vec2(lq.x / (th * uTexAspect), lq.y / th) + uOff[i];
@@ -235,7 +270,7 @@ class Renderer {
     const P = (vs, fs) => this._prog(vs, fs);
     this.p = {
       color: P(VS_POLY, FS_COLOR), seed: P(VS_FULL, FS_SEED), jfa: P(VS_FULL, FS_JFA), plush: P(VS_FULL, FS_PLUSH),
-      down: P(VS_FULL, FS_DOWN), blur: P(VS_FULL, FS_BLUR), weight: P(VS_FULL, FS_WEIGHT), low: P(VS_FULL, FS_LOW),
+      down: P(VS_FULL, FS_DOWN), lumm: P(VS_FULL, FS_LUMM), blur: P(VS_FULL, FS_BLUR), weight: P(VS_FULL, FS_WEIGHT), low: P(VS_FULL, FS_LOW),
       face: P(VS_FULL, FS_FACE), disp: P(VS_FULL, FS_DISP), measure: P(VS_FULL, FS_MEASURE),
     };
     this.vao = gl.createVertexArray(); gl.bindVertexArray(this.vao);
@@ -356,8 +391,14 @@ class Renderer {
     let a = T.seedA, b = T.seedB;
     pr = this.p.jfa;
     for (; step >= 1; step >>= 1) { this._use(pr, b); this._bind(pr, 'uSeed', 0, a); gl.uniform1i(pr.u.uStep, step); this._full(); [a, b] = [b, a]; }
+    // broad brightness of the bodies: normalized blur of luminance inside the masks
+    const hs = slots.map((q) => q.scale).sort((x, y) => x - y), sb = clamp(hs[hs.length >> 1] * 0.06, 3, 80);
+    const f = clamp(Math.round(sb / 3), 2, 8), Wk = this._ensureWork(f);
+    pr = this.p.lumm; this._use(pr, Wk.D); this._bind(pr, 'uSrc', 0, T.src); this._bind(pr, 'uMask', 1, T.mask); gl.uniform1i(pr.u.uF, f); this._full();
+    this._blur(Wk.D, Wk.A, Wk.M, sb / f);
     pr = this.p.plush; this._use(pr, T.out);
-    this._bind(pr, 'uSrc', 0, T.src); this._bind(pr, 'uMask', 1, T.mask); this._bind(pr, 'uLabel', 2, T.label); this._bind(pr, 'uTex', 3, T.felt); this._bind(pr, 'uSeed', 4, a);
+    this._bind(pr, 'uSrc', 0, T.src); this._bind(pr, 'uMask', 1, T.mask); this._bind(pr, 'uLabel', 2, T.label); this._bind(pr, 'uTex', 3, T.felt); this._bind(pr, 'uSeed', 4, a); this._bind(pr, 'uBase', 5, Wk.M);
+    gl.uniform2f(pr.u.uBaseScale, 1 / (Wk.w * f), 1 / (Wk.h * f));
     const n = 32, an = new Float32Array(n * 2), sc = new Float32Array(n), off = new Float32Array(n * 2), ml = new Float32Array(n), rd = new Float32Array(n);
     for (const s of slots) { const k = s.slot - 1; an[2 * k] = s.anchor[0]; an[2 * k + 1] = s.anchor[1]; sc[k] = s.scale; off[2 * k] = hash01(s.id * 31 + 1) * 7.3; off[2 * k + 1] = hash01(s.id * 57 + 3) * 5.1; ml[k] = s.meanL; rd[k] = s.rand; }
     gl.uniform2fv(pr.u.uAnchor, an); gl.uniform1fv(pr.u.uScale, sc); gl.uniform2fv(pr.u.uOff, off); gl.uniform1fv(pr.u.uMeanL, ml); gl.uniform1fv(pr.u.uRand, rd);
@@ -374,12 +415,12 @@ class Renderer {
     const faces = fs.faces.filter((f) => f.applied).slice(0, 16);
     if (!faces.length) { this._copySrcToOut(); return 0; }
     const f = clamp(Math.round(P.detail / 3), 1, 8), sig = P.detail / f, Wk = this._ensureWork(f);
-    // E: r = features, g = where to reject dark/red outliers, b = face region (work resolution)
+    // E: r = features, g = around the features (hair is never kept there), b = face region (work resolution)
     let pr = this.p.color; this._use(pr, Wk.E); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
     gl.enable(gl.BLEND); gl.blendEquation(gl.MAX); gl.blendFunc(gl.ONE, gl.ONE);
     gl.uniform2f(pr.u.uSize, this.W, this.H);
     for (const fc of faces) {
-      gl.uniform4f(pr.u.uColor, 0, fc.dark ? 1 : 0, 1, 0); this._poly(fc.oval);
+      gl.uniform4f(pr.u.uColor, 0, 0, 1, 0); this._poly(fc.oval);
       for (const h of fc.feats) { gl.uniform4f(pr.u.uColor, 0, 1, 0, 0); this._poly(inflatePoly(h, fc.width * 0.05 + 2)); }
       for (const h of fc.feats) { gl.uniform4f(pr.u.uColor, 1, 0, 0, 0); this._poly(h); }
     }
@@ -398,17 +439,18 @@ class Renderer {
     this._blur(Wk.T, Wk.A, Wk.N1, sig);
     this._blur(Wk.T, Wk.A, Wk.N2, sig * 3.5);
     pr = this.p.low; this._use(pr, Wk.low); this._bind(pr, 'uN1', 0, Wk.N1); this._bind(pr, 'uN2', 1, Wk.N2); this._bind(pr, 'uD', 2, Wk.D); this._full();
+    this._blur(Wk.E, Wk.A, Wk.M, sig); // face region blurred like the weights, to tell "near a feature" from "near the edge"
     // composite
     pr = this.p.face; this._use(pr, T.out);
-    this._bind(pr, 'uSrc', 0, T.src); this._bind(pr, 'uLow', 1, Wk.low); this._bind(pr, 'uSoft', 2, T.soft); this._bind(pr, 'uLab', 3, T.lab); this._bind(pr, 'uTex', 4, T.felt); this._bind(pr, 'uW', 5, Wk.T);
-    const n = 16, C = new Float32Array(n * 2), R = new Float32Array(n * 2), Pt = new Float32Array(n), FW = new Float32Array(n), SD = new Float32Array(n), O = new Float32Array(n * 2);
+    this._bind(pr, 'uSrc', 0, T.src); this._bind(pr, 'uLow', 1, Wk.low); this._bind(pr, 'uSoft', 2, T.soft); this._bind(pr, 'uLab', 3, T.lab); this._bind(pr, 'uTex', 4, T.felt); this._bind(pr, 'uW', 5, Wk.T); this._bind(pr, 'uE', 6, Wk.E); this._bind(pr, 'uN1', 7, Wk.N1); this._bind(pr, 'uEB', 8, Wk.M);
+    const n = 16, C = new Float32Array(n * 2), R = new Float32Array(n * 2), Pt = new Float32Array(n), FW = new Float32Array(n), SD = new Float32Array(n), O = new Float32Array(n * 2), KY = new Float32Array(n);
     faces.forEach((fc, i) => {
       C[2 * i] = fc.center[0]; C[2 * i + 1] = fc.center[1]; R[2 * i] = Math.cos(fc.roll); R[2 * i + 1] = Math.sin(fc.roll);
-      Pt[i] = Math.max(3, fc.width * 0.09); FW[i] = fc.width; SD[i] = hash01(fc.id * 13 + 1) * 97;
+      Pt[i] = Math.max(3, fc.width * 0.09); FW[i] = fc.width; SD[i] = hash01(fc.id * 13 + 1) * 97; KY[i] = fc.keepY == null ? -1e9 : fc.keepY;
       O[2 * i] = hash01(fc.id * 17 + 5) * 6.1; O[2 * i + 1] = hash01(fc.id * 29 + 9) * 4.3;
     });
     gl.uniform2fv(pr.u.uC, C); gl.uniform2fv(pr.u.uRot, R); gl.uniform1fv(pr.u.uPatch, Pt); gl.uniform1fv(pr.u.uFW, FW);
-    gl.uniform1fv(pr.u.uSeed, SD); gl.uniform2fv(pr.u.uOff, O);
+    gl.uniform1fv(pr.u.uSeed, SD); gl.uniform2fv(pr.u.uOff, O); gl.uniform1fv(pr.u.uKeepY, KY);
     gl.uniform2f(pr.u.uSize, this.W, this.H); gl.uniform2f(pr.u.uLowScale, 1 / (Wk.w * f), 1 / (Wk.h * f));
     gl.uniform1f(pr.u.uGrain, P.grain / 100); gl.uniform1f(pr.u.uKind, P.faceKind === 'felt' ? 1 : 0);
     gl.uniform1f(pr.u.uShadeG, P.shade / 100); gl.uniform1f(pr.u.uTexFrac, P.texSize / 100); gl.uniform1f(pr.u.uTexAspect, this.texAspect);

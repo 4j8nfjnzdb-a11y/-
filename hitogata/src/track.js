@@ -81,7 +81,7 @@ class Tracker {
     tr.cen = cen;
     tr.box = d.box.slice(); tr.lastSeen = t; tr.seen++; tr.fresh = false; tr.state = 'seen';
     tr.meanL += ((d.meanL || tr.meanL) - tr.meanL) * 0.3;
-    tr.lm = d.lm;
+    tr.lm = d.lm; tr.approx = !!d.approx;
     const h = d.box[3] - d.box[1];
     tr.sx = tr.fx.filter(ncx, t, 1 / h); tr.sy = tr.fy.filter(ncy, t, 1 / h); tr.sh = tr.fh.filter(h, t, 1 / h);
     // texture anchor: the torso when the pose is known, else the box centre (kept continuous)
@@ -228,12 +228,12 @@ class Tracker {
       const oval = ovalL.map(([x, y]) => toW(x, Math.max(y, cut)));
       const m = 0.03 + 1.2 / Math.max(1, w);
       const feats = ['eyeR', 'eyeL', 'browR', 'browL', 'lips', 'nose'].map((k) => inflatePoly(convexHull(grp(k)), k === 'lips' ? m * 1.2 : m).map(([x, y]) => toW(x, y)));
-      return { oval, feats, center: c, width: w, roll, dark: false };
+      return { oval, feats, center: c, width: w, roll, dark: false, keepY: (browTop + 0.05) * w };
     }
     const n = 32, oval = [];
     const cut = (tr.top == null ? -1 : tr.top) * tr.ry / w + 0.03; // keep the hairline untouched
     for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; oval.push(toW(Math.cos(a) * tr.rx / w, Math.max(cut, Math.sin(a) * tr.ry / w))); }
-    return { oval, feats: [], center: c, width: w, roll, dark: true };
+    return { oval, feats: [], center: c, width: w, roll, dark: true, keepY: ((tr.top == null ? -1 : tr.top) + 0.35) * tr.ry };
   }
 
   // ------------------------------------------------------- frame state ---
@@ -248,7 +248,7 @@ class Tracker {
       tr.applied = P.mode === 1 && sizeOK && rateOK;
       if (tr.state === 'seen') C.pSeen++; else C.pHeld++;
       if (P.mode === 1) { if (tr.applied) C.pApplied++; else if (!sizeOK) C.pSize++; else C.pRate++; }
-      out.persons.push({ id: tr.id, state: tr.state, applied: tr.applied, reason: tr.applied ? '' : (!sizeOK ? 'size' : 'rate'), box: [tr.sx - (tr.box[2] - tr.box[0]) / 2, tr.sy - h / 2, tr.sx + (tr.box[2] - tr.box[0]) / 2, tr.sy + h / 2], rawBox: tr.box, anchor: [tr.ax, tr.ay], scale: h, height: h, meanL: tr.meanL, rand: tr.rand, since: t - tr.lastSeen, track: tr });
+      out.persons.push({ id: tr.id, approx: tr.approx, state: tr.state, applied: tr.applied, reason: tr.applied ? '' : (!sizeOK ? 'size' : 'rate'), box: [tr.sx - (tr.box[2] - tr.box[0]) / 2, tr.sy - h / 2, tr.sx + (tr.box[2] - tr.box[0]) / 2, tr.sy + h / 2], rawBox: tr.box, anchor: [tr.ax, tr.ay], scale: h, height: h, meanL: tr.meanL, rand: tr.rand, since: t - tr.lastSeen, track: tr });
     }
     // faces: link to the person whose head they sit on (so "per person" rates agree)
     for (const tr of this.faces) {

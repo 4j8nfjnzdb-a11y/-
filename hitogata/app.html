@@ -874,7 +874,7 @@ DET.loadMP = async function (opts = {}) {
     const prog = (g, t) => { mp.msg = `読み込み中 ${(g / 1e6).toFixed(1)}${t ? ' / ' + (t / 1e6).toFixed(1) : ''} MB`; if ((g / 4e5 | 0) !== mb) { mb = g / 4e5 | 0; DET.onStatus(); } };
     if (!mp.wasmUrl) { // the runtime fetches the binary itself; find a place that answers
       const errs = [];
-      for (const u of [ASSETS + 'mediapipe/vision_wasm_internal.wasm', MP_CDN + 'wasm/vision_wasm_internal.wasm']) {
+      for (const u of [new URL(ASSETS + 'mediapipe/vision_wasm_internal.wasm', location.href).href, MP_CDN + 'wasm/vision_wasm_internal.wasm']) {
         try { const r = await fetch(u, { cache: 'force-cache' }); if (r.ok) { if (r.body) r.body.cancel().catch(() => {}); mp.wasmUrl = u; break; } errs.push(`HTTP ${r.status}`); }
         catch (e) { errs.push(e.message || String(e)); }
       }
@@ -882,15 +882,15 @@ DET.loadMP = async function (opts = {}) {
     }
     const filesets = [
       { wasmLoaderPath: MP_CDN + 'wasm/vision_wasm_internal.js', wasmBinaryPath: mp.wasmUrl },
-      { wasmLoaderPath: ASSETS + 'mediapipe/vision_wasm_internal.js', wasmBinaryPath: mp.wasmUrl },
+      { wasmLoaderPath: new URL(ASSETS + 'mediapipe/vision_wasm_internal.js', location.href).href, wasmBinaryPath: mp.wasmUrl },
     ];
     mp.msg = 'モデルを読み込んでいます'; DET.onStatus();
     const pm = await modelBytes('pose', prog), fm = await modelBytes('face', prog);
     mp.origin = { pose: pm.origin, face: fm.origin };
-    const make = async (Cls, bytes, extra) => {
+    const make = async (Cls, bytes, extra, delegates) => {
       let last;
-      for (const fs of filesets) for (const delegate of (opts.cpu ? ['CPU'] : ['GPU', 'CPU'])) {
-        try { const t = await Cls.createFromOptions(fs, Object.assign({ baseOptions: { modelAssetBuffer: bytes, delegate }, runningMode: 'IMAGE' }, extra)); mp.delegate = delegate; return t; }
+      for (const fs of filesets) for (const delegate of delegates) {
+        try { const t = await Cls.createFromOptions(fs, Object.assign({ baseOptions: { modelAssetBuffer: bytes, delegate }, runningMode: 'IMAGE' }, extra)); t.delegate = delegate; return t; }
         catch (e) { last = e; }
       }
       throw last;
@@ -898,9 +898,12 @@ DET.loadMP = async function (opts = {}) {
     mp.msg = '準備しています'; DET.onStatus();
     if (mp.pose) try { mp.pose.close(); } catch (e) { /* */ }
     if (mp.face) try { mp.face.close(); } catch (e) { /* */ }
-    mp.pose = await make(mp.vision.PoseLandmarker, pm.bytes, { numPoses: 6, outputSegmentationMasks: true, minPoseDetectionConfidence: 0.35, minPosePresenceConfidence: 0.35, minTrackingConfidence: 0.35 });
-    mp.face = await make(mp.vision.FaceLandmarker, fm.bytes, { numFaces: 6, minFaceDetectionConfidence: 0.35, minFacePresenceConfidence: 0.35, outputFaceBlendshapes: false });
-    mp.state = 'ready'; mp.msg = '';
+    // The pose task runs on the CPU: on many GPUs MediaPipe cannot read the body masks back
+    // (it reads them as RED/FLOAT, which most drivers refuse) and returns empty masks.
+    mp.pose = await make(mp.vision.PoseLandmarker, pm.bytes, { numPoses: 6, outputSegmentationMasks: true, minPoseDetectionConfidence: 0.35, minPosePresenceConfidence: 0.35, minTrackingConfidence: 0.35 }, ['CPU']);
+    mp.face = await make(mp.vision.FaceLandmarker, fm.bytes, { numFaces: 6, minFaceDetectionConfidence: 0.35, minFacePresenceConfidence: 0.35, outputFaceBlendshapes: false }, opts.cpu ? ['CPU'] : ['GPU', 'CPU']);
+    mp.delegate = `姿勢 ${mp.pose.delegate}・顔 ${mp.face.delegate}`;
+    mp.state = 'ready'; mp.msg = ''; mp.errors = 0;
   } catch (e) {
     mp.state = 'failed'; mp.msg = String(e && e.message || e).slice(0, 400);
   }
@@ -962,6 +965,32 @@ function tileRects(W, H, mode) {
 }
 
 // ------------------------------------------------------------- MediaPipe ---
+// If a pose comes back without a usable mask, its shape is approximated from the skeleton
+// so the person is still treated as detected (marked approx).
+const _lmc = makeCanvas(64, 64), _lmx = _lmc.getContext('2d', { willReadFrequently: true });
+const LIMBS = [[11, 13], [13, 15], [12, 14], [14, 16], [15, 17], [15, 19], [16, 18], [16, 20], [23, 25], [25, 27], [24, 26], [26, 28], [27, 31], [28, 32], [11, 23], [12, 24], [11, 12], [23, 24]];
+function maskFromLandmarks(lm, W, H) {
+  const vis = (j) => lm[3 * j + 2] > 0.3;
+  const P = (j) => [lm[3 * j], lm[3 * j + 1]];
+  let n = 0, x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (let j = 0; j < 33; j++) if (vis(j)) { n++; const [x, y] = P(j); x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+  if (n < 8 || !vis(11) || !vis(12)) return null;
+  const sw = Math.hypot(P(11)[0] - P(12)[0], P(11)[1] - P(12)[1]), lw = Math.max(3, sw * 0.42);
+  const head = Math.max(sw * 0.38, vis(7) && vis(8) ? Math.hypot(P(7)[0] - P(8)[0], P(7)[1] - P(8)[1]) * 0.62 : 0);
+  const pad = Math.max(lw, head) * 1.2;
+  x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad * 1.4); x1 = Math.min(W, x1 + pad); y1 = Math.min(H, y1 + pad * 0.6);
+  const k = Math.min(1, 200 / Math.max(1, y1 - y0)), gw = Math.max(4, Math.round((x1 - x0) * k)), gh = Math.max(4, Math.round((y1 - y0) * k));
+  _lmc.width = gw; _lmc.height = gh;
+  const c = _lmx, L = (j) => [(lm[3 * j] - x0) * k, (lm[3 * j + 1] - y0) * k];
+  c.fillStyle = c.strokeStyle = '#fff'; c.lineCap = 'round'; c.lineJoin = 'round'; c.lineWidth = lw * k;
+  if (vis(23) && vis(24)) { c.beginPath(); for (const j of [11, 12, 24, 23]) c.lineTo(...L(j)); c.closePath(); c.fill(); c.stroke(); }
+  for (const [a, b] of LIMBS) if (vis(a) && vis(b)) { c.beginPath(); c.moveTo(...L(a)); c.lineTo(...L(b)); c.stroke(); }
+  if (vis(0)) { const m = [(L(11)[0] + L(12)[0]) / 2, (L(11)[1] + L(12)[1]) / 2]; c.beginPath(); c.moveTo(...m); c.lineTo(...L(0)); c.stroke(); c.beginPath(); c.arc(L(0)[0], L(0)[1] - head * k * 0.25, head * k, 0, Math.PI * 2); c.fill(); }
+  const d = c.getImageData(0, 0, gw, gh).data, data = new Uint8Array(gw * gh);
+  for (let i = 0; i < data.length; i++) data[i] = d[4 * i + 3];
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0, gw, gh, data };
+}
+
 const _tile = makeCanvas(64, 64), _tctx = _tile.getContext('2d');
 const _crop = makeCanvas(256, 256), _cctx = _crop.getContext('2d');
 
@@ -984,21 +1013,28 @@ function detectMP(img, W, H, wantFaces, fMinPx) {
     _tctx.drawImage(img, tl.x, tl.y, tl.w, tl.h, 0, 0, tw, th);
     mp.pose.detect(_tile, (r) => {
       for (let i = 0; i < r.landmarks.length; i++) {
-        const mk = r.segmentationMasks && r.segmentationMasks[i]; if (!mk) continue;
-        const m = mk.getAsFloat32Array(), mw = mk.width, mh = mk.height;
-        let x0 = mw, y0 = mh, x1 = -1, y1 = -1, area = 0;
-        for (let y = 0; y < mh; y++) for (let x = 0; x < mw; x++) if (m[y * mw + x] > 0.5) { area++; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
-        if (area < 30) continue;
-        const pad = 3; x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(mw - 1, x1 + pad); y1 = Math.min(mh - 1, y1 + pad);
-        const gw = x1 - x0 + 1, gh = y1 - y0 + 1, data = new Uint8Array(gw * gh);
-        for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) data[y * gw + x] = clamp(m[(y + y0) * mw + x + x0] * 255 + 0.5, 0, 255);
-        const kx = tl.w / mw, ky = tl.h / mh;
-        const mask = { x: tl.x + x0 * kx, y: tl.y + y0 * ky, w: gw * kx, h: gh * ky, gw, gh, data };
         const lm = new Float32Array(33 * 3); let vis = 0;
         r.landmarks[i].forEach((p, j) => { lm[3 * j] = tl.x + p.x * tl.w; lm[3 * j + 1] = tl.y + p.y * tl.h; lm[3 * j + 2] = p.visibility == null ? 1 : p.visibility; vis += lm[3 * j + 2]; });
+        const mk = r.segmentationMasks && r.segmentationMasks[i];
+        let mask = null, area = 0, approx = false;
+        if (mk) {
+          let m = null; try { m = mk.getAsFloat32Array(); } catch (e) { m = null; }
+          const mw = mk.width, mh = mk.height;
+          let x0 = mw, y0 = mh, x1 = -1, y1 = -1;
+          if (m) for (let y = 0; y < mh; y++) for (let x = 0; x < mw; x++) if (m[y * mw + x] > 0.5) { area++; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+          if (area >= 30) {
+            const pad = 3; x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(mw - 1, x1 + pad); y1 = Math.min(mh - 1, y1 + pad);
+            const gw = x1 - x0 + 1, gh = y1 - y0 + 1, data = new Uint8Array(gw * gh);
+            for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) data[y * gw + x] = clamp(m[(y + y0) * mw + x + x0] * 255 + 0.5, 0, 255);
+            const kx = tl.w / mw, ky = tl.h / mh;
+            mask = { x: tl.x + x0 * kx, y: tl.y + y0 * ky, w: gw * kx, h: gh * ky, gw, gh, data };
+            area *= kx * ky;
+          }
+        }
+        if (!mask) { mask = maskFromLandmarks(lm, W, H); approx = true; if (!mask) continue; area = mask.w * mask.h * 0.4; DET.approxCount++; }
         const edge = 2 / s;
         const trunc = tl.full ? 0 : ((mask.x <= tl.x + edge && tl.x > 0) || (mask.y <= tl.y + edge && tl.y > 0) || (mask.x + mask.w >= tl.x + tl.w - edge && tl.x + tl.w < W) || (mask.y + mask.h >= tl.y + tl.h - edge && tl.y + tl.h < H)) ? 1 : 0;
-        persons.push({ box: [mask.x, mask.y, mask.x + mask.w, mask.y + mask.h], mask, lm, score: vis / 33, trunc, area: area * kx * ky });
+        persons.push({ box: [mask.x, mask.y, mask.x + mask.w, mask.y + mask.h], mask, lm, score: vis / 33, trunc, area, approx });
       }
     });
   }
@@ -1233,11 +1269,20 @@ function faceFromSkin(img, p, fMinPx) {
 
 // --------------------------------------------------------------- entry ---
 // method: 'mp' | 'bg'
+DET.approxCount = 0;
 DET.detect = function (img, W, H, method, wantFaces, fMinPx) {
-  const t0 = performance.now();
-  let r;
-  if (method === 'mp' && DET.mp.state === 'ready') r = detectMP(img, W, H, wantFaces, fMinPx);
-  else r = detectBG(img, W, H, wantFaces, fMinPx);
+  const t0 = performance.now(), mp = DET.mp;
+  let r = null;
+  if (method === 'mp' && mp.state === 'ready') {
+    try { r = detectMP(img, W, H, wantFaces, fMinPx); mp.errors = 0; }
+    catch (e) {
+      // keep going with the built-in detector; give up on MediaPipe after repeated errors
+      mp.errors = (mp.errors || 0) + 1; mp.lastError = String(e && e.message || e).slice(0, 300);
+      if (mp.errors >= 3) { mp.state = 'failed'; mp.msg = '検出中にエラーが続きました：' + mp.lastError; setTimeout(() => DET.onStatus(), 0); }
+      r = detectBG(img, W, H, wantFaces, fMinPx);
+      r.note = 'MediaPipe でエラー（' + mp.lastError + '）。このコマは内蔵の検出を使いました';
+    }
+  } else r = detectBG(img, W, H, wantFaces, fMinPx);
   DET.lastMs = performance.now() - t0;
   r.method = method; r.W = W; r.H = H;
   return r;
@@ -1326,7 +1371,7 @@ class Tracker {
     tr.cen = cen;
     tr.box = d.box.slice(); tr.lastSeen = t; tr.seen++; tr.fresh = false; tr.state = 'seen';
     tr.meanL += ((d.meanL || tr.meanL) - tr.meanL) * 0.3;
-    tr.lm = d.lm;
+    tr.lm = d.lm; tr.approx = !!d.approx;
     const h = d.box[3] - d.box[1];
     tr.sx = tr.fx.filter(ncx, t, 1 / h); tr.sy = tr.fy.filter(ncy, t, 1 / h); tr.sh = tr.fh.filter(h, t, 1 / h);
     // texture anchor: the torso when the pose is known, else the box centre (kept continuous)
@@ -1473,12 +1518,12 @@ class Tracker {
       const oval = ovalL.map(([x, y]) => toW(x, Math.max(y, cut)));
       const m = 0.03 + 1.2 / Math.max(1, w);
       const feats = ['eyeR', 'eyeL', 'browR', 'browL', 'lips', 'nose'].map((k) => inflatePoly(convexHull(grp(k)), k === 'lips' ? m * 1.2 : m).map(([x, y]) => toW(x, y)));
-      return { oval, feats, center: c, width: w, roll, dark: false };
+      return { oval, feats, center: c, width: w, roll, dark: false, keepY: (browTop + 0.05) * w };
     }
     const n = 32, oval = [];
     const cut = (tr.top == null ? -1 : tr.top) * tr.ry / w + 0.03; // keep the hairline untouched
     for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; oval.push(toW(Math.cos(a) * tr.rx / w, Math.max(cut, Math.sin(a) * tr.ry / w))); }
-    return { oval, feats: [], center: c, width: w, roll, dark: true };
+    return { oval, feats: [], center: c, width: w, roll, dark: true, keepY: ((tr.top == null ? -1 : tr.top) + 0.35) * tr.ry };
   }
 
   // ------------------------------------------------------- frame state ---
@@ -1493,7 +1538,7 @@ class Tracker {
       tr.applied = P.mode === 1 && sizeOK && rateOK;
       if (tr.state === 'seen') C.pSeen++; else C.pHeld++;
       if (P.mode === 1) { if (tr.applied) C.pApplied++; else if (!sizeOK) C.pSize++; else C.pRate++; }
-      out.persons.push({ id: tr.id, state: tr.state, applied: tr.applied, reason: tr.applied ? '' : (!sizeOK ? 'size' : 'rate'), box: [tr.sx - (tr.box[2] - tr.box[0]) / 2, tr.sy - h / 2, tr.sx + (tr.box[2] - tr.box[0]) / 2, tr.sy + h / 2], rawBox: tr.box, anchor: [tr.ax, tr.ay], scale: h, height: h, meanL: tr.meanL, rand: tr.rand, since: t - tr.lastSeen, track: tr });
+      out.persons.push({ id: tr.id, approx: tr.approx, state: tr.state, applied: tr.applied, reason: tr.applied ? '' : (!sizeOK ? 'size' : 'rate'), box: [tr.sx - (tr.box[2] - tr.box[0]) / 2, tr.sy - h / 2, tr.sx + (tr.box[2] - tr.box[0]) / 2, tr.sy + h / 2], rawBox: tr.box, anchor: [tr.ax, tr.ay], scale: h, height: h, meanL: tr.meanL, rand: tr.rand, since: t - tr.lastSeen, track: tr });
     }
     // faces: link to the person whose head they sit on (so "per person" rates agree)
     for (const tr of this.faces) {
@@ -1583,8 +1628,8 @@ vec4 hash4(vec2 p){ vec4 q = fract(vec4(p.xyxy) * vec4(0.1031, 0.1030, 0.0973, 0
 float lum(vec3 c){ return dot(c, vec3(0.299, 0.587, 0.114)); }`;
 
 const FS_PLUSH = GLSL + HASH + `
-uniform sampler2D uSrc, uMask, uLabel, uTex; uniform isampler2D uSeed;
-uniform vec2 uSize; uniform float uTexAspect, uTexFrac;
+uniform sampler2D uSrc, uMask, uLabel, uTex, uBase; uniform isampler2D uSeed;
+uniform vec2 uSize, uBaseScale; uniform float uTexAspect, uTexFrac;
 uniform vec2 uAnchor[32]; uniform float uScale[32]; uniform vec2 uOff[32]; uniform float uMeanL[32]; uniform float uRand[32];
 uniform float uDilate, uFeather, uShadeG, uDepth, uShadowAmt, uFurLen, uFurDen;
 out vec4 o;
@@ -1602,11 +1647,18 @@ void main(){
   int k = slot - 1;
   float e = (inside ? -dist : dist) - uDilate;      // signed distance to the puffed outline, < 0 inside
   if (e > uFeather * 0.5 + uFurLen + 1.0) { o = vec4(src, 1.0); return; }
-  // brightness of this body under the felt (taken a little inside the outline for outer pixels)
-  vec2 qs = inside ? p : seed + (seed - p) / max(dist, 1e-3) * 1.5;
+  // brightness of this body under the felt, read 3.5 px inside the outline near the edge
+  // (edge pixels are mixed with the background). It is split into a broad part (colour of the
+  // clothes, light across the body) and the relief (folds, twist): the relief is kept as set,
+  // the broad part only at 40%, so a black shirt becomes darker felt, not a black hole.
+  vec2 inw = inside ? (p - seed) / max(dist, 1e-3) : (seed - p) / max(dist, 1e-3);
+  vec2 qs = (dist < 1e3 && (!inside || dist < 3.5)) ? seed + inw * 3.5 : p;
   float L = lum(texture(uSrc, qs / uSize).rgb) + 0.02;
-  float lr = log(L / (uMeanL[k] + 0.02)); lr = lr > 0.0 ? lr / (1.0 + 0.9 * lr) : lr;
-  float S = exp(uShadeG * clamp(lr, -2.2, 1.0));
+  vec4 bb = texture(uBase, qs * uBaseScale);
+  float B = (bb.g > 1e-3 ? bb.r / bb.g : L - 0.02) + 0.02;
+  float ld = log(L / B), lb = log(B / (uMeanL[k] + 0.02));
+  ld = ld > 0.0 ? ld / (1.0 + 0.9 * ld) : ld; lb = lb > 0.0 ? lb / (1.0 + 0.9 * lb) : lb;
+  float S = exp(uShadeG * (clamp(ld, -2.0, 1.0) + 0.4 * clamp(lb, -2.2, 1.0)));
   float dn = clamp(-e / max(uDepth, 1e-3), 0.0, 1.0);
   float sh = uDepth > 0.0 ? 1.0 - uShadowAmt * pow(1.0 - dn, 1.6) : 1.0;
   vec3 body = texture(uTex, tcoord(p, k)).rgb * S * sh;
@@ -1631,6 +1683,20 @@ void main(){
   float a = max(aBody, aFur);
   vec3 col = aBody >= aFur ? body : fur;
   o = vec4(mix(src, col, a), 1.0);
+}`;
+
+// luminance inside the body masks and the mask itself, at a reduced size
+const FS_LUMM = GLSL + HASH + `
+uniform sampler2D uSrc, uMask; uniform int uF; out vec4 o;
+void main(){
+  vec2 sz = vec2(textureSize(uSrc, 0)), base = floor(gl_FragCoord.xy) * float(uF);
+  float s = 0.0, m = 0.0;
+  for (int j = 0; j < 4; j++) for (int i = 0; i < 4; i++) {
+    vec2 q = (base + (vec2(i, j) + 0.5) * float(uF) / 4.0) / sz;
+    float mm = step(0.5, texture(uMask, q).r);
+    s += lum(texture(uSrc, q).rgb) * mm; m += mm;
+  }
+  o = vec4(s / 16.0, m / 16.0, 0.0, 1.0);
 }`;
 
 const FS_DOWN = GLSL + `
@@ -1669,7 +1735,7 @@ void main(){
   float w = e.b * (1.0 - e.r);
   if (uPass == 1) {
     vec4 m = texelFetch(uM, p, 0);
-    if (m.a > 1e-4 && e.g > 0.5) {
+    if (m.a > 1e-4) {
       vec3 mean = m.rgb / m.a;
       w *= 1.0 - smoothstep(0.03, 0.09, lum(mean) - lum(d));
       w *= 1.0 - smoothstep(0.03, 0.08, (d.r - d.g) - (mean.r - mean.g));
@@ -1688,13 +1754,14 @@ void main(){
   o = vec4(mix(lb, la, smoothstep(0.06, 0.3, a.a)), 1.0);
 }`;
 
-// face: the smooth layer plus skin grain. The grain is cut from the cheeks in small square
+// face: the smooth layer plus skin grain. Plain skin keeps its own detail; eyes, brows, nose,
+// mouth and small dark spots get the smooth layer plus grain cut from the cheeks in small square
 // pieces; each piece's source is chosen at random among cheek spots that the weight map
 // marks as plain skin, so an eye corner or a nostril can never be repeated over the face.
 // Four offset layers with tent weights hide the piece edges.
 const FS_FACE = GLSL + HASH + `
-uniform sampler2D uSrc, uLow, uSoft, uLab, uTex, uW; uniform vec2 uSize, uLowScale;
-uniform vec2 uC[16]; uniform vec2 uRot[16]; uniform float uPatch[16], uFW[16], uSeed[16]; uniform vec2 uOff[16];
+uniform sampler2D uSrc, uLow, uSoft, uLab, uTex, uW, uE, uN1, uEB; uniform vec2 uSize, uLowScale;
+uniform vec2 uC[16]; uniform vec2 uRot[16]; uniform float uPatch[16], uFW[16], uSeed[16], uKeepY[16]; uniform vec2 uOff[16];
 uniform float uGrain, uKind, uShadeG, uTexFrac, uTexAspect; out vec4 o;
 vec3 low(vec2 p){ return texture(uLow, p * uLowScale).rgb; }
 float ok(vec2 p){ return texture(uW, p * uLowScale).a; }
@@ -1717,7 +1784,10 @@ vec3 piece(int i, vec2 q, vec2 off, out float w){
   if (h2.x < 0.5) r.x = -r.x;
   if (h2.y < 0.5) r = r.yx;
   vec2 sp = src + rot(r * P, uRot[i]);
-  return clamp(texture(uSrc, sp / uSize).rgb - low(sp), -0.07, 0.07);
+  // only the finest grain (pores, sensor noise): the pixel minus its 3x3 neighbourhood
+  vec2 px = 1.0 / uSize, u = sp * px; vec3 n9 = vec3(0.0);
+  for (int j = -1; j <= 1; j++) for (int i2 = -1; i2 <= 1; i2++) n9 += texture(uSrc, u + vec2(i2, j) * px).rgb * (j == 0 ? 2.0 : 1.0) * (i2 == 0 ? 2.0 : 1.0);
+  return clamp(texture(uSrc, u).rgb - n9 / 16.0, -0.05, 0.05);
 }
 void main(){
   vec2 p = gl_FragCoord.xy, uv = p / uSize;
@@ -1727,6 +1797,11 @@ void main(){
   if (F < 0.002 || i < 0) { o = vec4(src, 1.0); return; }
   vec2 d = p - uC[i];
   vec2 lq = rot(d, vec2(uRot[i].x, -uRot[i].y));
+  // hair over the forehead and temples stays: dark, above the brows, away from eyes and brows
+  float near = texture(uE, p * uLowScale).g;
+  float ky = uKeepY[i] + smoothstep(0.25, 0.4, abs(lq.x) / uFW[i]) * 0.15 * uFW[i]; // lower at the temples
+  float keep = smoothstep(0.05, 0.14, lum(low(p)) - lum(src)) * (1.0 - near) * (1.0 - smoothstep(ky - 2.0, ky + 2.0, lq.y));
+  F *= 1.0 - keep;
   vec3 res;
   if (uKind < 0.5) {
     vec2 q = lq / uPatch[i];
@@ -1734,7 +1809,12 @@ void main(){
     vec3 g = piece(i, q, vec2(0.0), w0) * w0 + piece(i, q, vec2(0.5, 0.0), w1) * w1 + piece(i, q, vec2(0.0, 0.5), w2) * w2 + piece(i, q, vec2(0.5), w3) * w3;
     float n = sqrt(w0 * w0 + w1 * w1 + w2 * w2 + w3 * w3);
     vec3 H = n > 1e-3 ? g / n : vec3(0.0);
-    res = low(p) + H * uGrain;
+    // plain skin keeps its own detail (it is the skin's own grain); only where the weight map
+    // marks eyes, brows, nose, mouth or small dark spots is the detail replaced by cheek grain
+    // plain = skin here and within about one "detail size" around (so creases around the eyes and lips go too)
+    float frac = texture(uN1, p * uLowScale).a / max(texture(uEB, p * uLowScale).b, 1e-3);
+    float plain = smoothstep(0.55, 0.95, ok(p)) * smoothstep(0.8, 0.97, frac);
+    res = low(p) + mix(H * uGrain, src - low(p), plain);
   } else {
     float th = max(uFW[i] * 7.0 * uTexFrac, 2.0);
     vec2 tuv = vec2(lq.x / (th * uTexAspect), lq.y / th) + uOff[i];
@@ -1779,7 +1859,7 @@ class Renderer {
     const P = (vs, fs) => this._prog(vs, fs);
     this.p = {
       color: P(VS_POLY, FS_COLOR), seed: P(VS_FULL, FS_SEED), jfa: P(VS_FULL, FS_JFA), plush: P(VS_FULL, FS_PLUSH),
-      down: P(VS_FULL, FS_DOWN), blur: P(VS_FULL, FS_BLUR), weight: P(VS_FULL, FS_WEIGHT), low: P(VS_FULL, FS_LOW),
+      down: P(VS_FULL, FS_DOWN), lumm: P(VS_FULL, FS_LUMM), blur: P(VS_FULL, FS_BLUR), weight: P(VS_FULL, FS_WEIGHT), low: P(VS_FULL, FS_LOW),
       face: P(VS_FULL, FS_FACE), disp: P(VS_FULL, FS_DISP), measure: P(VS_FULL, FS_MEASURE),
     };
     this.vao = gl.createVertexArray(); gl.bindVertexArray(this.vao);
@@ -1900,8 +1980,14 @@ class Renderer {
     let a = T.seedA, b = T.seedB;
     pr = this.p.jfa;
     for (; step >= 1; step >>= 1) { this._use(pr, b); this._bind(pr, 'uSeed', 0, a); gl.uniform1i(pr.u.uStep, step); this._full(); [a, b] = [b, a]; }
+    // broad brightness of the bodies: normalized blur of luminance inside the masks
+    const hs = slots.map((q) => q.scale).sort((x, y) => x - y), sb = clamp(hs[hs.length >> 1] * 0.06, 3, 80);
+    const f = clamp(Math.round(sb / 3), 2, 8), Wk = this._ensureWork(f);
+    pr = this.p.lumm; this._use(pr, Wk.D); this._bind(pr, 'uSrc', 0, T.src); this._bind(pr, 'uMask', 1, T.mask); gl.uniform1i(pr.u.uF, f); this._full();
+    this._blur(Wk.D, Wk.A, Wk.M, sb / f);
     pr = this.p.plush; this._use(pr, T.out);
-    this._bind(pr, 'uSrc', 0, T.src); this._bind(pr, 'uMask', 1, T.mask); this._bind(pr, 'uLabel', 2, T.label); this._bind(pr, 'uTex', 3, T.felt); this._bind(pr, 'uSeed', 4, a);
+    this._bind(pr, 'uSrc', 0, T.src); this._bind(pr, 'uMask', 1, T.mask); this._bind(pr, 'uLabel', 2, T.label); this._bind(pr, 'uTex', 3, T.felt); this._bind(pr, 'uSeed', 4, a); this._bind(pr, 'uBase', 5, Wk.M);
+    gl.uniform2f(pr.u.uBaseScale, 1 / (Wk.w * f), 1 / (Wk.h * f));
     const n = 32, an = new Float32Array(n * 2), sc = new Float32Array(n), off = new Float32Array(n * 2), ml = new Float32Array(n), rd = new Float32Array(n);
     for (const s of slots) { const k = s.slot - 1; an[2 * k] = s.anchor[0]; an[2 * k + 1] = s.anchor[1]; sc[k] = s.scale; off[2 * k] = hash01(s.id * 31 + 1) * 7.3; off[2 * k + 1] = hash01(s.id * 57 + 3) * 5.1; ml[k] = s.meanL; rd[k] = s.rand; }
     gl.uniform2fv(pr.u.uAnchor, an); gl.uniform1fv(pr.u.uScale, sc); gl.uniform2fv(pr.u.uOff, off); gl.uniform1fv(pr.u.uMeanL, ml); gl.uniform1fv(pr.u.uRand, rd);
@@ -1918,12 +2004,12 @@ class Renderer {
     const faces = fs.faces.filter((f) => f.applied).slice(0, 16);
     if (!faces.length) { this._copySrcToOut(); return 0; }
     const f = clamp(Math.round(P.detail / 3), 1, 8), sig = P.detail / f, Wk = this._ensureWork(f);
-    // E: r = features, g = where to reject dark/red outliers, b = face region (work resolution)
+    // E: r = features, g = around the features (hair is never kept there), b = face region (work resolution)
     let pr = this.p.color; this._use(pr, Wk.E); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
     gl.enable(gl.BLEND); gl.blendEquation(gl.MAX); gl.blendFunc(gl.ONE, gl.ONE);
     gl.uniform2f(pr.u.uSize, this.W, this.H);
     for (const fc of faces) {
-      gl.uniform4f(pr.u.uColor, 0, fc.dark ? 1 : 0, 1, 0); this._poly(fc.oval);
+      gl.uniform4f(pr.u.uColor, 0, 0, 1, 0); this._poly(fc.oval);
       for (const h of fc.feats) { gl.uniform4f(pr.u.uColor, 0, 1, 0, 0); this._poly(inflatePoly(h, fc.width * 0.05 + 2)); }
       for (const h of fc.feats) { gl.uniform4f(pr.u.uColor, 1, 0, 0, 0); this._poly(h); }
     }
@@ -1942,17 +2028,18 @@ class Renderer {
     this._blur(Wk.T, Wk.A, Wk.N1, sig);
     this._blur(Wk.T, Wk.A, Wk.N2, sig * 3.5);
     pr = this.p.low; this._use(pr, Wk.low); this._bind(pr, 'uN1', 0, Wk.N1); this._bind(pr, 'uN2', 1, Wk.N2); this._bind(pr, 'uD', 2, Wk.D); this._full();
+    this._blur(Wk.E, Wk.A, Wk.M, sig); // face region blurred like the weights, to tell "near a feature" from "near the edge"
     // composite
     pr = this.p.face; this._use(pr, T.out);
-    this._bind(pr, 'uSrc', 0, T.src); this._bind(pr, 'uLow', 1, Wk.low); this._bind(pr, 'uSoft', 2, T.soft); this._bind(pr, 'uLab', 3, T.lab); this._bind(pr, 'uTex', 4, T.felt); this._bind(pr, 'uW', 5, Wk.T);
-    const n = 16, C = new Float32Array(n * 2), R = new Float32Array(n * 2), Pt = new Float32Array(n), FW = new Float32Array(n), SD = new Float32Array(n), O = new Float32Array(n * 2);
+    this._bind(pr, 'uSrc', 0, T.src); this._bind(pr, 'uLow', 1, Wk.low); this._bind(pr, 'uSoft', 2, T.soft); this._bind(pr, 'uLab', 3, T.lab); this._bind(pr, 'uTex', 4, T.felt); this._bind(pr, 'uW', 5, Wk.T); this._bind(pr, 'uE', 6, Wk.E); this._bind(pr, 'uN1', 7, Wk.N1); this._bind(pr, 'uEB', 8, Wk.M);
+    const n = 16, C = new Float32Array(n * 2), R = new Float32Array(n * 2), Pt = new Float32Array(n), FW = new Float32Array(n), SD = new Float32Array(n), O = new Float32Array(n * 2), KY = new Float32Array(n);
     faces.forEach((fc, i) => {
       C[2 * i] = fc.center[0]; C[2 * i + 1] = fc.center[1]; R[2 * i] = Math.cos(fc.roll); R[2 * i + 1] = Math.sin(fc.roll);
-      Pt[i] = Math.max(3, fc.width * 0.09); FW[i] = fc.width; SD[i] = hash01(fc.id * 13 + 1) * 97;
+      Pt[i] = Math.max(3, fc.width * 0.09); FW[i] = fc.width; SD[i] = hash01(fc.id * 13 + 1) * 97; KY[i] = fc.keepY == null ? -1e9 : fc.keepY;
       O[2 * i] = hash01(fc.id * 17 + 5) * 6.1; O[2 * i + 1] = hash01(fc.id * 29 + 9) * 4.3;
     });
     gl.uniform2fv(pr.u.uC, C); gl.uniform2fv(pr.u.uRot, R); gl.uniform1fv(pr.u.uPatch, Pt); gl.uniform1fv(pr.u.uFW, FW);
-    gl.uniform1fv(pr.u.uSeed, SD); gl.uniform2fv(pr.u.uOff, O);
+    gl.uniform1fv(pr.u.uSeed, SD); gl.uniform2fv(pr.u.uOff, O); gl.uniform1fv(pr.u.uKeepY, KY);
     gl.uniform2f(pr.u.uSize, this.W, this.H); gl.uniform2f(pr.u.uLowScale, 1 / (Wk.w * f), 1 / (Wk.h * f));
     gl.uniform1f(pr.u.uGrain, P.grain / 100); gl.uniform1f(pr.u.uKind, P.faceKind === 'felt' ? 1 : 0);
     gl.uniform1f(pr.u.uShadeG, P.shade / 100); gl.uniform1f(pr.u.uTexFrac, P.texSize / 100); gl.uniform1f(pr.u.uTexAspect, this.texAspect);
@@ -2169,7 +2256,7 @@ function setMethod(m, quiet) {
 function methodUI() {
   const mp = DET.mp, m = S.method;
   $('mpBox').hidden = m !== 'mp'; $('bgBox').hidden = m !== 'bg' && effMethod() !== 'bg';
-  const stTxt = { idle: 'まだ読み込んでいません', loading: '読み込み中：' + mp.msg, ready: `読み込み済み（${mp.delegate === 'GPU' ? 'GPU' : 'CPU'}）・姿勢モデル：${mp.origin.pose}・顔モデル：${mp.origin.face}`, failed: '読み込めませんでした：' + mp.msg };
+  const stTxt = { idle: 'まだ読み込んでいません', loading: '読み込み中：' + mp.msg, ready: `読み込み済み（${mp.delegate}）・姿勢モデル：${mp.origin.pose}・顔モデル：${mp.origin.face}`, failed: '読み込めませんでした：' + mp.msg };
   $('mpStatus').textContent = 'MediaPipe：' + stTxt[mp.state];
   $('mpHelp').open = mp.state === 'failed';
   let note = '';
@@ -2231,26 +2318,31 @@ function show(o = {}) {
 }
 function rerender() {
   if (!S.lastDet || !S.src || S.busy) return;
-  // re-detect only when the detection inputs changed; otherwise recompose with the current tracks
-  const fs = TR.state(S.t, P, P.mode === 1); S.lastFS = fs;
-  if (P.mode === 1) R.uploadMasks(TR.union, TR.label);
-  R.process(fs, P); show();
+  // recompose with the current tracks; detection is only redone when its inputs change
+  guard(() => {
+    const fs = TR.state(S.t, P, P.mode === 1); S.lastFS = fs;
+    if (P.mode === 1) R.uploadMasks(TR.union, TR.label);
+    R.process(fs, P); show();
+  });
 }
 function redetect() {
   if (!S.src || S.busy) return;
   TR.clear();
-  if (S.src.kind === 'sample') { const tf = S.frameIdx / S.src.fps; processFrame(SAMPLE.render(tf), tf); show(); }
-  else if (video.readyState >= 2) { processFrame(video, S.t); show(); }
+  guard(() => {
+    if (S.src.kind === 'sample') { const tf = S.frameIdx / S.src.fps; processFrame(SAMPLE.render(tf), tf); show(); }
+    else if (video.readyState >= 2) { processFrame(video, S.t); show(); }
+  });
 }
 function showSampleFrame(count) {
   const fi = Math.floor(S.t * SAMPLE.FPS + 1e-6) % SAMPLE.frames;
   S.frameIdx = fi; const tf = fi / SAMPLE.FPS;
-  processFrame(SAMPLE.render(tf), tf, { count }); show();
+  guard(() => { processFrame(SAMPLE.render(tf), tf, { count }); show(); });
 }
 function showVideoFrame(force, mediaTime) {
   const t = mediaTime != null ? mediaTime : video.currentTime;
   if (!force && Math.abs(t - TR.lastT) < 1e-6) return;
-  processFrame(video, t, { count: S.playing }); show();
+  if (video.readyState < 2) return;
+  guard(() => { processFrame(video, t, { count: S.playing }); show(); });
 }
 
 // --------------------------------------------------------------- playback ---
@@ -2272,17 +2364,22 @@ async function seekTo(t) {
 }
 function step(n) { stop(); seekTo((S.src.kind === 'sample' ? S.frameIdx / S.src.fps : S.t) + n * frameDur()); }
 function onVideoFrame(now, meta) {
+  video.requestVideoFrameCallback(onVideoFrame); // first, so an error below cannot stop the loop
   if (S.src && S.src.kind === 'file' && !S.busy) showVideoFrame(false, meta.mediaTime);
-  video.requestVideoFrameCallback(onVideoFrame);
+}
+// an error in one frame must not stop playback or leave the screen silent
+function guard(fn) {
+  try { fn(); }
+  catch (e) { console.error(e); setVerdict('none', 'エラー', '処理中にエラーが起きました：' + (e && e.message || e)); }
 }
 function tick(now) {
+  requestAnimationFrame(tick);
   if (S.src && S.src.kind === 'sample' && S.playing && !S.busy) {
     S.t = (S.t0 + (now - S.p0) / 1000) % S.src.dur;
     const fi = Math.floor(S.t * SAMPLE.FPS) % SAMPLE.frames;
     if (fi !== S.frameIdx) showSampleFrame(true);
   }
   if (S.src && S.src.kind === 'file' && !('requestVideoFrameCallback' in video) && !S.busy && Math.abs(video.currentTime - TR.lastT) > 1e-4) showVideoFrame(false);
-  requestAnimationFrame(tick);
 }
 function timecode() {
   const src = S.src; if (!src) return;
@@ -2314,6 +2411,7 @@ function drawOverlay() {
     c.strokeRect(b[0] * k, b[1] * k, (b[2] - b[0]) * k, (b[3] - b[1]) * k);
     let t = `#${p.id} 身長 ${Math.round(p.height)}px`;
     if (p.state === 'held') t += ` 保持 ${p.since.toFixed(2)}秒`;
+    if (p.approx) t += ' 形は骨格から近似';
     if (P.mode === 1 && !p.applied) t += p.reason === 'size' ? ' 範囲外' : ' 適用率で外す';
     tag(b[0] * k, b[1] * k, t, col);
     if (p.faceMissing && P.mode === 2) tag(b[0] * k, b[1] * k + 17 * dpr, '顔が見えているのに顔を検出できていない', COL.bad);
@@ -2338,14 +2436,14 @@ function verdict() {
   const fs = S.lastFS, m = S.lastM; if (!fs) return;
   const c = fs.c, eff = effMethod();
   const meth = eff === 'mp' ? `MediaPipe（${DET.mp.delegate}）` : '内蔵（背景差分）';
-  const note = S.lastDet && S.lastDet.note ? `・${S.lastDet.note}` : '';
+  const note = (S.lastDet && S.lastDet.note ? `・${S.lastDet.note}` : '') + (fs.persons.some((p) => p.approx) ? '・人の形を骨格から近似しています（マスクが得られなかったため）' : '');
   const pct = (x) => (x * 100).toFixed(x < 0.1 ? 1 : 0) + '%';
   if (P.mode === 1) {
     const n = c.pSeen + c.pHeld;
     if (!n) setVerdict('none', '検出なし', `このコマでは人を検出していません（${meth}${note}）。効果が見えないのは検出の失敗です。`);
     else if (!c.pApplied) setVerdict('out', '範囲外', `人を ${n} 人検出していますが、適用は 0 人です（身長が範囲外 ${c.pSize} 人・適用率で外れた ${c.pRate} 人）。`);
     else if (m && m.mean < 0.03) setVerdict('weak', '効果が弱い', `${c.pApplied} 人に適用していますが、変化はわずかです（変わった部分の平均の差 ${pct(m.mean)}）。設定が弱めです。`);
-    else setVerdict('on', '適用中', `${c.pApplied} / ${n} 人に適用しています。画面の ${m ? pct(m.area) : '–'} が変わり、変わった部分の平均の差は ${m ? pct(m.mean) : '–'} です。`);
+    else setVerdict('on', '適用中', `${c.pApplied} / ${n} 人に適用しています。画面の ${m ? pct(m.area) : '–'} が変わり、変わった部分の平均の差は ${m ? pct(m.mean) : '–'} です。${fs.persons.some((p) => p.approx) ? '一部の人は形を骨格から近似しています。' : ''}`);
   } else {
     const n = c.fSeen + c.fHeld, np = c.pSeen + c.pHeld;
     if (!n) setVerdict('none', '検出なし', np ? `人は ${np} 人いますが、顔を検出していません（${meth}${note}）。${c.noFace ? `うち ${c.noFace} 人は顔が見えているはずです。` : '後ろ向きか、顔が小さすぎる可能性があります。'}` : `このコマでは人も顔も検出していません（${meth}${note}）。効果が見えないのは検出の失敗です。`);

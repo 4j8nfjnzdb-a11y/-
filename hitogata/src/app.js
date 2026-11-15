@@ -191,7 +191,7 @@ function setMethod(m, quiet) {
 function methodUI() {
   const mp = DET.mp, m = S.method;
   $('mpBox').hidden = m !== 'mp'; $('bgBox').hidden = m !== 'bg' && effMethod() !== 'bg';
-  const stTxt = { idle: 'まだ読み込んでいません', loading: '読み込み中：' + mp.msg, ready: `読み込み済み（${mp.delegate === 'GPU' ? 'GPU' : 'CPU'}）・姿勢モデル：${mp.origin.pose}・顔モデル：${mp.origin.face}`, failed: '読み込めませんでした：' + mp.msg };
+  const stTxt = { idle: 'まだ読み込んでいません', loading: '読み込み中：' + mp.msg, ready: `読み込み済み（${mp.delegate}）・姿勢モデル：${mp.origin.pose}・顔モデル：${mp.origin.face}`, failed: '読み込めませんでした：' + mp.msg };
   $('mpStatus').textContent = 'MediaPipe：' + stTxt[mp.state];
   $('mpHelp').open = mp.state === 'failed';
   let note = '';
@@ -253,26 +253,31 @@ function show(o = {}) {
 }
 function rerender() {
   if (!S.lastDet || !S.src || S.busy) return;
-  // re-detect only when the detection inputs changed; otherwise recompose with the current tracks
-  const fs = TR.state(S.t, P, P.mode === 1); S.lastFS = fs;
-  if (P.mode === 1) R.uploadMasks(TR.union, TR.label);
-  R.process(fs, P); show();
+  // recompose with the current tracks; detection is only redone when its inputs change
+  guard(() => {
+    const fs = TR.state(S.t, P, P.mode === 1); S.lastFS = fs;
+    if (P.mode === 1) R.uploadMasks(TR.union, TR.label);
+    R.process(fs, P); show();
+  });
 }
 function redetect() {
   if (!S.src || S.busy) return;
   TR.clear();
-  if (S.src.kind === 'sample') { const tf = S.frameIdx / S.src.fps; processFrame(SAMPLE.render(tf), tf); show(); }
-  else if (video.readyState >= 2) { processFrame(video, S.t); show(); }
+  guard(() => {
+    if (S.src.kind === 'sample') { const tf = S.frameIdx / S.src.fps; processFrame(SAMPLE.render(tf), tf); show(); }
+    else if (video.readyState >= 2) { processFrame(video, S.t); show(); }
+  });
 }
 function showSampleFrame(count) {
   const fi = Math.floor(S.t * SAMPLE.FPS + 1e-6) % SAMPLE.frames;
   S.frameIdx = fi; const tf = fi / SAMPLE.FPS;
-  processFrame(SAMPLE.render(tf), tf, { count }); show();
+  guard(() => { processFrame(SAMPLE.render(tf), tf, { count }); show(); });
 }
 function showVideoFrame(force, mediaTime) {
   const t = mediaTime != null ? mediaTime : video.currentTime;
   if (!force && Math.abs(t - TR.lastT) < 1e-6) return;
-  processFrame(video, t, { count: S.playing }); show();
+  if (video.readyState < 2) return;
+  guard(() => { processFrame(video, t, { count: S.playing }); show(); });
 }
 
 // --------------------------------------------------------------- playback ---
@@ -294,17 +299,22 @@ async function seekTo(t) {
 }
 function step(n) { stop(); seekTo((S.src.kind === 'sample' ? S.frameIdx / S.src.fps : S.t) + n * frameDur()); }
 function onVideoFrame(now, meta) {
+  video.requestVideoFrameCallback(onVideoFrame); // first, so an error below cannot stop the loop
   if (S.src && S.src.kind === 'file' && !S.busy) showVideoFrame(false, meta.mediaTime);
-  video.requestVideoFrameCallback(onVideoFrame);
+}
+// an error in one frame must not stop playback or leave the screen silent
+function guard(fn) {
+  try { fn(); }
+  catch (e) { console.error(e); setVerdict('none', 'エラー', '処理中にエラーが起きました：' + (e && e.message || e)); }
 }
 function tick(now) {
+  requestAnimationFrame(tick);
   if (S.src && S.src.kind === 'sample' && S.playing && !S.busy) {
     S.t = (S.t0 + (now - S.p0) / 1000) % S.src.dur;
     const fi = Math.floor(S.t * SAMPLE.FPS) % SAMPLE.frames;
     if (fi !== S.frameIdx) showSampleFrame(true);
   }
   if (S.src && S.src.kind === 'file' && !('requestVideoFrameCallback' in video) && !S.busy && Math.abs(video.currentTime - TR.lastT) > 1e-4) showVideoFrame(false);
-  requestAnimationFrame(tick);
 }
 function timecode() {
   const src = S.src; if (!src) return;
@@ -336,6 +346,7 @@ function drawOverlay() {
     c.strokeRect(b[0] * k, b[1] * k, (b[2] - b[0]) * k, (b[3] - b[1]) * k);
     let t = `#${p.id} 身長 ${Math.round(p.height)}px`;
     if (p.state === 'held') t += ` 保持 ${p.since.toFixed(2)}秒`;
+    if (p.approx) t += ' 形は骨格から近似';
     if (P.mode === 1 && !p.applied) t += p.reason === 'size' ? ' 範囲外' : ' 適用率で外す';
     tag(b[0] * k, b[1] * k, t, col);
     if (p.faceMissing && P.mode === 2) tag(b[0] * k, b[1] * k + 17 * dpr, '顔が見えているのに顔を検出できていない', COL.bad);
@@ -360,14 +371,14 @@ function verdict() {
   const fs = S.lastFS, m = S.lastM; if (!fs) return;
   const c = fs.c, eff = effMethod();
   const meth = eff === 'mp' ? `MediaPipe（${DET.mp.delegate}）` : '内蔵（背景差分）';
-  const note = S.lastDet && S.lastDet.note ? `・${S.lastDet.note}` : '';
+  const note = (S.lastDet && S.lastDet.note ? `・${S.lastDet.note}` : '') + (fs.persons.some((p) => p.approx) ? '・人の形を骨格から近似しています（マスクが得られなかったため）' : '');
   const pct = (x) => (x * 100).toFixed(x < 0.1 ? 1 : 0) + '%';
   if (P.mode === 1) {
     const n = c.pSeen + c.pHeld;
     if (!n) setVerdict('none', '検出なし', `このコマでは人を検出していません（${meth}${note}）。効果が見えないのは検出の失敗です。`);
     else if (!c.pApplied) setVerdict('out', '範囲外', `人を ${n} 人検出していますが、適用は 0 人です（身長が範囲外 ${c.pSize} 人・適用率で外れた ${c.pRate} 人）。`);
     else if (m && m.mean < 0.03) setVerdict('weak', '効果が弱い', `${c.pApplied} 人に適用していますが、変化はわずかです（変わった部分の平均の差 ${pct(m.mean)}）。設定が弱めです。`);
-    else setVerdict('on', '適用中', `${c.pApplied} / ${n} 人に適用しています。画面の ${m ? pct(m.area) : '–'} が変わり、変わった部分の平均の差は ${m ? pct(m.mean) : '–'} です。`);
+    else setVerdict('on', '適用中', `${c.pApplied} / ${n} 人に適用しています。画面の ${m ? pct(m.area) : '–'} が変わり、変わった部分の平均の差は ${m ? pct(m.mean) : '–'} です。${fs.persons.some((p) => p.approx) ? '一部の人は形を骨格から近似しています。' : ''}`);
   } else {
     const n = c.fSeen + c.fHeld, np = c.pSeen + c.pHeld;
     if (!n) setVerdict('none', '検出なし', np ? `人は ${np} 人いますが、顔を検出していません（${meth}${note}）。${c.noFace ? `うち ${c.noFace} 人は顔が見えているはずです。` : '後ろ向きか、顔が小さすぎる可能性があります。'}` : `このコマでは人も顔も検出していません（${meth}${note}）。効果が見えないのは検出の失敗です。`);
