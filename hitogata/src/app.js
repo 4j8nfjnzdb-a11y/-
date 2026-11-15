@@ -9,12 +9,12 @@ const DEFS = [
   { k: 'hold', label: '保持時間（検出が途切れたとき）', unit: '秒', min: 0, max: 1, step: 0.01, v: 0.2 },
   { k: 'texSize', label: '質感の大きさ（身長に対して）', unit: '%', min: 5, max: 200, step: 1, v: 45, mode: 0 },
   { k: 'shade', label: '陰影の残し具合', unit: '%', min: 0, max: 100, step: 1, v: 70, mode: 0 },
-  { k: 'dilate', label: '膨張', unit: 'px', min: 0, max: 20, step: 0.5, v: 6, mode: 1 },
+  { k: 'dilate', label: '膨張', unit: 'px', min: 0, max: 20, step: 0.5, v: 4, mode: 1 },
   { k: 'feather', label: '縁のぼかし', unit: 'px', min: 0, max: 20, step: 0.5, v: 3, mode: 1 },
-  { k: 'depth', label: '縁の内側の影：深さ', unit: 'px', min: 0, max: 80, step: 1, v: 22, mode: 1 },
+  { k: 'depth', label: '縁の内側の影：深さ', unit: 'px', min: 0, max: 80, step: 1, v: 12, mode: 1 },
   { k: 'shadowAmt', label: '縁の内側の影：濃さ', unit: '%', min: 0, max: 100, step: 1, v: 45, mode: 1 },
   { k: 'furLen', label: '長さ', unit: 'px', min: 0, max: 20, step: 0.5, v: 3, mode: 1 },
-  { k: 'furDen', label: '密度（縁の画素のうち毛の生える割合）', unit: '%', min: 0, max: 100, step: 1, v: 30, mode: 1 },
+  { k: 'furDen', label: '密度（縁の画素のうち毛の生える割合）', unit: '%', min: 0, max: 100, step: 1, v: 40, mode: 1 },
   { k: 'hMin', label: '身長の下限', unit: 'px', min: 0, max: 2000, step: 1, v: 0, mode: 1 },
   { k: 'hMax', label: '身長の上限', unit: 'px', min: 0, max: 2000, step: 1, v: 2000, mode: 1, top: true },
   { k: 'rate1', label: '適用率（人ごとにランダムで固定）', unit: '%', min: 0, max: 100, step: 1, v: 100, mode: 1 },
@@ -180,6 +180,7 @@ async function openFile(file) {
   showVideoFrame(true);
   if (DET.mp.state === 'idle' || DET.mp.state === 'failed') DET.loadMP();
   setMethod(DET.mp.state === 'failed' ? 'bg' : 'mp', true);
+  estimatePlate(); // in the background: also used by MediaPipe to cut out small people in a still shot
   // exact frame rate and first timestamp, in the background (used by the scan and export)
   (async () => {
     try {
@@ -237,7 +238,7 @@ function setMethod(m, quiet) {
 function methodUI() {
   const mp = DET.mp, m = S.method;
   $('mpBox').hidden = m !== 'mp'; $('bgBox').hidden = m !== 'bg' && effMethod() !== 'bg';
-  const stTxt = { idle: 'まだ読み込んでいません', loading: '読み込み中：' + mp.msg, ready: `読み込み済み（${mp.delegate}）・姿勢モデル：${mp.origin.pose}・顔モデル：${mp.origin.face}`, failed: '読み込めませんでした：' + mp.msg };
+  const stTxt = { idle: 'まだ読み込んでいません', loading: '読み込み中：' + mp.msg, ready: `読み込み済み（${mp.delegate}）・モデル：${Object.keys(MODEL_NAME).map((k) => MODEL_NAME[k] + '＝' + (mp.origin[k] || '–')).join('・')}`, failed: '読み込めませんでした：' + mp.msg };
   $('mpStatus').textContent = 'MediaPipe：' + stTxt[mp.state];
   $('mpHelp').open = mp.state === 'failed';
   let note = '';
@@ -267,8 +268,8 @@ function estimatePlate() {
     try {
       plateVideo.src = src.url; plateVideo.load();
       await waitMedia(plateVideo, 'loadeddata', 20000);
-      const plate = await BG.estimate(async (t) => { await seekEl(plateVideo, t, 4000); return plateVideo; }, src.dur, job.n, (i) => { job.i = i; methodUI(); });
-      if (S.src === src) BG.plate = plate;
+      const r = await BG.estimate(async (t) => { await seekEl(plateVideo, t, 4000); return plateVideo; }, src.dur, job.n, (i) => { job.i = i; methodUI(); });
+      if (S.src === src) { BG.plate = r.plate; BG.hplate = r.hplate; BG.thumb = r.thumb; }
     } catch (e) { job.err = e.message || String(e); }
     plateVideo.removeAttribute('src'); plateVideo.load();
     if (S.src === src) { methodUI(); redetect(); }
@@ -286,7 +287,7 @@ function cacheKey() { const m = effMethod(); return `${S.src.id}|${m}|${m === 'm
 
 // ------------------------------------------------------------ the frame ---
 function processFrame(img, t, o = {}) {
-  const src = S.src;
+  const src = S.src, t0 = performance.now();
   let det = cacheGet(t);
   if (!det) det = DET.detect(img, src.W, src.H, effMethod(), P.mode === 2, FACE_MIN_DETECT);
   S.lastDet = det;
@@ -297,7 +298,16 @@ function processFrame(img, t, o = {}) {
   if (!o.export) updateTexture();
   R.process(fs, P);
   if (o.count) { S.stats.n++; if (fs.c.pSeen) S.stats.p++; if (fs.c.fSeen) S.stats.f++; }
+  const ms = performance.now() - t0; S.procMs = S.procMs ? S.procMs * 0.7 + ms * 0.3 : ms;
+  if (!o.export && src.kind === 'file' && S.playing) paceVideo();
   return fs;
+}
+// When a frame takes longer to process than it lasts, slow the preview down instead of skipping
+// frames: every frame is then processed and the masks follow the motion frame by frame.
+function paceVideo() {
+  const want = clamp(1000 / S.src.fps / (S.procMs * 1.15), 0.07, 1); // browsers refuse rates below 1/16
+  const r = want >= 0.97 ? 1 : Math.round(want * 100) / 100;
+  if (Math.abs(video.playbackRate - r) > 0.02) { try { video.playbackRate = r; } catch (e) { /* */ } }
 }
 function show(o = {}) {
   const T = S.test;
@@ -427,14 +437,15 @@ function verdict() {
   const fs = S.lastFS, m = S.lastM; if (!fs) return;
   const c = fs.c, eff = effMethod();
   const meth = eff === 'mp' ? `MediaPipe（${DET.mp.delegate}）` : '内蔵（背景差分）';
-  const note = (S.lastDet && S.lastDet.note ? `・${S.lastDet.note}` : '') + (fs.persons.some((p) => p.approx) ? '・人の形を骨格から近似しています（マスクが得られなかったため）' : '');
+  const ns = S.lastDet && S.lastDet.noShape ? S.lastDet.noShape : 0;
+  const note = (S.lastDet && S.lastDet.note ? `・${S.lastDet.note}` : '') + (fs.persons.some((p) => p.approx) ? '・人の形を骨格から近似しています（マスクが得られなかったため）' : '') + (ns ? `・人の枠はあるのに形を取れず加工していない人 ${ns} 人` : '');
   const pct = (x) => (x * 100).toFixed(x < 0.1 ? 1 : 0) + '%';
   if (P.mode === 1) {
     const n = c.pSeen + c.pHeld;
     if (!n) setVerdict('none', '検出なし', `このコマでは人を検出していません（${meth}${note}）。効果が見えないのは検出の失敗です。`);
     else if (!c.pApplied) setVerdict('out', '範囲外', `人を ${n} 人検出していますが、適用は 0 人です（身長が範囲外 ${c.pSize} 人・適用率で外れた ${c.pRate} 人）。`);
     else if (m && m.mean < 0.03) setVerdict('weak', '効果が弱い', `${c.pApplied} 人に適用していますが、変化はわずかです（変わった部分の平均の差 ${pct(m.mean)}）。設定が弱めです。`);
-    else setVerdict('on', '適用中', `${c.pApplied} / ${n} 人に適用しています。画面の ${m ? pct(m.area) : '–'} が変わり、変わった部分の平均の差は ${m ? pct(m.mean) : '–'} です。${fs.persons.some((p) => p.approx) ? '一部の人は形を骨格から近似しています。' : ''}`);
+    else setVerdict('on', '適用中', `${c.pApplied} / ${n} 人に適用しています。画面の ${m ? pct(m.area) : '–'} が変わり、変わった部分の平均の差は ${m ? pct(m.mean) : '–'} です。${fs.persons.some((p) => p.approx) ? '一部の人は形を骨格から近似しています。' : ''}${ns ? `人の枠はあるのに形を取れず、加工していない人が ${ns} 人います。` : ''}`);
   } else {
     const n = c.fSeen + c.fHeld, np = c.pSeen + c.pHeld;
     if (!n) setVerdict('none', '検出なし', np ? `人は ${np} 人いますが、顔を検出していません（${meth}${note}）。${c.noFace ? `うち ${c.noFace} 人は顔が見えているはずです。` : '後ろ向きか、顔が小さすぎる可能性があります。'}` : `このコマでは人も顔も検出していません（${meth}${note}）。効果が見えないのは検出の失敗です。`);
@@ -443,10 +454,11 @@ function verdict() {
     else setVerdict('on', '適用中', `${c.fApplied} / ${n} の顔に適用しています。画面の ${m ? pct(m.area) : '–'} が変わり、平均の差は ${m ? pct(m.mean) : '–'} です。${c.noFace ? `顔を検出できていない人が ${c.noFace} 人います。` : ''}`);
   }
   const chips = [
-    `検出 <b>${meth}</b>`, `処理 <b>${DET.lastMs.toFixed(0)} ms</b>/コマ`,
+    `検出 <b>${meth}</b>`, `処理 <b>${(S.procMs || DET.lastMs).toFixed(0)} ms</b>/コマ`,
     `人 <b>検出 ${c.pSeen}・保持 ${c.pHeld}</b>`,
   ];
   if (P.mode === 2) chips.push(`顔 <b>検出 ${c.fSeen}・保持 ${c.fHeld}</b>`);
+  if (S.src && S.src.kind === 'file' && video.playbackRate < 0.99) chips.push(`再生 <b>${video.playbackRate.toFixed(2)} 倍</b>（全コマを処理するため遅くしています。書き出しは元の速さ）`);
   $('chips').innerHTML = chips.map((s) => `<span>${s}</span>`).join('');
   const st = S.stats;
   $('detRate').textContent = st.n ? `再生中に処理したコマ ${st.n}：人を検出 ${(st.p / st.n * 100).toFixed(0)}%${P.mode === 2 ? `・顔を検出 ${(st.f / st.n * 100).toFixed(0)}%` : ''}` : '再生すると、検出できたコマの割合をここに出します。';
@@ -775,6 +787,8 @@ function boot() {
   $('tileSeg').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; DET.tiles = b.dataset.t; seg('tileSeg', 't', DET.tiles); redetect(); scanSummary(); });
   $('poseIn').addEventListener('change', () => { const f = $('poseIn').files[0]; if (f) DET.useModelFile('pose', f); $('poseIn').value = ''; });
   $('faceIn').addEventListener('change', () => { const f = $('faceIn').files[0]; if (f) DET.useModelFile('face', f); $('faceIn').value = ''; });
+  $('detIn').addEventListener('change', () => { const f = $('detIn').files[0]; if (f) DET.useModelFile('det', f); $('detIn').value = ''; });
+  $('segIn').addEventListener('change', () => { const f = $('segIn').files[0]; if (f) DET.useModelFile('seg', f); $('segIn').value = ''; });
   $('mpRetry').onclick = () => { DET.mp.state = 'idle'; DET.loadMP(); };
   $('mpForget').onclick = async () => { await DET.forgetModelFiles(); DET.mp.state = 'idle'; DET.loadMP(); };
   $('bgRedo').onclick = () => { BG.plate = null; S.cache = null; plateJob = null; estimatePlate(); };

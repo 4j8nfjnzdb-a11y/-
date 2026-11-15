@@ -99,12 +99,16 @@
           <div class="row">
             <label class="btn small" for="poseIn">姿勢モデルを選ぶ (.task)</label><input type="file" id="poseIn" accept=".task" hidden>
             <label class="btn small" for="faceIn">顔モデルを選ぶ (.task)</label><input type="file" id="faceIn" accept=".task" hidden>
+            <label class="btn small" for="detIn">人の枠モデルを選ぶ (.tflite)</label><input type="file" id="detIn" accept=".tflite" hidden>
+            <label class="btn small" for="segIn">人の領域モデルを選ぶ (.tflite)</label><input type="file" id="segIn" accept=".tflite" hidden>
             <button class="btn small" id="mpRetry" type="button">読み込み直す</button>
           </div>
           <details class="note" id="mpHelp"><summary>モデルを読み込めないとき</summary>
-            <p>このページから配布元に接続できない環境では、次の 2 つのファイルを別の画面でダウンロードして、上のボタンで選んでください。選んだファイルはこのブラウザの中に保存され、次回から自動で使われます。</p>
-            <p class="mono sel">https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task</p>
-            <p class="mono sel">https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task</p>
+            <p>このページから配布元に接続できない環境では、次のファイルを別の画面でダウンロードして、上のボタンで選んでください。選んだファイルはこのブラウザの中に保存され、次回から自動で使われます。人の枠と人の領域のモデルは、なくても動きます（引きの小さな人が見つかりにくくなります）。</p>
+            <p class="mono sel">姿勢：https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task</p>
+            <p class="mono sel">顔：https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task</p>
+            <p class="mono sel">人の枠：https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite2/int8/1/efficientdet_lite2.tflite</p>
+            <p class="mono sel">人の領域：https://storage.googleapis.com/mediapipe-models/image_segmenter/deeplab_v3/float32/1/deeplab_v3.tflite</p>
             <p>実行部そのものが読み込めないときは「内蔵（背景差分）」に切り替えてください。モデルを使わずに、固定カメラの映像で動きます。</p>
             <button class="btn small" id="mpForget" type="button">保存したモデルを消す</button>
           </details>
@@ -115,7 +119,7 @@
               <button type="button" data-t="3x3" aria-pressed="false">3×3</button>
             </div>
           </div>
-          <p class="note">引きの小さな人は、画面を分けると見つかりやすくなります。そのぶん遅くなります。</p>
+          <p class="note">人はまず画面全体から枠で探し、一人ずつ拡大して形を取ります。遠くの小さな人が見つからないときは、画面を分けて探してください。そのぶん遅くなります。</p>
         </div>
         <div id="bgBox">
           <p class="mono" id="bgStatus"></p>

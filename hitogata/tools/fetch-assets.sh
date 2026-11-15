@@ -13,7 +13,9 @@ cp "$T/mediabunny-$MB/package/dist/bundles/mediabunny.min.mjs" assets/
 G=https://storage.googleapis.com/mediapipe-models
 curl -fsSL -o assets/models/pose_landmarker_full.task "$G/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task"
 curl -fsSL -o assets/models/face_landmarker.task "$G/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
+curl -fsSL -o assets/models/efficientdet_lite2.tflite "$G/object_detector/efficientdet_lite2/int8/1/efficientdet_lite2.tflite"
+curl -fsSL -o assets/models/deeplab_v3.tflite "$G/image_segmenter/deeplab_v3/float32/1/deeplab_v3.tflite"
 # artifacts serve no binary model type, so the models also go next to the page as base64 text
-for f in assets/models/*.task; do base64 -w 0 "$f" > "$f.b64.txt"; done
+for f in assets/models/*.task assets/models/*.tflite; do base64 -w 0 "$f" > "$f.b64.txt"; done
 rm -rf "$T"
 ls -l assets assets/mediapipe assets/models

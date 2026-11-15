@@ -379,13 +379,13 @@ const SAMPLE = (() => {
   // ---- sample felt: tileable fibres on an off-white wool ground ------------
   function felt(size = 512) {
     const c = makeCanvas(size, size), x = c.getContext('2d'), r = rng(2024);
-    x.fillStyle = 'rgb(128,142,158)'; x.fillRect(0, 0, size, size);
+    x.fillStyle = 'rgb(184,146,104)'; x.fillRect(0, 0, size, size);
     // low-frequency mottling (clumps of wool)
     for (let i = 0; i < 260; i++) {
       const cx = r() * size, cy = r() * size, rad = 10 + r() * 46, dark = r() < 0.5;
       for (const ox of [-size, 0, size]) for (const oy of [-size, 0, size]) {
         const g = x.createRadialGradient(cx + ox, cy + oy, 0, cx + ox, cy + oy, rad);
-        g.addColorStop(0, dark ? 'rgba(70,82,98,0.14)' : 'rgba(200,210,222,0.12)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+        g.addColorStop(0, dark ? 'rgba(110,78,48,0.16)' : 'rgba(236,212,176,0.14)'); g.addColorStop(1, 'rgba(0,0,0,0)');
         x.fillStyle = g; x.fillRect(cx + ox - rad, cy + oy - rad, rad * 2, rad * 2);
       }
     }
@@ -393,7 +393,7 @@ const SAMPLE = (() => {
     x.lineCap = 'round';
     for (let i = 0; i < 14000; i++) {
       const cx = r() * size, cy = r() * size, a = r() * Math.PI * 2, len = 3 + r() * 13, bend = (r() - 0.5) * 0.9;
-      const v = r(), col = v < 0.45 ? `rgba(62,74,90,${0.14 + r() * 0.18})` : `rgba(206,216,228,${0.14 + r() * 0.22})`;
+      const v = r(), col = v < 0.45 ? `rgba(104,72,42,${0.16 + r() * 0.2})` : `rgba(240,218,186,${0.16 + r() * 0.24})`;
       x.strokeStyle = col; x.lineWidth = 0.5 + r() * 0.9;
       for (const ox of [-size, 0, size]) for (const oy of [-size, 0, size]) {
         const sx = cx + ox, sy = cy + oy; if (sx < -30 || sy < -30 || sx > size + 30 || sy > size + 30) continue;
@@ -402,7 +402,7 @@ const SAMPLE = (() => {
       }
     }
     // a few pills
-    for (let i = 0; i < 160; i++) { const cx = r() * size, cy = r() * size, rad = 0.8 + r() * 1.8; x.fillStyle = r() < 0.5 ? 'rgba(66,78,92,0.35)' : 'rgba(214,222,232,0.45)'; x.beginPath(); x.arc(cx, cy, rad, 0, Math.PI * 2); x.fill(); }
+    for (let i = 0; i < 160; i++) { const cx = r() * size, cy = r() * size, rad = 0.8 + r() * 1.8; x.fillStyle = r() < 0.5 ? 'rgba(110,76,44,0.35)' : 'rgba(244,224,196,0.45)'; x.beginPath(); x.arc(cx, cy, rad, 0, Math.PI * 2); x.fill(); }
     return c;
   }
 
