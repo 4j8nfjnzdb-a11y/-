@@ -132,6 +132,7 @@ progress{width:100%;height:6px;accent-color:var(--ink)}
       <dl id="meterBody">
         <div class="m"><dt>実際の変位（最大／マスク内平均）</dt><dd id="mDisp">–</dd></div>
         <div class="m"><dt>加工前との差（マスク内平均）</dt><dd id="mDiff">–</dd></div>
+        <div class="m"><dt>Bの動き（Δの間の差、平均）</dt><dd id="mBmove">–</dd></div>
         <div class="m"><dt>輝度の平均</dt><dd id="mMean">–</dd></div>
         <div class="m"><dt>上位5%／下位5%の輝度</dt><dd id="mHiLo">–</dd></div>
         <div class="m"><dt>明暗の幅（上位5%−下位5%）</dt><dd id="mRange">–</dd></div>
@@ -374,7 +375,7 @@ float grain(vec2 px){
   vec2 w = f*f + (1.-f)*(1.-f);
   return v / sqrt(max(w.x*w.y, 1e-4));
 }
-float L(sampler2D s, vec2 uv, float lod){ return dot(textureLod(s, uv, lod).rgb, W); }
+float L(sampler2D s, vec2 uv, float lod){ return textureLod(s, uv, lod).r; }
 // displacement in units of the cap (length <= 1), in the direction the scenery is sampled from
 vec2 dispAt(vec2 uv){
   vec2 buv = (uv - 0.5) * uBScale + 0.5;
@@ -442,15 +443,14 @@ function sizeFBO(){ SH = Math.max(8, Math.round(SW * A.h / A.w)); gl.activeTextu
 
 /* ---------- state ---------- */
 let A = null, B = null, exporting = false, holdOrig = false;
-let bRange = [0.1, 0.9];
-const bCur = document.createElement('canvas'), bPrev = document.createElement('canvas');
-const bCurX = bCur.getContext('2d'), bPrevX = bPrev.getContext('2d');
+let BF = null, bUp = [-1,-1], loadingB = false, flashMask = 0;
 let maskCv = document.createElement('canvas'), maskCx = null, maskEmpty = true, maskBox = null;
 let tool = null, events = [], geom = {crop:null};
 
-function bSpan(){ return Math.max(0.05, B.dur - P.bStart); }
+function bSpan(){ return Math.max(0.05, BF.dur - P.bStart); }
 function bTime(t){ return P.bStart + ((t * P.bRate) % bSpan()); }
 function prevOf(bt){ let p = bt - P.delta; if (p < P.bStart) p += bSpan(); return p; }
+const bIdx = bt => clamp(Math.round(bt * BF.rate), 0, BF.n - 1);
 
 function buildEvents(){
   events = []; $('ticks').textContent = '';
@@ -469,57 +469,74 @@ function resetAt(t){
   return {gain, sx, sy};
 }
 
-/* ---------- B: the current frame, and the frame Δ seconds earlier ---------- */
-const ring = [], pool = [];
-function ringClear(){ while (ring.length) pool.push(ring.pop().c); }
-function ringPush(t){
-  const last = ring[ring.length-1];
-  if (last && t >= last.t && t - last.t < 1/60) return;
-  const c = pool.pop() || document.createElement('canvas'); c.width = bCur.width; c.height = bCur.height;
-  c.getContext('2d').drawImage(bCur,0,0); ring.push({t, c});
-  while (ring.length > 70) pool.push(ring.shift().c);
-}
-function ringFind(t){ let best=null, bd=1e9; for (const e of ring){ const d=Math.abs(e.t-t); if (d<bd){ bd=d; best=e; } } return bd < Math.max(0.05, P.delta*0.5) ? best : null; }
-function uploadB(){
-  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,texB); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,bCur); gl.generateMipmap(gl.TEXTURE_2D);
-  if (isDiff()) { gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D,texBp); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,bPrev); gl.generateMipmap(gl.TEXTURE_2D); }
+/* ---------- B: read once, start to end, into small grey frames ----------
+   Nothing depends on B playing: the preview, a still frame and the export all look up the same frames. */
+function upB(unit, tex, i){ gl.activeTexture(gl.TEXTURE0+unit); gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.R8,BF.w,BF.h,0,gl.RED,gl.UNSIGNED_BYTE,BF.frames[i]); gl.generateMipmap(gl.TEXTURE_2D); }
+function uploadB(t){
+  const bt = bTime(t), c = bIdx(bt), p = bIdx(prevOf(bt));
+  if (c !== bUp[0]) { upB(1, texB, c); bUp[0] = c; }
+  if (isDiff() && p !== bUp[1]) { upB(4, texBp, p); bUp[1] = p; }
 }
 function uploadA(){ const fa = A.frame(); if (fa) { gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,texA); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,fa); } }
-// exact pair for a still frame or an exported frame: seek to the earlier frame, then to the current one
-async function fillBExact(t){
-  const cur = bTime(t), W = bCur.width, H = bCur.height;
-  if (isDiff()) { const p = prevOf(cur); if (B.isVideo) await B.seek(p); const f = B.isVideo ? B.frame() : B.frameAt(p); if (f) bPrevX.drawImage(f,0,0,W,H); }
-  if (B.isVideo) await B.seek(cur); const f = B.isVideo ? B.frame() : B.frameAt(cur); if (f) bCurX.drawImage(f,0,0,W,H);
-  uploadB();
+async function decodeB(src, prog){
+  const w = Math.min(256, src.w), h = Math.max(2, Math.round(w*src.h/src.w));
+  const rate = Math.min(30, 450/src.dur), n = Math.max(2, Math.floor(src.dur*rate));
+  const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d', {willReadFrequently:true});
+  const frames = new Array(n).fill(null), hist = new Uint32Array(256); let got = 0;
+  const grab = (i, f) => {
+    if (f) x.drawImage(f,0,0,w,h);
+    const d = x.getImageData(0,0,w,h).data, Lm = new Uint8Array(w*h);
+    for (let j = 0; j < w*h; j++) { const y = Math.round(0.2126*d[j*4]+0.7152*d[j*4+1]+0.0722*d[j*4+2]); Lm[j] = y; if ((j & 7) === 0) hist[y]++; }
+    if (!frames[i]) got++; frames[i] = Lm;
+  };
+  const tell = () => { if (prog) prog(got, n); };
+  if (!src.isVideo) { for (let i = 0; i < n; i++) grab(i, src.frameAt(i/rate)); }
+  else {
+    // first pass: play once and keep each frame as it shows (fast). If the browser will not play, this ends at once.
+    const v = src.v; v.loop = false; v.playbackRate = 1; await src.seek(0);
+    await new Promise(res => {
+      let last = -1, moved = performance.now(), done = false;
+      const end = () => { if (done) return; done = true; clearInterval(dog); v.pause(); res(); };
+      const dog = setInterval(() => { if (performance.now() - moved > 1500) end(); tell(); }, 250);
+      const step = (now, meta) => {
+        if (done) return;
+        const t = meta ? meta.mediaTime : v.currentTime;
+        if (t !== last) { last = t; moved = performance.now(); const i = Math.round(t*rate); if (i >= 0 && i < n && !frames[i] && v.readyState >= 2) grab(i, v); }
+        if (v.ended || t >= src.dur - 0.5/rate) return end();
+        if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(step); else requestAnimationFrame(() => step());
+      };
+      const pp = v.play(); if (pp) pp.catch(end);
+      if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(step); else requestAnimationFrame(() => step());
+    });
+    // second pass: seek to every frame the first pass missed
+    for (let i = 0; i < n; i++) {
+      if (frames[i]) continue;
+      await src.seek(i/rate); grab(i, src.frame());
+      if (got % 5 === 0) { tell(); await new Promise(r => setTimeout(r, 0)); }
+    }
+  }
+  let tot = 0; for (const v of hist) tot += v;
+  let lo = 0, hi = 255, a = 0; for (let i=0;i<256;i++){ a+=hist[i]; if (a>=tot*0.05){ lo=i; break; } } a=0; for (let i=255;i>=0;i--){ a+=hist[i]; if (a>=tot*0.05){ hi=i; break; } }
+  // how much B changes over 0.1 s, averaged over the clip: near 0 means there is no motion to take
+  const step = Math.max(1, Math.round(rate*0.1)); let mv = 0, cnt = 0;
+  for (let i = step; i < n; i += Math.max(1, (n/40)|0)) { const p = frames[i], q = frames[i-step]; let sm = 0; for (let j=0;j<p.length;j+=4) sm += Math.abs(p[j]-q[j]); mv += sm/(p.length/4); cnt++; }
+  return {w, h, n, rate, dur:src.dur, frames, range:[lo/255, hi/255], motion: cnt ? mv/cnt : 0};
 }
-let stillKey = '', stillBusy = false;
-async function stillUpdate(t){
-  const key = [t.toFixed(4), P.delta, P.bRate, P.bStart, $('motion').value, B.v ? B.v.src : 's'].join('|');
-  if (stillBusy || key === stillKey) return;
-  stillBusy = true; stillKey = key;
-  try { await fillBExact(t); } finally { stillBusy = false; }
-}
-function updateB(t){
-  const W = bCur.width, H = bCur.height;
-  if (!B.isVideo) { const c = bTime(t); bCurX.drawImage(B.frameAt(c),0,0,W,H); if (isDiff()) bPrevX.drawImage(B.frameAt(prevOf(c)),0,0,W,H); uploadB(); return; }
-  if (!A.playing) { if (B.playing) B.pause(); stillUpdate(t); return; }
-  stillKey = '';
-  B.setRate(P.bRate); const want = bTime(t);
-  if (!B.playing) B.play();
-  if (Math.abs(B.time - want) > 0.35*Math.max(1,P.bRate) && !B.v.seeking) B.v.currentTime = want;
-  const f = B.frame(); if (!f || B.v.seeking) return;
-  const bt = B.time; bCurX.drawImage(f,0,0,W,H);
-  if (isDiff()) { ringPush(bt); const e = ringFind(prevOf(bt)); bPrevX.drawImage(e ? e.c : bCur, 0, 0); }
-  uploadB();
+function bMotionAt(t){
+  if (!isDiff()) return null;
+  const bt = bTime(t), a = BF.frames[bIdx(bt)], b = BF.frames[bIdx(prevOf(bt))]; let sm = 0;
+  for (let j = 0; j < a.length; j += 2) sm += Math.abs(a[j]-b[j]);
+  return sm / (a.length/2);
 }
 
 /* ---------- drawing ---------- */
 function draw(t, w, h, o){
-  const crop = o.crop, k = w / (crop ? crop.w : A.w), ar = A.w/A.h, br = B.w/B.h, r = resetAt(t);
+  const crop = o.crop, k = w / (crop ? crop.w : A.w), ar = A.w/A.h, br = BF.w/BF.h, r = resetAt(t);
   gl.viewport(0,0,w,h);
   gl.uniform2f(U.uRes,w,h); gl.uniform2f(U.uSrc,A.w,A.h); gl.uniform1f(U.uK,k); gl.uniform2f(U.uOff, crop?crop.x:0, crop?crop.y:0);
-  gl.uniform2f(U.uBScale, ar>br ? 1 : ar/br, ar>br ? br/ar : 1); gl.uniform2f(U.uBSize,bCur.width,bCur.height);
-  gl.uniform2f(U.uBRange,bRange[0],bRange[1]);
+  gl.uniform2f(U.uBScale, ar>br ? 1 : ar/br, ar>br ? br/ar : 1); gl.uniform2f(U.uBSize,BF.w,BF.h);
+  gl.uniform2f(U.uBRange,BF.range[0],BF.range[1]);
   gl.uniform1f(U.uAmp, o.amp != null ? o.amp : P.amp); gl.uniform1f(U.uSmooth,P.smooth); gl.uniform1f(U.uMGain,P.gainM);
   gl.uniform1i(U.uMotion, isDiff() ? 0 : 1);
   gl.uniform2f(U.uShake,r.sx,r.sy); gl.uniform1f(U.uGain,r.gain);
@@ -554,6 +571,8 @@ function measure(t){
   const pct = x => (x / A.w * 100).toFixed(2);
   $('mDisp').innerHTML = maskEmpty ? '0 <small>px（マスクが空）</small>' : dmax.toFixed(2)+' / '+stats.dmean.toFixed(2)+' <small>px（幅の '+pct(dmax)+' %）</small>';
   $('mDiff').innerHTML = maskEmpty ? '– ' : stats.diff.toFixed(2)+' <small>/255</small>';
+  const bm = bMotionAt(t); stats.bmove = bm;
+  $('mBmove').innerHTML = bm == null ? '– <small>（傾きの方式）</small>' : bm.toFixed(2)+' <small>/255'+(bm < 0.3 ? '・ほぼ動いていない' : '')+'</small>';
   $('mMean').textContent = stats.mean.toFixed(1); $('mHiLo').textContent = hi+' / '+lo; $('mRange').textContent = hi-lo;
   $('mBlack').innerHTML = (stats.black*100).toFixed(1)+' <small>%</small>';
   $('mVeil').innerHTML = ratio.toFixed(1)+' : 1 <small>（暗室では '+(bare>999?'999+':bare.toFixed(1))+' : 1）</small>';
@@ -580,9 +599,9 @@ function viewGeom(){
 function fmtT(x){ return x.toFixed(2); }
 function tick(){
   requestAnimationFrame(tick);
-  if (!A || !B || exporting) return;
+  if (!A || !BF || exporting) return;
   const t = A.time;
-  updateB(t); uploadA();
+  uploadB(t); uploadA();
   geom = viewGeom();
   if (cv.width !== geom.w || cv.height !== geom.h) { cv.width = geom.w; cv.height = geom.h; }
   cv.style.width = geom.crop ? geom.css+'px' : '';
@@ -591,7 +610,7 @@ function tick(){
   if (test.on) renderTest(t);
   else {
     const mode = holdOrig ? 1 : ($('view').value === 'diff' ? 3 : 0);
-    draw(t, cv.width, cv.height, {mode, veil:$('veil').checked && mode===0, mask:($('mShow').checked || !!tool) && mode===0, crop:geom.crop});
+    draw(t, cv.width, cv.height, {mode, veil:$('veil').checked && mode===0, mask:($('mShow').checked || !!tool || performance.now() < flashMask) && mode===0, crop:geom.crop});
     if (holdOrig) tagText = '加工前';
     else if (mode === 3) tagText = '差分 ×10（元は25%）';
     if (geom.crop) tagText += (tagText ? '・' : '') + (maskBox ? 'マスク部分 '+Math.round(geom.crop.w)+'×'+Math.round(geom.crop.h)+' px を '+(+geom.z.toFixed(2))+' 倍' : 'マスクが空なので全体を '+(+geom.z.toFixed(2))+' 倍');
@@ -668,17 +687,6 @@ function loadVideo(file){
     v.src = URL.createObjectURL(file); v.load();
   });
 }
-async function measureB(){
-  bCur.width = bPrev.width = Math.min(512, B.w); bCur.height = bPrev.height = Math.max(2, Math.round(bCur.width * B.h / B.w));
-  ringClear(); pool.length = 0; stillKey = '';
-  const s = document.createElement('canvas'); s.width=48; s.height=27; const x=s.getContext('2d',{willReadFrequently:true}), h=new Uint32Array(256); let n=0;
-  for (let i=0;i<6;i++){ const t = B.dur*(i+0.5)/6; let f; if (B.isVideo) { await B.seek(t); f = B.frame(); } else f = B.frameAt(t); if (!f) continue;
-    x.drawImage(f,0,0,48,27); const d=x.getImageData(0,0,48,27).data;
-    for (let j=0;j<d.length;j+=4){ h[Math.round(0.2126*d[j]+0.7152*d[j+1]+0.0722*d[j+2])]++; n++; } }
-  let lo=0, hi=255, a=0; for (let i=0;i<256;i++){ a+=h[i]; if (a>=n*0.05){ lo=i; break; } } a=0; for (let i=255;i>=0;i--){ a+=h[i]; if (a>=n*0.05){ hi=i; break; } }
-  bRange = n ? [lo/255, hi/255] : [0.1,0.9];
-  if (B.isVideo) await B.seek(P.bStart);
-}
 let fpsTouched = false;
 function setA(src, name){
   if (A) A.dispose(); A = src; $('nameA').textContent = name; sizeFBO(); initMask();
@@ -688,15 +696,31 @@ function setA(src, name){
   buildEvents(); fpsTouched = false; updateHints();
   if (A.isVideo && A.v.requestVideoFrameCallback) { const ts=[]; const cb=(n,m)=>{ if (A.v!==src.v) return; ts.push(m.mediaTime); if (ts.length<24) src.v.requestVideoFrameCallback(cb); else { const d=[]; for(let i=1;i<ts.length;i++){ const x=ts[i]-ts[i-1]; if (x>0.001) d.push(x); } d.sort((a,b)=>a-b); let f=1/d[0]; for (const c of [23.976,24,25,29.97,30,50,59.94,60]) if (Math.abs(f-c)/c < 0.02) { f=c; break; } if (!fpsTouched && isFinite(f) && f>1 && f<=120) setParam('oFps', +f.toFixed(3)); } }; src.v.requestVideoFrameCallback(cb); }
 }
-async function setB(src, name){ if (B) B.dispose(); B = src; $('nameB').textContent = name; UI.bStart.num.max = UI.bStart.rng.max = Math.max(0, +(B.dur-0.1).toFixed(1)); setParam('bStart', 0); await measureB(); }
+async function setB(src, name, sample){
+  const note = $('srcNote'); loadingB = true;
+  try { BF = await decodeB(src, (i, n) => { if (!sample) note.textContent = name+' を読み取っています（'+i+' / '+n+' コマ）'; }); }
+  finally { loadingB = false; if (src.isVideo) src.dispose(); }
+  bUp = [-1,-1]; bSample = !!sample;
+  $('nameB').textContent = name+'（'+BF.n+' コマ・'+BF.dur.toFixed(1)+' 秒）';
+  UI.bStart.num.max = UI.bStart.rng.max = Math.max(0, +(BF.dur-0.1).toFixed(1)); setParam('bStart', 0);
+}
+let bSample = true;
+function defaultMask(){
+  const w = maskCv.width, h = maskCv.height;
+  maskCx.clearRect(0,0,w,h); maskCx.fillStyle = '#fff'; maskCx.beginPath(); maskCx.ellipse(w*0.2, h*0.45, w*0.13, h*0.22, 0, 0, 6.3); maskCx.fill();
+  pushMask(true); flashMask = performance.now() + 2500;
+}
 UI.oFps.num.addEventListener('input', () => { fpsTouched = true; });
 async function pick(which, file){
-  if (!file || exporting || test.on) return;
+  if (!file || exporting || test.on || loadingB) return;
   const note = $('srcNote'); note.textContent = file.name + ' を読み込んでいます…';
-  try { const s = await loadVideo(file); if (which==='A') { setA(s, file.name); A.play(); } else { s.pause(); await setB(s, file.name); }
-    note.textContent = which==='A'
-      ? 'Aを読み込みました。マスクは空なので、「描く」で変形させたい物を一つだけ塗ってください。' + (B.isVideo ? '' : 'Bはまだ内蔵の見本です。')
-      : 'Bを読み込みました。Bは画面には映らず、動きだけがAのマスク内に入ります。' + (A.isVideo ? '' : 'Aはまだ内蔵の見本です。');
+  try { const s = await loadVideo(file);
+    if (which==='A') { setA(s, file.name); defaultMask(); A.play();
+      note.textContent = 'Aを読み込みました。左寄りに仮のマスクを置いたので、すぐに変形がかかります（赤く光った所）。範囲は「全部消す」→「描く」で塗り直してください。' + (bSample ? 'Bはまだ内蔵の見本です。' : ''); }
+    else { s.pause(); await setB(s, file.name);
+      note.textContent = BF.motion < 0.3
+        ? 'Bを読み込みましたが、コマの間でほとんど変化がありません（0.1秒あたり平均 '+BF.motion.toFixed(2)+' /255）。動きのない映像か、このブラウザでコマを読み取れていません。'
+        : 'Bを読み込みました（0.1秒あたりの変化 平均 '+BF.motion.toFixed(2)+' /255）。Bは画面には映らず、動きだけがAのマスク内に入ります。' + (A.isVideo ? '' : 'Aはまだ内蔵の見本です。'); }
   } catch(e) { note.textContent = file.name + ' は読み込めませんでした（' + (e.message==='decode' ? 'このブラウザで再生できない形式' : '映像が出てこない') + '）。iPhoneの動画はSafariかClaudeアプリで、それ以外はMP4（H.264）に変換して、もう一度選んでください。'; }
   $('fileA').value = ''; $('fileB').value = '';
 }
@@ -714,12 +738,12 @@ function showRows(){
   UI.zoom.row.hidden = !$('zoomOn').checked;
   UI.vWhite.row.hidden = UI.vRefl.row.hidden = !$('veil').checked;
 }
-function onParam(k){ if (k==='edge') pushMask(true); if (k==='rEvery'||k==='rJit') buildEvents(); if (k==='amp') updateHints(); if (k==='delta'||k==='bStart'||k==='bRate') ringClear(); persist(); }
-$('motion').onchange = () => { ringClear(); stillKey=''; showRows(); persist(); };
+function onParam(k){ if (k==='edge') pushMask(true); if (k==='rEvery'||k==='rJit') buildEvents(); if (k==='amp') updateHints(); persist(); }
+$('motion').onchange = () => { bUp = [-1,-1]; showRows(); persist(); };
 $('rType').onchange = () => { buildEvents(); showRows(); persist(); };
 $('zoomOn').onchange = showRows; $('veil').onchange = showRows;
 $('play').onclick = () => { if (!A || exporting || test.on) return; A.playing ? A.pause() : A.play(); };
-$('seek').oninput = () => { if (A && !exporting && !test.on) { ringClear(); if (A.isVideo) A.v.currentTime = $('seek').value * A.dur; else A.seek($('seek').value * A.dur); } };
+$('seek').oninput = () => { if (A && !exporting && !test.on) { if (A.isVideo) A.v.currentTime = $('seek').value * A.dur; else A.seek($('seek').value * A.dur); } };
 const hold = on => { holdOrig = on && !test.on; $('orig').classList.toggle('on', holdOrig); };
 $('orig').addEventListener('pointerdown', e => { e.preventDefault(); hold(true); }); for (const ev of ['pointerup','pointerleave','pointercancel']) $('orig').addEventListener(ev, () => hold(false));
 $('orig').addEventListener('keydown', e => { if (e.key===' '||e.key==='Enter') hold(true); }); $('orig').addEventListener('keyup', () => hold(false));
@@ -737,7 +761,7 @@ function lockForTest(on){
   $('testbar').hidden = !on; $('meterBody').hidden = $('histBox').hidden = on; $('meterHide').hidden = !on;
 }
 function startTest(){
-  if (!A || !B || exporting || test.on) return;
+  if (!A || !BF || exporting || test.on || loadingB) return;
   if (maskEmpty) { $('tLast').textContent = 'マスクが空です。先に変形させる範囲を塗ってください。'; return; }
   if (tool) setTool(tool); hold(false);
   Object.assign(test, {on:true, n:0, correct:0, sigN:0, hits:0, noiseN:0, fas:0,
@@ -813,14 +837,14 @@ async function pickCodec(w, h, fps, bitrate){
   return null;
 }
 async function runExport(){
-  if (exporting || !A || !B || test.on) return;
+  if (exporting || !A || !BF || test.on || loadingB) return;
   const msg = $('msg');
   if (!window.VideoEncoder) { msg.textContent = 'このブラウザはコマごとの書き出しに対応していません。Chrome、Edge、Safari 17以降で開いてください。'; return; }
   const w = A.w & ~1, h = A.h & ~1, fps = P.oFps, from = clamp(P.oFrom,0,A.dur), to = clamp(P.oTo || A.dur, 0, A.dur), n = Math.floor((to-from)*fps + 1e-6);
   if (n < 1) { msg.textContent = '書き出す範囲が空です。開始と終了の秒数を確かめてください。'; return; }
   const pc = await pickCodec(w, h, fps, P.oMbps*1e6);
   if (!pc) { msg.textContent = 'この解像度を書き出せる形式が、このブラウザにありません。別のブラウザで試してください。'; return; }
-  exporting = true; cancelled = false; A.pause(); if (B.playing) B.pause();
+  exporting = true; cancelled = false; A.pause();
   $('export').disabled = true; $('cancel').hidden = false; $('save').hidden = true; $('prog').hidden = false; $('prog').value = 0; $('result').textContent = '';
   const backT = A.time; let enc = null, err = null;
   try {
@@ -835,7 +859,7 @@ async function runExport(){
     for (let i = 0; i < n && !cancelled && !err; i++) {
       const t = from + i/fps;
       await A.seek(Math.min(A.dur - 0.5/fps, t + (A.isVideo ? 0.25/fps : 0)));
-      await fillBExact(t); uploadA(); draw(t, w, h, {});
+      uploadB(t); uploadA(); draw(t, w, h, {});
       const frame = new VideoFrame(cv, {timestamp: Math.round(i*1e6/fps), duration: Math.round(1e6/fps)});
       enc.encode(frame, {keyFrame: i % gop === 0}); frame.close();
       while (enc.encodeQueueSize > 3) await sleep(4);
@@ -854,7 +878,7 @@ async function runExport(){
     } else msg.textContent = '中止しました。';
   } catch(e) { msg.textContent = '書き出しが途中で止まりました（'+(e && e.message || e)+'）。ビットレートを下げるか、範囲を短くして試してください。'; }
   try { if (enc && enc.state !== 'closed') enc.close(); } catch(e) {}
-  await A.seek(backT); stillKey = ''; ringClear();
+  await A.seek(backT);
   exporting = false; $('export').disabled = false; $('cancel').hidden = true; $('prog').hidden = true;
 }
 $('export').onclick = runExport; $('cancel').onclick = () => { cancelled = true; };
@@ -869,7 +893,7 @@ $('save').onclick = async () => {
 /* ---------- start with the built-in sample ---------- */
 (async function start(){
   try { initGL(); } catch(e) { $('msg').textContent = 'このブラウザではWebGL2が使えないため、動きません。'; return; }
-  B = makeSampleB(); await measureB();
+  await setB(makeSampleB(), '見本の細胞', true);
   setA(makeSampleA(), '見本の景色');
   // sample mask: the tree at the left edge, away from where the eye rests
   const g = maskCx.createRadialGradient(70,134,0,70,134,62); g.addColorStop(0,'#fff'); g.addColorStop(0.75,'#fff'); g.addColorStop(1,'rgba(255,255,255,0)');
