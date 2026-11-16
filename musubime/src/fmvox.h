@@ -169,3 +169,10 @@ static inline float vox_slot_level(const mz_slot_t *s)
     int kind = s->src > 0 && s->src <= NVB ? s->src - 1 : VB_SINE_INDEX;
     return VB_LEVEL[kind] * m_db2lin(s->level_db);
 }
+
+/* a sustained kind (DECAY held) given an end: it fades over seconds instead (a sequencer's or a line's sound) */
+static inline void vox_gate(float *p, float seconds)
+{
+    if (p[VP_DEC] >= VP_HELD)
+        p[VP_DEC] = m_clamp(seconds, 0.05f, 5.9f);
+}

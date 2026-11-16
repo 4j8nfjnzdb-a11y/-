@@ -249,6 +249,7 @@ static void start_event(void)
             float p[NVP];
             vox_slot_place(p, v, P[G_REG].v * (1.0f / 330.0f) * m_exp2(st.lf), st.ratio, st.index * P[G_THIN].v,
                            st.fb * 0.6f, m_clamp(dur, 0.05f, 4.0f) * (1.0f / 0.45f));
+            vox_gate(p, dur * 1.3f);         /* a sustained kind ends with its sound, not in the next */
             vox_coefs(&st.vk, p);
             vox_trig(&st.vox, &st.vk);
             st.amp *= vox_slot_level(v) * 1.6f;
@@ -436,3 +437,6 @@ uint32_t pj_dim_keys(void)
         m |= 1u << WHITE[j];
     return m;
 }
+
+uint32_t pj_lit_buttons(void) { return 0; }
+uint32_t pj_dim_buttons(void) { return 0; }

@@ -79,6 +79,7 @@ static void voice_place(const mz_slot_t *v, const mode_t_ *M, float len_s)
     float p[NVP];
     vox_slot_place(p, v, P[G_REG].v * (1.0f / 196.0f) * m_exp2(0.35f * M->fb_walk), 1.0f + 0.3f * M->cx * M->ratio_walk,
                    M->cx * 5.0f, M->cx * M->cx, m_clamp(len_s / 0.6f, 0.2f, 4.0f));
+    vox_gate(p, len_s * 1.1f);           /* a sustained kind lasts its event */
     vox_coefs(&st.vk, p);
     st.vlevel = vox_slot_level(v) * 1.5f;
 }
@@ -418,3 +419,6 @@ uint32_t pj_lit_keys(void)
 }
 
 uint32_t pj_dim_keys(void) { return (1u << 0) | (1u << 2) | (1u << 4) | (1u << 6) | (1u << 7); }
+
+uint32_t pj_lit_buttons(void) { return 0; }
+uint32_t pj_dim_buttons(void) { return 0; }

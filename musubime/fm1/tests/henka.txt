@@ -1,4 +1,4 @@
-# HENKA: locks pressed into steps, a faster tempo, mutation
+# HENKA: steps, density, the track buttons, thin / clear, keep / back, hold changes, live strikes and repeats
 wait 800
 shot boot.png
 master 4096
@@ -7,9 +7,33 @@ wav henka.wav
 key w2 down 90 80
 wait 400
 key w2 up
-turn K3 40 30
-turn K4 30 30
-wait 4000
+turn K3 10 30
+turn K4 20 30
+wait 2000
+tap ARP
+wait 300
+tap ARP
+tap SAVE
+wait 200
+tap SEL
+wait 300
+tap GLO
+wait 300
+tap GLO
+key b0 down 120 60
+wait 120
+key b0 up
+key b5 down 90 90
+wait 800
+key b5 up
+press SAVE
+wait 900
+release SAVE
+press SEL
+wait 900
+release SEL
+tap OCT+
+wait 2000
 shot play.png
 wavstop
 expect peak_db_min -40

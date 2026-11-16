@@ -1,0 +1,3 @@
+# HENKA left alone for four minutes, MUT turned up: it should settle near each track's density, not fill
+1 enc 6 30
+240 shot alone

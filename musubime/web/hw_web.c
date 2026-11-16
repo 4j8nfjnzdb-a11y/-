@@ -12,7 +12,7 @@ static uint8_t vel[HW_NKEYS], prs[HW_NKEYS];
 static uint16_t fb[240 * 240];
 static int strip_y, strip_h;
 static uint32_t fb_dirty;
-static uint32_t led_b, led_k, led_d;
+static uint32_t led_b, led_k, led_d, led_db;
 static float out_l[256], out_r[256], in_l[256], in_r[256];
 static int in_on;
 
@@ -27,11 +27,12 @@ uint32_t hw_buttons(void) { return btns; }
 uint32_t hw_keys(void) { return keys; }
 uint8_t hw_vel(int k) { return vel[k]; }
 uint8_t hw_pressure(int k) { return prs[k]; }
-void hw_leds(uint32_t b, uint32_t k, uint32_t d)
+void hw_leds(uint32_t b, uint32_t k, uint32_t db, uint32_t d)
 {
     led_b = b;
     led_k = k;
     led_d = d;
+    led_db = db;
 }
 void hw_strip_begin(int y, int h)
 {
@@ -143,4 +144,5 @@ EXPORT(wb_fb_dirty) uint32_t wb_fb_dirty(void)
 EXPORT(wb_led_b) uint32_t wb_led_b(void) { return led_b; }
 EXPORT(wb_led_k) uint32_t wb_led_k(void) { return led_k; }
 EXPORT(wb_led_d) uint32_t wb_led_d(void) { return led_d; }
+EXPORT(wb_led_db) uint32_t wb_led_db(void) { return led_db; }
 EXPORT(wb_bad) uint32_t wb_bad(void) { return mz_bad_count(); }

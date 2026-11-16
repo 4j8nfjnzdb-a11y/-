@@ -499,3 +499,6 @@ uint32_t pj_lit_keys(void)
 }
 
 uint32_t pj_dim_keys(void) { return (1u << 0) | (1u << 2) | (1u << 4) | (1u << 6) | (1u << 7) | (1u << 9) | (1u << 11) | (1u << 12); }
+
+uint32_t pj_lit_buttons(void) { return 0; }
+uint32_t pj_dim_buttons(void) { return 0; }

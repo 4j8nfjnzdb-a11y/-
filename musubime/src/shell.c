@@ -693,7 +693,8 @@ void mz_frame(void)
         bit |= 1u << HB_REC;
     if (in.btn & (1u << HB_HOME))
         bit |= 1u << HB_HOME;
-    hw_leds(bit | (in.btn & ~SHELL_BTNS), pj_lit_keys() | in.keys, pj_dim_keys());
+    hw_leds(bit | pj_lit_buttons() | (in.btn & ~SHELL_BTNS), pj_lit_keys() | in.keys,
+            SHELL_BTNS | pj_dim_buttons(), pj_dim_keys());
     /* the screen */
     if (ear.bad_now && (ui.frames & 63u) == 0)
         ear.bad_now = 0;

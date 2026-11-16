@@ -65,7 +65,7 @@ class MusubimeProc extends AudioWorkletProcessor {
         if (currentTime - this.lastFb > 0.033) {
           this.lastFb = currentTime;
           const fb = new Uint16Array(this.mem.buffer, w.wb_fb(), 240 * 240).slice();
-          this.port.postMessage({ t: "fb", fb, b: w.wb_led_b(), k: w.wb_led_k(), d: w.wb_led_d(), bad: w.wb_bad() }, [fb.buffer]);
+          this.port.postMessage({ t: "fb", fb, b: w.wb_led_b(), k: w.wb_led_k(), d: w.wb_led_d(), db: w.wb_led_db(), bad: w.wb_bad() }, [fb.buffer]);
         }
       }
     }

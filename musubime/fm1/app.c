@@ -15,15 +15,16 @@ uint32_t hw_keys(void)
 }
 uint8_t hw_vel(int k) { return touch_vel((uint32_t)k); }
 uint8_t hw_pressure(int k) { return touch_pressure((uint32_t)k); }
-void hw_leds(uint32_t buttons, uint32_t keys, uint32_t dim_keys)
+void hw_leds(uint32_t buttons, uint32_t keys, uint32_t dim_buttons, uint32_t dim_keys)
 {
-    static uint32_t lb = 0xFFFFFFFFu, lk, ld;
-    if (buttons == lb && keys == lk && dim_keys == ld)
+    static uint32_t lb = 0xFFFFFFFFu, lk, ld, ldb;
+    if (buttons == lb && keys == lk && dim_keys == ld && dim_buttons == ldb)
         return;
     lb = buttons;
     lk = keys;
     ld = dim_keys;
-    plat_lights(buttons, keys, 0, dim_keys & ~keys, 1);
+    ldb = dim_buttons;
+    plat_lights(buttons, keys, dim_buttons & ~buttons, dim_keys & ~keys, 1);   /* the ones without a use stay dark */
 }
 
 static int strip_y;

@@ -404,3 +404,6 @@ uint32_t pj_dim_keys(void)
         m |= 1u << WHITE[i];
     return m;
 }
+
+uint32_t pj_lit_buttons(void) { return 0; }
+uint32_t pj_dim_buttons(void) { return 0; }

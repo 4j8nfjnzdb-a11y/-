@@ -91,6 +91,8 @@ uint32_t pj_plot_rev(void);             /* UI: changes when the plot should be d
 void pj_plot(int h);                    /* UI: the plot, in the current strip (240 x h) */
 uint32_t pj_lit_keys(void);             /* UI: keys that mean something now (lit) */
 uint32_t pj_dim_keys(void);             /* UI: keys that mean something (dim) */
+uint32_t pj_lit_buttons(void);          /* UI: buttons whose state is on (lit) */
+uint32_t pj_dim_buttons(void);          /* UI: buttons that do something here (dim); the shell adds its own */
 
 /* ---- the shell (shell.c) ---- */
 void mz_init(uint32_t seed);
