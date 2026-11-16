@@ -1,0 +1,76 @@
+# musubime: builds the six FM-1 firmwares (.fwsc) and runs their host-simulator tests.
+# The toolchain and the SDK come from where the FM-1 community's shared builder (zvenson/fm1-build) takes them:
+# JieLi's Linux toolchain from pkgman.jieliapp.com, and the AC79 SDK at a fixed tag from JieLi's gitee repository.
+# fm1-base (with felucca-bsp) is pinned to the commit musubime was written and tested against.
+# The packages are uploaded as the run's artifact "musubime-fwsc".
+name: musubime firmware
+
+on:
+  push:
+    paths: ['musubime/**', '.github/workflows/musubime-fwsc.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Python packages
+        run: python3 -m pip install Pillow
+
+      - name: fm1-base and felucca-bsp (pinned)
+        run: |
+          git clone https://github.com/charlesvestal/fm1-base "$HOME/fm1-base"
+          git -C "$HOME/fm1-base" checkout c8e05997ce970875038156d2bbd69e712eac1543
+          git -C "$HOME/fm1-base" submodule update --init --recursive
+          git -C "$HOME/fm1-base" log -1 --oneline
+          git -C "$HOME/fm1-base/bsp" log -1 --oneline
+
+      - name: JieLi Linux toolchain (pkgman.jieliapp.com)
+        run: |
+          mkdir -p ~/.jieli
+          curl -fL --retry 3 https://pkgman.jieliapp.com/s/linux-toolchain | tar -xJ -C ~/.jieli
+          TC="$(ls -d ~/.jieli/jieli-linux-toolchains-* | sort | tail -1)"
+          ln -sfn "$(basename "$TC")" ~/.jieli/toolchain
+          echo "JIELI_TOOLCHAIN=$HOME/.jieli/toolchain" >> "$GITHUB_ENV"
+          echo "toolchain: $(basename "$TC")"
+
+      - name: JieLi AC79 SDK (gitee.com, a fixed tag)
+        run: |
+          for i in 1 2 3; do
+            git clone --depth 1 --branch AC79NN_SDK_V1.2.1_2023-12-13 \
+                https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git ~/fw-AC79_AIoT_SDK && break
+            rm -rf ~/fw-AC79_AIoT_SDK
+            sleep 20
+          done
+          test -d ~/fw-AC79_AIoT_SDK
+          echo "AC79_SDK=$HOME/fw-AC79_AIoT_SDK" >> "$GITHUB_ENV"
+
+      - name: Host simulator tests (all six)
+        run: musubime/fm1/assemble.sh all host "$HOME/fm1-base"
+
+      - name: Firmware packages (all six)
+        run: musubime/fm1/assemble.sh all fwsc "$HOME/fm1-base"
+
+      - name: Collect the packages
+        run: |
+          mkdir -p out
+          for p in kuzushi henka sen feldman pmvrs tekiou; do
+            cp "musubime/fm1/build/$p/build/$p.fwsc" out/
+          done
+          (cd out && sha256sum *.fwsc | tee SHA256SUMS)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musubime-fwsc
+          path: out/
+          if-no-files-found: error
