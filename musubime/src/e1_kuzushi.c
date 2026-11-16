@@ -22,6 +22,7 @@
  * the clock unsteady (jitter grows with speed); moving again after stillness rewires: the stage order rotates, and
  * after a stillness of 5 s or more the sound is cut for a moment first (WIRE, black key 11, turns this off). */
 #include "par.h"
+#include "fmvox.h"
 
 const char PJ_NAME[] = "KUZUSHI";
 
@@ -30,7 +31,8 @@ static const char *const STAGE_NAME[NSTAGE] = {"OVF", "SR", "BIT", "FLT", "FLP",
 #define NORDER 7
 
 /* ---- parameters ---- */
-static const char *const PAGE_NAMES[] = {"1 SOURCE", "2 RATE", "3 FLOAT", "4 BITS", "5 TIME"};
+static const char *const PAGE_NAMES[] = {"1 SOURCE", "2 RATE", "3 FLOAT", "4 BITS", "5 TIME", "6 VOICE"};
+static const char *const KIND_NAMES[] = {"FM PAIR", "KICK", "SNARE", "HAT", "SYNTH"};
 static const char *const CURVE_NAMES[] = {"LIN", "MU-LAW", "LOG"};
 static const char *const OVF_NAMES[] = {"CLIP", "WRAP", "MIRROR"};
 static const char *const ENDIAN_NAMES[] = {"NONE", "BSWAP", "U/S", "BOTH"};
@@ -39,9 +41,10 @@ enum { G_PAGE, G_LOOP, G_INDEX,
        B_SR, B_BITS, B_CURVE, B_HYST,
        C_MANT, C_EXP, C_GAIN, C_OVF,
        D_MASK, D_PROB, D_ENDIAN, D_ABS,
-       E_JIT, E_JPER, E_BLK, E_BPROB, NPAR };
+       E_JIT, E_JPER, E_BLK, E_BPROB,
+       F_KIND, F_RATE, F_PITCH, F_DEC, NPAR };
 static const par_def_t DEF[NPAR] = {
-    {"PAGE", P_ENUM, 0, 0, 4, 1, 1, "", PAGE_NAMES, 0, 4},
+    {"PAGE", P_ENUM, 0, 0, 5, 1, 1, "", PAGE_NAMES, 0, 5},
     {"LOOP", P_LIN, 2, -4.0f, 4.0f, 0.02f, 0, "RAD", 0, -1.5f, 1.5f},
     {"INDEX", P_LOG, 2, 0.0f, 60.0f, 24.0f, 0.5f, "RAD", 0, 0.0f, 12.0f},
     {"F0", P_LOG, 1, -4000.0f, 16000.0f, 24.0f, 20.0f, "HZ", 0, 20.0f, 4000.0f},
@@ -64,11 +67,15 @@ static const par_def_t DEF[NPAR] = {
     {"JPER", P_LOG, 2, -40.0f, 40.0f, 12.0f, 0.05f, "HZ", 0, 0.0f, 40.0f},
     {"BLK", P_LOG, 0, 16.0f, 4096.0f, 4.0f, 16.0f, "SMP", 0, 16.0f, 4096.0f},
     {"BPROB", P_LIN, 2, -1.0f, 1.0f, 0.01f, 0, "", 0, -0.3f, 0.3f},
+    {"KIND", P_ENUM, 0, 0, 4, 1, 1, "", KIND_NAMES, 0, 4},
+    {"RATE", P_LOG, 2, 0.0f, 60.0f, 12.0f, 0.1f, "HZ", 0, 0.0f, 20.0f},
+    {"PITCH", P_LOG, 0, 20.0f, 4000.0f, 24.0f, 20.0f, "HZ", 0, 30.0f, 2500.0f},
+    {"DECAY", P_LOG, 2, 0.01f, 6.0f, 12.0f, 0.01f, "S", 0, 0.01f, 3.0f},
 };
 static par_t P[NPAR];
-static const uint8_t PAGE_PARS[5][4] = {{A_F0, A_RATIO, A_FB, A_IN}, {B_SR, B_BITS, B_CURVE, B_HYST},
+static const uint8_t PAGE_PARS[6][4] = {{A_F0, A_RATIO, A_FB, A_IN}, {B_SR, B_BITS, B_CURVE, B_HYST},
                                         {C_MANT, C_EXP, C_GAIN, C_OVF}, {D_MASK, D_PROB, D_ENDIAN, D_ABS},
-                                        {E_JIT, E_JPER, E_BLK, E_BPROB}};
+                                        {E_JIT, E_JPER, E_BLK, E_BPROB}, {F_KIND, F_RATE, F_PITCH, F_DEC}};
 
 /* the white keys with pressure push an axis toward breaking; the top white keys kick by velocity only */
 enum { AX_GAIN, AX_SR, AX_BITS, AX_MANT, AX_EXP, AX_LOOP, AX_INDEX, AX_PROB, AX_JIT, AX_BLOCK, AX_ABS, AX_FB, NAX };
@@ -127,6 +134,10 @@ static struct {
     uint32_t bpos, blen;
     int bact, bprev_act;
     float bxL, bxR;
+    /* the voice (VOICE page: KICK SNARE HAT SYNTH instead of the FM pair) */
+    vox_t vox;
+    float vox_ph;
+    int vox_kind;
     /* view */
     float scope_min[240], scope_max[240], scope_c, scope_s;
     float cap_min[240], cap_max[240];
@@ -147,6 +158,9 @@ static void defaults(void)
     par_set(&DEF[C_EXP], &P[C_EXP], 8.0f);
     par_set(&DEF[E_BLK], &P[E_BLK], 512.0f);
     par_set(&DEF[E_JPER], &P[E_JPER], 3.0f);
+    par_set(&DEF[F_RATE], &P[F_RATE], 2.0f);
+    par_set(&DEF[F_PITCH], &P[F_PITCH], 55.0f);
+    par_set(&DEF[F_DEC], &P[F_DEC], 0.4f);
     for (i = 0; i < NSTAGE; i++)
         sh.on[i] = 1;
     for (i = 0; i < NORDER; i++)
@@ -187,6 +201,9 @@ void pj_reset_audio(void)
     st.index_s = st.gain_s = st.loop_s = 0.0f;
     st.cut_left = 0;
     st.cut_g = 1.0f;
+    vox_reset(&st.vox);
+    st.vox_ph = 1.0f;
+    st.vox_kind = -1;
     for (i = 0; i < RING; i++)
         ring[i] = 0.0f;
 }
@@ -414,6 +431,8 @@ void pj_render(float *l, float *r, const float *inl, const float *inr, uint32_t 
     int k;
     float jit, jper, bprob, inmix, fb, loop_t, index_t, gain_t;
     uint32_t blk;
+    int kind = (int)P[F_KIND].v;
+    vox_k_t vk;
     if (sh.home_req != st.home_seen) {
         st.home_seen = sh.home_req;
         pj_reset_audio();
@@ -440,18 +459,45 @@ void pj_render(float *l, float *r, const float *inl, const float *inr, uint32_t 
     if (blk > BLKMAX)
         blk = BLKMAX;
     bprob = v[E_BPROB];
+    if (kind > 0) {                                  /* a voice: its kind's place, with PITCH, DECAY and INDEX added */
+        float p[NVP];
+        for (k = 0; k < NVP; k++)
+            p[k] = VK_POINT[kind - 1][k];
+        p[VP_PITCH] = v[F_PITCH];
+        p[VP_DEC] = v[F_DEC];
+        p[VP_INDEX] = m_clamp(p[VP_INDEX] + v[G_INDEX], 0.0f, 60.0f);
+        p[VP_FB] = m_clamp(p[VP_FB] + v[A_FB], -4.0f, 4.0f);
+        p[VP_XMOD] = 0.0f;
+        vox_coefs(&vk, p);
+        if (kind != st.vox_kind) {
+            st.vox_kind = kind;
+            vox_trig(&st.vox);
+        }
+    }
     for (i = 0; i < n; i++) {
         float x, m, yl, yr;
         st.index_s += (index_t - st.index_s) * 0.005f;
         st.loop_s += (loop_t - st.loop_s) * 0.005f;
         st.gain_s += (gain_t - st.gain_s) * 0.005f;
         v[C_GAIN] = st.gain_s;
-        /* the source */
-        m = m_sin_pm(st.phm, fb * st.m1);
-        st.m1 = m;
-        x = m_sin_pm(st.phc, st.index_s * m + st.loop_s * st.yprev);
-        st.phc += incc;
-        st.phm += incm;
+        /* the source: the FM pair, or a voice retriggered at RATE (LOOP: the broken output into its carrier) */
+        if (kind > 0) {
+            if (v[F_RATE] > 0.0f) {
+                st.vox_ph += v[F_RATE] * M_INV_SR;
+                if (st.vox_ph >= 1.0f) {
+                    st.vox_ph -= m_floor(st.vox_ph);
+                    vox_trig(&st.vox);
+                }
+            }
+            vk.xmod = st.loop_s;
+            x = vox_run(&st.vox, &vk, st.yprev);
+        } else {
+            m = m_sin_pm(st.phm, fb * st.m1);
+            st.m1 = m;
+            x = m_sin_pm(st.phc, st.index_s * m + st.loop_s * st.yprev);
+            st.phc += incc;
+            st.phm += incm;
+        }
         if (inl && inr && inmix != 0.0f) {
             float a = 0.5f * (inl[i] + inr[i]);
             x = inmix > 0.0f ? x * (1.0f - inmix) + a * inmix : x * (1.0f + inmix) + x * a * (-inmix) * 2.0f;

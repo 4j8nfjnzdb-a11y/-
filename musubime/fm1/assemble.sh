@@ -29,7 +29,7 @@ one() {
   sed "s/@NAME@/$NAME/g" "$FM1/app.h.in" > "$D/app.h"
   sed -e "s/@NAME@/$NAME/g" -e "s/@ID@/$id/g" -e "s/@TAGLINE@/$tag/" "$FM1/fm1.toml.in" > "$D/fm1.toml"
   printf '# musubime %s: the screen'"'"'s words for a screen reader (fm1-reader)\n# url: https://example.invalid/musubime/words/\n%s\t%s\n' "$NAME" "$NAME" "$p" > "$D/words.tsv"
-  cp "$ROOT/src/m.h" "$ROOT/src/hw.h" "$ROOT/src/mz.h" "$ROOT/src/par.h" "$ROOT/src/fm.h" "$ROOT/src/font5x7.h" "$D/src/"
+  cp "$ROOT/src/m.h" "$ROOT/src/hw.h" "$ROOT/src/mz.h" "$ROOT/src/par.h" "$ROOT/src/fm.h" "$ROOT/src/fmvox.h" "$ROOT/src/font5x7.h" "$D/src/"
   cp "$ROOT/src/shell.c" "$ROOT/src/body.c" "$ROOT/src/scr.c" "$ROOT/src/$src.c" "$D/src/"
   cp "$FM1/tests/$p.txt" "$D/tests/basic.txt"
   echo "assembled $D"

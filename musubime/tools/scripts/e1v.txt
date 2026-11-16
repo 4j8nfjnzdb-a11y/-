@@ -1,0 +1,14 @@
+# KUZUSHI on the VOICE page: a kick at 3 Hz, broken by SR and BITS, LOOP into its carrier
+1 enc 0 -1
+2 enc 3 1
+# KIND -> KICK
+3 enc 4 6
+# RATE up
+5 enc 3 2
+# KIND -> HAT
+7 enc 0 2
+# page RATE
+7.5 spin 3 -50 2000
+10 spin 4 -30 2000
+13 spin 1 25 1500
+16 shot voice
