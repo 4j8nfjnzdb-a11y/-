@@ -1,0 +1,16 @@
+# SEN: the line plays and changes once a pass; a key points and presses
+wait 800
+shot boot.png
+master 4096
+peakreset
+wav sen.wav
+wait 3000
+key w1 down 90 70
+wait 2500
+key w1 up
+turn K1 30 40
+wait 3000
+shot play.png
+wavstop
+expect peak_db_min -40
+expect peak_db_max -2.5

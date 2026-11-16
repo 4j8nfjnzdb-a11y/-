@@ -1,0 +1,21 @@
+# PMVRS: pulse, then long/short, speed, breath (pressed), silence
+wait 800
+shot boot.png
+master 4096
+peakreset
+wav pmvrs.wav
+wait 2000
+tapkey w1
+wait 2000
+tapkey w2
+wait 2000
+tapkey w3
+key 12 down 80 70
+wait 1500
+key 12 up
+tapkey w4
+wait 1000
+shot play.png
+wavstop
+expect peak_db_min -40
+expect peak_db_max -2.5

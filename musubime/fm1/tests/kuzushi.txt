@@ -1,0 +1,20 @@
+# KUZUSHI in fm1-base's host simulator: a sine, then the loop and the breaking; never above the limiter
+wait 800
+shot boot.png
+master 4096
+peakreset
+wav kuzushi.wav
+turn PRESET 24 40
+turn ALGO 30 40
+wait 400
+key 0 down 100 60
+wait 600
+key 0 up
+tap OCT+
+turn K1 -40 30
+turn K2 -60 25
+wait 1500
+shot play.png
+wavstop
+expect peak_db_min -30
+expect peak_db_max -2.5

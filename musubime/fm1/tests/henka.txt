@@ -1,0 +1,16 @@
+# HENKA: locks pressed into steps, a faster tempo, mutation
+wait 800
+shot boot.png
+master 4096
+peakreset
+wav henka.wav
+key w2 down 90 80
+wait 400
+key w2 up
+turn K3 40 30
+turn K4 30 30
+wait 4000
+shot play.png
+wavstop
+expect peak_db_min -40
+expect peak_db_max -2.5

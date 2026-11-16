@@ -1,0 +1,13 @@
+# TEKIOU: a sine that rewires itself; REWIRE turned by hand
+wait 800
+shot boot.png
+master 4096
+peakreset
+wav tekiou.wav
+wait 2000
+turn ALGO 3 300
+wait 3000
+shot play.png
+wavstop
+expect peak_db_min -40
+expect peak_db_max -2.5

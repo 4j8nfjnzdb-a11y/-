@@ -1,0 +1,14 @@
+# FELDMAN: quiet; an agitated hand makes it quieter still
+wait 800
+shot boot.png
+master 4096
+peakreset
+wav feldman.wav
+wait 6000
+turn K3 20 20
+turn K3 -20 20
+wait 2000
+shot play.png
+wavstop
+expect peak_db_min -50
+expect peak_db_max -6
