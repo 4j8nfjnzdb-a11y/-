@@ -4,6 +4,17 @@ musubime の 6 つのプロジェクトは、それぞれ独立した FM-1 用�
 
 調べた範囲は 2026 年 11 月時点の公開リポジトリと記事です（末尾の出典）。**確認済み**と**未確認**を分けて書きます。
 
+## まとめ: 入れるデータと手順
+
+- **入れるデータ**: プロジェクトごとに `.fwsc` ファイルが 1 つ（`kuzushi.fwsc`、`henka.fwsc` など）。FM-1 のファームウェア一式で、USB-MIDI で書き込みます。一度に入るのは 1 つだけで、別のプロジェクトにするときは入れ直します。音源（28 種類の FM の音色とスロット）はファームウェアの中に入っているので、別のファイルは要りません。
+- **作り方**: このリポジトリの C から fm1-base でビルドします（下の 2〜4）。Mac なら Docker の中で JieLi のツールチェーンが動きます。
+- **入れ方**:
+  1. 公式ファームを V15 にしておく
+  2. FM-1 を USB でつなぎ、MIDI を使っているアプリを閉じる
+  3. `python3 ~/fm1-base/tools/fm1_install.py kuzushi.fwsc`
+  4. 1 分ほどで書き込まれ、FM-1 が再起動する
+- **戻し方**: M-VAVE の M-UPGRADE で公式ファーム（V15 か V16）を入れ直す（下の 5）。
+
 ## 0. 先に知っておくこと
 
 **フラッシュへの書き込みは自己責任です。** FM-1 のフラッシュは 1 バンクで、基板にデバッグ端子がありません（awesome-fm-1 の注意書き）。入れる前に「5. 戻し方」と「6. 動かなくなったとき」を読んでください。
@@ -41,8 +52,11 @@ musubime の 6 つのプロジェクトは、それぞれ独立した FM-1 用�
    export JIELI_TOOLCHAIN=~/.jieli/toolchain
    ```
    配布元は `pkgman.jieliapp.com` です（スクリプトに書かれている URL）。
-5. **JieLi AC79 SDK のチェックアウト**。パッケージには、SDK 内の 3 つのファイル（`uboot.boot`、`cfg_tool.bin`、`eq_cfg_hw.bin`）が必要です。置き場所は `~/fw-AC79_AIoT_SDK`、または `export AC79_SDK=...` で指定します。fm1-base は `AC79NN_SDK_V1.2.1_2023-12-13` で確認されています（`build.py` の記述）。
-   - **未確認**: 取得元は JieLi の GitHub の `fw-AC79_AIoT_SDK` だと思われますが、この環境では確かめていません。fm1-base の README とツールの説明を見てください。
+5. **JieLi AC79 SDK のチェックアウト**。パッケージには、SDK 内の 3 つのファイル（`uboot.boot`、`cfg_tool.bin`、`eq_cfg_hw.bin`）が必要です。置き場所は `~/fw-AC79_AIoT_SDK`、または `export AC79_SDK=...` で指定します。fm1-base は `AC79NN_SDK_V1.2.1_2023-12-13` で確認されています（`build.py` の記述）。取得元は、コミュニティの共有ビルダー（zvenson/fm1-build）が使っている JieLi の gitee です:
+   ```sh
+   git clone --depth 1 --branch AC79NN_SDK_V1.2.1_2023-12-13 \
+       https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git ~/fw-AC79_AIoT_SDK
+   ```
 
 ## 3. まずシミュレーターで（ツールチェーン不要）
 
@@ -109,3 +123,4 @@ fm1-base 系のファームウェアは、起動に 2 回失敗すると USB が
 - ECHOFIELD（fm1-base 系の安全策の説明）: https://github.com/Philip-Bos/echofield-fm1
 - FM1 Open（公式）: https://github.com/m-vave/fm1_open 、記事 https://www.synthtopia.com/content/2026/10/20/m-vave-officially-opens-fm-1-firmware-to-developers-with-new-workbench-sdk/ 、https://synthanatomy.com/2026/10/m-vave-fm-1-open-the-green-light-for-custom-firmware-and-community-hacks.html
 - Felucca: https://github.com/hugelton/Felucca
+- fm1-build（共有ビルダー: ツールチェーンと SDK の取得元）: https://github.com/zvenson/fm1-build
