@@ -20,7 +20,10 @@
  *   BLOCK blocks of BLK samples dropped (+ BPROB) or repeated (- BPROB)
  * The body: turning back and forth widens the quantiser's hysteresis (hesitation makes it sticky); a fast hand makes
  * the clock unsteady (jitter grows with speed); moving again after stillness rewires: the stage order rotates, and
- * after a stillness of 5 s or more the sound is cut for a moment first (WIRE, black key 11, turns this off). */
+ * after a stillness of 5 s or more the sound is cut for a moment first (WIRE, black key 11, turns this off).
+ * Controls: SELECT DRIVE (the gain into the overflow), ALGO LOOP, PRESET INDEX, K1-K4 the page's four; the pages are
+ * on the buttons (ARP SOURCE, ENV RATE, SEQ FLOAT, LFO BITS, SEL TIME, GLO VOICE; the page now is lit); OCT- / OCT+
+ * the source an octave down / up; FX held freezes the sound; SAVE keeps it (held: back to it). */
 #include "par.h"
 #include "fmvox.h"
 
@@ -82,6 +85,7 @@ enum { AX_GAIN, AX_SR, AX_BITS, AX_MANT, AX_EXP, AX_LOOP, AX_INDEX, AX_PROB, AX_
 static const char *const AX_NAME[NAX] = {"GAIN", "SR", "BITS", "MANT", "EXP", "LOOP", "INDEX", "PROB", "JIT",
                                          "BLOCK", "ABSORB", "FB"};
 static const uint8_t WHITE[16] = {0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26};
+static const uint8_t PAGE_BTN[6] = {HB_ARP, HB_ENV, HB_SEQ, HB_LFO, HB_SEL, HB_GLO};
 static const uint8_t BLACK[11] = {1, 3, 5, 8, 10, 13, 15, 17, 20, 22, 25};
 
 /* ---- shared between the UI and the render ---- */
@@ -91,6 +95,7 @@ static struct {
     uint8_t order[NORDER];
     uint8_t recon;                       /* 0 ZOH, 1 linear, 2 ZOH + anti-alias, 3 linear + anti-alias */
     uint8_t wire;                        /* the body rewires */
+    uint8_t freeze_hold;                 /* FX held: the sound frozen (SR 0, the last 2048 samples looped) */
     float hyst_body, clock_body;
     volatile uint32_t home_req, cut_req;
     volatile uint32_t cut_len;
@@ -104,6 +109,10 @@ static struct {
     uint32_t enc_hot[HW_NENC];
     uint32_t wire_count;
     char last_wire[16];
+    uint32_t save_t;
+    uint8_t save_done, has_snap, snap_recon;
+    par_t snap_p[NPAR];
+    uint8_t snap_on[NSTAGE], snap_order[NORDER];
 } ui;
 
 /* ---- the render's state ---- */
@@ -443,6 +452,8 @@ void pj_render(float *l, float *r, const float *inl, const float *inr, uint32_t 
     }
     for (k = 0; k < NPAR; k++)
         v[k] = eff(k);
+    if (sh.freeze_hold)
+        v[B_SR] = 0.0f;
     v[C_GAIN] = m_db2lin(v[C_GAIN]);
     incc = m_inc(v[A_F0]);
     incm = m_inc(v[A_F0] * v[A_RATIO]);
@@ -520,7 +531,7 @@ void pj_render(float *l, float *r, const float *inl, const float *inr, uint32_t 
         /* the reorderable stages */
         for (k = 0; k < NORDER; k++) {
             int s = sh.order[k];
-            if (s < NORDER && sh.on[s])
+            if (s < NORDER && (sh.on[s] || (s == S_SR && sh.freeze_hold)))
                 x = stage(s, x, v);
         }
         if (!m_finite(x))
@@ -656,11 +667,11 @@ void pj_render(float *l, float *r, const float *inl, const float *inr, uint32_t 
 void pj_control(const mz_in_t *in, const mz_body_t *b)
 {
     int page = (int)P[G_PAGE].v, i;
-    static const int ENC_PAR_G[3] = {G_PAGE, G_LOOP, G_INDEX};
+    static const int ENC_PAR_G[3] = {C_GAIN, G_LOOP, G_INDEX};   /* SELECT: DRIVE (the pages are on buttons) */
     for (i = 0; i < HW_NENC; i++) {
         int p = i < 3 ? ENC_PAR_G[i] : PAGE_PARS[page][i - 3];
         if (in->enc[i]) {
-            par_turn(&DEF[p], &P[p], in->enc[i], i == 0 ? 1.0f : par_accel(b->speed[i]), in->ms);
+            par_turn(&DEF[p], &P[p], in->enc[i], par_accel(b->speed[i]), in->ms);
             ui.enc_hot[i] = in->ms + 400u;
             if (p == B_SR || p == B_BITS || p == C_EXP || p == C_MANT)
                 sh.plot_rev++;
@@ -708,10 +719,60 @@ void pj_control(const mz_in_t *in, const mz_body_t *b)
         sh.plot_rev++;
     }
     /* OCT- / OCT+ also page */
-    if (in->bdown & (1u << HB_OCTDN))
-        par_turn(&DEF[G_PAGE], &P[G_PAGE], -1, 1.0f, in->ms);
-    if (in->bdown & (1u << HB_OCTUP))
-        par_turn(&DEF[G_PAGE], &P[G_PAGE], 1, 1.0f, in->ms);
+    /* buttons: the six pages at once (ARP SOURCE, ENV RATE, SEQ FLOAT, LFO BITS, SEL TIME, GLO VOICE); OCT- / OCT+
+     * the source an octave down / up; FX held: freeze; SAVE: keep this sound (held: back to it) */
+    for (i = 0; i < 6; i++)
+        if (in->bdown & (1u << PAGE_BTN[i])) {
+            par_set(&DEF[G_PAGE], &P[G_PAGE], (float)i);
+            P[G_PAGE].hot_until = in->ms + 400u;
+            mz_say("PAGE", PAGE_NAMES[i] + 2);
+            sh.plot_rev++;
+        }
+    if (in->bdown & (1u << HB_OCTDN)) {
+        par_set(&DEF[A_F0], &P[A_F0], P[A_F0].v * 0.5f);
+        P[A_F0].hot_until = in->ms + 400u;
+        mz_say("OCTAVE", "DOWN");
+    }
+    if (in->bdown & (1u << HB_OCTUP)) {
+        par_set(&DEF[A_F0], &P[A_F0], P[A_F0].v * 2.0f);
+        P[A_F0].hot_until = in->ms + 400u;
+        mz_say("OCTAVE", "UP");
+    }
+    sh.freeze_hold = (uint8_t)((in->btn >> HB_FX) & 1u);
+    if (in->bdown & (1u << HB_SAVE)) {
+        ui.save_t = in->ms;
+        ui.save_done = 0;
+    }
+    if ((in->btn & (1u << HB_SAVE)) && !ui.save_done && in->ms - ui.save_t >= 700u) {
+        ui.save_done = 1;
+        if (ui.has_snap) {
+            int k;
+            for (k = 0; k < NPAR; k++)
+                if (k != G_PAGE)
+                    P[k] = ui.snap_p[k];
+            for (k = 0; k < NSTAGE; k++)
+                sh.on[k] = ui.snap_on[k];
+            for (k = 0; k < NORDER; k++)
+                sh.order[k] = ui.snap_order[k];
+            sh.recon = ui.snap_recon;
+            mz_say("BACK", "TO THE KEPT ONE");
+        } else {
+            mz_say("NOTHING KEPT", "TAP SAVE FIRST");
+        }
+        sh.plot_rev++;
+    }
+    if ((in->bup & (1u << HB_SAVE)) && !ui.save_done) {
+        int k;
+        for (k = 0; k < NPAR; k++)
+            ui.snap_p[k] = P[k];
+        for (k = 0; k < NSTAGE; k++)
+            ui.snap_on[k] = sh.on[k];
+        for (k = 0; k < NORDER; k++)
+            ui.snap_order[k] = sh.order[k];
+        ui.snap_recon = sh.recon;
+        ui.has_snap = 1;
+        mz_say("KEPT", "HOLD SAVE = BACK");
+    }
     /* the body */
     sh.hyst_body = m_min(4.0f, b->revs * 0.8f);
     sh.clock_body = m_min(0.6f, b->agit * 0.004f);
@@ -740,12 +801,16 @@ void pj_control(const mz_in_t *in, const mz_body_t *b)
 
 void pj_row(int i, mz_row_t *row)
 {
-    static const int ENC_PAR_G[3] = {G_PAGE, G_LOOP, G_INDEX};
+    static const int ENC_PAR_G[3] = {C_GAIN, G_LOOP, G_INDEX};   /* SELECT: DRIVE (the pages are on buttons) */
     int page = (int)P[G_PAGE].v;
     int p = i < 3 ? ENC_PAR_G[i] : PAGE_PARS[page][i - 3];
     uint32_t now = hw_ms();
     float shown = eff(p);
     par_row(&DEF[p], &P[p], row, now, shown);
+    if (p == C_GAIN && i == 0) {
+        row->label[0] = 0;
+        mz_cat(row->label, "DRIVE");
+    }
     if (p == B_BITS && shown < 0.0f) {               /* negative bits: say what is heard */
         row->value[0] = 0;
         mz_cat(row->value, "ERR ");
@@ -831,5 +896,17 @@ uint32_t pj_dim_keys(void)
     return m;
 }
 
-uint32_t pj_lit_buttons(void) { return 0; }
-uint32_t pj_dim_buttons(void) { return (1u << HB_OCTDN) | (1u << HB_OCTUP); }   /* the pages */
+uint32_t pj_lit_buttons(void)
+{
+    uint32_t m = 1u << PAGE_BTN[(int)P[G_PAGE].v];   /* the page now */
+    if (sh.freeze_hold)
+        m |= 1u << HB_FX;
+    if (ui.has_snap)
+        m |= 1u << HB_SAVE;
+    return m;
+}
+uint32_t pj_dim_buttons(void)
+{
+    return (1u << HB_ARP) | (1u << HB_ENV) | (1u << HB_SEQ) | (1u << HB_LFO) | (1u << HB_SEL) | (1u << HB_GLO) |
+           (1u << HB_FX) | (1u << HB_SAVE) | (1u << HB_OCTDN) | (1u << HB_OCTUP);
+}

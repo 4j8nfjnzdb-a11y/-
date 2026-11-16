@@ -1,4 +1,4 @@
-# KUZUSHI in fm1-base's host simulator: a sine, then the loop and the breaking; never above the limiter
+# KUZUSHI in fm1-base's host simulator: a sine, the loop, the pages on buttons, freeze, keep / back
 wait 800
 shot boot.png
 master 4096
@@ -6,14 +6,24 @@ peakreset
 wav kuzushi.wav
 turn PRESET 24 40
 turn ALGO 30 40
+turn SELECT 20 40
 wait 400
 key 0 down 100 60
 wait 600
 key 0 up
-tap OCT+
+tap SAVE
+tap ENV
 turn K1 -40 30
 turn K2 -60 25
-wait 1500
+press FX
+wait 500
+release FX
+tap OCT-
+press SAVE
+wait 900
+release SAVE
+tap LFO
+wait 1000
 shot play.png
 wavstop
 expect peak_db_min -30
