@@ -1,0 +1,11 @@
+# TEKIOU: left alone three minutes (it should restructure itself toward complexity), then the hand
+1 shot start
+60 shot one
+180 shot alone
+182 spin 1 3 300
+186 spin 4 -30 1500
+190 spin 3 2 200
+190.3 spin 3 -2 200
+190.6 spin 3 2 200
+190.9 spin 3 -2 200
+200 shot end

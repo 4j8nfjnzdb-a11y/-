@@ -1,0 +1,21 @@
+# PMVRS: keys switch the modes; stillness then a move switches to the one away longest
+1 shot start
+8 key 2 down 80
+8.1 key 2 up
+16 key 4 down 80
+16.1 key 4 up
+24 key 6 down 80
+24.1 key 6 up
+26 key 12 down 70
+26.1 prs 12 30
+27 prs 12 90
+28.5 prs 12 20
+29.5 prs 12 100
+31 key 12 up
+32 key 7 down 80
+32.1 key 7 up
+36 shot silence
+38 spin 3 4 200
+46 spin 3 -4 200
+54 spin 5 10 400
+60 shot end

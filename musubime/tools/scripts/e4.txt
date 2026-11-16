@@ -1,0 +1,12 @@
+# FELDMAN: alone for two minutes; then an agitated hand (it hushes); then a held tone
+1 shot start
+60 shot one
+120 shot alone
+122 spin 5 40 800
+123 spin 5 -40 800
+124 spin 5 40 800
+126 shot hush
+130 key 2 down 60
+130.1 prs 2 90
+136 key 2 up
+150 shot end

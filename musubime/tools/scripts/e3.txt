@@ -1,0 +1,9 @@
+# SEN: left alone for three minutes, then pointed and pressed
+1 shot start
+90 shot mid
+180 shot alone
+182 key 4 down 90
+182.2 prs 4 110
+190 key 4 up
+192 spin 3 30 1500
+200 shot end
