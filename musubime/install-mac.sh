@@ -3,6 +3,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/4j8nfjnzdb-a11y/-/refs/heads/claude/eloquent-mendel-xx2vgi/musubime/install-mac.sh | bash
 # 別のプロジェクトを入れるときは最後に名前を付ける: ... | bash -s kuzushi   (henka kuzushi sen feldman pmvrs tekiou)
 #
+# 要るもの: Python 3.12（python.org、数十 MB）。Apple の開発ツールも git も要らない。
 # やること: 道具の確認と準備 -> ファイルのダウンロード -> FM-1 の今のバージョンを読む -> 公式 V15 でなければ先に V15 へ
 # （公式の V16 や FM1 Open から直接は入れない、コミュニティの手順どおり）-> 選んだプロジェクトを書き込む。
 # 書き込む前には必ず y / n を聞く。書き込みは fm1-base の fm1_install.py（書く前にファイルと機器を確かめる）。
@@ -13,12 +14,12 @@ REL="https://github.com/4j8nfjnzdb-a11y/-/releases/download/musubime-latest"
 V15_URL="https://github.com/m-vave/fm1_open/raw/main/sdk/firmware/FM-1_015.fwsc"
 WORK="$HOME/musubime-fm1"
 BASE="$WORK/fm1-base"
+FM1B=c8e05997ce970875038156d2bbd69e712eac1543   # the fm1-base commit the firmwares were built and tested with
 
 say() { printf '\n\033[1m%s\033[0m\n' "$*"; }
 note() { printf '  %s\n' "$*"; }
 stop() { say "止めました: $*"; note "この画面の文字をそのままコピーして送ってください。"; exit 1; }
 ask() { local a; printf '\n\033[1m%s\033[0m  y = はい / n = いいえ: ' "$1"; read -r a </dev/tty; [ "$a" = y ] || [ "$a" = Y ]; }
-inst() { python3 "$BASE/tools/fm1_install.py" "$@"; }
 
 # the identity the FM-1 answers (FM-1_016, FM-1_015, FM-1_6200 ...), or nothing
 identity() {
@@ -28,24 +29,36 @@ identity() {
 }
 
 say "1/5 Mac の道具を確かめます"
-if ! xcode-select -p >/dev/null 2>&1; then
-  note "Apple の開発ツール（無料）が必要です。今から出る窓で「インストール」を押してください。"
+# Python 3.12 (python.org): the MIDI parts (python-rtmidi) come ready-made for it; Apple's developer tools are not
+# needed (they ask for about 19 GB). Git is not needed either: fm1-base comes as a zip (curl and unzip are built in).
+PY=""
+for c in /Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12 /usr/local/bin/python3.12 \
+         /opt/homebrew/bin/python3.12 "$(command -v python3.12 2>/dev/null)"; do
+  if [ -n "$c" ] && [ -x "$c" ]; then PY="$c"; break; fi
+done
+if [ -z "$PY" ]; then
+  note "Python 3.12（無料、数十 MB）が必要です。今からブラウザでダウンロードのページを開きます。"
+  note "ページの下の方の「macOS 64-bit universal2 installer」を押してダウンロードし、"
+  note "ダウンロードしたファイルを開いて「続ける」「同意する」「インストール」と進めてください。"
+  note "（3.13 や 3.14 ではなく 3.12 を入れてください。MIDI の部品が 3.12 用しかありません）"
   note "終わったら、もう一度同じ 1 行をターミナルに貼って return してください。"
-  xcode-select --install >/dev/null 2>&1
+  open "https://www.python.org/downloads/release/python-31210/" 2>/dev/null
   exit 0
 fi
-command -v python3 >/dev/null || stop "python3 が見つかりません"
-if ! python3 -c 'import mido, rtmidi' 2>/dev/null; then
+inst() { "$PY" "$BASE/tools/fm1_install.py" "$@"; }
+if ! "$PY" -c 'import mido, rtmidi' 2>/dev/null; then
   note "USB-MIDI の部品（mido, python-rtmidi）を入れます…"
-  python3 -m pip install --user --quiet mido python-rtmidi 2>/dev/null ||
-    python3 -m pip install --user --quiet --break-system-packages mido python-rtmidi ||
+  "$PY" -m pip install --user --quiet --only-binary=:all: mido python-rtmidi 2>/dev/null ||
+    "$PY" -m pip install --user --quiet --only-binary=:all: --break-system-packages mido python-rtmidi ||
     stop "部品を入れられませんでした"
 fi
 mkdir -p "$WORK"
 if [ ! -f "$BASE/tools/fm1_install.py" ]; then
   note "書き込み用の道具（fm1-base）を取ってきます…"
-  rm -rf "$BASE"
-  git clone --quiet --recursive https://github.com/charlesvestal/fm1-base "$BASE" || stop "fm1-base を取ってこられませんでした"
+  rm -rf "$BASE" "$WORK/fm1-base.zip" "$WORK/fm1-base-$FM1B"
+  curl -fsSL -o "$WORK/fm1-base.zip" "https://github.com/charlesvestal/fm1-base/archive/$FM1B.zip" &&
+    unzip -q "$WORK/fm1-base.zip" -d "$WORK" && mv "$WORK/fm1-base-$FM1B" "$BASE" && rm -f "$WORK/fm1-base.zip" ||
+    stop "fm1-base を取ってこられませんでした"
 fi
 note "OK"
 
