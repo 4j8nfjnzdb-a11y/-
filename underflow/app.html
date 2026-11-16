@@ -1,0 +1,515 @@
+<title>UNDERFLOW</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Archivo+Narrow:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+/* Layout: an equipment rack. One unit for the source and transport, one for the two displays, then one unit per
+   stage in the chain's order. Numbers lead; instrument displays stay dark in both themes. */
+:root{
+  --bg:#cfccc4; --rack:#bdb9af; --unit:#e4e1da; --unit-edge:#a29e94; --ink:#1e1e1c; --dim:#5d5a53; --faint:#8b877d;
+  --screen:#0d0f0d; --screen-ink:#ffb347; --screen-dim:#7a5a2a; --screen-grid:#232823; --trace-in:#5f7f6a;
+  --accent:#b8620a; --accent-ink:#fffaf2; --off:#9b968b; --alarm:#c7301c; --good:#2f7d4f; --line:rgba(30,30,28,.18);
+  --f-num:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  --f-label:"Archivo Narrow","Arial Narrow",system-ui,sans-serif;
+  --f-body:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121315; --rack:#1a1b1e; --unit:#24262a; --unit-edge:#34363b; --ink:#e6e3dc; --dim:#a19d94; --faint:#6c6961;
+  --screen:#0a0b0a; --screen-ink:#ffb347; --screen-dim:#7a5a2a; --screen-grid:#1f231f; --trace-in:#4f6e5b;
+  --accent:#e08a2c; --accent-ink:#1f1404; --off:#5a5852; --alarm:#ef5a44; --good:#59b37c; --line:rgba(230,227,220,.12);
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121315; --rack:#1a1b1e; --unit:#24262a; --unit-edge:#34363b; --ink:#e6e3dc; --dim:#a19d94; --faint:#6c6961;
+  --screen:#0a0b0a; --screen-ink:#ffb347; --screen-dim:#7a5a2a; --screen-grid:#1f231f; --trace-in:#4f6e5b;
+  --accent:#e08a2c; --accent-ink:#1f1404; --off:#5a5852; --alarm:#ef5a44; --good:#59b37c; --line:rgba(230,227,220,.12);
+  color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.5;-webkit-tap-highlight-color:transparent}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1240px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:18px 48px;display:flex;flex-direction:column;gap:12px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 18px}
+h1{margin:0;font-family:var(--f-num);font-weight:600;font-size:clamp(26px,4vw,38px);letter-spacing:.14em}
+header p{margin:0;color:var(--dim);max-width:70ch;min-width:0}
+.unit{background:var(--unit);border:1px solid var(--unit-edge);border-radius:4px;padding:12px 14px;position:relative;min-width:0}
+.unit::before,.unit::after{content:"";position:absolute;top:10px;width:7px;height:7px;border-radius:50%;background:var(--rack);box-shadow:inset 0 0 0 1px var(--unit-edge)}
+.unit::before{left:5px}.unit::after{right:5px}
+.silk{font-family:var(--f-label);font-weight:700;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+.row{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+.btn{border:1px solid var(--unit-edge);background:var(--rack);border-radius:4px;padding:6px 11px;font-family:var(--f-label);font-weight:700;font-size:12px;letter-spacing:.08em}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn[aria-pressed="true"]{background:var(--ink);color:var(--unit)}
+.btn.small{padding:3px 7px;font-size:11px}
+select,input[type=text],input[type=number],textarea{background:var(--screen);color:var(--screen-ink);border:1px solid var(--unit-edge);border-radius:3px;padding:4px 6px;font-family:var(--f-num);font-size:13px;min-width:0}
+textarea{width:100%;min-height:90px;font-size:12px}
+.lcd{background:var(--screen);color:var(--screen-ink);font-family:var(--f-num);font-variant-numeric:tabular-nums;border-radius:3px;padding:3px 8px;font-size:13px;white-space:nowrap}
+.lcd.alarm{color:#fff;background:var(--alarm)}
+/* displays */
+.displays{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+@media (min-width:900px){.displays{grid-template-columns:minmax(0,1fr) minmax(0,1.4fr)}}
+.disp{display:flex;flex-direction:column;gap:6px;min-width:0}
+canvas.scr{width:100%;height:190px;background:var(--screen);border-radius:3px;display:block}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-family:var(--f-num);font-size:11.5px;color:var(--dim)}
+.legend i{display:inline-block;width:12px;height:3px;vertical-align:middle;margin-right:5px}
+.meters{display:flex;flex-wrap:wrap;gap:6px}
+/* stages */
+.chain{display:flex;flex-direction:column;gap:8px}
+.stage .head{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding-left:10px}
+.stage .num{font-family:var(--f-num);font-weight:600;color:var(--accent);min-width:2ch}
+.stage h2{margin:0;font-size:15px;font-weight:700}
+.stage h2 span{font-family:var(--f-label);font-size:11px;letter-spacing:.16em;color:var(--dim);margin-left:6px}
+.stage .tools{margin-left:auto;display:flex;gap:4px}
+.stage.off{opacity:.62}
+.stage.off .params{display:none}
+.stage .note{margin:4px 0 0 10px;color:var(--dim);font-size:12.5px;max-width:90ch}
+.badge{font-family:var(--f-label);font-size:10.5px;letter-spacing:.12em;border:1px solid var(--alarm);color:var(--alarm);border-radius:3px;padding:0 5px}
+.params{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;margin-top:10px;padding-left:10px}
+@media (min-width:760px){.params{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.prm{display:grid;grid-template-columns:7.5em minmax(0,1fr) 8.5em auto;gap:6px;align-items:center;min-width:0}
+.prm label{font-size:13px;color:var(--ink)}
+.prm label small{display:block;color:var(--faint);font-size:11px;line-height:1.2}
+.prm input[type=range]{width:100%;accent-color:var(--accent);min-width:0}
+.prm .numwrap{display:flex;align-items:center;gap:4px}
+.prm .numwrap input{width:100%}
+.prm .unit-t{font-family:var(--f-num);font-size:11px;color:var(--dim)}
+.prm .x{display:flex;gap:3px}
+.prm .x .btn{padding:2px 6px;font-size:10.5px}
+.prm .x .btn[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.prm .modv{font-family:var(--f-num);font-size:11px;color:var(--accent);grid-column:2 / -1}
+.lfo{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:6px 8px;border:1px dashed var(--line);border-radius:3px;font-size:12px}
+.lfo input[type=number]{width:6.5em}
+.prm.choice{grid-template-columns:7.5em minmax(0,1fr)}
+@media (max-width:560px){.prm{grid-template-columns:minmax(0,1fr) 8em auto}.prm input[type=range]{grid-column:1 / -1;grid-row:2}.prm label{grid-column:1}}
+.bits{display:grid;grid-template-columns:repeat(16,minmax(0,1fr));gap:2px}
+.bit{font-family:var(--f-num);font-size:11px;padding:4px 0;text-align:center;border:1px solid var(--unit-edge);border-radius:2px;background:var(--rack)}
+.bit.m0{background:var(--ink);color:var(--unit)}
+.bit.inv{background:var(--accent);color:var(--accent-ink)}
+.bitsrow{grid-column:1 / -1;display:flex;flex-direction:column;gap:4px}
+.presets{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+details summary{cursor:pointer;color:var(--dim);font-size:13px}
+.msg{font-size:12.5px;color:var(--dim)}
+.err{color:var(--alarm)}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>UNDERFLOW</h1>
+    <p>デジタル音声の数値（サンプルレート、ビット深度、浮動小数点、桁あふれ、ビット、時計、ビットレート）を、普通の範囲を越えてマイナスまで動かします。数値ごとに壊れ方が違い、どの段も独立した処理です。</p>
+  </header>
+
+  <section class="unit" aria-label="入力と操作">
+    <div class="row">
+      <button class="btn primary" id="go">音を出す</button>
+      <span class="silk">入力</span>
+      <select id="sig" aria-label="入力">
+        <option value="sine">サイン波</option><option value="saw" selected>のこぎり波</option><option value="noise">ホワイトノイズ</option>
+        <option value="impulse">インパルス</option><option value="sweep">スイープ</option><option value="file">音声ファイル（ループ）</option><option value="mic">マイク</option>
+      </select>
+      <input type="file" id="file" accept="audio/*" hidden>
+      <span class="silk">周波数</span><input type="number" id="freq" value="220" step="any" style="width:7em" aria-label="周波数 Hz"><span class="unit-t">Hz</span>
+      <span class="silk">レベル</span><input type="number" id="level" value="-12" step="any" style="width:5.5em" aria-label="入力レベル dB"><span class="unit-t">dB</span>
+      <span class="silk">スイープ</span><input type="number" id="sweep" value="8" step="any" style="width:4.5em" aria-label="スイープの長さ 秒"><span class="unit-t">s</span>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <span class="silk">MASTER</span><input type="range" id="master" min="-60" max="0" step="0.5" value="-18" style="width:160px;accent-color:var(--accent)" aria-label="マスター音量"><span class="lcd" id="masterv">-18.0 dB</span>
+      <button class="btn" id="rnd">全体ランダム</button>
+      <button class="btn" id="reset">初期値へ</button>
+      <button class="btn" id="rec" aria-pressed="false">WAV 録音</button>
+      <span id="recout" class="msg"></span>
+    </div>
+    <div class="presets" style="margin-top:8px">
+      <span class="silk">プリセット</span>
+      <select id="plist" aria-label="プリセット"></select>
+      <button class="btn small" id="pload">読み込む</button>
+      <input type="text" id="pname" placeholder="名前" style="width:9em" aria-label="プリセット名">
+      <button class="btn small" id="psave">保存</button>
+      <button class="btn small" id="pdel">削除</button>
+      <details><summary>JSON で書き出し / 読み込み</summary>
+        <textarea id="pjson" aria-label="プリセットの JSON"></textarea>
+        <div class="row"><button class="btn small" id="pexport">今の設定を書き出す</button><button class="btn small" id="pcopy">コピー</button><button class="btn small" id="pimport">貼り付けた JSON を読み込む</button></div>
+      </details>
+      <span id="pmsg" class="msg"></span>
+    </div>
+    <p class="msg err" id="err" hidden></p>
+  </section>
+
+  <section class="unit displays" aria-label="波形とスペクトル">
+    <div class="disp">
+      <span class="silk">波形（入力のゼロ交差から 1024 サンプル）</span>
+      <canvas class="scr" id="scope" aria-label="波形"></canvas>
+      <div class="legend"><span><i style="background:var(--trace-in)"></i>入力</span><span><i style="background:var(--screen-ink)"></i>出力</span></div>
+    </div>
+    <div class="disp">
+      <span class="silk">スペクトル（出力、対数周波数）</span>
+      <canvas class="scr" id="spec" aria-label="スペクトル"></canvas>
+      <div class="legend"><span><i style="background:#e8e2d0"></i>元のナイキスト fs/2</span><span><i style="background:#ff6a4d"></i>新しいナイキスト |SR|/2</span><span><i style="background:#ff6a4d;opacity:.45"></i>折り返しの線（|SR| の倍数）</span></div>
+      <div class="meters">
+        <span class="lcd" id="m-in">IN -∞</span><span class="lcd" id="m-out">OUT -∞</span><span class="lcd" id="m-gr">LIM 0.0</span>
+        <span class="lcd" id="m-sr">SR —</span><span class="lcd" id="m-nan">NaN 0</span><span class="lcd" id="m-fs">fs —</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="chain" id="chain"></div>
+
+  <section class="unit">
+    <span class="silk">出口（常に入っている）</span>
+    <p class="msg" style="margin:6px 0 0">チェーンの後ろに必ず DC カットと -1 dBFS のリミッター（瞬時アタック、150 ms リリース）が入り、その後に MASTER（初期値 -18 dB）。NaN や無限大が出たブロックは無音にし、すべての段の状態を消してから続ける（上の NaN の数）。</p>
+  </section>
+</div>
+
+<script>
+const WORKLET_SRC = "// UNDERFLOW: the processing, one sample at a time, in an AudioWorklet.\n// Every stage is its own process with its own definition of negative and extreme values (see the page's notes).\n// Messages in: {t:\"p\", id, v} a parameter; {t:\"lfo\", id, on, rate, depth, shape}; {t:\"order\", order}; {t:\"on\", st, v};\n// {t:\"src\", ...}; {t:\"rec\", on}; {t:\"reset\"}. Out: {t:\"view\", ...} about 30 a second, {t:\"rec\", l, r}.\nconst TAU = Math.PI * 2;\n\nclass Rng {\n  constructor(s) { this.s = s >>> 0 || 1; }\n  next() { let x = this.s; x ^= x << 13; x ^= x >>> 17; x ^= x << 5; this.s = x >>> 0; return this.s / 4294967296; }\n}\n\n// a radix-2 FFT in place (re, im), n a power of two\nfunction fft(re, im, inv) {\n  const n = re.length;\n  for (let i = 1, j = 0; i < n; i++) {\n    let bit = n >> 1;\n    for (; j & bit; bit >>= 1) j ^= bit;\n    j ^= bit;\n    if (i < j) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; }\n  }\n  for (let len = 2; len <= n; len <<= 1) {\n    const a = (inv ? TAU : -TAU) / len, wr0 = Math.cos(a), wi0 = Math.sin(a);\n    for (let i = 0; i < n; i += len) {\n      let wr = 1, wi = 0;\n      for (let j = 0; j < len / 2; j++) {\n        const k = i + j + len / 2, xr = re[k] * wr - im[k] * wi, xi = re[k] * wi + im[k] * wr;\n        re[k] = re[i + j] - xr; im[k] = im[i + j] - xi; re[i + j] += xr; im[i + j] += xi;\n        const t = wr * wr0 - wi * wi0; wi = wr * wi0 + wi * wr0; wr = t;\n      }\n    }\n  }\n}\n\nconst NS_B = [[], [1], [2, -1], [3, -3, 1], [4, -6, 4, -1], [5, -10, 10, -5, 1]];   // (1 - z^-1)^N, after the 1\nfunction ringRead(R, M, pos) { const i = Math.floor(pos), f = pos - i; return R[i & M] + (R[(i + 1) & M] - R[i & M]) * f; }\nfunction lanczos(x) {\n  if (x === 0) return 1;\n  if (x <= -4 || x >= 4) return 0;\n  const px = Math.PI * x;\n  return (4 * Math.sin(px) * Math.sin(px / 4)) / (px * px);\n}\n\nclass Chan {                                     // one channel's state for every stage\n  constructor(fs) {\n    this.rateRing = new Float32Array(1 << 18); this.rateRp = 0; this.rateXf = 0; this.rateOld = 0;\n    this.jit = new Float32Array(4096); this.jw = 0;\n    this.aa = [[0, 0, 0, 0], [0, 0, 0, 0]];\n    this.srAcc = 0; this.hist = new Float32Array(8); this.srFrozen = false;\n    this.revRing = new Float32Array(1 << 17); this.revK = 0; this.revXf = 0; this.revOld = 0;\n    this.err = new Float32Array(6); this.qLast = 0;\n    this.sdm = new Float64Array(5); this.sdmY = 1; this.sdmPrev = 0;\n    this.blk = new Float32Array(8192);\n    this.cIn = new Float32Array(1024); this.cOut = new Float32Array(2048); this.cPos = 0; this.cOutPos = 0;\n    this.dcx = 0; this.dcy = 0;\n  }\n}\n\nclass Underflow extends AudioWorkletProcessor {\n  constructor(opt) {\n    super();\n    const o = opt.processorOptions;\n    this.fs = sampleRate;\n    this.p = Object.assign({}, o.params);\n    this.lfo = {};\n    this.order = o.order.slice();\n    this.on = Object.assign({}, o.on);\n    this.rng = new Rng(o.seed || 12345);\n    this.ch = [new Chan(this.fs), new Chan(this.fs)];\n    this.src = { ph: 0, sweepPh: 0, impPh: 0, sawPh: 0 };\n    this.w = 0;                                  // samples written (shared write clock)\n    this.blkPos = 0; this.blkAct = 0; this.blkPrevAct = 0; this.blkFade = 0;\n    this.env = 0; this.nan = 0; this.nanNow = false;\n    this.rec = false;\n    this.viewN = 0;\n    this.scopeIn = new Float32Array(1024); this.scopeOut = new Float32Array(1024); this.scopeI = 0; this.armed = true;\n    this.prevIn = 0; this.peakIn = 0; this.peakOut = 0; this.gr = 1;\n    this.re = new Float32Array(1024); this.im = new Float32Array(1024);\n    this.win = new Float32Array(1024);\n    for (let i = 0; i < 1024; i++) this.win[i] = Math.sqrt(0.5 - 0.5 * Math.cos((TAU * i) / 1024));\n    this.mags = new Float32Array(513); this.idx = new Int32Array(513);\n    this.keep = new Uint8Array(513); this.oRe = new Float32Array(1024); this.oIm = new Float32Array(1024);\n    this.eff = {};\n    this.port.onmessage = (e) => this.msg(e.data);\n  }\n  msg(m) {\n    if (m.t === \"p\") this.p[m.id] = m.v;\n    else if (m.t === \"lfo\") this.lfo[m.id] = { on: m.on, rate: m.rate, depth: m.depth, shape: m.shape, ph: (this.lfo[m.id] || {}).ph || 0, sh: 0 };\n    else if (m.t === \"order\") this.order = m.order.slice();\n    else if (m.t === \"on\") this.on[m.st] = m.v;\n    else if (m.t === \"rec\") this.rec = !!m.on;\n    else if (m.t === \"reset\") this.resetState();\n  }\n  resetState() {\n    this.ch = [new Chan(this.fs), new Chan(this.fs)];\n    this.blkPos = 0; this.blkAct = 0;\n  }\n  // a parameter now: its base plus its LFO (computed once a block)\n  val(id) {\n    const base = this.p[id];\n    const l = this.lfo[id];\n    if (!l || !l.on || typeof base !== \"number\") return base;\n    let w;\n    const ph = l.ph;\n    if (l.shape === \"sine\") w = Math.sin(TAU * ph);\n    else if (l.shape === \"tri\") w = 1 - 4 * Math.abs(ph - 0.5);\n    else if (l.shape === \"square\") w = ph < 0.5 ? 1 : -1;\n    else w = l.sh;\n    return base + l.depth * w;\n  }\n  stepLfos(n) {\n    for (const id in this.lfo) {\n      const l = this.lfo[id];\n      if (!l.on) continue;\n      const before = l.ph;\n      l.ph += (l.rate * n) / this.fs;\n      if (l.ph >= 1 || l.ph < before) { l.ph -= Math.floor(l.ph); l.sh = this.rng.next() * 2 - 1; }\n    }\n  }\n\n  // ---------------------------------------------------------------- the stages ---\n  // 10. recording rate vs playback rate: the input written at 1, read at RATIO (negative: backwards)\n  stRate(c, x, ratio) {\n    const R = c.rateRing, N = R.length, M = N - 1;\n    R[this.w & M] = x;\n    if (ratio === 1 && c.rateXf === 0 && c.rateRp === this.w) { c.rateRp = this.w + 1; return x; }\n    let d = this.w - c.rateRp;\n    if (d < 2 || d > N - 64) {                   // ran into the write, or out of the ring: jump, crossfading\n      c.rateOld = c.rateRp; c.rateXf = 256;\n      c.rateRp = ratio > 0 ? this.w - N / 2 : this.w - 2;\n    }\n    let y = ringRead(R, M, c.rateRp);\n    if (c.rateXf > 0) { const a = c.rateXf / 256; y = y * (1 - a) + ringRead(R, M, c.rateOld) * a; c.rateOld += ratio; c.rateXf--; }\n    c.rateRp += ratio;\n    return y;\n  }\n  // 9. clock jitter: the sampling instant wobbles by up to AMOUNT samples (a sine at PERIOD Hz, or white at 0)\n  stJit(c, x, amt, w) {\n    const J = c.jit, M = J.length - 1;\n    J[c.jw & M] = x;\n    const a = Math.min(Math.abs(amt), 1000), d = a + a * w;   // constant latency a; the instant moves +-a\n    const i = Math.floor(d), f = d - i, p = c.jw - i;\n    const y0 = J[(p + 1) & M], y1 = J[p & M], y2 = J[(p - 1) & M], y3 = J[(p - 2) & M];\n    c.jw++;\n    // cubic Hermite between y1 and y2 at f\n    const c1 = 0.5 * (y2 - y0), c2 = y0 - 2.5 * y1 + 2 * y2 - 0.5 * y3, c3 = 0.5 * (y3 - y0) + 1.5 * (y1 - y2);\n    return ((c3 * f + c2) * f + c1) * f + y1;\n  }\n  // 1. sample rate: + sample-and-hold (anti-alias, ZOH / linear / sinc); 0 freeze; - the past backwards, held\n  stSr(c, x, rate, aa, recon, coef) {\n    const fs = this.fs;\n    if (rate < 0) {                              // read backwards from the write, a second at most, restart\n      const R = c.revRing, M = R.length - 1;\n      R[this.w & M] = x;\n      let y = R[(this.w - 2 * c.revK) & M];        // k samples since the restart: 2k behind the write\n      if (c.revXf > 0) { const a = c.revXf / 64; y = y * (1 - a) + c.revOld * a; c.revXf--; }\n      c.revK++;\n      if (2 * c.revK >= Math.min(fs, R.length - 8)) { c.revOld = y; c.revXf = 64; c.revK = 0; }\n      x = y;\n      rate = -rate;\n    }\n    if (rate === 0) {                            // freeze the sample of this instant\n      if (!c.srFrozen) { c.srFrozen = true; c.hist[0] = x; }\n      return c.hist[0];\n    }\n    c.srFrozen = false;\n    if (aa && rate < fs) {                       // 4th-order Butterworth low-pass at 0.45 x the new rate\n      for (let s = 0; s < 2; s++) {\n        const k = coef[s], z = c.aa[s];\n        const y = k[0] * x + z[0];\n        z[0] = k[1] * x - k[3] * y + z[1];\n        z[1] = k[2] * x - k[4] * y;\n        x = y;\n      }\n    }\n    c.srAcc += rate / fs;\n    if (c.srAcc >= 1) {\n      c.srAcc -= Math.floor(c.srAcc);\n      for (let k = 7; k > 0; k--) c.hist[k] = c.hist[k - 1];\n      c.hist[0] = x;\n    }\n    if (rate >= fs && recon !== \"sinc\") return c.hist[0];\n    if (recon === \"linear\") return c.hist[1] + (c.hist[0] - c.hist[1]) * c.srAcc;\n    if (recon === \"sinc\") {                      // Lanczos (a = 4) over the held samples, 4 periods late\n      let y = 0;\n      const t = c.srAcc - 4;\n      for (let k = 0; k < 8; k++) y += c.hist[k] * lanczos(t + k);\n      return y;\n    }\n    return c.hist[0];\n  }\n  // 6. overflow: gain, then CLIP / WRAP (integer overflow) / MIRROR (fold)\n  stOvf(x, g, mode) {\n    x *= g;\n    if (mode === \"clip\") return x > 1 ? 1 : x < -1 ? -1 : x;\n    if (mode === \"wrap\") { const u = (x + 1) * 0.5; return (u - Math.floor(u)) * 2 - 1; }\n    const u = ((x + 1) * 0.25 - Math.floor((x + 1) * 0.25)) * 4;\n    return u < 2 ? u - 1 : 3 - u;\n  }\n  // 5. floating point: MANT mantissa bits (rounded), EXP exponent bits (IEEE-like bias); below the smallest normal\n  // the value goes subnormal (gradual underflow) or to 0 (FTZ); above the largest it saturates\n  stFloat(x, mant, expb, ftz) {\n    if (x === 0 || !isFinite(x)) return x;\n    mant = Math.max(0, Math.min(23, Math.round(mant)));\n    expb = Math.max(1, Math.min(8, Math.round(expb)));\n    const bias = (1 << (expb - 1)) - 1, kmin = 1 - bias, kmax = bias;\n    const s = x < 0 ? -1 : 1, a = Math.abs(x);\n    const k = Math.floor(Math.log2(a));\n    if (k > kmax) return s * (2 - Math.pow(2, -mant)) * Math.pow(2, kmax);\n    if (k < kmin) {\n      if (ftz) return 0;\n      const step = Math.pow(2, kmin - mant);\n      return s * Math.round(a / step) * step;\n    }\n    const step = Math.pow(2, k - mant);\n    return s * Math.round(a / step) * step;\n  }\n  curveF(x, c) {\n    const a = Math.abs(x), s = x < 0 ? -1 : 1;\n    if (c === \"mu\") return s * Math.log1p(255 * Math.min(a, 4)) / Math.log(256);\n    if (c === \"log\") return a < 1e-5 ? 0 : s * Math.max(0, 1 + Math.log2(a) / 16);\n    return x;\n  }\n  curveI(y, c) {\n    const a = Math.abs(y), s = y < 0 ? -1 : 1;\n    if (c === \"mu\") return (s * (Math.pow(256, a) - 1)) / 255;\n    if (c === \"log\") return a <= 0 ? 0 : s * Math.pow(2, 16 * (a - 1));\n    return y;\n  }\n  // 2 and 3. bit depth with dither and noise shaping: + quantise; - only the error |BITS| would throw away\n  stBits(c, x, bits, curve, dith, amt, order, makeup) {\n    if (bits >= 32) return x;\n    const L = Math.abs(bits), step = Math.pow(2, 1 - L);\n    const v0 = this.curveF(x, curve);\n    // error feedback: NTF = (1 - z^-1)^order\n    const B = NS_B[Math.max(0, Math.min(5, order | 0))];\n    let fb = 0;\n    for (let k = 0; k < B.length; k++) fb += B[k] * c.err[k];\n    let v = v0 - fb;\n    if (!(Math.abs(v) < 8)) { v = v0; c.err.fill(0); }   // an unstable loop (high order, few bits): reset it\n    let d = 0;\n    if (dith === \"rpdf\") d = (this.rng.next() - 0.5) * step * amt;\n    else if (dith === \"tpdf\") d = (this.rng.next() + this.rng.next() - 1) * step * amt;\n    const q = Math.round((v + d) / step) * step;\n    for (let k = 5; k > 0; k--) c.err[k] = c.err[k - 1];\n    c.err[0] = q - v;\n    if (bits < 0) {                              // what is thrown away (raised so it is heard, if MAKEUP)\n      const e = v0 - q;\n      return makeup ? e / step : e;\n    }\n    return this.curveI(q, curve);\n  }\n  // 4. 1-bit sigma-delta (DSD-like): ORDER integrators at OSR x the rate, then the bits averaged back down\n  stSdm(c, x, order, osr) {\n    order = Math.max(1, Math.min(5, order | 0));\n    osr = Math.max(1, Math.min(256, osr | 0));\n    const s = c.sdm, g = order > 2 ? 0.5 : 1, lim = 8;   // a chain of integrators, each fed back the bit\n    let acc = 0;\n    const x0 = c.sdmPrev, dx = (x - x0) / osr;\n    for (let k = 1; k <= osr; k++) {\n      let prev = Math.max(-1, Math.min(1, x0 + dx * k)) * 0.5;\n      const y = c.sdmY;\n      for (let i = 0; i < order; i++) {\n        s[i] += g * (prev - y);\n        if (s[i] > lim) s[i] = lim; else if (s[i] < -lim) s[i] = -lim;   // integrators limited: stays usable\n        prev = s[i];\n      }\n      c.sdmY = prev >= 0 ? 1 : -1;\n      acc += c.sdmY;\n    }\n    c.sdmPrev = x;\n    return (acc / osr) * 2;\n  }\n  // 7. bit flips on the 16-bit word: AND (masked to 0), XOR (inverted), a random flip with probability PROB\n  stFlip(x, and, xor, prob, top) {\n    let s = Math.round(Math.max(-1, Math.min(1, x)) * 32767) & 0xffff;\n    s &= and; s ^= xor;\n    if (prob > 0 && this.rng.next() < prob) s ^= 1 << (top ? 8 + Math.floor(this.rng.next() * 8) : Math.floor(this.rng.next() * 16));\n    return ((s << 16) >> 16) / 32768;\n  }\n  // 8. the bytes misread: swapped (endianness), signed read as unsigned\n  stByte(x, swap, sign) {\n    let s = Math.round(Math.max(-1, Math.min(1, x)) * 32767) & 0xffff;\n    if (swap) s = ((s >> 8) | (s << 8)) & 0xffff;\n    if (sign) return s / 32768 - 1;\n    return ((s << 16) >> 16) / 32768;\n  }\n  // 12. compressed bitrate (an STFT approximation, not a real codec): keep the loudest bins the budget pays for,\n  // coarsely quantised; negative: only what was thrown away. 1024-point frames, hop 256, sqrt-Hann both ways\n  codecFrame(c, kbps) {\n    const N = 1024, re = this.re, im = this.im, win = this.win, mags = this.mags, idx = this.idx;\n    for (let i = 0; i < N; i++) { re[i] = c.cIn[(c.cPos + i) & 1023] * win[i]; im[i] = 0; }\n    fft(re, im, false);\n    const b = Math.abs(kbps);\n    const bitsPerFrame = (b * 1000) / (this.fs / 256) / 2;\n    const q = Math.max(2, Math.min(10, Math.round(b / 40) + 2));\n    let K = Math.floor(bitsPerFrame / (10 + 2 * q));\n    K = Math.max(0, Math.min(513, K));\n    for (let i = 0; i <= 512; i++) { mags[i] = Math.hypot(re[i], im[i]); idx[i] = i; }\n    const order = Array.from(idx).sort((a, z) => mags[z] - mags[a]);\n    const keep = this.keep, outRe = this.oRe, outIm = this.oIm;\n    keep.fill(0); outRe.fill(0); outIm.fill(0);\n    for (let i = 0; i < K; i++) keep[order[i]] = 1;\n    for (let i = 0; i <= 512; i++) {\n      let r = re[i], m = im[i];\n      if (keep[i]) {\n        if (kbps < 0) { r = 0; m = 0; }\n        else {                                   // magnitude on a log grid over 96 dB, phase on 2^q steps\n          const mag = mags[i], ph = Math.atan2(m, r);\n          const levels = 1 << q;\n          const db = 20 * Math.log10(mag + 1e-9), dbq = Math.round(((db + 96) / 96) * levels) / levels * 96 - 96;\n          const magq = Math.pow(10, dbq / 20), phq = (Math.round((ph / TAU) * levels) / levels) * TAU;\n          r = magq * Math.cos(phq); m = magq * Math.sin(phq);\n        }\n      } else if (kbps >= 0) { r = 0; m = 0; }\n      outRe[i] = r; outIm[i] = m;\n      if (i > 0 && i < 512) { outRe[N - i] = r; outIm[N - i] = -m; }\n    }\n    fft(outRe, outIm, true);\n    for (let i = 0; i < N; i++) c.cOut[(c.cOutPos + i) & 2047] += (outRe[i] / N) * win[i] * 0.5;\n  }\n  stCodec(c, x, kbps) {\n    c.cIn[c.cPos & 1023] = x;\n    c.cPos = (c.cPos + 1) & 1023;\n    const y = c.cOut[c.cOutPos & 2047];\n    c.cOut[c.cOutPos & 2047] = 0;\n    c.cOutPos = (c.cOutPos + 1) & 2047;\n    if ((c.cPos & 255) === 0) this.codecFrame(c, kbps);\n    return y;\n  }\n\n  // the anti-alias low-pass coefficients for a new rate (two RBJ sections, Butterworth Qs)\n  aaCoef(rate) {\n    const fc = Math.min(Math.abs(rate) * 0.45, this.fs * 0.45);\n    return [0.5412, 1.3066].map((Q) => {\n      const w = (TAU * fc) / this.fs, al = Math.sin(w) / (2 * Q), cw = Math.cos(w), a0 = 1 + al;\n      return [((1 - cw) / 2) / a0, (1 - cw) / a0, ((1 - cw) / 2) / a0, (-2 * cw) / a0, (1 - al) / a0];\n    });\n  }\n\n  // ------------------------------------------------------------------ the source ---\n  source(inp, n, L, R) {\n    const sig = this.p[\"src.sig\"], fs = this.fs;\n    const lvl = Math.pow(10, this.val(\"src.level\") / 20), f = Math.max(0.1, Math.min(fs * 0.49, this.val(\"src.freq\")));\n    if (sig === \"file\" || sig === \"mic\") {\n      const a = inp && inp[0], b = inp && (inp[1] || inp[0]);\n      for (let i = 0; i < n; i++) { L[i] = a ? a[i] : 0; R[i] = b ? b[i] : 0; }\n      return;\n    }\n    const s = this.src;\n    for (let i = 0; i < n; i++) {\n      let y = 0;\n      if (sig === \"sine\") { y = Math.sin(TAU * s.ph); s.ph += f / fs; if (s.ph >= 1) s.ph -= 1; }\n      else if (sig === \"saw\") {                  // PolyBLEP: the saw's own aliasing kept out of the picture\n        const dt = f / fs; let t = s.sawPh; y = 2 * t - 1;\n        if (t < dt) { t /= dt; y -= t + t - t * t - 1; } else if (t > 1 - dt) { t = (t - 1) / dt; y -= t * t + t + t + 1; }\n        s.sawPh += dt; if (s.sawPh >= 1) s.sawPh -= 1;\n      } else if (sig === \"noise\") y = this.rng.next() * 2 - 1;\n      else if (sig === \"impulse\") { s.impPh += Math.min(f, 50) / fs; if (s.impPh >= 1) { s.impPh -= 1; y = 1; } }\n      else if (sig === \"sweep\") {                // logarithmic, 20 Hz to Nyquist over SWEEP seconds, looping\n        const T = Math.max(0.5, this.p[\"src.sweep\"]);\n        s.sweepPh += 1 / (T * fs); if (s.sweepPh >= 1) s.sweepPh -= 1;\n        const fr = 20 * Math.pow((fs * 0.5) / 20, s.sweepPh);\n        s.ph += fr / fs; if (s.ph >= 1) s.ph -= 1; y = Math.sin(TAU * s.ph);\n      }\n      L[i] = R[i] = y * lvl;\n    }\n  }\n\n  process(inputs, outputs) {\n    const out = outputs[0], L = out[0], R = out[1] || out[0], n = L.length;\n    this.source(inputs[0], n, L, R);\n    this.stepLfos(n);\n    // the values for this block\n    const v = (id) => this.val(id);\n    const ratio = v(\"rate.ratio\"), jitAmt = v(\"jit.amount\"), jitPer = v(\"jit.period\");\n    const srRate = v(\"sr.rate\"), aa = this.p[\"sr.aa\"], recon = this.p[\"sr.recon\"];\n    const gain = Math.pow(10, v(\"ovf.gain\") / 20), mode = this.p[\"ovf.mode\"];\n    const mant = v(\"float.mant\"), expb = v(\"float.exp\"), ftz = this.p[\"float.ftz\"];\n    const bits = v(\"bits.bits\"), curve = this.p[\"bits.curve\"], dith = this.p[\"bits.dither\"], damt = v(\"bits.damt\"),\n      shape = this.p[\"bits.shape\"], makeup = this.p[\"bits.makeup\"];\n    const sdmOrder = v(\"sdm.order\"), sdmOsr = v(\"sdm.osr\");\n    const and = this.p[\"flip.and\"] & 0xffff, xor = this.p[\"flip.xor\"] & 0xffff, fprob = Math.max(0, v(\"flip.prob\")), ftop = this.p[\"flip.top\"];\n    const swap = this.p[\"byte.swap\"], sign = this.p[\"byte.sign\"];\n    const bsize = Math.max(16, Math.min(8192, Math.round(v(\"block.size\")))), bdrop = v(\"block.drop\"), brep = v(\"block.rep\");\n    const kbps = v(\"codec.kbps\");\n    if (this.aaFor !== srRate) { this.aaFor = srRate; this.aaK = this.aaCoef(srRate); }\n    const coef = this.aaK;\n    this.eff = { \"sr.rate\": srRate, \"rate.ratio\": ratio, \"bits.bits\": bits, \"ovf.gain\": v(\"ovf.gain\"), \"codec.kbps\": kbps,\n      \"jit.amount\": jitAmt, \"float.mant\": mant, \"float.exp\": expb, \"sdm.osr\": sdmOsr, \"block.drop\": bdrop, \"src.freq\": v(\"src.freq\") };\n    const order = this.order, on = this.on, chs = this.ch;\n    let bad = false;\n    for (let i = 0; i < n; i++) {\n      const inMono = 0.5 * (L[i] + R[i]);\n      // the jitter's wobble (shared, so left and right move together)\n      let jw;\n      if (jitPer > 0) { this.jitPh = ((this.jitPh || 0) + jitPer / this.fs) % 1; jw = Math.sin(TAU * this.jitPh); }\n      else jw = this.rng.next() * 2 - 1;\n      // the block decision (shared)\n      if (on.block && this.blkPos === 0) {\n        this.blkPrevAct = this.blkAct;\n        const r = this.rng.next();\n        this.blkAct = r < bdrop ? 1 : r < bdrop + brep ? 2 : 0;\n      }\n      for (let k = 0; k < 2; k++) {\n        const c = chs[k];\n        let x = k === 0 ? L[i] : R[i];\n        for (let s = 0; s < order.length; s++) {\n          const st = order[s];\n          if (!on[st]) continue;\n          switch (st) {\n            case \"rate\": x = this.stRate(c, x, ratio); break;\n            case \"jit\": if (jitAmt !== 0) x = this.stJit(c, x, jitAmt, jw); break;\n            case \"sr\": x = this.stSr(c, x, srRate, aa, recon, coef); break;\n            case \"ovf\": x = this.stOvf(x, gain, mode); break;\n            case \"float\": x = this.stFloat(x, mant, expb, ftz); break;\n            case \"bits\": x = this.stBits(c, x, bits, curve, dith, damt, shape, makeup); break;\n            case \"sdm\": x = this.stSdm(c, x, sdmOrder, sdmOsr); break;\n            case \"flip\": x = this.stFlip(x, and, xor, fprob, ftop); break;\n            case \"byte\": if (swap || sign) x = this.stByte(x, swap, sign); break;\n            case \"block\": {\n              const pos = this.blkPos;\n              if (this.blkAct === 2) x = c.blk[pos];\n              else { c.blk[pos] = x; if (this.blkAct === 1) x = 0; }\n              if (pos < 32 && this.blkAct !== this.blkPrevAct) x *= pos / 32;\n              if (bsize - pos <= 32 && this.blkAct !== 0) x *= (bsize - pos) / 32;\n              break;\n            }\n            case \"codec\": x = this.stCodec(c, x, kbps); break;\n          }\n        }\n        // the output: DC cut, then (below, with the other channel) the limiter\n        c.dcy = x - c.dcx + 0.9995 * c.dcy; c.dcx = x; x = c.dcy;\n        if (!isFinite(x) || Math.abs(x) > 1e6) bad = true;\n        if (k === 0) L[i] = x; else R[i] = x;\n      }\n      this.w++;\n      if (on.block && ++this.blkPos >= bsize) this.blkPos = 0;\n      // the scope: input and output from a rising zero crossing of the input\n      if (this.armed && this.prevIn <= 0 && inMono > 0) { this.armed = false; this.scopeI = 0; }\n      if (!this.armed && this.scopeI < 1024) { this.scopeIn[this.scopeI] = inMono; this.scopeOut[this.scopeI] = 0.5 * (L[i] + R[i]); this.scopeI++; }\n      this.prevIn = inMono;\n      this.peakIn = Math.max(this.peakIn, Math.abs(inMono));\n    }\n    if (bad) {                                   // a NaN or an infinity: this block silent, the states cleared\n      for (let i = 0; i < n; i++) { L[i] = 0; R[i] = 0; }\n      this.nan++; this.nanNow = true;\n      this.resetState();\n      this.env = 0;\n    }\n    // the limiter (-1 dBFS, instant attack, 150 ms release) and MASTER\n    const master = Math.pow(10, this.p[\"master.db\"] / 20), ceil = 0.891, rel = Math.exp(-1 / (0.15 * this.fs));\n    let grMin = 1;\n    for (let i = 0; i < n; i++) {\n      const a = L[i], b = R[i], p = Math.max(Math.abs(a), Math.abs(b));\n      this.env = p > this.env ? p : this.env * rel + p * (1 - rel);\n      const g = this.env > ceil ? ceil / this.env : 1;\n      if (g < grMin) grMin = g;\n      L[i] = a * g * master; R[i] = b * g * master;\n      this.peakOut = Math.max(this.peakOut, Math.abs(L[i]), Math.abs(R[i]));\n    }\n    this.gr = Math.min(this.gr, grMin);\n    if (this.rec) this.port.postMessage({ t: \"rec\", l: L.slice(), r: R.slice() });\n    if (++this.viewN >= Math.max(1, Math.round(this.fs / 128 / 30))) {\n      this.viewN = 0;\n      const msg = { t: \"view\", nan: this.nan, nanNow: this.nanNow, peakIn: this.peakIn, peakOut: this.peakOut, gr: this.gr, eff: this.eff };\n      if (this.scopeI >= 1024) { msg.si = this.scopeIn.slice(); msg.so = this.scopeOut.slice(); this.armed = true; this.scopeI = 0; }\n      else if (this.armed && this.w % 4096 < 128) { this.armed = false; this.scopeI = 0; }   // no crossing: take one anyway\n      this.port.postMessage(msg);\n      this.peakIn = 0; this.peakOut = 0; this.gr = 1; this.nanNow = false;\n    }\n    return true;\n  }\n}\nregisterProcessor(\"underflow\", Underflow);\n";
+const SR_DEFAULT = 48000;
+const STAGES = [
+  {id:"rate", ja:"録音／再生レートの不一致", en:"RATE MISMATCH", note:"書き込みは 1 倍、読み出しは比率倍。マイナスは逆再生。追いついたり外れたりすると、リングバッファの中で跳ぶ（256 サンプルのクロスフェード）。",
+   params:[{id:"rate.ratio", label:"比率", min:-4, max:4, step:0.001, def:1, unit:"×"}]},
+  {id:"jit", ja:"クロックジッター", en:"JITTER", note:"サンプリングの瞬間を ±量 サンプル揺らす（3 次エルミート補間で読み出し、遅延は量と同じだけ固定）。周期 0 はランダム（白いジッター）。",
+   params:[{id:"jit.amount", label:"量", min:0, max:64, step:0.01, def:0, unit:"smp"}, {id:"jit.period", label:"周期", min:0, max:2000, step:0.01, def:3, unit:"Hz", hint:"0 = ランダム", scale:"log0"}]},
+  {id:"sr", ja:"サンプルレート", en:"SAMPLE RATE", note:"プラス: サンプル＆ホールドで間引く。0: その瞬間のサンプルを凍結（直流なので、出口の DC カットで消えていく）。マイナス: 直近 1 秒を逆向きに読み、|レート| で間引く。sinc は Lanczos（a=4）、4 周期ぶん遅れる。",
+   params:[{id:"sr.rate", label:"レート", min:-192000, max:192000, step:0.01, def:SR_DEFAULT, unit:"Hz", scale:"slog", c:20},
+           {id:"sr.aa", label:"アンチエイリアス", type:"bool", def:false, hint:"4 次バターワース、|レート|×0.45"},
+           {id:"sr.recon", label:"再構成", type:"enum", opts:[["zoh","0 次ホールド"],["linear","直線補間"],["sinc","sinc"]], def:"zoh"}]},
+  {id:"ovf", ja:"オーバーフロー", en:"OVERFLOW", note:"入力ゲインの後で ±1 を越えた分の扱い。クリップ／ラップアラウンド（整数の桁あふれ: 反対側から出てくる）／ミラー（折り返し）。",
+   params:[{id:"ovf.gain", label:"入力ゲイン", min:-24, max:60, step:0.1, def:0, unit:"dB"},
+           {id:"ovf.mode", label:"扱い", type:"enum", opts:[["clip","クリップ"],["wrap","ラップアラウンド"],["mirror","ミラー"]], def:"clip"}]},
+  {id:"float", ja:"浮動小数点の精度", en:"FLOAT", note:"仮数部と指数部のビット数を別々に削る（IEEE と同じバイアス）。最小の正規数より小さい値は非正規化数（ゆるやかなアンダーフロー）か、FTZ なら 0。最大を越えると飽和。指数 3 ビットなら 0.25 未満、2 ビットなら 1 未満が非正規化域。",
+   params:[{id:"float.mant", label:"仮数部", min:0, max:23, step:1, def:23, unit:"bit"}, {id:"float.exp", label:"指数部", min:1, max:8, step:1, def:8, unit:"bit"},
+           {id:"float.ftz", label:"FTZ（0 へ）", type:"bool", def:false, hint:"非正規化数を使わない"}]},
+  {id:"bits", ja:"ビット深度＋ディザ", en:"BIT DEPTH", note:"プラス: 量子化（小数のビットも可）。マイナス: |n| ビットで量子化したとき捨てられる誤差だけを出す（補正 ON で 1 LSB を ±0.5 に拡大して聞こえるように）。ノイズシェーピングは誤差帰還 (1 − z⁻¹)ⁿ。",
+   params:[{id:"bits.bits", label:"ビット", min:-24, max:32, step:0.01, def:24, unit:"bit"},
+           {id:"bits.curve", label:"カーブ", type:"enum", opts:[["lin","線形"],["mu","μ-law"],["log","対数"]], def:"lin"},
+           {id:"bits.dither", label:"ディザ", type:"enum", opts:[["none","なし"],["rpdf","RPDF"],["tpdf","TPDF"]], def:"none"},
+           {id:"bits.damt", label:"ディザ量", min:0, max:4, step:0.01, def:1, unit:"LSB"},
+           {id:"bits.shape", label:"シェーピング次数", min:0, max:5, step:1, def:0, unit:""},
+           {id:"bits.makeup", label:"誤差の補正", type:"bool", def:true, hint:"マイナスのとき"}]},
+  {id:"sdm", ja:"1bit シグマデルタ（DSD 風）", en:"1-BIT ΣΔ", note:"次数ぶんの積分器を倍率×のレートで回し、±1 のビット列を平均して戻す。倍率を下げるほど崩れる。3 次以上は積分器を制限して安定させている（理想的な変調器ではない）。倍率×次数が大きいと重い。",
+   params:[{id:"sdm.order", label:"次数", min:1, max:5, step:1, def:2, unit:""}, {id:"sdm.osr", label:"倍率", min:1, max:256, step:1, def:64, unit:"×", scale:"log1"}], off:true},
+  {id:"flip", ja:"ビットフリップ", en:"BIT FLIP", note:"16 ビットの整数にして、ビットごとに 通過 → 0 にマスク → 反転 を切り替え（クリックで巡回）。確率は 1 サンプルごとにランダムな 1 ビットを反転する確率。",
+   params:[{id:"flip.bits", type:"bits"}, {id:"flip.prob", label:"ランダム反転", min:0, max:1, step:0.00001, def:0, unit:"/smp", scale:"log0"},
+           {id:"flip.top", label:"上位 8 ビットだけ", type:"bool", def:false}]},
+  {id:"byte", ja:"バイトの読み違い", en:"BYTE MISREAD", note:"16 ビットの上下のバイトを入れ替える（エンディアン）／符号付きのビットを符号なしとして読み、中央に寄せる。",
+   params:[{id:"byte.swap", label:"エンディアン入れ替え", type:"bool", def:false}, {id:"byte.sign", label:"符号なしとして読む", type:"bool", def:false}]},
+  {id:"block", ja:"ブロックのグリッチ", en:"BLOCK GLITCH", note:"ブロックごとに、確率で落とす（無音）か、直前のブロックを繰り返す。端は 32 サンプルでなだらかに。",
+   params:[{id:"block.size", label:"ブロック", min:16, max:8192, step:1, def:1024, unit:"smp", scale:"log1"},
+           {id:"block.drop", label:"落とす確率", min:0, max:1, step:0.001, def:0, unit:""}, {id:"block.rep", label:"繰り返す確率", min:0, max:1, step:0.001, def:0, unit:""}]},
+  {id:"codec", ja:"圧縮ビットレート風", en:"BITRATE", approx:true, note:"STFT（1024 点、ホップ 256、√ハン窓）で近似。本物のコーデックではない。プラス: 予算で買える分だけ大きい成分を残し、残した成分も粗く量子化（低いほど小さい成分から消え、刻みが粗くなる）。マイナス: 捨てられた成分だけ。遅延 1024 サンプル。",
+   params:[{id:"codec.kbps", label:"ビットレート", min:-320, max:320, step:0.1, def:320, unit:"kbps"}], off:true},
+];
+const DEFAULT_ORDER = ["rate","jit","sr","ovf","float","bits","sdm","flip","byte","block","codec"];
+const PRESETS = {
+  "サイン波そのまま": {},
+  "逆さのアンダーフロー": {p:{"sr.rate":-11025,"float.exp":3,"float.mant":4,"ovf.gain":12}},
+  "捨てられる誤差だけ": {p:{"bits.bits":-6,"bits.makeup":true}},
+  "2 bit μ-law と 5 次シェーピング": {p:{"bits.bits":2,"bits.curve":"mu","bits.shape":5,"bits.dither":"tpdf"}},
+  "DSD の崩れ（倍率 4）": {p:{"sdm.osr":4,"sdm.order":3}, on:{sdm:true}},
+  "整数の桁あふれ +36 dB": {p:{"ovf.gain":36,"ovf.mode":"wrap"}},
+  "病んだ時計": {p:{"jit.amount":18,"jit.period":0,"sr.rate":8000,"sr.recon":"sinc"}},
+  "コーデックの残りかす": {p:{"codec.kbps":-48}, on:{codec:true}},
+  "逆回転 -1.7 倍、ブロックの吃音": {p:{"rate.ratio":-1.7,"block.rep":0.35,"block.size":2048}},
+};
+
+const $ = (id) => document.getElementById(id);
+const state = {p:{}, on:{}, order:DEFAULT_ORDER.slice(), lfo:{}, flipAnd:0xffff, flipXor:0};
+let ctx = null, node = null, analyser = null, masterGain = null, srcNode = null, fileBuf = null, micStream = null, recChunks = null, eff = {};
+
+function allParams(){ const a = []; STAGES.forEach(s => s.params.forEach(p => { if (p.id && p.type !== "bits") a.push(p); })); return a; }
+function defaults(){
+  state.p = {}; allParams().forEach(p => state.p[p.id] = p.def);
+  state.on = {}; STAGES.forEach(s => state.on[s.id] = !s.off);
+  state.order = DEFAULT_ORDER.slice(); state.lfo = {}; state.flipAnd = 0xffff; state.flipXor = 0;
+  if (ctx) state.p["sr.rate"] = ctx.sampleRate;
+}
+function srcParams(){ return {"src.sig": $("sig").value, "src.freq": +$("freq").value || 220, "src.level": +$("level").value || -12, "src.sweep": +$("sweep").value || 8}; }
+function workletParams(){ return Object.assign({}, state.p, srcParams(), {"flip.and": state.flipAnd, "flip.xor": state.flipXor, "master.db": 0}); }
+function send(m){ if (node) node.port.postMessage(m); }
+function sendP(id, v){ send({t:"p", id, v}); }
+
+/* slider <-> value mappings: lin, slog (signed, octave-even), log0 (0 then log), log1 (log from min) */
+function toSlider(p, v){
+  if (p.scale === "slog") { const c = p.c || 20, L = Math.log2(1 + p.max / c), u = Math.sign(v) * Math.log2(1 + Math.abs(v) / c) / L; return Math.max(-1, Math.min(1, u)); }
+  if (p.scale === "log0") { if (v <= 0) return 0; const lo = p.max * 1e-5; return Math.max(0, Math.min(1, Math.log(Math.max(v, lo) / lo) / Math.log(p.max / lo))); }
+  if (p.scale === "log1") return Math.max(0, Math.min(1, Math.log(Math.max(v, p.min) / p.min) / Math.log(p.max / p.min)));
+  return Math.max(0, Math.min(1, (v - p.min) / (p.max - p.min)));
+}
+function fromSlider(p, u){
+  let v;
+  if (p.scale === "slog") { const c = p.c || 20, L = Math.log2(1 + p.max / c); v = Math.sign(u) * c * (Math.pow(2, Math.abs(u) * L) - 1); }
+  else if (p.scale === "log0") { const lo = p.max * 1e-5; v = u <= 0.0005 ? 0 : lo * Math.pow(p.max / lo, u); }
+  else if (p.scale === "log1") v = p.min * Math.pow(p.max / p.min, u);
+  else v = p.min + u * (p.max - p.min);
+  if (p.step >= 1) v = Math.round(v); else v = Math.round(v / p.step) * p.step;
+  return +v.toFixed(6);
+}
+function fmt(v){ if (typeof v !== "number" || !isFinite(v)) return String(v); const a = Math.abs(v); return a >= 1000 ? v.toFixed(1) : a >= 10 ? v.toFixed(2) : v.toFixed(4).replace(/0+$/, "").replace(/\.$/, ""); }
+
+/* ---- the chain's units ---- */
+function buildChain(){
+  const ch = $("chain"); ch.innerHTML = "";
+  state.order.forEach((sid, i) => {
+    const s = STAGES.find(x => x.id === sid);
+    const el = document.createElement("section"); el.className = "unit stage" + (state.on[sid] ? "" : " off"); el.id = "st-" + sid;
+    el.innerHTML = '<div class="head"><span class="num">' + String(i + 1).padStart(2, "0") + '</span><h2>' + s.ja + '<span>' + s.en + '</span></h2>' +
+      (s.approx ? '<span class="badge">近似</span>' : '') +
+      '<div class="tools"><button class="btn small" data-mv="-1" aria-label="上へ">↑</button><button class="btn small" data-mv="1" aria-label="下へ">↓</button>' +
+      '<button class="btn small" data-byp aria-pressed="' + (!state.on[sid]) + '">' + (state.on[sid] ? "ON" : "BYPASS") + '</button></div></div>' +
+      '<p class="note">' + s.note + '</p><div class="params"></div>';
+    const pw = el.querySelector(".params");
+    s.params.forEach(p => pw.appendChild(buildParam(p)));
+    el.querySelectorAll("[data-mv]").forEach(b => b.addEventListener("click", () => move(sid, +b.dataset.mv)));
+    el.querySelector("[data-byp]").addEventListener("click", () => { state.on[sid] = !state.on[sid]; send({t:"on", st:sid, v:state.on[sid]}); buildChain(); });
+    ch.appendChild(el);
+  });
+}
+function move(sid, d){
+  const i = state.order.indexOf(sid), j = i + d;
+  if (j < 0 || j >= state.order.length) return;
+  state.order.splice(i, 1); state.order.splice(j, 0, sid);
+  send({t:"order", order:state.order}); buildChain();
+  const b = document.querySelector("#st-" + sid + " [data-mv='" + d + "']"); if (b) b.focus();
+}
+function buildParam(p){
+  const w = document.createElement("div");
+  if (p.type === "bits") {
+    w.className = "bitsrow";
+    w.innerHTML = '<span class="silk">ビット 15（MSB）→ 0（LSB）: 通過／0／反転</span><div class="bits"></div>';
+    const g = w.querySelector(".bits");
+    for (let b = 15; b >= 0; b--) {
+      const c = document.createElement("button"); c.className = "bit"; c.type = "button"; c.setAttribute("aria-label", "ビット " + b);
+      const paint = () => { const m0 = !(state.flipAnd & (1 << b)), inv = !!(state.flipXor & (1 << b)); c.className = "bit" + (m0 ? " m0" : inv ? " inv" : ""); c.textContent = m0 ? "0" : inv ? "~" : String(b); };
+      c.addEventListener("click", () => {
+        const m0 = !(state.flipAnd & (1 << b)), inv = !!(state.flipXor & (1 << b));
+        if (!m0 && !inv) state.flipAnd &= ~(1 << b); else if (m0) { state.flipAnd |= 1 << b; state.flipXor |= 1 << b; } else state.flipXor &= ~(1 << b);
+        sendP("flip.and", state.flipAnd); sendP("flip.xor", state.flipXor); paint();
+      });
+      paint(); g.appendChild(c);
+    }
+    return w;
+  }
+  if (p.type === "bool" || p.type === "enum") {
+    w.className = "prm choice";
+    const id = "p-" + p.id.replace(".", "-");
+    if (p.type === "bool") {
+      w.innerHTML = '<label for="' + id + '">' + p.label + (p.hint ? '<small>' + p.hint + '</small>' : '') + '</label><div><button class="btn small" id="' + id + '" aria-pressed="' + !!state.p[p.id] + '">' + (state.p[p.id] ? "ON" : "OFF") + '</button></div>';
+      w.querySelector("button").addEventListener("click", (e) => { state.p[p.id] = !state.p[p.id]; sendP(p.id, state.p[p.id]); e.target.setAttribute("aria-pressed", state.p[p.id]); e.target.textContent = state.p[p.id] ? "ON" : "OFF"; });
+    } else {
+      w.innerHTML = '<label for="' + id + '">' + p.label + '</label><select id="' + id + '">' + p.opts.map(o => '<option value="' + o[0] + '"' + (o[0] === state.p[p.id] ? " selected" : "") + '>' + o[1] + '</option>').join("") + '</select>';
+      w.querySelector("select").addEventListener("change", (e) => { state.p[p.id] = e.target.value; sendP(p.id, e.target.value); });
+    }
+    return w;
+  }
+  w.className = "prm";
+  const id = "p-" + p.id.replace(".", "-");
+  w.innerHTML = '<label for="' + id + '">' + p.label + (p.hint ? '<small>' + p.hint + '</small>' : '') + '</label>' +
+    '<input type="range" min="' + (p.scale === "slog" ? -1 : 0) + '" max="1" step="0.0005" aria-label="' + p.label + '（スライダー）">' +
+    '<div class="numwrap"><input type="number" id="' + id + '" step="any"><span class="unit-t">' + (p.unit || "") + '</span></div>' +
+    '<div class="x"><button class="btn" data-lfo aria-pressed="false">LFO</button><button class="btn" data-dice>DICE</button></div>' +
+    '<div class="modv" hidden></div>';
+  const sl = w.querySelector("input[type=range]"), num = w.querySelector("input[type=number]"), modv = w.querySelector(".modv");
+  const set = (v, from) => {
+    if (!isFinite(v)) return;
+    state.p[p.id] = v; sendP(p.id, v);
+    if (from !== "num") num.value = fmt(v);
+    if (from !== "slider") sl.value = toSlider(p, v);
+  };
+  set(state.p[p.id]);
+  sl.addEventListener("input", () => set(fromSlider(p, +sl.value), "slider"));
+  num.addEventListener("change", () => set(parseFloat(num.value), "num"));     /* any value, out of range included */
+  w.querySelector("[data-dice]").addEventListener("click", () => set(fromSlider(p, p.scale === "slog" ? Math.random() * 2 - 1 : Math.random())));
+  const lb = w.querySelector("[data-lfo]");
+  const L = state.lfo[p.id] || (state.lfo[p.id] = {on:false, rate:0.5, depth:(p.max - p.min) * 0.1, shape:"sine"});
+  const lfoUI = document.createElement("div"); lfoUI.className = "lfo"; lfoUI.hidden = !L.on;
+  lfoUI.innerHTML = '<span class="silk">LFO</span><label>速さ <input type="number" step="any" value="' + L.rate + '"> Hz</label>' +
+    '<label>深さ <input type="number" step="any" value="' + fmt(L.depth) + '"> ' + (p.unit || "") + '</label>' +
+    '<label>形 <select><option value="sine">サイン</option><option value="tri">三角</option><option value="square">矩形</option><option value="random">ランダム</option></select></label>';
+  const [lr, ld] = lfoUI.querySelectorAll("input"), ls = lfoUI.querySelector("select");
+  ls.value = L.shape;
+  const sendL = () => { send({t:"lfo", id:p.id, on:L.on, rate:L.rate, depth:L.depth, shape:L.shape}); modv.hidden = !L.on; lb.setAttribute("aria-pressed", L.on); lfoUI.hidden = !L.on; };
+  lb.addEventListener("click", () => { L.on = !L.on; sendL(); });
+  lr.addEventListener("change", () => { L.rate = parseFloat(lr.value) || 0; sendL(); });
+  ld.addEventListener("change", () => { L.depth = parseFloat(ld.value) || 0; sendL(); });
+  ls.addEventListener("change", () => { L.shape = ls.value; sendL(); });
+  w.appendChild(lfoUI);
+  if (L.on) sendL();
+  w.dataset.pid = p.id;
+  return w;
+}
+
+/* ---- the sound ---- */
+async function start(){
+  try { ctx = new AudioContext({latencyHint:"interactive"}); } catch (e) { ctx = new AudioContext(); }
+  $("m-fs").textContent = "fs " + ctx.sampleRate + " Hz";
+  if (state.p["sr.rate"] === SR_DEFAULT && ctx.sampleRate !== SR_DEFAULT) { state.p["sr.rate"] = ctx.sampleRate; buildChain(); }
+  try { await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET_SRC], {type:"text/javascript"}))); }
+  catch (e) { await ctx.audioWorklet.addModule("data:text/javascript;base64," + btoa(unescape(encodeURIComponent(WORKLET_SRC)))); }
+  node = new AudioWorkletNode(ctx, "underflow", {numberOfInputs:1, numberOfOutputs:1, outputChannelCount:[2],
+    processorOptions:{params:workletParams(), order:state.order, on:state.on, seed:(Math.random() * 4294967295) >>> 0}});
+  node.port.onmessage = (e) => onMsg(e.data);
+  analyser = ctx.createAnalyser(); analyser.fftSize = 8192; analyser.smoothingTimeConstant = 0.55;
+  masterGain = ctx.createGain(); masterGain.gain.value = Math.pow(10, +$("master").value / 20);
+  node.connect(analyser); node.connect(masterGain); masterGain.connect(ctx.destination);
+  for (const id in state.lfo) if (state.lfo[id].on) send(Object.assign({t:"lfo", id}, state.lfo[id]));
+  connectInput();
+}
+function connectInput(){
+  if (srcNode) { try { srcNode.disconnect(); if (srcNode.stop) srcNode.stop(); } catch (e) {} srcNode = null; }
+  if (!ctx || !node) return;
+  const sig = $("sig").value;
+  if (sig === "file" && fileBuf) { const s = ctx.createBufferSource(); s.buffer = fileBuf; s.loop = true; s.connect(node); s.start(); srcNode = s; }
+  if (sig === "mic" && micStream) { srcNode = ctx.createMediaStreamSource(micStream); srcNode.connect(node); }
+}
+$("go").addEventListener("click", async () => {
+  if (!ctx) { try { await start(); } catch (e) { showErr("音を始められませんでした: " + e.message); return; } }
+  if (ctx.state === "running" && $("go").textContent === "止める") { await ctx.suspend(); $("go").textContent = "音を出す"; $("go").classList.add("primary"); return; }
+  await ctx.resume(); $("go").textContent = "止める"; $("go").classList.remove("primary");
+});
+function showErr(t){ $("err").hidden = !t; $("err").textContent = t || ""; }
+["freq","level","sweep"].forEach(id => $(id).addEventListener("change", () => { const p = srcParams(); for (const k in p) sendP(k, p[k]); }));
+$("sig").addEventListener("change", async () => {
+  showErr(""); $("file").hidden = $("sig").value !== "file";
+  sendP("src.sig", $("sig").value);
+  if ($("sig").value === "mic" && !micStream) {
+    try { micStream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:false}}); }
+    catch (e) { showErr("マイクが使えません（このページの表示環境では許可されないことがあります）。音声ファイルを使ってください。"); }
+  }
+  connectInput();
+});
+$("file").addEventListener("change", async () => {
+  const f = $("file").files[0]; if (!f) return;
+  try { if (!ctx) await start(); fileBuf = await ctx.decodeAudioData(await f.arrayBuffer()); connectInput(); showErr(""); }
+  catch (e) { showErr("このファイルは読めませんでした（WAV か MP3 を試してください）。"); }
+});
+$("master").addEventListener("input", () => { const db = +$("master").value; $("masterv").textContent = db.toFixed(1) + " dB"; if (masterGain) masterGain.gain.setTargetAtTime(Math.pow(10, db / 20), ctx.currentTime, 0.02); });
+$("rnd").addEventListener("click", () => {
+  allParams().forEach(p => { if (!p.type) { state.p[p.id] = fromSlider(p, p.scale === "slog" ? Math.random() * 2 - 1 : Math.random()); } else if (p.type === "enum") state.p[p.id] = p.opts[Math.floor(Math.random() * p.opts.length)][0]; });
+  pushAll(); buildChain();
+});
+$("reset").addEventListener("click", () => { defaults(); pushAll(); buildChain(); });
+function pushAll(){ const wp = workletParams(); for (const k in wp) sendP(k, wp[k]); send({t:"order", order:state.order}); for (const s in state.on) send({t:"on", st:s, v:state.on[s]}); for (const id in state.lfo) send(Object.assign({t:"lfo", id}, state.lfo[id])); }
+
+/* ---- recording ---- */
+$("rec").addEventListener("click", () => {
+  if (!node) { showErr("先に「音を出す」を押してください。"); return; }
+  const on = $("rec").getAttribute("aria-pressed") !== "true";
+  $("rec").setAttribute("aria-pressed", on); $("rec").textContent = on ? "録音を止める" : "WAV 録音";
+  if (on) { recChunks = []; $("recout").textContent = "録音中…"; send({t:"rec", on:true}); return; }
+  send({t:"rec", on:false});
+  const n = recChunks.reduce((a, c) => a + c.l.length, 0), buf = new ArrayBuffer(44 + n * 4), dv = new DataView(buf);
+  const w = (o, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); };
+  w(0, "RIFF"); dv.setUint32(4, 36 + n * 4, true); w(8, "WAVEfmt "); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 2, true);
+  dv.setUint32(24, ctx.sampleRate, true); dv.setUint32(28, ctx.sampleRate * 4, true); dv.setUint16(32, 4, true); dv.setUint16(34, 16, true); w(36, "data"); dv.setUint32(40, n * 4, true);
+  let o = 44; const g = Math.pow(10, +$("master").value / 20);
+  for (const c of recChunks) for (let i = 0; i < c.l.length; i++) { dv.setInt16(o, Math.max(-1, Math.min(1, c.l[i] * g)) * 32767, true); dv.setInt16(o + 2, Math.max(-1, Math.min(1, c.r[i] * g)) * 32767, true); o += 4; }
+  const url = URL.createObjectURL(new Blob([buf], {type:"audio/wav"}));
+  $("recout").innerHTML = '<a href="' + url + '" download="underflow.wav">underflow.wav を保存（' + (n / ctx.sampleRate).toFixed(1) + ' 秒）</a> <audio controls src="' + url + '" style="height:28px;vertical-align:middle"></audio> <span class="msg">表示環境によっては保存できません。そのときは再生だけ。</span>';
+  recChunks = null;
+});
+
+/* ---- presets ---- */
+function loadStore(){ try { return JSON.parse(localStorage.getItem("underflow.presets") || "{}"); } catch (e) { return {}; } }
+function saveStore(o){ try { localStorage.setItem("underflow.presets", JSON.stringify(o)); return true; } catch (e) { return false; } }
+function snapshot(){ return {p:Object.assign({}, state.p), on:Object.assign({}, state.on), order:state.order.slice(), lfo:JSON.parse(JSON.stringify(state.lfo)), flipAnd:state.flipAnd, flipXor:state.flipXor}; }
+function applySnap(s){
+  defaults();
+  Object.assign(state.p, s.p || {}); Object.assign(state.on, s.on || {});
+  if (Array.isArray(s.order) && s.order.length === DEFAULT_ORDER.length) state.order = s.order.slice();
+  if (s.lfo) state.lfo = s.lfo;
+  if (typeof s.flipAnd === "number") state.flipAnd = s.flipAnd;
+  if (typeof s.flipXor === "number") state.flipXor = s.flipXor;
+  pushAll(); buildChain();
+}
+function listPresets(){
+  const sel = $("plist"), mine = loadStore(); sel.innerHTML = "";
+  const g1 = document.createElement("optgroup"); g1.label = "例";
+  Object.keys(PRESETS).forEach(k => { const o = document.createElement("option"); o.value = "f:" + k; o.textContent = k; g1.appendChild(o); });
+  sel.appendChild(g1);
+  const names = Object.keys(mine);
+  if (names.length) { const g2 = document.createElement("optgroup"); g2.label = "保存したもの"; names.forEach(k => { const o = document.createElement("option"); o.value = "u:" + k; o.textContent = k; g2.appendChild(o); }); sel.appendChild(g2); }
+}
+$("pload").addEventListener("click", () => {
+  const v = $("plist").value; if (!v) return;
+  if (v.startsWith("f:")) { const f = PRESETS[v.slice(2)]; applySnap({p:f.p, on:f.on}); }
+  else applySnap(loadStore()[v.slice(2)]);
+  $("pmsg").textContent = "読み込みました: " + v.slice(2);
+});
+$("psave").addEventListener("click", () => {
+  const n = $("pname").value.trim(); if (!n) { $("pmsg").textContent = "名前を入れてください。"; return; }
+  const m = loadStore(); m[n] = snapshot();
+  $("pmsg").textContent = saveStore(m) ? "保存しました: " + n : "このブラウザでは保存できません。JSON で書き出してください。";
+  listPresets();
+});
+$("pdel").addEventListener("click", () => { const v = $("plist").value; if (!v.startsWith("u:")) { $("pmsg").textContent = "例は消せません。"; return; } const m = loadStore(); delete m[v.slice(2)]; saveStore(m); listPresets(); $("pmsg").textContent = "削除しました。"; });
+$("pexport").addEventListener("click", () => { $("pjson").value = JSON.stringify(snapshot()); });
+$("pcopy").addEventListener("click", async () => { try { await navigator.clipboard.writeText($("pjson").value); $("pmsg").textContent = "コピーしました。"; } catch (e) { $("pjson").select(); $("pmsg").textContent = "選択しました。コピーしてください。"; } });
+$("pimport").addEventListener("click", () => { try { applySnap(JSON.parse($("pjson").value)); $("pmsg").textContent = "読み込みました。"; } catch (e) { $("pmsg").textContent = "JSON として読めませんでした。"; } });
+
+/* ---- the displays ---- */
+let lastScope = null;
+function onMsg(m){
+  if (m.t === "rec") { if (recChunks) recChunks.push(m); return; }
+  if (m.t !== "view") return;
+  if (m.si) lastScope = m;
+  eff = m.eff || {};
+  const db = (x) => x > 1e-6 ? (20 * Math.log10(x)).toFixed(1) : "-∞";
+  $("m-in").textContent = "IN " + db(m.peakIn);
+  $("m-out").textContent = "OUT " + db(m.peakOut);
+  $("m-gr").textContent = "LIM " + (m.gr < 1 ? (20 * Math.log10(m.gr)).toFixed(1) : "0.0");
+  $("m-nan").textContent = m.nan ? "NaN/Inf → 無音 " + m.nan + " 回" : "NaN 0";
+  $("m-nan").classList.toggle("alarm", !!m.nanNow || m.nan > 0);
+  const r = eff["sr.rate"];
+  $("m-sr").textContent = "SR " + (state.on.sr && typeof r === "number" ? fmt(r) + " Hz" : "—");
+  document.querySelectorAll(".prm[data-pid]").forEach(el => {
+    const id = el.dataset.pid, L = state.lfo[id], mv = el.querySelector(".modv");
+    if (L && L.on && id in eff) mv.textContent = "いま " + fmt(eff[id]);
+  });
+}
+function fitCanvas(c){ const r = c.getBoundingClientRect(), d = Math.min(2, window.devicePixelRatio || 1); if (c.width !== Math.round(r.width * d)) { c.width = Math.round(r.width * d); c.height = Math.round(r.height * d); } return d; }
+const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function draw(){
+  const sc = $("scope"), g = sc.getContext("2d"), d = fitCanvas(sc), W = sc.width, H = sc.height;
+  g.fillStyle = css("--screen"); g.fillRect(0, 0, W, H);
+  g.strokeStyle = css("--screen-grid"); g.lineWidth = 1;
+  for (let k = 1; k < 4; k++) { g.beginPath(); g.moveTo(0, (H * k) / 4); g.lineTo(W, (H * k) / 4); g.stroke(); }
+  if (lastScope) {
+    [[lastScope.si, css("--trace-in")], [lastScope.so, css("--screen-ink")]].forEach(([a, col]) => {
+      g.strokeStyle = col; g.lineWidth = 1.2 * d; g.beginPath();
+      for (let i = 0; i < a.length; i++) { const x = (i / (a.length - 1)) * W, y = H / 2 - Math.max(-1.2, Math.min(1.2, a[i])) * (H * 0.42); i ? g.lineTo(x, y) : g.moveTo(x, y); }
+      g.stroke();
+    });
+  }
+  const sp = $("spec"), h = sp.getContext("2d"), d2 = fitCanvas(sp), W2 = sp.width, H2 = sp.height;
+  h.fillStyle = css("--screen"); h.fillRect(0, 0, W2, H2);
+  if (analyser) {
+    const fs = ctx.sampleRate, nyq = fs / 2, fmin = 20, data = new Float32Array(analyser.frequencyBinCount);
+    analyser.getFloatFrequencyData(data);
+    const xOf = (f) => (Math.log(f / fmin) / Math.log(nyq / fmin)) * W2, yOf = (db) => H2 * (1 - (db + 120) / 120);
+    h.strokeStyle = css("--screen-grid"); h.fillStyle = css("--screen-dim"); h.font = (10 * d2) + "px " + css("--f-num");
+    [50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000].forEach(f => { if (f > nyq) return; const x = xOf(f); h.beginPath(); h.moveTo(x, 0); h.lineTo(x, H2); h.stroke(); h.fillText(f >= 1000 ? f / 1000 + "k" : String(f), x + 2, H2 - 4); });
+    [-20, -40, -60, -80, -100].forEach(db => { const y = yOf(db); h.beginPath(); h.moveTo(0, y); h.lineTo(W2, y); h.stroke(); h.fillText(db + " dB", 2, y - 2); });
+    /* the new Nyquist and its folds */
+    const r = Math.abs(eff["sr.rate"] || 0);
+    if (state.on.sr && r > 0 && r < fs) {
+      h.fillStyle = "rgba(255,106,77,.07)"; h.fillRect(xOf(Math.max(fmin, r / 2)), 0, W2, H2);
+      h.strokeStyle = "rgba(255,106,77,.45)"; h.lineWidth = d2;
+      for (let k = 1; k * r / 2 < nyq && k < 400; k++) { const f = k * r / 2; if (f < fmin) continue; const x = xOf(f); h.beginPath(); h.moveTo(x, 0); h.lineTo(x, H2); h.stroke(); }
+      h.strokeStyle = "#ff6a4d"; h.lineWidth = 2 * d2; const x = xOf(Math.max(fmin, r / 2)); h.beginPath(); h.moveTo(x, 0); h.lineTo(x, H2); h.stroke();
+      h.fillStyle = "#ff6a4d"; h.fillText("|SR|/2 " + fmt(r / 2) + " Hz", Math.min(x + 4, W2 - 120 * d2), 14 * d2);
+    }
+    h.strokeStyle = "#e8e2d0"; h.lineWidth = d2; h.beginPath(); h.moveTo(W2 - 1, 0); h.lineTo(W2 - 1, H2); h.stroke();
+    h.strokeStyle = css("--screen-ink"); h.lineWidth = 1.3 * d2; h.beginPath();
+    let started = false;
+    for (let x = 0; x < W2; x++) {
+      const f = fmin * Math.pow(nyq / fmin, x / W2), bin = Math.min(data.length - 1, Math.round((f / nyq) * data.length));
+      const y = yOf(Math.max(-120, data[bin]));
+      started ? h.lineTo(x, y) : (h.moveTo(x, y), started = true);
+    }
+    h.stroke();
+  }
+  requestAnimationFrame(draw);
+}
+
+defaults(); buildChain(); listPresets(); draw();
+</script>
