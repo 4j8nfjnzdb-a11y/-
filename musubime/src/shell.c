@@ -1,7 +1,9 @@
 /* musubime: the shell every project runs in.
- *   - the hand: each frame's input, live and from the gesture loop (REC: record, REC again: loop, REC again: stop;
- *     REC held a second: forget the loop)
+ *   - the hand: each frame's input, live and from the gesture loop (REC: record, REC again: loop, REC again: layer
+ *     on top of it (overdub: a second knob moving with the first), REC again: loop; REC held a second: forget it)
  *   - HOME held 0.7 s: the project back to its simple state; PLAY: sound on / off (a fade, the system runs on)
+ *   - all six in one (MZ_ALL): HOME held shows the six; SELECT or white keys 1-7 choose, letting go of HOME goes there
+ *     (7: the one now, back to its simple state). Each one goes on where it was left; its sound slots are its own
  *   - the ear: DC cut, a jump guard (a sudden rise far above the last seconds comes in lower and is let up over
  *     0.3 s), a peak limiter at -3 dBFS, and any NaN or infinity turned into silence, counted and shown
  *   - the screen: the header, the seven encoders' rows, the project's plot, the meters; only what changed is sent */
@@ -11,6 +13,71 @@
 #define CEIL 0.7079f                    /* -3 dBFS */
 #define JG_RATIO 63.0f                  /* the jump guard: the last 5 ms' power over the last 1.5 s' by 18 dB */
 #define JG_FLOOR 0.355f                 /* at most -9 dB */
+
+#ifdef MZ_ALL
+/* the six, compiled apart (each with MZ_PJ: mz.h), reached through a table; the render reads which one at a block's
+ * start, the UI changes it only while the sound is faded out */
+typedef struct {
+    const char *name;
+    void (*init)(uint32_t);
+    void (*home)(void);
+    void (*reset_audio)(void);
+    void (*control)(const mz_in_t *, const mz_body_t *);
+    void (*render)(float *, float *, const float *, const float *, uint32_t);
+    void (*row)(int, mz_row_t *);
+    void (*status)(char *);
+    uint32_t (*plot_rev)(void);
+    void (*plot)(int);
+    uint32_t (*lit_keys)(void);
+    uint32_t (*dim_keys)(void);
+    uint32_t (*lit_buttons)(void);
+    uint32_t (*dim_buttons)(void);
+} pj_t;
+#define PJ_DECL(p)                                                                                                  \
+    extern const char p##_PJ_NAME[];                                                                               \
+    void p##_pj_init(uint32_t);                                                                                     \
+    void p##_pj_home(void);                                                                                         \
+    void p##_pj_reset_audio(void);                                                                                  \
+    void p##_pj_control(const mz_in_t *, const mz_body_t *);                                                       \
+    void p##_pj_render(float *, float *, const float *, const float *, uint32_t);                                  \
+    void p##_pj_row(int, mz_row_t *);                                                                               \
+    void p##_pj_status(char *);                                                                                     \
+    uint32_t p##_pj_plot_rev(void);                                                                                 \
+    void p##_pj_plot(int);                                                                                          \
+    uint32_t p##_pj_lit_keys(void);                                                                                 \
+    uint32_t p##_pj_dim_keys(void);                                                                                 \
+    uint32_t p##_pj_lit_buttons(void);                                                                              \
+    uint32_t p##_pj_dim_buttons(void);
+#define PJ_ROW(p)                                                                                                   \
+    {p##_PJ_NAME, p##_pj_init, p##_pj_home, p##_pj_reset_audio, p##_pj_control, p##_pj_render, p##_pj_row,       \
+     p##_pj_status, p##_pj_plot_rev, p##_pj_plot, p##_pj_lit_keys, p##_pj_dim_keys, p##_pj_lit_buttons,           \
+     p##_pj_dim_buttons}
+PJ_DECL(e1)
+PJ_DECL(e2)
+PJ_DECL(e3)
+PJ_DECL(e4)
+PJ_DECL(e5)
+PJ_DECL(e6)
+#define NPJ 6
+static const pj_t PJS[NPJ] = {PJ_ROW(e1), PJ_ROW(e2), PJ_ROW(e3), PJ_ROW(e4), PJ_ROW(e5), PJ_ROW(e6)};
+static const pj_t *volatile cur_pj = &PJS[0];
+#define PJ_NAME (cur_pj->name)
+#define pj_init (cur_pj->init)
+#define pj_home (cur_pj->home)
+#define pj_reset_audio (cur_pj->reset_audio)
+#define pj_control (cur_pj->control)
+#define pj_render (cur_pj->render)
+#define pj_row (cur_pj->row)
+#define pj_status (cur_pj->status)
+#define pj_plot_rev (cur_pj->plot_rev)
+#define pj_plot (cur_pj->plot)
+#define pj_lit_keys (cur_pj->lit_keys)
+#define pj_dim_keys (cur_pj->dim_keys)
+#define pj_lit_buttons (cur_pj->lit_buttons)
+#define pj_dim_buttons (cur_pj->dim_buttons)
+/* the chooser's keys: white keys 1-7 (F3 G3 A3 B3 C4 D4 E4); 7 is "the one now, from its simple state" */
+static const uint8_t CH_KEY[NPJ + 1] = {0, 2, 4, 6, 7, 9, 11};
+#endif
 
 /* ------------------------------------------------------------------ the ear --- */
 static struct {
@@ -100,6 +167,24 @@ static void ear_process(float *l, float *r, uint32_t n)
     }
     ear.peak = pk > ear.peak ? pk : ear.peak * 0.97f;
     ear.gr = m_lin2db(grmin);
+    /* in silence the filters and followers decay toward denormal numbers (slow on the FM-1's FPU): stop them short */
+    {
+        int c;
+        for (c = 0; c < 2; c++) {
+            if (m_abs(ear.dcx[c]) < 1.0e-20f)
+                ear.dcx[c] = 0.0f;
+            if (m_abs(ear.dcy[c]) < 1.0e-20f)
+                ear.dcy[c] = 0.0f;
+        }
+        if (ear.fast < 1.0e-20f)
+            ear.fast = 0.0f;
+        if (ear.slow < 1.0e-20f)
+            ear.slow = 0.0f;
+        if (ear.env < 1.0e-20f)
+            ear.env = 0.0f;
+        if (ear.peak < 1.0e-20f)
+            ear.peak = 0.0f;
+    }
 }
 
 uint32_t mz_bad_count(void) { return ear.bad; }
@@ -108,7 +193,12 @@ float mz_gr_db(void) { return ear.gr; }
 
 void mz_render(float *l, float *r, const float *inl, const float *inr, uint32_t n)
 {
+#ifdef MZ_ALL
+    const pj_t *p = cur_pj;              /* one project for the whole block */
+    p->render(l, r, inl, inr, n);
+#else
     pj_render(l, r, inl, inr, n);
+#endif
     ear_process(l, r, n);
 }
 
@@ -144,7 +234,7 @@ void mz_slot_set(int i, uint8_t src)
 uint32_t mz_slot_rev(void) { return slot_rev; }
 
 /* ----------------------------------------------------------- the gesture loop --- */
-enum { GL_IDLE, GL_REC, GL_LOOP };
+enum { GL_IDLE, GL_REC, GL_LOOP, GL_DUB };
 enum { EV_ENC, EV_KDOWN, EV_KUP, EV_PRS, EV_BDOWN, EV_BUP };
 #define GL_N 4096u
 typedef struct {
@@ -165,13 +255,20 @@ static struct {
 
 static void gl_put(uint8_t type, uint8_t idx, int8_t val, uint8_t v2)
 {
+    uint32_t at = gl.n, j;
     if (gl.n >= GL_N)
         return;
-    gl_ev[gl.n].t = gl.t;
-    gl_ev[gl.n].type = type;
-    gl_ev[gl.n].idx = idx;
-    gl_ev[gl.n].val = val;
-    gl_ev[gl.n].v2 = v2;
+    if (gl.state == GL_DUB) {            /* layered into the loop where it plays now, behind the play position */
+        at = gl.pos;
+        for (j = gl.n; j > at; j--)
+            gl_ev[j] = gl_ev[j - 1u];
+        gl.pos++;
+    }
+    gl_ev[at].t = gl.t;
+    gl_ev[at].type = type;
+    gl_ev[at].idx = idx;
+    gl_ev[at].val = val;
+    gl_ev[at].v2 = v2;
     gl.n++;
 }
 
@@ -213,6 +310,16 @@ static void gl_record(const mz_in_t *in)
         if (in->bup & bit)
             gl_put(EV_BUP, (uint8_t)i, 0, 0);
     }
+}
+
+static void gl_stop_dub(void)
+{
+    int i;
+    for (i = 0; i < HW_NKEYS; i++)              /* keys still held: let go here, in the loop */
+        if (gl.rec_keys & (1u << i))
+            gl_put(EV_KUP, (uint8_t)i, 0, 0);
+    gl.rec_keys = 0;
+    gl.state = GL_LOOP;
 }
 
 static void gl_stop_rec(void)
@@ -304,6 +411,13 @@ static struct {
     uint8_t vpage, vpage_was;             /* EDIT held: the voice page */
     int vslot;
     uint32_t vhot[HW_NENC];
+#ifdef MZ_ALL
+    uint8_t ch_open, ch_was;              /* HOME held: the chooser */
+    int ch_sel, sw_to;                    /* the one chosen; the one being gone to (-1 none) */
+    uint32_t ch_keys, sw_t, seed;         /* keys pressed while choosing (the project never sees them) */
+    uint8_t inited[NPJ];
+    mz_slot_t bank[NPJ][MZ_SLOTS];        /* each one's own sound slots */
+#endif
 } ui;
 
 void mz_say(const char *a, const char *b)
@@ -339,8 +453,84 @@ void mz_init(uint32_t seed)
     ui.plot_rev = 0xFFFFFFFFu;
     for (i = 0; i < MZ_SLOTS; i++)
         slot_clear(&slots[i]);
+#ifdef MZ_ALL
+    ui.seed = seed ? seed : 0x1234567u;
+    ui.sw_to = -1;
+    ui.inited[0] = 1;
+    cur_pj = &PJS[0];
+    pj_init(ui.seed);
+    mz_say("HOLD HOME", "TO CHOOSE 1-6");
+#else
     pj_init(seed ? seed : 0x1234567u);
+#endif
 }
+
+#ifdef MZ_ALL
+static int pj_index(void) { return (int)(cur_pj - PJS); }
+
+/* go to project k: the one now lets go of every key and button, its slots are kept, k's come back (or k starts) */
+static void pj_switch(int k, uint32_t now)
+{
+    int c = pj_index(), i;
+    mz_in_t rel;
+    uint8_t *z = (uint8_t *)&rel;
+    for (i = 0; i < (int)sizeof rel; i++)
+        z[i] = 0;
+    rel.up = ui.prev_keys | gl.keys;
+    rel.bup = (ui.prev_btn | gl.btn) & ~SHELL_BTNS;
+    rel.ms = now;
+    rel.dt = 1u;
+    pj_control(&rel, &body);
+    gl.state = GL_IDLE;                  /* a loop of hands was made for the one left */
+    gl.n = 0;
+    gl.keys = gl.btn = 0;
+    for (i = 0; i < HW_NKEYS; i++)
+        gl.prs[i] = 0;
+    for (i = 0; i < MZ_SLOTS; i++)
+        ui.bank[c][i] = slots[i];
+    if (!ui.inited[k]) {
+        for (i = 0; i < MZ_SLOTS; i++)
+            slot_clear(&slots[i]);
+        slot_rev++;
+        PJS[k].init(ui.seed ^ ((uint32_t)(k + 1) * 0x9E3779B9u));   /* before the render can reach it */
+        ui.inited[k] = 1;
+    } else {
+        for (i = 0; i < MZ_SLOTS; i++)
+            slots[i] = ui.bank[k][i];
+        slot_rev++;
+    }
+    cur_pj = &PJS[k];
+    for (i = 0; i < HW_NENC; i++)
+        ui.row_ok[i] = 0;
+    ui.head_cache[0] = 0;
+    ui.plot_rev = 0xFFFFFFFFu;
+    ear.fade_to = ui.playing ? 1.0f : 0.0f;
+    mz_say(PJS[k].name, ui.inited[k] ? "" : "");
+}
+
+static void chooser_row(int i, mz_row_t *r)
+{
+    static const char *const TAGS[NPJ + 1] = {"1", "2", "3", "4", "5", "6", "7"};
+    r->tag = TAGS[i];
+    r->hot = (uint8_t)(i == ui.ch_sel);
+    if (i < NPJ) {
+        if (i == pj_index())
+            mz_cat(r->label, "NOW");
+        mz_cat(r->value, PJS[i].name);
+    } else {
+        mz_cat(r->label, "RESET");
+        mz_cat(r->value, "FROM SIMPLE");
+    }
+}
+
+static void chooser_plot(void)
+{
+    scr_text(4, 4, 1, "HOLD HOME AND TURN SELECT", C_LAB);
+    scr_text(4, 16, 1, "OR PRESS WHITE KEY 1-7.", C_LAB);
+    scr_text(4, 28, 1, "LET GO OF HOME: GO THERE.", C_VAL);
+    scr_text(4, 44, 1, "EACH GOES ON WHERE YOU LEFT IT", C_DIMC);
+}
+#endif
 
 static void draw_head(void)
 {
@@ -352,6 +542,9 @@ static void draw_head(void)
     if (gl.state == GL_REC) {
         mz_cat(flags, "REC ");
         mz_fix(flags, (float)gl.t * 0.001f, 1);
+    } else if (gl.state == GL_DUB) {
+        mz_cat(flags, "DUB ");
+        mz_fix(flags, (float)gl.len * 0.001f, 1);
     } else if (gl.state == GL_LOOP) {
         mz_cat(flags, "LOOP ");
         mz_fix(flags, (float)gl.len * 0.001f, 1);
@@ -366,7 +559,17 @@ static void draw_head(void)
         st[0] = 0;
         mz_cat(st, PJ_NAME);
     }
+#ifdef MZ_ALL
+    if (ui.ch_open) {
+        msg = 0;
+        st[0] = 0;
+        mz_cat(st, "NOW ");
+        mz_cat(st, PJ_NAME);
+    }
+    mz_cat(key, ui.ch_open ? "CHOOSE" : msg ? ui.msg_a : ui.vpage ? "VOICES" : PJ_NAME);
+#else
     mz_cat(key, msg ? ui.msg_a : ui.vpage ? "VOICES" : PJ_NAME);
+#endif
     mz_cat(key, "|");
     mz_cat(key, msg ? ui.msg_b : st);
     mz_cat(key, "|");
@@ -389,10 +592,16 @@ static void draw_head(void)
         scr_text(4, 3, 2, ui.msg_a, C_HOT);
         scr_text(236 - scr_text_w(1, ui.msg_b), 2, 1, ui.msg_b, C_VAL);
     } else {
+#ifdef MZ_ALL
+        if (ui.ch_open)
+            scr_text(4, 3, 2, "CHOOSE", C_CYN);
+        else
+#endif
         scr_text(4, 3, 2, ui.vpage ? "VOICES" : PJ_NAME, ui.vpage ? C_CYN : C_VAL);
         scr_text(236 - scr_text_w(1, st), 2, 1, st, C_LAB);
     }
-    scr_text(236 - scr_text_w(1, flags), 11, 1, flags, ear.bad_now ? C_RED : gl.state == GL_REC ? C_RED : C_GRN);
+    scr_text(236 - scr_text_w(1, flags), 11, 1, flags,
+             ear.bad_now ? C_RED : gl.state == GL_REC || gl.state == GL_DUB ? C_RED : C_GRN);
     scr_hline(0, 19, 240, C_RULE);
     hw_strip_end();
 }
@@ -400,7 +609,7 @@ static void draw_head(void)
 static int row_same(const mz_row_t *a, const mz_row_t *b)
 {
     int i;
-    if (a->hot != b->hot || a->alert != b->alert)
+    if (a->hot != b->hot || a->alert != b->alert || a->tag != b->tag)
         return 0;
     for (i = 0; i < 8; i++) {
         if (a->label[i] != b->label[i])
@@ -531,6 +740,11 @@ static void draw_rows(void)
         r.tag = TAG[i];
         r.label[0] = r.value[0] = 0;
         r.hot = r.alert = 0;
+#ifdef MZ_ALL
+        if (ui.ch_open)
+            chooser_row(i, &r);
+        else
+#endif
         if (ui.vpage)
             voice_row(i, &r);
         else
@@ -542,7 +756,7 @@ static void draw_rows(void)
         hw_strip_begin(y, 20);
         if (r.hot)
             hw_fill(0, 0, 3, 19, C_HOT);
-        scr_text(6, 7, 1, TAG[i], C_DIMC);
+        scr_text(6, 7, 1, r.tag ? r.tag : TAG[i], C_DIMC);
         scr_text(22, 7, 1, r.label, r.hot ? C_HOT : C_LAB);
         scr_text(66, 3, 2, r.value, r.alert ? C_RED : r.hot ? C_HOT : C_VAL);
         scr_hline(0, 19, 240, C_RULE);
@@ -583,6 +797,19 @@ static void draw_foot(void)
     mz_cat(t, " E");
     mz_int(t, (int32_t)(body.energy * 99.0f));
     scr_text(2, 11, 1, t, C_DIMC);
+    {                                    /* the FM-1's audio load and its dropouts (blank where not known) */
+        uint32_t cpu = hw_cpu_pct(), xr = hw_xruns();
+        if (cpu || xr) {
+            t[0] = 0;
+            mz_cat(t, "C");
+            mz_int(t, (int32_t)cpu);
+            if (xr) {
+                mz_cat(t, " X");
+                mz_int(t, (int32_t)(xr > 9999u ? 9999u : xr));
+            }
+            scr_text(238 - scr_text_w(1, t), 11, 1, t, xr ? C_RED : cpu > 80u ? C_VAL : C_DIMC);
+        }
+    }
     hw_strip_end();
 }
 
@@ -620,6 +847,56 @@ void mz_frame(void)
         ear.fade_to = ui.playing ? 1.0f : 0.0f;
         mz_say(ui.playing ? "PLAY" : "STOP", "");
     }
+#ifdef MZ_ALL
+    /* HOME held: the chooser takes the encoders and the first seven white keys; letting go goes there */
+    if (in.bdown & (1u << HB_HOME)) {
+        ui.ch_open = 1;
+        ui.ch_sel = pj_index();
+    }
+    if (ui.ch_open) {
+        int j;
+        if (in.enc[HE_SELECT])
+            ui.ch_sel = ((ui.ch_sel + in.enc[HE_SELECT]) % (NPJ + 1) + (NPJ + 1)) % (NPJ + 1);
+        for (j = 0; j <= NPJ; j++)
+            if (in.down >> CH_KEY[j] & 1u)
+                ui.ch_sel = j;
+        ui.ch_keys |= in.down;
+        for (i = 0; i < HW_NENC; i++)
+            in.enc[i] = 0;
+        if (!(in.btn & (1u << HB_HOME))) {
+            ui.ch_open = 0;
+            if (ui.ch_sel == NPJ) {
+                pj_home();
+                mz_say("HOME", "BACK TO SIMPLE");
+            } else if (ui.ch_sel != pj_index()) {
+                ui.sw_to = ui.ch_sel;
+                ui.sw_t = now;
+                ear.fade_to = 0.0f;
+                mz_say(PJS[ui.sw_to].name, "...");
+            }
+        }
+    }
+    if (ui.ch_open != ui.ch_was) {
+        ui.ch_was = ui.ch_open;
+        for (i = 0; i < HW_NENC; i++)
+            ui.row_ok[i] = 0;
+        ui.plot_rev = 0xFFFFFFFFu;
+    }
+    if (ui.ch_keys) {                    /* keys pressed while choosing stay the chooser's until let go */
+        uint32_t m = ui.ch_keys;
+        in.keys &= ~m;
+        in.down &= ~m;
+        in.up &= ~m;
+        for (i = 0; i < HW_NKEYS; i++)
+            if (m >> i & 1u)
+                in.prs[i] = 0;
+        ui.ch_keys &= live_keys;
+    }
+    if (ui.sw_to >= 0 && (ear.fade < 0.003f || now - ui.sw_t > 600u)) {
+        pj_switch(ui.sw_to, now);
+        ui.sw_to = -1;
+    }
+#else
     if (in.bdown & (1u << HB_HOME)) {
         ui.home_t = now;
         ui.home_done = 0;
@@ -630,12 +907,18 @@ void mz_frame(void)
         pj_home();
         mz_say("HOME", "BACK TO SIMPLE");
     }
+#endif
     if (in.bdown & (1u << HB_REC)) {
         ui.rec_t = now;
         ui.rec_held_done = 0;
     }
     if ((in.btn & (1u << HB_REC)) && !ui.rec_held_done && now - ui.rec_t >= 1000u) {
         ui.rec_held_done = 1;
+        for (i = 0; i < HW_NKEYS; i++)  /* the loop's keys let go */
+            if ((gl.keys >> i & 1u) && !(live_keys >> i & 1u))
+                in.up |= 1u << i;
+        for (i = 0; i < HW_NKEYS; i++)
+            gl.prs[i] = 0;
         gl.state = GL_IDLE;
         gl.n = 0;
         gl.keys = gl.btn = 0;
@@ -650,17 +933,16 @@ void mz_frame(void)
             mz_say("REC", "HANDS RECORDED");
         } else if (gl.state == GL_REC) {
             gl_stop_rec();
-            mz_say("LOOP", gl.state == GL_LOOP ? "PLAYING HANDS" : "NOTHING");
+            mz_say("LOOP", gl.state == GL_LOOP ? "REC AGAIN: LAYER" : "NOTHING");
+        } else if (gl.state == GL_LOOP) {
+            gl.state = GL_DUB;               /* overdub: what the hand does now goes on top of the loop */
+            gl.rec_keys = 0;
+            for (i = 0; i < HW_NKEYS; i++)
+                gl.rec_prs[i] = 0;
+            mz_say("DUB", "LAYER ON TOP");
         } else {
-            uint32_t k;                          /* the loop's keys let go */
-            for (k = 0; k < HW_NKEYS; k++)
-                if ((gl.keys >> k & 1u) && !(live_keys >> k & 1u))
-                    in.up |= 1u << k;
-            gl.keys = gl.btn = 0;
-            for (k = 0; k < HW_NKEYS; k++)
-                gl.prs[k] = 0;
-            gl.state = GL_IDLE;
-            mz_say("LOOP", "STOPPED");
+            gl_stop_dub();
+            mz_say("LOOP", "HOLD REC: FORGET");
         }
     }
     if (gl.state == GL_REC) {
@@ -668,6 +950,11 @@ void mz_frame(void)
         gl.t += dt;
         if (gl.t > 600000u || gl.n >= GL_N)
             gl_stop_rec();
+    } else if (gl.state == GL_DUB) {
+        gl_record(&in);                  /* the live hand, put in behind the play position, then the loop plays */
+        gl_play(&in, dt);
+        if (gl.n >= GL_N)
+            gl_stop_dub();
     } else if (gl.state == GL_LOOP) {
         gl_play(&in, dt);
     }
@@ -689,10 +976,19 @@ void mz_frame(void)
     bit = 0;
     if (ui.playing)
         bit |= 1u << HB_PLAY;
-    if (gl.state == GL_LOOP || (gl.state == GL_REC && (now / 250u) & 1u))
+    if (gl.state == GL_LOOP || ((gl.state == GL_REC || gl.state == GL_DUB) && (now / 250u) & 1u))
         bit |= 1u << HB_REC;
     if (in.btn & (1u << HB_HOME))
         bit |= 1u << HB_HOME;
+#ifdef MZ_ALL
+    if (ui.ch_open) {
+        uint32_t dk = 0;
+        int j;
+        for (j = 0; j <= NPJ; j++)
+            dk |= 1u << CH_KEY[j];
+        hw_leds(bit, 1u << CH_KEY[ui.ch_sel], SHELL_BTNS, dk);
+    } else
+#endif
     hw_leds(bit | pj_lit_buttons() | (in.btn & ~SHELL_BTNS), pj_lit_keys() | in.keys,
             SHELL_BTNS | pj_dim_buttons(), pj_dim_keys());
     /* the screen */
@@ -702,10 +998,19 @@ void mz_frame(void)
     draw_rows();
     {
         uint32_t rev = ui.vpage ? slot_rev * 7u + (uint32_t)ui.vslot : pj_plot_rev();
+#ifdef MZ_ALL
+        if (ui.ch_open)
+            rev = 0xC4000000u;
+#endif
         if (rev != ui.plot_rev && now - ui.plot_at >= 50u) {
             ui.plot_rev = rev;
             ui.plot_at = now;
             hw_strip_begin(160, 62);
+#ifdef MZ_ALL
+            if (ui.ch_open)
+                chooser_plot();
+            else
+#endif
             if (ui.vpage)
                 voice_plot(62);
             else

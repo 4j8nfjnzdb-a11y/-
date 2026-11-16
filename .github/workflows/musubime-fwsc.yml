@@ -56,16 +56,16 @@ jobs:
           test -d ~/fw-AC79_AIoT_SDK
           echo "AC79_SDK=$HOME/fw-AC79_AIoT_SDK" >> "$GITHUB_ENV"
 
-      - name: Host simulator tests (all six)
+      - name: Host simulator tests (all six, and all six in one)
         run: musubime/fm1/assemble.sh all host "$HOME/fm1-base"
 
-      - name: Firmware packages (all six)
+      - name: Firmware packages (all six, and all six in one)
         run: musubime/fm1/assemble.sh all fwsc "$HOME/fm1-base"
 
       - name: Collect the packages
         run: |
           mkdir -p out
-          for p in kuzushi henka sen feldman pmvrs tekiou; do
+          for p in musubime kuzushi henka sen feldman pmvrs tekiou; do
             cp "musubime/fm1/build/$p/build/$p.fwsc" out/
           done
           (cd out && sha256sum *.fwsc | tee SHA256SUMS)

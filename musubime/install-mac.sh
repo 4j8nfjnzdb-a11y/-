@@ -1,15 +1,17 @@
 #!/bin/bash
 # musubime: FM-1 に入れる（Mac）。ターミナルにこの 1 行を貼って return:
 #   curl -fsSL https://raw.githubusercontent.com/4j8nfjnzdb-a11y/-/refs/heads/claude/eloquent-mendel-xx2vgi/musubime/install-mac.sh | bash
-# 別のプロジェクトを入れるときは最後に名前を付ける: ... | bash -s kuzushi   (henka kuzushi sen feldman pmvrs tekiou)
+# 何も付けなければ 6 つ全部入り（musubime: HOME を押さえて選ぶ）。1 つだけ入れるときは最後に名前を付ける:
+#   ... | bash -s kuzushi   (musubime henka kuzushi sen feldman pmvrs tekiou)
 #
 # 要るもの: Python 3.12（python.org、数十 MB）。Apple の開発ツールも git も要らない。
 # やること: 道具の確認と準備 -> ファイルのダウンロード -> FM-1 の今のバージョンを読む -> 公式 V15 でなければ先に V15 へ
 # （公式の V16 や FM1 Open から直接は入れない、コミュニティの手順どおり）-> 選んだプロジェクトを書き込む。
 # 書き込む前には必ず y / n を聞く。書き込みは fm1-base の fm1_install.py（書く前にファイルと機器を確かめる）。
 set -u
-NAME="${1:-henka}"
-case "${NAME}" in henka|kuzushi|sen|feldman|pmvrs|tekiou) ;; *) echo "名前は henka kuzushi sen feldman pmvrs tekiou のどれか"; exit 1 ;; esac
+NAME="${1:-musubime}"
+case "${NAME}" in musubime|henka|kuzushi|sen|feldman|pmvrs|tekiou) ;;
+  *) echo "名前は musubime henka kuzushi sen feldman pmvrs tekiou のどれか"; exit 1 ;; esac
 REL="https://github.com/4j8nfjnzdb-a11y/-/releases/download/musubime-latest"
 V15_URL="https://github.com/m-vave/fm1_open/raw/main/sdk/firmware/FM-1_015.fwsc"
 WORK="${HOME}/musubime-fm1"
@@ -109,6 +111,12 @@ say "5/5 ${NAME} を書き込みます（約 1 分）"
 note "書き込み中は USB を抜かないでください。"
 ask "${NAME} を書き込みますか？" || { say "やめました。FM-1 は今のままです。"; exit 0; }
 inst --yes "${WORK}/${NAME}.fwsc" || stop "${NAME} の書き込みで止まりました"
-say "できました。FM-1 の画面に $(printf '%s' "${NAME}" | tr a-z A-Z) と出ていれば成功です。"
+if [ "${NAME}" = musubime ]; then
+  say "できました。FM-1 の画面に KUZUSHI と出ていれば成功です（6 つ全部入り）。"
+  note "ほかのものへ: HOME を押さえたまま SELECT を回す（か白鍵 1〜6 を押す）→ HOME を離す。"
+  note "1 崩し  2 変化  3 線  4 フェルドマン  5 PMVRS  6 適応。白鍵 7 は今のものを最初から。"
+else
+  say "できました。FM-1 の画面に $(printf '%s' "${NAME}" | tr a-z A-Z) と出ていれば成功です。"
+fi
 note "公式に戻すとき: M-VAVE の M-UPGRADE で公式ファームを入れ直す。"
-note "別のプロジェクトにするとき: 同じ 1 行の最後に「 -s kuzushi」のように名前を付ける。"
+note "1 つだけ入れるとき: 同じ 1 行の最後に「 -s kuzushi」のように名前を付ける（何も付けなければ全部入り）。"

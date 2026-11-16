@@ -9,13 +9,23 @@
  * TIME (ALGO) changes the time: nudges grow and drift (a groove that is found, not set: Tipographica's lean), a
  * track's length or its rate moves to a neighbour, and the tempo breathes by 1/f. Neither undoes itself. GLO holds
  * both; SAVE keeps a moment (held: back to it).
- * The knobs act at once: SELECT the track, ALGO TIME, PRESET the track's RATE, K1 its TONE (brightness), K2 its DECAY,
- * K3 its DENSITY, K4 MUT. Holding a step key turns them to the step: PRESET its lock's destination, K1 the lock, K2 the
- * condition, K3 the nudge, K4 the track's length.
- * The hand: black keys 1-4 play the four tracks (velocity; pressure brightens), black 6-9 repeat a track while held
- * (pressure: faster), white keys are the steps of the selected track (tap: trig on / off; hold and press: a lock).
- * ARP ENV / SEQ LFO: tracks 1 2 / 3 4 in and out. SEL: thin the track (held: clear it). FX or black 5: FILL.
- * OCT- / OCT+: tempo. Black 10: the track's LFO; 11: XMOD (the track above into this voice).
+ * GEN (FX): a generator that marks steps with acts, each on its own step, not all at once: a ratchet, a pitch from a
+ * harmonic field, a chord (two more voices from the field), an echo send, a stutter (the last moments of the mix
+ * looped), a crush (sample-and-hold and fewer bits), a sweep (the index rising or falling through the note). Which
+ * acts, where and how many follow a regime (PULSE, SONG, BREAK, DRIFT, VOID); a regime lasts a heavy-tailed number of
+ * loops (mostly short, sometimes very long: no average length to settle into) and the next is chosen by the
+ * period-doubling sequence of the logistic map at Feigenbaum's point (aperiodic, self-similar). At each change one
+ * harmonic of the field moves, the echo changes, and the synth track starts to drift toward another place of the
+ * bank (between the named sounds, never landing). Acts above a regime's share are taken away again, so a burst
+ * (FX held) leaves marks that thin out: contrast, not an average.
+ * The knobs act at once: SELECT the TEMPO (through 0: backwards), ALGO TIME, PRESET the track's RATE, K1 its TONE
+ * (brightness), K2 its DECAY, K3 its DENSITY, K4 MUT. Holding a step key turns them to the step: PRESET its lock's
+ * destination, K1 the lock, K2 the condition, K3 the nudge, K4 the track's length.
+ * The hand: black keys 1-4 play the four tracks and choose one (velocity; pressure brightens), black 6-9 repeat a
+ * track while held (pressure: faster), white keys are the steps of the chosen track (tap: trig on / off; hold and
+ * press: a lock). ARP ENV / SEQ LFO: tracks 1 2 / 3 4 in and out. SEL: thin the track (held: clear it, acts too).
+ * FX: GEN on / off (held: a burst). Black 5: FILL. OCT- / OCT+: half / double time. Black 10: the track's LFO;
+ * 11: XMOD (the track above into this voice).
  * Sustained kinds (organ, pad, ...) fade over four of their track's steps here, so a struck one does not drone.
  * The body: turning back and forth reverses every track's momentum; moving after stillness makes the next loop a FILL. */
 #include "par.h"
@@ -41,6 +51,42 @@ static const float RATES[] = {0.25f, 0.3333333f, 0.5f, 0.6666667f, 0.75f, 1.0f, 
 static const char *const RATE_NAME[] = {"1/4", "1/3", "1/2", "2/3", "3/4", "1", "4/3", "3/2", "2", "3", "4"};
 #define NRATE 11
 #define RATE_ONE 5
+
+/* GEN's acts, one or more on a step */
+enum { A_RAT = 1, A_NOTE = 2, A_CHORD = 4, A_ECHO = 8, A_STUT = 16, A_CRUSH = 32, A_SWEEP = 64, NACT = 7 };
+static const uint16_t ACT_COL[NACT] = {C_VAL, C_HOT, C_GRN, C_CYN, C_RED, C_LAB, C_VAL2};
+/* the regimes: the acts' weights (RAT NOTE CHORD ECHO STUT CRUSH SWEEP), their share of the trigs, the tracks' weights,
+ * the echo (in steps) and its feedback */
+typedef struct {
+    const char *name;
+    float share, w[NACT], trk[4], echo_steps, echo_fb;
+    float churn;                         /* how fast its marks turn over */
+    float dens[4];                       /* added to each track's DENSITY while it lasts */
+} regime_t;
+static const regime_t RG[] = {
+    {"PULSE", 0.35f, {0.45f, 0.10f, 0.00f, 0.10f, 0.05f, 0.25f, 0.05f}, {1.0f, 1.0f, 1.0f, 0.5f}, 0.75f, 0.35f,
+     0.4f, {0.06f, 0.0f, 0.12f, 0.0f}},
+    {"SONG", 0.75f, {0.05f, 0.45f, 0.30f, 0.15f, 0.00f, 0.00f, 0.05f}, {0.2f, 0.3f, 0.3f, 1.0f}, 1.5f, 0.5f,
+     0.7f, {0.0f, -0.04f, -0.05f, 0.35f}},
+    {"BREAK", 0.55f, {0.30f, 0.05f, 0.00f, 0.05f, 0.35f, 0.25f, 0.00f}, {1.0f, 1.0f, 0.8f, 0.6f}, 0.333f, 0.3f,
+     1.6f, {0.12f, 0.15f, 0.05f, 0.05f}},
+    {"DRIFT", 0.45f, {0.00f, 0.30f, 0.15f, 0.30f, 0.00f, 0.00f, 0.25f}, {0.3f, 0.4f, 0.4f, 1.0f}, 2.0f, 0.65f,
+     0.35f, {-0.04f, 0.0f, -0.08f, 0.2f}},
+    {"VOID", 0.08f, {0.00f, 0.20f, 0.10f, 0.60f, 0.00f, 0.00f, 0.10f}, {0.5f, 0.5f, 0.5f, 0.5f}, 3.0f, 0.7f,
+     0.25f, {-0.12f, -0.1f, -0.15f, 0.0f}},
+};
+#define NREG 5
+#define NFIELD 7
+#define NNOTE (NFIELD * 3)              /* three octaves of the field */
+/* the places the synth track drifts toward (pitched ones) */
+static const uint8_t MORPH[] = {VB_SYNTH, 10, 11, 12, 13, 14, 17, 18, 21, 25, 26, 20};   /* EPIANO BELL MARIMB BASS
+                                                                                          BRASS PLUCK REED GLASS VOX
+                                                                                          DIGI METAL */
+#define NMORPH 12
+#define ECHO_N 16384u                    /* 0.37 s, mono, 16 bits */
+#define STUT_N 8192u                     /* 0.19 s of the mix, stereo, 16 bits */
+static int16_t echo_buf[ECHO_N] MZ_POOL;
+static int16_t stut_l[STUT_N] MZ_POOL, stut_r[STUT_N] MZ_POOL;
 typedef struct {
     uint8_t kind, on, dest, len;
     float p[NVP];                        /* the voice's numbers: the bases */
@@ -50,6 +96,9 @@ typedef struct {
     uint8_t rate_i;                      /* the track's rate against the tempo (RATES) */
     uint8_t nudge[NS];                   /* how late a step plays, in sixteenths of a step (0..10) */
     float tone, dec_x;                   /* K1 / K2: brightness added, decay multiplied */
+    uint8_t act[NS];                     /* GEN's marks on a step (A_*) */
+    uint8_t note[NS];                    /* a pitch from the field (index; with A_NOTE) */
+    uint8_t rat[NS];                     /* a ratchet's strikes in the step (with A_RAT) */
     int8_t tmom;                         /* the time's momentum (nudges grow one way until a wall) */
     uint32_t loops;
     uint8_t last_true;
@@ -70,6 +119,13 @@ static struct {
     /* the hand playing */
     volatile uint32_t live_req[NT];
     float live_vel[NT], live_bright[NT], ratchet_hz[NT];
+    /* GEN */
+    uint8_t gen, burst, regime, morph;
+    uint16_t dwell;                      /* loops of track 1 left in the regime */
+    float lx;                            /* the logistic map at Feigenbaum's point */
+    uint8_t field[NFIELD];               /* harmonic numbers: the notes' ratios */
+    uint8_t walk[NT];                    /* each track's place in the notes (a contour, not a choice) */
+    uint32_t regime_rev;
     /* SAVE: a moment kept */
     uint8_t has_snap;
     trk_t snap[NT];
@@ -81,6 +137,8 @@ static struct {
     int held_step;
     uint32_t held_t, hot[HW_NENC], sel_t, save_t;
     uint8_t held_pressed, sel_done, save_done;
+    uint32_t fx_t;
+    uint8_t fx_burst;
 } ui;
 
 static const uint8_t WHITE[16] = {0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26};
@@ -101,6 +159,25 @@ static struct {
     float pend_gain[NT];
     pink_t breath;
     uint32_t breath_n;
+    /* the step's acts, carried to the strike (which a nudge can make late) */
+    uint8_t pact[NT], pnote[NT], prat[NT];
+    float sps[NT];                       /* samples per step of each track now */
+    float note_r[NT];                    /* the pitch ratio of the note playing (1: the track's own) */
+    uint8_t rat_left[NT], crush[NT], crush_c[NT];
+    uint32_t rat_int[NT], rat_cnt[NT];
+    float rat_gain[NT], send[NT], crush_y[NT];
+    int8_t swp[NT];
+    uint8_t note_now[NT];
+    /* the chord's two voices */
+    vox_t hv[2];
+    vox_k_t hk[2];
+    float h_lvl[2];
+    int h_trk;
+    /* the echo and the stutter */
+    uint32_t ew, sw, s_start, s_len, s_pos, s_left, echo_d;
+    float e_lp, e_lp2;
+    uint32_t rseed;
+    float lvl[NT], spsec, bar_ph;
 } st;
 
 static float vp_clamp(int d, float x) { return m_clamp(x, VP_LO[d], VP_HI[d]); }
@@ -119,6 +196,8 @@ static void trk_clear(trk_t *T)
     for (s = 0; s < NS; s++) {
         T->trig[s] = T->has[s] = T->cond[s] = 0;
         T->nudge[s] = 0;
+        T->act[s] = T->note[s] = 0;
+        T->rat[s] = 2;
         T->val[s] = T->p[T->dest];
     }
 }
@@ -148,12 +227,28 @@ static void defaults(void)
     sh.t[0].trig[0] = 1;                 /* one kick on the first step: the simplest place */
     trk_reset(&sh.t[1], VB_SNARE, VP_NOISE, 12, 0.12f);
     trk_reset(&sh.t[2], VB_HAT, VP_DEC, 7, 0.2f);
-    trk_reset(&sh.t[3], VB_SYNTH, VP_INDEX, 5, 0.15f);
+    trk_reset(&sh.t[3], VB_SYNTH, VP_INDEX, 5, 0.25f);
     sh.tempo = 112.0f;
-    sh.mut = 0.15f;
-    sh.time = 0.2f;
+    sh.mut = 0.2f;
+    sh.time = 0.3f;
     sh.tempo_w = 1.0f;
     sh.frozen = 0;
+    /* GEN: off until FX; the field starts as harmonics 4..10 without 8 (a seventh and a ninth among them) */
+    sh.gen = 0;
+    sh.burst = 0;
+    sh.regime = 1;                       /* SONG first: the synth track is heard at once */
+    sh.dwell = 4;
+    sh.lx = 0.3f + 0.4f * m_rnd(&sh.seed);
+    sh.morph = VB_SYNTH;
+    {
+        static const uint8_t F0[NFIELD] = {8, 9, 11, 12, 13, 7, 15};   /* folded: 1 9/8 11/8 3/2 13/8 7/4 15/8 */
+        int i;
+        for (i = 0; i < NFIELD; i++)
+            sh.field[i] = F0[i];
+        for (i = 0; i < NT; i++)
+            sh.walk[i] = (uint8_t)(NFIELD + (i == 3 ? 0 : 2));
+    }
+    sh.regime_rev++;
 }
 
 /* the tracks follow their slots (EDIT's voice page, ALGO): a new kind puts the track's numbers at that kind's place;
@@ -215,6 +310,27 @@ void pj_reset_audio(void)
         st.pend[k] = 0;
     }
     st.phase = 0.999f;
+    for (k = 0; k < NT; k++) {
+        st.pact[k] = st.rat_left[k] = st.crush[k] = st.crush_c[k] = 0;
+        st.pnote[k] = 0;
+        st.note_r[k] = 1.0f;
+        st.send[k] = st.crush_y[k] = 0.0f;
+        st.swp[k] = 0;
+        st.sps[k] = 5000.0f;
+    }
+    vox_reset(&st.hv[0]);
+    vox_reset(&st.hv[1]);
+    st.h_trk = 3;
+    {
+        uint32_t i;
+        for (i = 0; i < ECHO_N; i++)
+            echo_buf[i] = 0;
+        for (i = 0; i < STUT_N; i++)
+            stut_l[i] = stut_r[i] = 0;
+    }
+    st.ew = st.sw = st.s_left = 0;
+    st.e_lp = st.e_lp2 = 0.0f;
+    st.rseed = sh.seed ^ 0x5EEDu;
 }
 
 /* ---- conditions, steps, change ---- */
@@ -264,7 +380,8 @@ static void mutate(int k)
 {
     trk_t *T = &sh.t[k];
     float range = VP_HI[T->dest] - VP_LO[T->dest], r = m_rnd(&sh.seed);
-    int n = trig_count(T), target = (int)(T->density * (float)T->len + 0.5f), s = -1;
+    float dens = m_clamp(T->density + (sh.gen ? RG[sh.regime].dens[k] : 0.0f), 0.0f, 1.0f);
+    int n = trig_count(T), target = (int)(dens * (float)T->len + 0.5f), s = -1;
     if (n < target) {                    /* below its density: a trig (and maybe a lock) where there was none */
         s = pick(T, 0);
         if (s >= 0) {
@@ -346,6 +463,304 @@ static void time_mutate(int k)
     sh.plot_rev++;
 }
 
+/* ---- GEN ---- */
+static float fold(int h)
+{
+    float r = (float)h;
+    while (r >= 2.0f)
+        r *= 0.5f;
+    return r;
+}
+
+/* the field in rising order within its octave, so a step through the notes is a step up or down */
+static void field_sort(void)
+{
+    int i, j;
+    for (i = 1; i < NFIELD; i++)
+        for (j = i; j > 0 && fold(sh.field[j]) < fold(sh.field[j - 1]); j--) {
+            uint8_t t = sh.field[j];
+            sh.field[j] = sh.field[j - 1];
+            sh.field[j - 1] = t;
+        }
+}
+
+/* note n as a ratio to the track's own pitch: harmonic field[n % 7] folded into an octave, in octave n / 7 - 1 */
+static float note_ratio(int n)
+{
+    int o;
+    if (n < 0)
+        n = 0;
+    if (n >= NNOTE)
+        n = NNOTE - 1;
+    o = n / NFIELD - 1;
+    return fold(sh.field[n % NFIELD]) * (o < 0 ? 0.5f : o > 0 ? 2.0f : 1.0f);
+}
+
+/* one harmonic of the field moves by one or two (never onto another one's place in the octave) */
+static void field_move(void)
+{
+    int i = (int)(m_rnd(&sh.seed) * (float)NFIELD) % NFIELD, tries;
+    for (tries = 0; tries < 8; tries++) {
+        int h = (int)sh.field[i] + (m_rnd(&sh.seed) < 0.5f ? -1 : 1) * (m_rnd(&sh.seed) < 0.3f ? 2 : 1), j, dup = 0;
+        if (h < 5 || h > 31)
+            continue;
+        for (j = 0; j < NFIELD; j++)
+            if (j != i && m_abs(fold(sh.field[j]) - fold(h)) < 0.02f)
+                dup = 1;
+        if (!dup) {
+            sh.field[i] = (uint8_t)h;
+            break;
+        }
+    }
+    field_sort();
+}
+
+/* the period-doubling sequence: the logistic map at Feigenbaum's point, read as left or right of its top */
+static int pd_bit(void)
+{
+    sh.lx = 3.5699456f * sh.lx * (1.0f - sh.lx);
+    if (!(sh.lx > 0.001f && sh.lx < 0.999f))
+        sh.lx = 0.3712f;
+    return sh.lx > 0.5f;
+}
+
+static void new_regime(void)
+{
+    int jump = 1 + 2 * pd_bit() + pd_bit();   /* 1..4: never the same one twice */
+    float u = m_max(0.002f, m_rnd(&sh.seed));
+    sh.regime = (uint8_t)((sh.regime + jump) % NREG);
+    /* how many bars it lasts: Pareto (alpha 1.2): mostly one to three, now and then dozens; no length to average to */
+    sh.dwell = (uint16_t)m_clampi(1 + (int)(1.5f * m_exp2(-m_log2(u) * (1.0f / 1.2f))), 1, 48);
+    field_move();
+    sh.morph = MORPH[(int)(m_rnd(&sh.seed) * (float)NMORPH) % NMORPH];
+    sh.regime_rev++;
+    sh.plot_rev++;
+}
+
+static int act_count(const trk_t *T)
+{
+    int s, n = 0;
+    for (s = 0; s < T->len; s++)
+        n += T->trig[s] && T->act[s];
+    return n;
+}
+
+/* a trig step with (want 1) or without (want 0) a mark, from a random place; -1 none */
+static int pick_act(const trk_t *T, int want)
+{
+    int s = (int)(m_rnd(&sh.seed) * (float)T->len) % T->len, tries;
+    for (tries = 0; tries < T->len; tries++, s = (s + 1) % T->len)
+        if (T->trig[s] && (T->act[s] != 0) == want)
+            return s;
+    return -1;
+}
+
+/* the next note of track k: its contour moves by a small step, mostly, now and then a leap */
+static uint8_t next_note(int k)
+{
+    static const int8_t STEP[8] = {1, -1, 2, -2, 1, -1, 3, -4};
+    int w = (int)sh.walk[k] + STEP[(int)(m_rnd(&sh.seed) * 8.0f) & 7];
+    if (w < 0)
+        w = -w;
+    if (w >= NNOTE)
+        w = 2 * (NNOTE - 1) - w;
+    sh.walk[k] = (uint8_t)m_clampi(w, 0, NNOTE - 1);
+    return sh.walk[k];
+}
+
+static void add_act(int k, int s)
+{
+    static const uint8_t RATS[6] = {2, 3, 3, 4, 5, 7};
+    trk_t *T = &sh.t[k];
+    const regime_t *R = &RG[sh.regime];
+    float w[NACT], tot = 0.0f, x;
+    int i, tries;
+    for (tries = 0; tries < 1 + (m_rnd(&sh.seed) < 0.18f); tries++) {   /* now and then two at once */
+        for (i = 0; i < NACT; i++) {
+            w[i] = R->w[i];
+            if (k < 3 && (i == 1 || i == 2))   /* drums take pitches less, chords hardly */
+                w[i] *= i == 2 ? 0.15f : 0.5f;
+            tot += w[i];
+        }
+        if (tot <= 0.0f)
+            return;
+        x = m_rnd(&sh.seed) * tot;
+        for (i = 0; i < NACT - 1 && x >= w[i]; i++)
+            x -= w[i];
+        T->act[s] |= (uint8_t)(1u << i);
+        if (i == 1 || i == 2) {
+            T->act[s] |= A_NOTE;
+            T->note[s] = next_note(k);
+        }
+        if (i == 0)
+            T->rat[s] = RATS[(int)(m_rnd(&sh.seed) * 6.0f) % 6];
+        tot = 0.0f;
+    }
+}
+
+/* GEN at a step of track k: below its regime's share a mark appears, above it one goes, at it one turns into
+ * another; a burst (FX held) marks nearly everything */
+static void gen_step(int k)
+{
+    trk_t *T = &sh.t[k];
+    const regime_t *R = &RG[sh.regime];
+    float rate = (0.05f + 0.45f * sh.mut + 0.3f * sh.energy) * R->trk[k] * R->churn * (sh.burst ? 6.0f : 1.0f);
+    int n, na, target, s = -1;
+    if (m_rnd(&sh.seed) >= m_min(1.0f, rate))
+        return;
+    n = trig_count(T);
+    {                                    /* the regime's density first, quickly: sections differ, not average */
+        int want = (int)(m_clamp(T->density + R->dens[k], 0.0f, 1.0f) * (float)T->len + 0.5f);
+        if (n < want && m_rnd(&sh.seed) < 0.6f && (s = pick(T, 0)) >= 0) {
+            T->trig[s] = 1;
+            T->cond[s] = 0;
+            n++;
+        } else if (n > want + 1 && m_rnd(&sh.seed) < 0.4f && (s = pick(T, 1)) >= 0) {
+            T->trig[s] = T->has[s] = T->act[s] = 0;
+            n--;
+        }
+        s = -1;
+    }
+    na = act_count(T);
+    target = (int)((sh.burst ? 0.95f : R->share) * (float)n + 0.5f);
+    if (na < target) {
+        s = pick_act(T, 0);
+        if (s >= 0)
+            add_act(k, s);
+    } else if (na > target) {
+        s = pick_act(T, 1);
+        if (s >= 0)
+            T->act[s] = 0;
+    } else if (na && m_rnd(&sh.seed) < 0.5f) {
+        s = pick_act(T, 1);
+        if (s >= 0) {
+            T->act[s] = 0;
+            add_act(k, s);
+        }
+    }
+    if (s >= 0) {
+        T->flash_step = (int8_t)s;
+        T->flash_until = hw_ms() + 400u;
+    }
+}
+
+/* the synth track (4) drifts toward the regime's place in the bank: its timbre, not its pitch or its length */
+static void morph_step(void)
+{
+    static const uint8_t DIMS[] = {VP_RATIO, VP_INDEX, VP_IDEC, VP_FB, VP_NOISE, VP_METAL, VP_NRATIO, VP_NFB, VP_ATT};
+    trk_t *T = &sh.t[3];
+    int i;
+    for (i = 0; i < (int)sizeof DIMS; i++) {
+        int d = DIMS[i];
+        T->p[d] = vp_clamp(d, T->p[d] + (VB_POINT[sh.morph][d] - T->p[d]) * 0.05f);
+    }
+}
+
+/* ---- the voices ---- */
+/* track k's numbers now: the base, this step's lock, the LFO, the slot's settings, the hand, GEN's note and sweep */
+static void coefs_one(int k, uint32_t n)
+{
+    trk_t *T = &sh.t[k];
+    const mz_slot_t *v = mz_voice(k);
+    float p[NVP], per = (float)T->len * 3.0f / m_max(0.25f, m_abs(st.spsec));
+    int d;
+    for (d = 0; d < NVP; d++)
+        p[d] = T->p[d];
+    if (st.locked[k])
+        p[T->dest] = st.lock[k];
+    st.lfo_ph[k] += (float)n * M_INV_SR / per;
+    st.lfo_ph[k] -= m_floor(st.lfo_ph[k]);
+    p[T->dest] = vp_clamp(T->dest, p[T->dest] + T->lfo_depth * (VP_HI[T->dest] - VP_LO[T->dest])
+                                                * m_sin_t(st.lfo_ph[k]));
+    if (v) {
+        p[VP_PITCH] = vp_clamp(VP_PITCH, p[VP_PITCH] * m_exp2(v->tune));
+        p[VP_INDEX] = vp_clamp(VP_INDEX, p[VP_INDEX] + v->bright);
+        p[VP_FB] = vp_clamp(VP_FB, p[VP_FB] + v->fb);
+        if (p[VP_DEC] < VP_HELD)
+            p[VP_DEC] = vp_clamp(VP_DEC, p[VP_DEC] * v->dec_x);
+    }
+    if (st.note_r[k] != 1.0f)
+        p[VP_PITCH] = vp_clamp(VP_PITCH, p[VP_PITCH] * st.note_r[k]);
+    p[VP_INDEX] = vp_clamp(VP_INDEX, p[VP_INDEX] + sh.live_bright[k] + T->tone);
+    if (p[VP_DEC] < VP_HELD)
+        p[VP_DEC] = vp_clamp(VP_DEC, p[VP_DEC] * T->dec_x);
+    vox_gate(p, 4.0f * T->dec_x / m_max(0.25f, m_abs(st.spsec) * RATES[T->rate_i]));   /* four of its steps */
+    vox_coefs(&st.kk[k], p);
+    if (st.swp[k])                       /* a sweep: the index rises (or falls) about 45 times over the step */
+        st.kk[k].k_idx = m_exp2((st.swp[k] > 0 ? 5.5f : -5.5f) / m_max(64.0f, st.sps[k]));
+    st.lvl[k] = VB_LEVEL[T->kind] * (v ? m_db2lin(v->level_db) : 1.0f);
+}
+
+static void coefs(uint32_t n)
+{
+    int k;
+    for (k = 0; k < NT; k++)
+        coefs_one(k, n);
+}
+
+/* the stutter: the last moments of the mix, looped for a step or two */
+static void stut_start(float sps)
+{
+    static const float DIV[5] = {2.0f, 3.0f, 4.0f, 6.0f, 8.0f};
+    uint32_t len = (uint32_t)(sps / DIV[(int)(m_rnd(&st.rseed) * 5.0f) % 5]);
+    if (len < 128u)
+        len = 128u;
+    if (len > STUT_N / 2u)
+        len = STUT_N / 2u;
+    st.s_len = len;
+    st.s_start = (st.sw + STUT_N - len) % STUT_N;
+    st.s_pos = 0;
+    st.s_left = (uint32_t)(sps * (m_rnd(&st.rseed) < 0.6f ? 1.0f : 2.0f));
+}
+
+/* the chord: two more voices, the track's sound at two more notes of the field above this one */
+static void chord(int k, float gain)
+{
+    int j, n0 = st.pnote[k];
+    float base = st.kk[k].f0 / st.note_r[k];
+    for (j = 0; j < 2; j++) {
+        int nn = n0 + (j ? 4 : 2) + (m_rnd(&st.rseed) < 0.3f ? 1 : 0);
+        if (nn >= NNOTE)
+            nn -= NFIELD;
+        st.hk[j] = st.kk[k];
+        st.hk[j].f0 = m_min(8000.0f, base * note_ratio(nn));
+        st.hk[j].xmod = 0.0f;
+        vox_trig(&st.hv[j], &st.hk[j]);
+        st.h_lvl[j] = st.lvl[k] * gain * 0.5f;
+    }
+    st.h_trk = k;
+}
+
+/* the strike of track k's step, with its marks (now, or late: a nudge) */
+static void fire(int k, float gain)
+{
+    static const uint8_t CRUSH[4] = {3, 5, 9, 17};
+    uint8_t a = st.pact[k];
+    st.note_r[k] = (a & A_NOTE) ? note_ratio(st.pnote[k]) : 1.0f;
+    st.swp[k] = (int8_t)((a & A_SWEEP) ? (m_rnd(&st.rseed) < 0.5f ? 1 : -1) : 0);
+    coefs_one(k, 0);
+    st.vel_gain[k] = gain;
+    vox_trig(&st.v[k], &st.kk[k]);
+    if (st.swp[k])
+        st.v[k].idx_env = st.swp[k] > 0 ? 0.06f : 3.0f;
+    st.send[k] = (a & A_ECHO) ? 0.9f : (sh.gen && k == 3) ? 0.15f : 0.0f;
+    st.crush[k] = (uint8_t)((a & A_CRUSH) ? CRUSH[(int)(m_rnd(&st.rseed) * 4.0f) & 3] : 0);
+    st.crush_c[k] = 0;
+    if (a & A_RAT) {
+        uint8_t m = st.prat[k] < 2 ? 2 : st.prat[k];
+        st.rat_left[k] = (uint8_t)(m - 1u);
+        st.rat_int[k] = (uint32_t)m_max(200.0f, st.sps[k] / (float)m);
+        st.rat_cnt[k] = st.rat_int[k];
+        st.rat_gain[k] = gain;
+    } else {
+        st.rat_left[k] = 0;
+    }
+    if (a & A_CHORD)
+        chord(k, gain);
+    if (a & A_STUT)
+        stut_start(st.sps[k]);
+}
+
 /* one step of track k (its own clock: the tempo times its rate) */
 static void step_one(int k, int dir, float samples_per_step)
 {
@@ -366,61 +781,44 @@ static void step_one(int k, int dir, float samples_per_step)
         p = 0;
     sh.pos[k] = p;
     st.locked[k] = 0;
+    st.sps[k] = samples_per_step;
+    if (sh.gen && !sh.frozen) {
+        gen_step(k);
+        if (k == 3)
+            morph_step();
+    }
     if ((T->trig[p] || T->has[p]) && cond_eval(k, T->cond[p])) {
         if (T->has[p]) {
             st.lock[k] = T->val[p];
             st.locked[k] = 1;
         }
         if (T->trig[p] && T->on) {
+            st.pact[k] = sh.gen ? T->act[p] : 0;   /* the marks sound only while GEN is on (they are kept) */
+            st.pnote[k] = T->note[p];
+            st.prat[k] = T->rat[p];
             if (T->nudge[p]) {           /* late by a fraction of its own step */
                 st.pend[k] = 1u + (uint32_t)((float)T->nudge[p] * (1.0f / 16.0f) * samples_per_step);
                 st.pend_gain[k] = 1.0f;
             } else {
-                st.vel_gain[k] = 1.0f;
-                vox_trig(&st.v[k], &st.kk[k]);
+                fire(k, 1.0f);
             }
         }
     }
     sh.plot_rev++;
 }
 
-/* the voices' numbers now: the bases, this step's locks, the LFOs, the slot's settings, the hand's brightness */
-static void coefs(float steps_per_s, uint32_t n, float *lvl)
+static inline int16_t sat16(float x)
 {
-    int k, d;
-    for (k = 0; k < NT; k++) {
-        trk_t *T = &sh.t[k];
-        const mz_slot_t *v = mz_voice(k);
-        float p[NVP], per = (float)T->len * 3.0f / m_max(0.25f, m_abs(steps_per_s));
-        for (d = 0; d < NVP; d++)
-            p[d] = T->p[d];
-        if (st.locked[k])
-            p[T->dest] = st.lock[k];
-        st.lfo_ph[k] += (float)n * M_INV_SR / per;
-        st.lfo_ph[k] -= m_floor(st.lfo_ph[k]);
-        p[T->dest] = vp_clamp(T->dest, p[T->dest] + T->lfo_depth * (VP_HI[T->dest] - VP_LO[T->dest])
-                                                    * m_sin_t(st.lfo_ph[k]));
-        if (v) {
-            p[VP_PITCH] = vp_clamp(VP_PITCH, p[VP_PITCH] * m_exp2(v->tune));
-            p[VP_INDEX] = vp_clamp(VP_INDEX, p[VP_INDEX] + v->bright);
-            p[VP_FB] = vp_clamp(VP_FB, p[VP_FB] + v->fb);
-            if (p[VP_DEC] < VP_HELD)
-                p[VP_DEC] = vp_clamp(VP_DEC, p[VP_DEC] * v->dec_x);
-        }
-        p[VP_INDEX] = vp_clamp(VP_INDEX, p[VP_INDEX] + sh.live_bright[k] + T->tone);
-        if (p[VP_DEC] < VP_HELD)
-            p[VP_DEC] = vp_clamp(VP_DEC, p[VP_DEC] * T->dec_x);
-        vox_gate(p, 4.0f * T->dec_x / m_max(0.25f, m_abs(steps_per_s) * RATES[T->rate_i]));   /* four of its steps */
-        vox_coefs(&st.kk[k], p);
-        lvl[k] = VB_LEVEL[T->kind] * (v ? m_db2lin(v->level_db) : 1.0f);
-    }
+    x *= 16384.0f;                       /* +-2 fits */
+    return (int16_t)(x > 32767.0f ? 32767.0f : x < -32767.0f ? -32767.0f : x);
 }
 
 void pj_render(float *out_l, float *out_r, const float *inl, const float *inr, uint32_t n)
 {
+    static const float HPAN[2] = {-0.45f, 0.45f};
     uint32_t i;
-    int k;
-    float steps_per_s, dstep, lvl[NT];
+    int k, j;
+    float dstep, efb;
     (void)inl, (void)inr;
     if (sh.home_req != st.home_seen) {
         st.home_seen = sh.home_req;
@@ -430,33 +828,58 @@ void pj_render(float *out_l, float *out_r, const float *inl, const float *inr, u
         st.breath_n = 0;
         sh.tempo_w += ((1.0f + sh.time * 0.07f * pink_next(&st.breath, &sh.seed)) - sh.tempo_w) * 0.3f;
     }
-    steps_per_s = sh.tempo * sh.tempo_w * (4.0f / 60.0f);
-    dstep = m_abs(steps_per_s) * M_INV_SR;
-    coefs(steps_per_s, n, lvl);
-    for (k = 0; k < NT; k++)             /* the hand's strikes (black keys 1-4) */
-        if (sh.live_req[k] != st.live_seen[k]) {
+    st.spsec = sh.tempo * sh.tempo_w * (4.0f / 60.0f);
+    dstep = m_abs(st.spsec) * M_INV_SR;
+    coefs(n);
+    {                                    /* the echo: the regime's length in steps of the tempo */
+        const regime_t *R = &RG[sh.regime];
+        float d = R->echo_steps * M_SR / m_max(0.5f, m_abs(st.spsec));
+        st.echo_d = (uint32_t)m_clamp(d, 64.0f, (float)(ECHO_N - 2u));
+        efb = R->echo_fb;
+    }
+    for (k = 0; k < NT; k++) {
+        if (st.v[k].idx_env > 4.0f)      /* a rising sweep stops at a bright place */
+            st.v[k].idx_env = 4.0f;
+        if (sh.live_req[k] != st.live_seen[k]) {   /* the hand's strikes (black keys 1-4) */
             st.live_seen[k] = sh.live_req[k];
             st.vel_gain[k] = 0.25f + sh.live_vel[k];
             vox_trig(&st.v[k], &st.kk[k]);
         }
+    }
     for (i = 0; i < n; i++) {
-        float l = 0.0f, r = 0.0f, prev;
+        float l = 0.0f, r = 0.0f, prev, ein = 0.0f, e1, e2;
         int stepped = 0;
+        st.bar_ph += dstep;              /* bars of the tempo: GEN's regimes last a number of them */
+        if (st.bar_ph >= 16.0f) {
+            st.bar_ph -= 16.0f;
+            if (sh.gen && !sh.frozen && sh.dwell && --sh.dwell == 0)
+                new_regime();
+        }
         for (k = 0; k < NT; k++) {       /* each track on its own clock */
             float rate = RATES[sh.t[k].rate_i];
             st.ph[k] += dstep * rate;
             if (st.ph[k] >= 1.0f) {
                 st.ph[k] -= 1.0f;
-                step_one(k, steps_per_s < 0.0f ? -1 : 1, M_SR / m_max(0.05f, m_abs(steps_per_s) * rate));
+                step_one(k, st.spsec < 0.0f ? -1 : 1, M_SR / m_max(0.05f, m_abs(st.spsec) * rate));
                 stepped = 1;
             }
-            if (st.pend[k] && --st.pend[k] == 0u) {   /* a nudged trig, now */
-                st.vel_gain[k] = st.pend_gain[k];
+            if (st.pend[k] && --st.pend[k] == 0u)   /* a nudged trig, now */
+                fire(k, st.pend_gain[k]);
+            if (st.rat_left[k] && --st.rat_cnt[k] == 0u) {   /* a ratchet's next strike (a note climbs the field) */
+                st.rat_cnt[k] = st.rat_int[k];
+                st.rat_left[k]--;
+                st.rat_gain[k] *= 0.8f;
+                if (st.pact[k] & A_NOTE) {
+                    st.pnote[k] = (uint8_t)((st.pnote[k] + 1u) % NNOTE);
+                    st.note_r[k] = note_ratio(st.pnote[k]);
+                    coefs_one(k, 0);
+                }
+                st.vel_gain[k] = st.rat_gain[k];
                 vox_trig(&st.v[k], &st.kk[k]);
             }
         }
         if (stepped)
-            coefs(steps_per_s, 0, lvl);
+            coefs(0);
         for (k = 0; k < NT; k++)         /* the hand's repeats (black keys 6-9) */
             if (sh.ratchet_hz[k] > 0.0f) {
                 st.rat_ph[k] += sh.ratchet_hz[k] * M_INV_SR;
@@ -472,13 +895,57 @@ void pj_render(float *out_l, float *out_r, const float *inl, const float *inr, u
         for (k = 0; k < NT; k++) {
             float y = vox_run(&st.v[k], &st.kk[k], prev);
             prev = y;
-            y *= lvl[k] * st.vel_gain[k];
+            y *= st.lvl[k] * st.vel_gain[k];
+            if (st.crush[k]) {           /* a crush: held for a few samples, and fewer levels */
+                if (st.crush_c[k] == 0u)
+                    st.crush_y[k] = m_floor(y * 12.0f + 0.5f) * (1.0f / 12.0f);
+                if (++st.crush_c[k] >= st.crush[k])
+                    st.crush_c[k] = 0;
+                y = st.crush_y[k];
+            }
+            ein += y * st.send[k];
             l += y * (1.0f - PAN[k]);
             r += y * (1.0f + PAN[k]);
         }
-        out_l[i] = l * 0.5f;
-        out_r[i] = r * 0.5f;
+        for (j = 0; j < 2; j++) {        /* the chord's voices */
+            float y = vox_run(&st.hv[j], &st.hk[j], 0.0f);
+            if (y != 0.0f) {
+                y *= st.h_lvl[j];
+                ein += y * st.send[st.h_trk];
+                l += y * (1.0f - HPAN[j]);
+                r += y * (1.0f + HPAN[j]);
+            }
+        }
+        /* the echo: darker each time round; the right side reads a third later */
+        e1 = (float)echo_buf[(st.ew - st.echo_d) & (ECHO_N - 1u)] * (1.0f / 16384.0f);
+        e2 = (float)echo_buf[(st.ew - st.echo_d - st.echo_d / 3u) & (ECHO_N - 1u)] * (1.0f / 16384.0f);
+        st.e_lp += (e1 - st.e_lp) * 0.35f;
+        st.e_lp2 += (e2 - st.e_lp2) * 0.35f;
+        echo_buf[st.ew & (ECHO_N - 1u)] = sat16(ein + st.e_lp * efb);
+        st.ew++;
+        l = l * 0.5f + st.e_lp * 0.45f;
+        r = r * 0.5f + st.e_lp2 * 0.45f;
+        /* the stutter: the mix's last moments looped instead of the mix */
+        if (st.s_left) {
+            uint32_t q = (st.s_start + st.s_pos) % STUT_N;
+            l = (float)stut_l[q] * (1.0f / 16384.0f);
+            r = (float)stut_r[q] * (1.0f / 16384.0f);
+            if (++st.s_pos >= st.s_len)
+                st.s_pos = 0;
+            st.s_left--;
+        } else {
+            stut_l[st.sw] = sat16(l);
+            stut_r[st.sw] = sat16(r);
+            if (++st.sw >= STUT_N)
+                st.sw = 0;
+        }
+        out_l[i] = l;
+        out_r[i] = r;
     }
+    if (m_abs(st.e_lp) < 1.0e-20f)       /* (no denormal numbers in the quiet) */
+        st.e_lp = 0.0f;
+    if (m_abs(st.e_lp2) < 1.0e-20f)
+        st.e_lp2 = 0.0f;
 }
 
 /* ---- the hand ---- */
@@ -525,9 +992,14 @@ void pj_control(const mz_in_t *in, const mz_body_t *b)
     /* black keys: 1-4 play, 5 fill, 6-9 repeat, 10 LFO, 11 XMOD */
     for (i = 0; i < NT; i++) {
         int key = BLACK[i], rk = BLACK[5 + i];
-        if (in->down >> key & 1u) {
+        if (in->down >> key & 1u) {      /* a strike, and this track is the one the knobs and white keys act on */
             sh.live_vel[i] = (float)in->vel[key] * (1.0f / 127.0f);
             sh.live_req[i]++;
+            if (ui.trk != i) {
+                ui.trk = i;
+                ui.held_step = -1;
+                sh.plot_rev++;
+            }
         }
         sh.live_bright[i] = (in->keys >> key & 1u) ? (float)in->prs[key] * (6.0f / 127.0f) : 0.0f;
         if (in->keys >> rk & 1u) {
@@ -537,7 +1009,27 @@ void pj_control(const mz_in_t *in, const mz_body_t *b)
             sh.ratchet_hz[i] = 0.0f;
         }
     }
-    sh.fill_held = (uint8_t)(((in->keys >> BLACK[4]) & 1u) | ((in->btn >> HB_FX) & 1u));
+    sh.fill_held = (uint8_t)((in->keys >> BLACK[4]) & 1u);
+    /* FX: GEN on / off; held, a burst (marks nearly everywhere while held; they thin out after) */
+    if (in->bdown & (1u << HB_FX)) {
+        ui.fx_t = in->ms;
+        ui.fx_burst = 0;
+    }
+    if ((in->btn & (1u << HB_FX)) && !ui.fx_burst && in->ms - ui.fx_t >= 450u) {
+        ui.fx_burst = 1;
+        sh.gen = 1;
+        sh.burst = 1;
+        mz_say("BURST", RG[sh.regime].name);
+    }
+    if (in->bup & (1u << HB_FX)) {
+        if (ui.fx_burst) {
+            sh.burst = 0;
+        } else {
+            sh.gen = (uint8_t)!sh.gen;
+            mz_say(sh.gen ? "GEN" : "GEN OFF", sh.gen ? RG[sh.regime].name : "MARKS KEPT");
+        }
+        sh.plot_rev++;
+    }
     if (in->down >> BLACK[9] & 1u) {
         T->lfo_depth = T->lfo_depth >= 0.39f ? 0.0f : T->lfo_depth < 0.04f ? 0.05f : T->lfo_depth < 0.14f ? 0.15f : 0.4f;
         mz_say("LFO", T->lfo_depth == 0.0f ? "OFF" : T->lfo_depth < 0.1f ? "5%" : T->lfo_depth < 0.2f ? "15%" : "40%");
@@ -595,19 +1087,24 @@ void pj_control(const mz_in_t *in, const mz_body_t *b)
         sh.frozen = (uint8_t)!sh.frozen;
         mz_say(sh.frozen ? "HOLD" : "CHANGING", sh.frozen ? "NO CHANGES" : "");
     }
-    if (in->bdown & (1u << HB_OCTDN))
-        sh.tempo = m_clamp(sh.tempo - 4.0f, -300.0f, 300.0f);
-    if (in->bdown & (1u << HB_OCTUP))
-        sh.tempo = m_clamp(sh.tempo + 4.0f, -300.0f, 300.0f);
-    /* encoders: at once on the track; with a step key held, on the step */
-    if (in->enc[HE_SELECT]) {
-        ui.trk = ((ui.trk + in->enc[HE_SELECT]) % NT + NT) % NT;
+    if (in->bdown & (1u << HB_OCTDN)) {  /* half time */
+        sh.tempo = m_abs(sh.tempo) < 2.0f ? 0.0f : sh.tempo * 0.5f;
+        mz_say("HALF TIME", "");
+    }
+    if (in->bdown & (1u << HB_OCTUP)) {  /* double time */
+        sh.tempo = sh.tempo == 0.0f ? 30.0f : m_clamp(sh.tempo * 2.0f, -300.0f, 300.0f);
+        mz_say("DOUBLE TIME", "");
+    }
+    /* encoders: at once on the track; with a step key held, on the step. Fast turning goes further */
+    if (in->enc[HE_SELECT]) {            /* TEMPO, through 0 into backwards */
+        sh.tempo = m_clamp(sh.tempo + (float)in->enc[HE_SELECT] * par_accel(b->speed[HE_SELECT]), -300.0f, 300.0f);
+        if (m_abs(sh.tempo) < 0.5f)
+            sh.tempo = 0.0f;
         ui.hot[0] = in->ms + 400u;
-        sh.plot_rev++;
     }
     T = &sh.t[ui.trk];
     if (in->enc[HE_ALGO]) {              /* TIME: how much the time itself changes */
-        sh.time = m_clamp(sh.time + (float)in->enc[HE_ALGO] * 0.02f, 0.0f, 1.0f);
+        sh.time = m_clamp(sh.time + (float)in->enc[HE_ALGO] * par_accel(b->speed[HE_ALGO]) * 0.02f, 0.0f, 1.0f);
         ui.hot[1] = in->ms + 400u;
     }
     {
@@ -647,7 +1144,8 @@ void pj_control(const mz_in_t *in, const mz_body_t *b)
                 T->cond[hs] = (uint8_t)(((T->cond[hs] + in->enc[HE_K2]) % NCOND + NCOND) % NCOND);
                 ui.held_pressed = 1;
             } else {                     /* DECAY */
-                T->dec_x = m_clamp(T->dec_x * m_exp2((float)in->enc[HE_K2] * (1.0f / 8.0f)), 0.05f, 16.0f);
+                T->dec_x = m_clamp(T->dec_x * m_exp2((float)in->enc[HE_K2] * par_accel(b->speed[HE_K2]) * (1.0f / 8.0f)),
+                                   0.05f, 16.0f);
             }
             ui.hot[4] = in->ms + 400u;
             sh.plot_rev++;
@@ -658,7 +1156,8 @@ void pj_control(const mz_in_t *in, const mz_body_t *b)
                 T->trig[hs] = 1;
                 ui.held_pressed = 1;
             } else {                     /* DENSITY */
-                T->density = m_clamp(T->density + (float)in->enc[HE_K3] * 0.02f, 0.0f, 1.0f);
+                T->density = m_clamp(T->density + (float)in->enc[HE_K3] * par_accel(b->speed[HE_K3]) * 0.02f, 0.0f,
+                                     1.0f);
             }
             ui.hot[5] = in->ms + 400u;
             sh.plot_rev++;
@@ -668,7 +1167,7 @@ void pj_control(const mz_in_t *in, const mz_body_t *b)
                 T->len = (uint8_t)m_clampi(T->len + in->enc[HE_K4], 1, NS);
                 ui.held_pressed = 1;
             } else {                     /* MUT */
-                sh.mut = m_clamp(sh.mut + (float)in->enc[HE_K4] * 0.01f, 0.0f, 1.0f);
+                sh.mut = m_clamp(sh.mut + (float)in->enc[HE_K4] * par_accel(b->speed[HE_K4]) * 0.01f, 0.0f, 1.0f);
             }
             ui.hot[6] = in->ms + 400u;
             sh.plot_rev++;
@@ -699,16 +1198,10 @@ void pj_row(int i, mz_row_t *r)
     r->hot = now < ui.hot[i] || (hs >= 0 && i >= 2);
     switch (i) {
     case 0:
-        mz_cat(r->label, "TRACK");
-        mz_int(r->value, ui.trk + 1);
-        mz_cat(r->value, " ");
-        mz_cat(r->value, VB_NAME[T->kind]);
-        if (hs >= 0) {
-            mz_cat(r->value, " S");
-            mz_int(r->value, hs + 1);
-        }
-        mz_cat(r->value, T->on ? "" : " OUT");
-        r->alert = !T->on;
+        mz_cat(r->label, "TEMPO");
+        mz_fix(r->value, sh.tempo, m_abs(sh.tempo) < 99.5f ? 1 : 0);
+        mz_cat(r->value, " BPM");
+        r->alert = sh.tempo <= 0.0f;
         break;
     case 1:
         mz_cat(r->label, "TIME");
@@ -720,10 +1213,13 @@ void pj_row(int i, mz_row_t *r)
         if (hs >= 0) {
             mz_cat(r->label, "DEST");
             mz_cat(r->value, VP_NAME[d]);
-        } else {
+        } else {                         /* the track the knobs act on is named here */
             mz_cat(r->label, "RATE");
             mz_cat(r->value, "X");
             mz_cat(r->value, RATE_NAME[T->rate_i]);
+            mz_cat(r->value, " ");
+            mz_int(r->value, ui.trk + 1);
+            mz_cat(r->value, T->on ? VB_NAME[T->kind] : "OUT");
         }
         break;
     case 3:
@@ -785,11 +1281,15 @@ void pj_row(int i, mz_row_t *r)
 
 void pj_status(char *s)
 {
-    mz_fix(s, sh.tempo, 0);
-    mz_cat(s, " BPM");
+    if (sh.gen) {
+        mz_cat(s, sh.burst ? "BURST " : "GEN ");
+        mz_cat(s, RG[sh.regime].name);
+    } else {
+        mz_cat(s, "FX: GEN");
+    }
     if (sh.frozen)
         mz_cat(s, " HOLD");
-    if (sh.fill_held || sh.fill_next)
+    else if (sh.fill_held || sh.fill_next)
         mz_cat(s, " FILL");
 }
 
@@ -817,6 +1317,16 @@ void pj_plot(int h)
             if (T->has[s]) {
                 int hh = 1 + (int)(5.0f * m_clamp((T->val[s] - lo) / span, 0.0f, 1.0f));
                 hw_fill(x + 2, y + 13 - hh, 7, hh, flash ? C_HOT : C_GRN);
+            }
+            if (T->trig[s] && T->act[s]) {   /* GEN's marks: a tick each, in its colour (grey while GEN is off) */
+                int a, tx = x + 2;
+                for (a = 0; a < NACT; a++)
+                    if (T->act[s] >> a & 1u) {
+                        hw_fill(tx, y + 8, 1, 3, sh.gen ? ACT_COL[a] : C_DIMC);
+                        tx += 2;
+                        if (tx > x + 9)
+                            break;
+                    }
             }
         }
         if (T->rate_i != RATE_ONE)
@@ -862,7 +1372,7 @@ uint32_t pj_lit_buttons(void)
         m |= 1u << HB_GLO;
     if (sh.has_snap)
         m |= 1u << HB_SAVE;
-    if (sh.fill_held)
+    if (sh.gen)
         m |= 1u << HB_FX;
     return m;
 }

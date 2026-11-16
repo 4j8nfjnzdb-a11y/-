@@ -15,6 +15,8 @@ uint32_t hw_keys(void)
 }
 uint8_t hw_vel(int k) { return touch_vel((uint32_t)k); }
 uint8_t hw_pressure(int k) { return touch_pressure((uint32_t)k); }
+uint32_t hw_cpu_pct(void) { return plat_cpu_pct(); }
+uint32_t hw_xruns(void) { return plat_xruns(); }
 void hw_leds(uint32_t buttons, uint32_t keys, uint32_t dim_buttons, uint32_t dim_keys)
 {
     static uint32_t lb = 0xFFFFFFFFu, lk, ld, ldb;

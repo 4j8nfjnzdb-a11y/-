@@ -78,8 +78,27 @@ const mz_slot_t *mz_slot(int i);        /* slot i as it is */
 void mz_slot_set(int i, uint8_t src);   /* pj_init: a project's starting sources */
 uint32_t mz_slot_rev(void);             /* changes whenever a slot does */
 
-/* ---- the project (one per firmware) ---- */
-extern const char PJ_NAME[];            /* upper case, the screen's header */
+/* ---- the project (one per firmware; MZ_ALL: all six in one, each compiled with MZ_PJ set to its prefix, so its
+ * half of the contract is e1_pj_init, e2_pj_init, ...; the shell chooses among them, HOME held) ---- */
+#if defined(MZ_ALL) && defined(MZ_PJ)
+#define MZ_PJCAT_(a, b) a##_##b
+#define MZ_PJCAT(a, b) MZ_PJCAT_(a, b)
+#define PJ_NAME MZ_PJCAT(MZ_PJ, PJ_NAME)
+#define pj_init MZ_PJCAT(MZ_PJ, pj_init)
+#define pj_home MZ_PJCAT(MZ_PJ, pj_home)
+#define pj_reset_audio MZ_PJCAT(MZ_PJ, pj_reset_audio)
+#define pj_control MZ_PJCAT(MZ_PJ, pj_control)
+#define pj_render MZ_PJCAT(MZ_PJ, pj_render)
+#define pj_row MZ_PJCAT(MZ_PJ, pj_row)
+#define pj_status MZ_PJCAT(MZ_PJ, pj_status)
+#define pj_plot_rev MZ_PJCAT(MZ_PJ, pj_plot_rev)
+#define pj_plot MZ_PJCAT(MZ_PJ, pj_plot)
+#define pj_lit_keys MZ_PJCAT(MZ_PJ, pj_lit_keys)
+#define pj_dim_keys MZ_PJCAT(MZ_PJ, pj_dim_keys)
+#define pj_lit_buttons MZ_PJCAT(MZ_PJ, pj_lit_buttons)
+#define pj_dim_buttons MZ_PJCAT(MZ_PJ, pj_dim_buttons)
+#endif
+extern const char PJ_NAME[];         /* upper case, the screen's header */
 void pj_init(uint32_t seed);            /* boot: the simple state */
 void pj_home(void);                     /* UI: back to the simple state (HOME held) */
 void pj_reset_audio(void);              /* render: a bad number came out; clear what feeds back */

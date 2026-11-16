@@ -20,7 +20,9 @@
  *   BLOCK blocks of BLK samples dropped (+ BPROB) or repeated (- BPROB)
  * The body: turning back and forth widens the quantiser's hysteresis (hesitation makes it sticky); a fast hand makes
  * the clock unsteady (jitter grows with speed); moving again after stillness rewires: the stage order rotates, and
- * after a stillness of 5 s or more the sound is cut for a moment first (WIRE, black key 11, turns this off).
+ * after a stillness of 12 s or more the sound is cut for a moment first (WIRE, black key 11, turns this off). The
+ * stillness is the whole hand's: a knob joining another one is playing on. Every continuous number glides to where it
+ * was turned (about 20 ms), so a turn is a slide, not a jump.
  * Controls: SELECT DRIVE (the gain into the overflow), ALGO LOOP, PRESET INDEX, K1-K4 the page's four; the pages are
  * on the buttons (ARP SOURCE, ENV RATE, SEQ FLOAT, LFO BITS, SEL TIME, GLO VOICE; the page now is lit); OCT- / OCT+
  * the source an octave down / up; FX held freezes the sound; SAVE keeps it (held: back to it). */
@@ -153,6 +155,8 @@ static struct {
     float cap_min[240], cap_max[240];
     int cap_col, cap_n, armed;
     float prev_x;
+    float vs[NPAR];                      /* the numbers gliding to where they were turned */
+    uint8_t vs_ok;
 } st;
 
 static void defaults(void)
@@ -201,6 +205,7 @@ void pj_reset_audio(void)
     st.m1 = st.yprev = 0.0f;
     st.acc = st.held = st.held_prev = st.aa = 0.0f;
     st.rd = 0.0f;
+    st.vs_ok = 0;
     st.frozen = 0;
     st.qlast = 0.0f;
     for (i = 0; i < JD; i++)
@@ -400,6 +405,8 @@ static inline float st_sr(float x, float rate, float clock_wobble)
     if (sh.recon & 2u) {                             /* anti-alias: one pole at |rate| / 2 */
         float a = m_clamp(r * 0.5f * M_TAU * M_INV_SR, 0.0f, 1.0f);
         st.aa += (x - st.aa) * a;
+        if (m_abs(st.aa) < 1.0e-30f)
+            st.aa = 0.0f;
         x = st.aa;
     }
     st.acc += r * M_INV_SR * (1.0f + clock_wobble * m_rndb(&st.seed));
@@ -450,8 +457,20 @@ void pj_render(float *l, float *r, const float *inl, const float *inr, uint32_t 
         st.cut_seen = sh.cut_req;
         st.cut_left = sh.cut_len;
     }
-    for (k = 0; k < NPAR; k++)
-        v[k] = eff(k);
+    for (k = 0; k < NPAR; k++) {         /* a turn is a slide: each continuous number glides there (~20 ms) */
+        float t = eff(k), c = st.vs[k];
+        if (st.vs_ok && DEF[k].kind == P_LOG && c != 0.0f && t != 0.0f && (c > 0.0f) == (t > 0.0f)) {
+            float q = t / c;
+            c = m_abs(q - 1.0f) < 1.0e-4f ? t : c * m_exp2(0.3f * m_log2(q));   /* in octaves */
+        } else if (st.vs_ok && DEF[k].kind == P_LIN) {
+            c = m_abs(t - c) < 1.0e-5f * (1.0f + m_abs(t)) ? t : c + (t - c) * 0.3f;
+        } else {
+            c = t;                       /* steps, names, masks, and through 0: at once */
+        }
+        st.vs[k] = c;
+        v[k] = c;
+    }
+    st.vs_ok = 1;
     if (sh.freeze_hold)
         v[B_SR] = 0.0f;
     v[C_GAIN] = m_db2lin(v[C_GAIN]);
@@ -524,6 +543,8 @@ void pj_render(float *l, float *r, const float *inl, const float *inr, uint32_t 
             st.phc += incc;
             st.phm += incm;
         }
+        if (m_abs(x) < 1.0e-30f)         /* far below hearing: 0, never a denormal number (slow on the FM-1) */
+            x = 0.0f;
         if (inl && inr && inmix != 0.0f) {
             float a = 0.5f * (inl[i] + inr[i]);
             x = inmix > 0.0f ? x * (1.0f - inmix) + a * inmix : x * (1.0f + inmix) + x * a * (-inmix) * 2.0f;
@@ -531,10 +552,13 @@ void pj_render(float *l, float *r, const float *inl, const float *inr, uint32_t 
         /* the reorderable stages */
         for (k = 0; k < NORDER; k++) {
             int s = sh.order[k];
-            if (s < NORDER && (sh.on[s] || (s == S_SR && sh.freeze_hold)))
+            if (s < NORDER && (sh.on[s] || (s == S_SR && sh.freeze_hold))) {
                 x = stage(s, x, v);
+                if (m_abs(x) < 1.0e-30f)     /* a stage's tiny result never goes on as a denormal number */
+                    x = 0.0f;
+            }
         }
-        if (!m_finite(x))
+        if (!m_finite(x) || m_abs(x) < 1.0e-30f)
             x = 0.0f;
         /* JIT: the reading instant, left and right apart */
         st.jd[st.jw & (JD - 1u)] = x;
@@ -607,12 +631,16 @@ void pj_render(float *l, float *r, const float *inl, const float *inr, uint32_t 
         if (st.cut_left) {
             st.cut_left--;
             st.cut_g += (0.0f - st.cut_g) * 0.05f;
+            if (st.cut_g < 1.0e-12f)
+                st.cut_g = 0.0f;
         } else if (st.cut_g < 1.0f) {
             st.cut_g = m_min(1.0f, st.cut_g + 0.01f);
         }
         yl *= st.cut_g;
         yr *= st.cut_g;
         st.yprev = m_clamp(0.5f * (yl + yr), -2.0f, 2.0f);   /* LOOP: back into the carrier's phase */
+        if (m_abs(st.yprev) < 1.0e-30f)
+            st.yprev = 0.0f;
         l[i] = yl * 0.5f;                            /* -6 dBFS for a full-scale chain: the limiter is for more */
         r[i] = yr * 0.5f;
         /* the scope: 240 columns of 4 samples, from a rising zero crossing */
@@ -680,8 +708,11 @@ void pj_control(const mz_in_t *in, const mz_body_t *b)
     /* white keys: pressure pushes an axis; a press kicks it by its velocity (decaying in 150 ms) */
     {
         float kdec = m_tc(0.15f, 1000.0f / (float)(in->dt ? in->dt : 1u));
-        for (i = 0; i < NAX; i++)
+        for (i = 0; i < NAX; i++) {
             ui.kick[i] *= kdec;
+            if (ui.kick[i] < 1.0e-6f)    /* 0, not a decaying denormal number */
+                ui.kick[i] = 0.0f;
+        }
         for (i = 0; i < 16; i++) {
             int key = WHITE[i], ax = i < 12 ? i : (i - 12) == 3 ? AX_LOOP : i - 12;
             if (in->down >> key & 1u) {
@@ -783,8 +814,8 @@ void pj_control(const mz_in_t *in, const mz_body_t *b)
             sh.order[k] = sh.order[k + 1];
         sh.order[NORDER - 1] = first;
         ui.wire_count++;
-        if (b->onset_any >= 5.0f) {
-            float sec = m_min(0.5f, b->onset_any * 0.03f);
+        if (b->onset_any >= 12.0f) {     /* only after a long stillness of the whole hand */
+            float sec = m_min(0.4f, b->onset_any * 0.015f);
             sh.cut_len = (uint32_t)(sec * M_SR);
             sh.cut_req++;
         }
@@ -794,7 +825,7 @@ void pj_control(const mz_in_t *in, const mz_body_t *b)
             if (s < 2)
                 mz_cat(ui.last_wire, ">");
         }
-        mz_say(b->onset_any >= 5.0f ? "CUT+WIRE" : "WIRE", ui.last_wire);
+        mz_say(b->onset_any >= 12.0f ? "CUT+WIRE" : "WIRE", ui.last_wire);
         sh.plot_rev++;
     }
 }

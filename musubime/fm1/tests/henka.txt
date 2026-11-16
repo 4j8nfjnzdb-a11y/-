@@ -1,4 +1,4 @@
-# HENKA: steps, density, the track buttons, thin / clear, keep / back, hold changes, live strikes and repeats
+# HENKA: steps, density, tempo, GEN (FX) and a burst, the track buttons, thin / clear, keep / back, hold, strikes
 wait 800
 shot boot.png
 master 4096
@@ -9,7 +9,13 @@ wait 400
 key w2 up
 turn K3 10 30
 turn K4 20 30
+turn SELECT 12 30
+tap FX
 wait 2000
+press FX
+wait 800
+release FX
+wait 1000
 tap ARP
 wait 300
 tap ARP
@@ -33,6 +39,8 @@ press SEL
 wait 900
 release SEL
 tap OCT+
+wait 1000
+tap OCT-
 wait 2000
 shot play.png
 wavstop

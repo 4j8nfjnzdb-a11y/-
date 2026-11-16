@@ -223,6 +223,8 @@ void pj_render(float *l, float *r, const float *inl, const float *inr, uint32_t 
                 b = b * b * (3.0f - 2.0f * b);
             }
             st.env += (b - st.env) * 0.0015f;
+            if (st.env < 1.0e-12f)
+                st.env = 0.0f;
             g = st.env;
             idx *= 0.3f + 0.7f * st.env;
             if (mode_voice(MR) && st.env > 0.5f && st.br_prev <= 0.5f) {   /* the breath plays the slot's voice */
@@ -256,6 +258,8 @@ void pj_render(float *l, float *r, const float *inl, const float *inr, uint32_t 
                 if (st.mode == MM && st.ev_t >= att && st.ev_t < st.ev_len - 200u && fib_long(M->n))
                     d = m_max(d, 0.55f);     /* a long one is held */
                 st.env += (d - st.env) * 0.2f;
+                if (st.env < 1.0e-12f)       /* (no denormal numbers between the events: slow on the FM-1) */
+                    st.env = 0.0f;
             }
             st.ev_t++;
             g = st.env;

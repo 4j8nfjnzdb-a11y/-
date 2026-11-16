@@ -127,10 +127,21 @@ static inline void vox_coefs(vox_k_t *k, const float *p)
 static inline float vox_run(vox_t *v, const vox_k_t *k, float ext)
 {
     float fc = k->f0, n, m, c, y;
-    if (k->sweep_oct > 0.0f && v->sweep_env > 1.0e-4f)
-        fc *= m_exp2(k->sweep_oct * v->sweep_env);
-    v->sweep_env *= k->k_sweep;
-    v->idx_env *= k->k_idx;
+    /* a silent voice costs nothing, and no envelope is left to sink into denormal numbers (slow on the FM-1's FPU,
+     * and decaying multiplications reach them within seconds) */
+    if (!v->att_left && v->amp < 1.0e-5f) {
+        v->amp = v->sweep_env = v->idx_env = 0.0f;
+        v->y = 0.0f;
+        return 0.0f;
+    }
+    if (v->sweep_env > 1.0e-4f) {
+        if (k->sweep_oct > 0.0f)
+            fc *= m_exp2(k->sweep_oct * v->sweep_env);
+        v->sweep_env *= k->k_sweep;
+    } else {
+        v->sweep_env = 0.0f;
+    }
+    v->idx_env = v->idx_env > 1.0e-6f ? v->idx_env * k->k_idx : 0.0f;
     if (v->att_left) {
         v->amp += (1.0f - v->amp) / (float)v->att_left;
         v->att_left--;

@@ -22,6 +22,8 @@ uint32_t hw_keys(void);                 /* held: bit k = key k (0 = F3) */
 uint8_t hw_vel(int k);                  /* the key's last press, 1..127 */
 uint8_t hw_pressure(int k);             /* a held key pressed harder than it rests, 0..127 (keys 0..19) */
 void hw_leds(uint32_t buttons, uint32_t keys, uint32_t dim_buttons, uint32_t dim_keys);   /* lit; dim = has a use */
+uint32_t hw_cpu_pct(void);              /* the audio render's load, % of the time it has (0: not known here) */
+uint32_t hw_xruns(void);                /* audio blocks the render was too late for, since boot */
 
 /* the screen: 240 x 240, RGB565, drawn in strips 240 wide (at most 144 rows), each sent when ended */
 void hw_strip_begin(int y, int h);

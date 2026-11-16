@@ -38,6 +38,8 @@ uint32_t hw_buttons(void) { return btns; }
 uint32_t hw_keys(void) { return keys; }
 uint8_t hw_vel(int k) { return vel[k]; }
 uint8_t hw_pressure(int k) { return prs[k]; }
+uint32_t hw_cpu_pct(void) { return 0; }
+uint32_t hw_xruns(void) { return 0; }
 void hw_leds(uint32_t b, uint32_t k, uint32_t db, uint32_t d) { (void)b, (void)k, (void)db, (void)d; }
 void hw_strip_begin(int y, int h)
 {

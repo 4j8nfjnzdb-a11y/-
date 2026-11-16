@@ -12,11 +12,13 @@ FM-1 を USB でつないで電源を入れ、音楽アプリを閉じてから�
 curl -fsSL https://raw.githubusercontent.com/4j8nfjnzdb-a11y/-/refs/heads/claude/eloquent-mendel-xx2vgi/musubime/install-mac.sh | bash
 ```
 
-`install-mac.sh` が道具の確認と準備、ファイルのダウンロード（GitHub の prerelease「musubime-latest」と公式 V15）、FM-1 の今のバージョンの読み取りをして、公式 V16 や FM1 Open なら先に V15 に戻し、それから変化（henka）を書き込みます。書き込みの前には毎回 y / n を聞きます。別のプロジェクトは最後に ` -s kuzushi` のように名前を付けます。
+`install-mac.sh` が道具の確認と準備、ファイルのダウンロード（GitHub の prerelease「musubime-latest」と公式 V15）、FM-1 の今のバージョンの読み取りをして、公式 V16 や FM1 Open なら先に V15 に戻し、それから **6 つ全部入り（musubime）** を書き込みます。書き込みの前には毎回 y / n を聞きます。1 つだけ入れるときは最後に ` -s kuzushi` のように名前を付けます。
+
+全部入りでは、HOME を押さえている間に 6 つが画面に並びます。SELECT を回すか白鍵 1〜6 を押し、HOME を離すとそこへ移ります（白鍵 7 は今のものを最初から）。それぞれ離れた所から続きます。画面右下の C は音の計算の負荷（%）、X は音が間に合わなかった回数です。
 
 ## まとめ: 入れるデータと手順
 
-- **入れるデータ**: プロジェクトごとに `.fwsc` ファイルが 1 つ（`kuzushi.fwsc`、`henka.fwsc` など）。FM-1 のファームウェア一式で、USB-MIDI で書き込みます。一度に入るのは 1 つだけで、別のプロジェクトにするときは入れ直します。音源（28 種類の FM の音色とスロット）はファームウェアの中に入っているので、別のファイルは要りません。
+- **入れるデータ**: 全部入りの `musubime.fwsc`、またはプロジェクトごとの `.fwsc`（`kuzushi.fwsc`、`henka.fwsc` など）。FM-1 のファームウェア一式で、USB-MIDI で書き込みます。FM-1 に入るファームウェアは一度に 1 つなので、6 つを切り替えて使うなら全部入りを入れます。音源（28 種類の FM の音色とスロット）はファームウェアの中に入っているので、別のファイルは要りません。
 - **手に入れ方**: リポジトリの Actions の「musubime firmware」が、`musubime/` を変えて push するたびに 6 つの `.fwsc` を作ります。実行結果のページの下の Artifacts にある **musubime-fwsc**（zip）をダウンロードして解凍します（GitHub へのログインが必要、90 日で消える）。自分でビルドするなら下の 2〜4。
 - **入れ方**:
   1. 公式ファームを V15 にしておく

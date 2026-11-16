@@ -1,0 +1,10 @@
+# HENKA with GEN (FX tapped at 1 s), left alone: regimes come and go, the synth track gets notes, chords, echoes
+1 btn FX down
+1.1 btn FX up
+30 shot gen30
+90 shot gen90
+150 shot gen150
+200 btn FX down
+202 shot burst
+203 btn FX up
+230 shot after
