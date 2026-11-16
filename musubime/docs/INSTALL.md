@@ -4,6 +4,16 @@ musubime の 6 つのプロジェクトは、それぞれ独立した FM-1 用�
 
 調べた範囲は 2026 年 11 月時点の公開リポジトリと記事です（末尾の出典）。**確認済み**と**未確認**を分けて書きます。
 
+## いちばん簡単な入れ方（Mac、ターミナルに 1 行）
+
+FM-1 を USB でつないで電源を入れ、音楽アプリを閉じてから、ターミナルに次の 1 行を貼って return:
+
+```
+curl -fsSL https://raw.githubusercontent.com/4j8nfjnzdb-a11y/-/refs/heads/claude/eloquent-mendel-xx2vgi/musubime/install-mac.sh | bash
+```
+
+`install-mac.sh` が道具の確認と準備、ファイルのダウンロード（GitHub の prerelease「musubime-latest」と公式 V15）、FM-1 の今のバージョンの読み取りをして、公式 V16 や FM1 Open なら先に V15 に戻し、それから変化（henka）を書き込みます。書き込みの前には毎回 y / n を聞きます。別のプロジェクトは最後に ` -s kuzushi` のように名前を付けます。
+
 ## まとめ: 入れるデータと手順
 
 - **入れるデータ**: プロジェクトごとに `.fwsc` ファイルが 1 つ（`kuzushi.fwsc`、`henka.fwsc` など）。FM-1 のファームウェア一式で、USB-MIDI で書き込みます。一度に入るのは 1 つだけで、別のプロジェクトにするときは入れ直します。音源（28 種類の FM の音色とスロット）はファームウェアの中に入っているので、別のファイルは要りません。
