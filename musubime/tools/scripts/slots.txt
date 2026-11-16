@@ -1,0 +1,12 @@
+# the voice page: EDIT held; slot 1 -> EPIANO, slot 2 -> BASS; later slot 1 -> ORGAN
+1 btn EDIT down
+1.2 enc 1 11
+1.6 enc 0 1
+1.8 enc 1 14
+2.4 shot voices
+2.5 btn EDIT up
+14 btn EDIT down
+14.2 enc 0 -1
+14.4 enc 1 5
+14.8 btn EDIT up
+24 shot end

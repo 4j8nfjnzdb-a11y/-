@@ -19,7 +19,7 @@
  * (the hand as a modulator). With audio coming in (the computer, where the platform gives it), the input is heard
  * with the output and also modulates operator 1. */
 #include "par.h"
-#include "fm.h"
+#include "fmvox.h"
 
 const char PJ_NAME[] = "TEKIOU";
 
@@ -70,6 +70,13 @@ static struct {
     float bored;                         /* seconds too steady */
     float in_ss, in_prev;
     uint32_t in_zc;
+    /* the slots: a voice the system plays by itself (when its brightness crosses the target, at each structural step,
+     * and at least every 2 s), FM-modulated by the network; each structural step moves to the next filled slot */
+    vox_t vox;
+    vox_k_t vk;
+    float vlevel, err_prev;
+    uint8_t vslot, vtrig;
+    uint32_t vsince;
 } st;
 
 static void defaults(void)
@@ -128,6 +135,11 @@ void pj_reset_audio(void)
     st.blk_ss = st.prev_s = st.rms_slow = st.var_acc = st.rms_fast = 0.0f;
     st.out_bad = st.bored = 0.0f;
     sh.gain = 1.0f;
+    vox_reset(&st.vox);
+    st.vslot = 0;
+    st.vtrig = 1;
+    st.vsince = 0;
+    st.err_prev = 0.0f;
 }
 
 static int count_edges(void)
@@ -200,6 +212,17 @@ static void restructure(int want)
     mz_int(t, i + 1);
     mz_int(t, j + 1);
 done:
+    {                                    /* the voice: the next filled slot, struck */
+        int k, sl = st.vslot;
+        for (k = 0; k < MZ_SLOTS; k++) {
+            sl = (sl + 1) % MZ_SLOTS;
+            if (mz_slot(sl)->src)
+                break;
+        }
+        if (mz_slot(sl)->src)
+            st.vslot = (uint8_t)sl;
+        st.vtrig = 1;
+    }
     sh.steps++;
     sh.plot_rev++;
 }
@@ -241,6 +264,22 @@ void pj_render(float *l, float *r, const float *inl, const float *inr, uint32_t 
         }
         out *= ntap;
         out += 0.5f * ext;
+        {                                /* a slot's voice, played by the system, the network into its carrier */
+            const mz_slot_t *v = mz_voice(st.vslot);
+            if (v) {
+                if (st.vtrig || ++st.vsince > (uint32_t)(2.0f * M_SR)) {
+                    float p[NVP];
+                    vox_slot_place(p, v, P[G_REG].v * (1.0f / 150.0f), 1.0f, (sh.gain - 1.0f) * 2.0f, 0.0f, 1.0f);
+                    p[VP_XMOD] = 1.5f;
+                    vox_coefs(&st.vk, p);
+                    st.vlevel = vox_slot_level(v) * 0.9f;
+                    vox_trig(&st.vox, &st.vk);
+                    st.vtrig = 0;
+                    st.vsince = 0;
+                }
+                out = 0.35f * out + vox_run(&st.vox, &st.vk, out) * st.vlevel;
+            }
+        }
         /* the listening: zero crossings and power, a block at a time */
         if ((out > 0.0f) != (st.prev_s > 0.0f))
             st.zc++;
@@ -267,6 +306,9 @@ void pj_render(float *l, float *r, const float *inl, const float *inr, uint32_t 
             {
                 float target = m_clamp(P[G_TARGET].v + m_min(0.6f, sh.age * 0.1f), 0.0f, 1.0f);
                 float err = sh.bright - target;
+                if ((err > 0.0f) != (st.err_prev > 0.0f))
+                    st.vtrig = 1;                /* crossing its own target: a stroke */
+                st.err_prev = err;
                 sh.gain = m_clamp(sh.gain - sh.homeo_eff * err * 0.6f * blk_dt * 4.0f, 0.05f, 4.0f);
                 /* 2. ultrastability */
                 if (m_abs(err) > sh.band_eff)

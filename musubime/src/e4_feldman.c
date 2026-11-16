@@ -16,7 +16,7 @@
  * abrash settle toward symmetry (the crippling stays). Holding a white key lengthens that tone of the layer, for
  * good, as long as it is held (pressing harder, faster). */
 #include "par.h"
-#include "fm.h"
+#include "fmvox.h"
 
 const char PJ_NAME[] = "FELDMAN";
 
@@ -64,6 +64,10 @@ static struct {
 static struct {
     uint32_t home_seen;
     op_t car[NLY], mod[NLY];
+    vox_t vox[NLY];
+    vox_k_t vk[NLY];
+    float vlevel[NLY];
+    uint8_t vplay[NLY];
     uint32_t t[NLY], len_n[NLY];
     float env[NLY], target_env[NLY];
     float level_s;
@@ -131,6 +135,8 @@ void pj_reset_audio(void)
         st.t[k] = st.len_n[k] = 0;
         st.env[k] = 0.0f;
         sh.ly[k].pos = -1;
+        vox_reset(&st.vox[k]);
+        st.vplay[k] = 0;
     }
     st.level_s = 1.0f;
 }
@@ -183,12 +189,24 @@ static void repeat_end(int k)
 static void start_tone(int k)
 {
     layer_t *L = &sh.ly[k];
+    const mz_slot_t *v = mz_voice(k);    /* layer A, B, C: slots 1, 2, 3 (empty: slot 1, else the soft FM) */
     if (++L->pos >= L->n) {
         L->pos = 0;
         repeat_end(k);
     }
     st.len_n[k] = (uint32_t)((float)L->units[L->pos] * unit_s(k) * M_SR);
     st.t[k] = 0;
+    st.vplay[k] = v != 0;
+    if (v && L->on && !L->rest[L->pos]) {
+        float p[NVP], len_s = (float)st.len_n[k] * M_INV_SR;
+        int kind = v->src - 1;
+        vox_slot_place(p, v, P[G_REG].v * (1.0f / 220.0f) * LAYER_RATIO[k] * m_exp2(L->cents[L->pos] * (1.0f / 1200.0f)),
+                       1.0f, (P[G_BRIGHT].v - 0.6f) + L->col[L->pos] * 1.5f, 0.0f,
+                       VB_HELD[kind] ? 1.0f : m_clamp(len_s / 0.8f, 0.3f, 3.0f));
+        vox_coefs(&st.vk[k], p);
+        vox_trig(&st.vox[k], &st.vk[k]);
+        st.vlevel[k] = vox_slot_level(v) * 1.4f;
+    }
     sh.plot_rev++;
 }
 
@@ -223,9 +241,14 @@ void pj_render(float *l, float *r, const float *inl, const float *inr, uint32_t 
             st.env[k] += (g - st.env[k]) * 0.002f;
             f = reg * LAYER_RATIO[k] * m_exp2(L->cents[L->pos] * (1.0f / 1200.0f));
             a = m_db2lin(L->amp[L->pos] * 12.0f);
-            y = op_run(&st.mod[k], m_inc(f * 2.0f), 0.0f);
-            y = op_run(&st.car[k], m_inc(f), (bright * (1.0f + L->col[L->pos])) * 0.159f * y);
-            y *= st.env[k] * a * st.level_s;
+            if (st.vplay[k]) {           /* a slot's voice: its own envelope; held kinds follow the soft one */
+                int held = VB_HELD[mz_voice(k) ? mz_voice(k)->src - 1 : VB_SINE_INDEX];
+                y = vox_run(&st.vox[k], &st.vk[k], 0.0f) * st.vlevel[k] * a * st.level_s * (held ? st.env[k] : 1.0f);
+            } else {
+                y = op_run(&st.mod[k], m_inc(f * 2.0f), 0.0f);
+                y = op_run(&st.car[k], m_inc(f), (bright * (1.0f + L->col[L->pos])) * 0.159f * y);
+                y *= st.env[k] * a * st.level_s;
+            }
             yl += y * (k == 1 ? 0.55f : k == 2 ? 0.85f : 0.7f);
             yr += y * (k == 1 ? 0.85f : k == 2 ? 0.55f : 0.7f);
             st.t[k]++;

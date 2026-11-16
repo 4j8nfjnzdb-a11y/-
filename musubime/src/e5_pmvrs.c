@@ -16,7 +16,7 @@
  * that has been away longest (attention to what was forgotten). The switch is the "change of consciousness"; there is
  * no theory of which mode should follow which. */
 #include "par.h"
-#include "fm.h"
+#include "fmvox.h"
 
 const char PJ_NAME[] = "PMVRS";
 
@@ -67,7 +67,21 @@ static struct {
     float br_ph, br_len;                 /* R's own breath */
     pink_t br_pink;
     float cx_k;
+    vox_t vox;                           /* P M V R: slots 1-4 (empty: slot 1, else the mode's own FM) */
+    vox_k_t vk;
+    float vlevel, br_prev;
 } st;
+
+/* the mode's slot voice, placed by the mode's own state (its complexity and its drift) */
+static const mz_slot_t *mode_voice(int m) { return m < MS ? mz_voice(m) : 0; }
+static void voice_place(const mz_slot_t *v, const mode_t_ *M, float len_s)
+{
+    float p[NVP];
+    vox_slot_place(p, v, P[G_REG].v * (1.0f / 196.0f) * m_exp2(0.35f * M->fb_walk), 1.0f + 0.3f * M->cx * M->ratio_walk,
+                   M->cx * 5.0f, M->cx * M->cx, m_clamp(len_s / 0.6f, 0.2f, 4.0f));
+    vox_coefs(&st.vk, p);
+    st.vlevel = vox_slot_level(v) * 1.5f;
+}
 
 static void defaults(void)
 {
@@ -119,6 +133,8 @@ void pj_reset_audio(void)
     st.ev_t = st.ev_len = 0;
     st.br_ph = 0.0f;
     st.br_len = 4.5f;
+    vox_reset(&st.vox);
+    st.br_prev = 0.0f;
 }
 
 /* the Fibonacci word, letter n: 1 long, 0 short */
@@ -183,6 +199,7 @@ void pj_render(float *l, float *r, const float *inl, const float *inr, uint32_t 
                 st.ev_t = 0;
                 st.ev_len = 0;
                 M = &sh.md[st.mode];
+                vox_reset(&st.vox);          /* nothing of the last mode carries over */
             }
         }
         cx = M->cx;
@@ -207,6 +224,11 @@ void pj_render(float *l, float *r, const float *inl, const float *inr, uint32_t 
             st.env += (b - st.env) * 0.0015f;
             g = st.env;
             idx *= 0.3f + 0.7f * st.env;
+            if (mode_voice(MR) && st.env > 0.5f && st.br_prev <= 0.5f) {   /* the breath plays the slot's voice */
+                voice_place(mode_voice(MR), M, P[G_BREATH].v * 0.5f);
+                vox_trig(&st.vox, &st.vk);
+            }
+            st.br_prev = st.env;
         } else if (st.mode == MS) {      /* silence */
             g = 0.0f;
             st.env = 0.0f;
@@ -214,6 +236,10 @@ void pj_render(float *l, float *r, const float *inl, const float *inr, uint32_t 
             if (st.ev_t >= st.ev_len) {
                 st.ev_len = next_len(st.mode);
                 st.ev_t = 0;
+                if (mode_voice(st.mode)) {
+                    voice_place(mode_voice(st.mode), M, (float)st.ev_len * M_INV_SR);
+                    vox_trig(&st.vox, &st.vk);
+                }
             }
             {
                 uint32_t att = 90u, rel = st.mode == MM ? st.ev_len / 3u : st.ev_len / 2u;
@@ -235,7 +261,11 @@ void pj_render(float *l, float *r, const float *inl, const float *inr, uint32_t 
         }
         if (st.cut)
             g = st.env;
-        {
+        if (mode_voice(st.mode)) {       /* a slot's voice: its own envelope; the cut and a held breath on top */
+            const mz_slot_t *v = mode_voice(st.mode);
+            float w = st.cut ? st.env : (st.mode == MR && VB_HELD[v->src - 1]) ? st.env : 1.0f;
+            y = vox_run(&st.vox, &st.vk, 0.0f) * st.vlevel * w;
+        } else {
             float m = op_run(&st.mod, m_inc(f * ratio), fb * 0.159f * st.mod.y);
             y = op_run(&st.car, m_inc(f), idx * 0.159f * m) * g * 0.42f;
         }

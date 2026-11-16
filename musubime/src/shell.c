@@ -495,10 +495,11 @@ static void voice_turn(const mz_in_t *in)
         ui.vhot[i] = in->ms + 400u;
         switch (i) {
         case 0:
-            ui.vslot = (ui.vslot + (d > 0 ? 1 : MZ_SLOTS - 1)) % MZ_SLOTS;
+            ui.vslot = ((ui.vslot + d) % MZ_SLOTS + MZ_SLOTS) % MZ_SLOTS;
+            s = &slots[ui.vslot];
             break;
         case 1:
-            s->src = (uint8_t)(((int)s->src + (d > 0 ? 1 : NVB)) % (NVB + 1));
+            s->src = (uint8_t)((((int)s->src + d) % (NVB + 1) + (NVB + 1)) % (NVB + 1));
             break;
         case 2:
             s->tune = m_clamp(s->tune + (float)d * 0.0833333f, -5.0f, 5.0f);   /* a twelfth of an octave a detent */
@@ -670,7 +671,6 @@ void mz_frame(void)
     } else if (gl.state == GL_LOOP) {
         gl_play(&in, dt);
     }
-    body_update(&body, &in);
     ui.vpage = (uint8_t)((in.btn >> HB_EDIT) & 1u);    /* EDIT held: the voice page takes the encoders */
     if (ui.vpage != ui.vpage_was) {
         ui.vpage_was = ui.vpage;
@@ -678,11 +678,12 @@ void mz_frame(void)
             ui.row_ok[i] = 0;
         ui.plot_rev = 0xFFFFFFFFu;
     }
-    if (ui.vpage) {
+    if (ui.vpage) {                      /* (and they are not the body's: choosing a sound is not a gesture) */
         voice_turn(&in);
         for (i = 0; i < HW_NENC; i++)
             in.enc[i] = 0;
     }
+    body_update(&body, &in);
     pj_control(&in, &body);
     /* lights */
     bit = 0;
