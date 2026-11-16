@@ -9,11 +9,11 @@
 # 書き込む前には必ず y / n を聞く。書き込みは fm1-base の fm1_install.py（書く前にファイルと機器を確かめる）。
 set -u
 NAME="${1:-henka}"
-case "$NAME" in henka|kuzushi|sen|feldman|pmvrs|tekiou) ;; *) echo "名前は henka kuzushi sen feldman pmvrs tekiou のどれか"; exit 1 ;; esac
+case "${NAME}" in henka|kuzushi|sen|feldman|pmvrs|tekiou) ;; *) echo "名前は henka kuzushi sen feldman pmvrs tekiou のどれか"; exit 1 ;; esac
 REL="https://github.com/4j8nfjnzdb-a11y/-/releases/download/musubime-latest"
 V15_URL="https://github.com/m-vave/fm1_open/raw/main/sdk/firmware/FM-1_015.fwsc"
-WORK="$HOME/musubime-fm1"
-BASE="$WORK/fm1-base"
+WORK="${HOME}/musubime-fm1"
+BASE="${WORK}/fm1-base"
 FM1B=c8e05997ce970875038156d2bbd69e712eac1543   # the fm1-base commit the firmwares were built and tested with
 
 say() { printf '\n\033[1m%s\033[0m\n' "$*"; }
@@ -36,7 +36,7 @@ for c in /Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12 /usr/
          /opt/homebrew/bin/python3.12 "$(command -v python3.12 2>/dev/null)"; do
   if [ -n "$c" ] && [ -x "$c" ]; then PY="$c"; break; fi
 done
-if [ -z "$PY" ]; then
+if [ -z "${PY}" ]; then
   note "Python 3.12（無料、数十 MB）が必要です。今からブラウザでダウンロードのページを開きます。"
   note "ページの下の方の「macOS 64-bit universal2 installer」を押してダウンロードし、"
   note "ダウンロードしたファイルを開いて「続ける」「同意する」「インストール」と進めてください。"
@@ -45,70 +45,70 @@ if [ -z "$PY" ]; then
   open "https://www.python.org/downloads/release/python-31210/" 2>/dev/null
   exit 0
 fi
-inst() { "$PY" "$BASE/tools/fm1_install.py" "$@"; }
-if ! "$PY" -c 'import mido, rtmidi' 2>/dev/null; then
+inst() { "${PY}" "${BASE}/tools/fm1_install.py" "$@"; }
+if ! "${PY}" -c 'import mido, rtmidi' 2>/dev/null; then
   note "USB-MIDI の部品（mido, python-rtmidi）を入れます…"
-  "$PY" -m pip install --user --quiet --only-binary=:all: mido python-rtmidi 2>/dev/null ||
-    "$PY" -m pip install --user --quiet --only-binary=:all: --break-system-packages mido python-rtmidi ||
+  "${PY}" -m pip install --user --quiet --only-binary=:all: mido python-rtmidi 2>/dev/null ||
+    "${PY}" -m pip install --user --quiet --only-binary=:all: --break-system-packages mido python-rtmidi ||
     stop "部品を入れられませんでした"
 fi
-mkdir -p "$WORK"
-if [ ! -f "$BASE/tools/fm1_install.py" ]; then
+mkdir -p "${WORK}"
+if [ ! -f "${BASE}/tools/fm1_install.py" ]; then
   note "書き込み用の道具（fm1-base）を取ってきます…"
-  rm -rf "$BASE" "$WORK/fm1-base.zip" "$WORK/fm1-base-$FM1B"
-  curl -fsSL -o "$WORK/fm1-base.zip" "https://github.com/charlesvestal/fm1-base/archive/$FM1B.zip" &&
-    unzip -q "$WORK/fm1-base.zip" -d "$WORK" && mv "$WORK/fm1-base-$FM1B" "$BASE" && rm -f "$WORK/fm1-base.zip" ||
+  rm -rf "${BASE}" "${WORK}/fm1-base.zip" "${WORK}/fm1-base-${FM1B}"
+  curl -fsSL -o "${WORK}/fm1-base.zip" "https://github.com/charlesvestal/fm1-base/archive/${FM1B}.zip" &&
+    unzip -q "${WORK}/fm1-base.zip" -d "${WORK}" && mv "${WORK}/fm1-base-${FM1B}" "${BASE}" && rm -f "${WORK}/fm1-base.zip" ||
     stop "fm1-base を取ってこられませんでした"
 fi
 note "OK"
 
-say "2/5 ファイルをダウンロードします（$NAME と、公式 V15）"
-curl -fsSL -o "$WORK/$NAME.fwsc.part" "$REL/$NAME.fwsc" && mv "$WORK/$NAME.fwsc.part" "$WORK/$NAME.fwsc" ||
-  stop "$NAME.fwsc をダウンロードできませんでした"
-if [ ! -s "$WORK/FM-1_015.fwsc" ]; then
-  curl -fsSL -o "$WORK/FM-1_015.fwsc.part" "$V15_URL" && mv "$WORK/FM-1_015.fwsc.part" "$WORK/FM-1_015.fwsc" ||
+say "2/5 ファイルをダウンロードします（${NAME} と、公式 V15）"
+curl -fsSL -o "${WORK}/${NAME}.fwsc.part" "${REL}/${NAME}.fwsc" && mv "${WORK}/${NAME}.fwsc.part" "${WORK}/${NAME}.fwsc" ||
+  stop "${NAME}.fwsc をダウンロードできませんでした"
+if [ ! -s "${WORK}/FM-1_015.fwsc" ]; then
+  curl -fsSL -o "${WORK}/FM-1_015.fwsc.part" "${V15_URL}" && mv "${WORK}/FM-1_015.fwsc.part" "${WORK}/FM-1_015.fwsc" ||
     stop "公式 V15 をダウンロードできませんでした"
 fi
-note "OK（保存先: $WORK）"
+note "OK（保存先: ${WORK}）"
 
 say "3/5 FM-1 を探します"
 note "FM-1 を USB ケーブルで Mac につなぎ、電源を入れておいてください。"
 note "DAW や音楽アプリ、MIDI を使うアプリは閉じてください。"
 printf '  準備ができたら return を押してください'; read -r _ </dev/tty
 ID=$(identity)
-if [ -z "$ID" ]; then
+if [ -z "${ID}" ]; then
   inst --info 2>&1 | sed 's/^/  /'
   stop "FM-1 が見つかりません（ケーブル・電源・ほかのアプリを確かめて、もう一度 1 行を貼ってください）"
 fi
-case "$ID" in
+case "${ID}" in
   FM-1_015) note "今の FM-1: 公式ファーム V15（このまま入れられます）"; NEED15=0 ;;
   FM-1_0[0-9][0-9]) note "今の FM-1: 公式ファーム V${ID#FM-1_0}"; NEED15=1 ;;
-  FM1_*) note "今の FM-1: M-VAVE の FM1 Open（$ID）"; NEED15=1 ;;
-  *) note "今の FM-1: コミュニティのファームウェア（$ID）。そのまま上書きできます"; NEED15=0 ;;
+  FM1_*) note "今の FM-1: M-VAVE の FM1 Open（${ID}）"; NEED15=1 ;;
+  *) note "今の FM-1: コミュニティのファームウェア（${ID}）。そのまま上書きできます"; NEED15=0 ;;
 esac
 
-if [ "$NEED15" = 1 ]; then
+if [ "${NEED15}" = 1 ]; then
   say "4/5 先に公式ファームの V15 にします（約 1 分）"
   note "コミュニティのファームウェアは V15 から入れるのが決まりです。"
   note "書き込み中は USB を抜かないでください。"
   ask "V15 を書き込みますか？" || { say "やめました。何も書き込んでいません。"; exit 0; }
-  inst --yes "$WORK/FM-1_015.fwsc" || stop "V15 の書き込みで止まりました"
+  inst --yes "${WORK}/FM-1_015.fwsc" || stop "V15 の書き込みで止まりました"
   note "FM-1 の再起動を待っています…"
   for i in 1 2 3 4 5 6 7 8 9 10; do
     sleep 3
     ID=$(identity)
-    [ "$ID" = "FM-1_015" ] && break
+    [ "${ID}" = "FM-1_015" ] && break
   done
-  [ "$ID" = "FM-1_015" ] || stop "V15 になったことを確かめられませんでした（今の答え: ${ID:-なし}）"
+  [ "${ID}" = "FM-1_015" ] || stop "V15 になったことを確かめられませんでした（今の答え: ${ID:-なし}）"
   note "V15 になりました"
 else
   say "4/5 V15 への切り替えは要りません"
 fi
 
-say "5/5 $NAME を書き込みます（約 1 分）"
+say "5/5 ${NAME} を書き込みます（約 1 分）"
 note "書き込み中は USB を抜かないでください。"
-ask "$NAME を書き込みますか？" || { say "やめました。FM-1 は今のままです。"; exit 0; }
-inst --yes "$WORK/$NAME.fwsc" || stop "$NAME の書き込みで止まりました"
-say "できました。FM-1 の画面に $(printf '%s' "$NAME" | tr a-z A-Z) と出ていれば成功です。"
+ask "${NAME} を書き込みますか？" || { say "やめました。FM-1 は今のままです。"; exit 0; }
+inst --yes "${WORK}/${NAME}.fwsc" || stop "${NAME} の書き込みで止まりました"
+say "できました。FM-1 の画面に $(printf '%s' "${NAME}" | tr a-z A-Z) と出ていれば成功です。"
 note "公式に戻すとき: M-VAVE の M-UPGRADE で公式ファームを入れ直す。"
 note "別のプロジェクトにするとき: 同じ 1 行の最後に「 -s kuzushi」のように名前を付ける。"
