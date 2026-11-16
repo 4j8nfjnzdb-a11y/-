@@ -2,7 +2,8 @@
 # The toolchain and the SDK come from where the FM-1 community's shared builder (zvenson/fm1-build) takes them:
 # JieLi's Linux toolchain from pkgman.jieliapp.com, and the AC79 SDK at a fixed tag from JieLi's gitee repository.
 # fm1-base (with felucca-bsp) is pinned to the commit musubime was written and tested against.
-# The packages are uploaded as the run's artifact "musubime-fwsc".
+# The packages are uploaded as the run's artifact "musubime-fwsc", and (from this branch) published on the prerelease
+# "musubime-latest", where musubime/install-mac.sh downloads them without a login.
 name: musubime firmware
 
 on:
@@ -11,7 +12,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -74,3 +75,13 @@ jobs:
           name: musubime-fwsc
           path: out/
           if-no-files-found: error
+
+      - name: Publish on the prerelease "musubime-latest"
+        if: github.ref == 'refs/heads/claude/eloquent-mendel-xx2vgi'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete musubime-latest --yes --cleanup-tag || true
+          gh release create musubime-latest out/*.fwsc out/SHA256SUMS --target "$GITHUB_SHA" --prerelease \
+            --title "musubime firmware (latest build)" \
+            --notes "FM-1 firmware built from musubime/ at $GITHUB_SHA. Install: musubime/install-mac.sh (see musubime/docs/INSTALL.md). Not yet tested on a real FM-1."
