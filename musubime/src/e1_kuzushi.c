@@ -32,7 +32,7 @@ static const char *const STAGE_NAME[NSTAGE] = {"OVF", "SR", "BIT", "FLT", "FLP",
 
 /* ---- parameters ---- */
 static const char *const PAGE_NAMES[] = {"1 SOURCE", "2 RATE", "3 FLOAT", "4 BITS", "5 TIME", "6 VOICE"};
-static const char *const KIND_NAMES[] = {"FM PAIR", "KICK", "SNARE", "HAT", "SYNTH"};
+static const char *const KIND_NAMES[] = {"FM PAIR", "SLOTS"};
 static const char *const CURVE_NAMES[] = {"LIN", "MU-LAW", "LOG"};
 static const char *const OVF_NAMES[] = {"CLIP", "WRAP", "MIRROR"};
 static const char *const ENDIAN_NAMES[] = {"NONE", "BSWAP", "U/S", "BOTH"};
@@ -67,10 +67,10 @@ static const par_def_t DEF[NPAR] = {
     {"JPER", P_LOG, 2, -40.0f, 40.0f, 12.0f, 0.05f, "HZ", 0, 0.0f, 40.0f},
     {"BLK", P_LOG, 0, 16.0f, 4096.0f, 4.0f, 16.0f, "SMP", 0, 16.0f, 4096.0f},
     {"BPROB", P_LIN, 2, -1.0f, 1.0f, 0.01f, 0, "", 0, -0.3f, 0.3f},
-    {"KIND", P_ENUM, 0, 0, 4, 1, 1, "", KIND_NAMES, 0, 4},
+    {"SOURCE", P_ENUM, 0, 0, 1, 1, 1, "", KIND_NAMES, 0, 1},
     {"RATE", P_LOG, 2, 0.0f, 60.0f, 12.0f, 0.1f, "HZ", 0, 0.0f, 20.0f},
-    {"PITCH", P_LOG, 0, 20.0f, 4000.0f, 24.0f, 20.0f, "HZ", 0, 30.0f, 2500.0f},
-    {"DECAY", P_LOG, 2, 0.01f, 6.0f, 12.0f, 0.01f, "S", 0, 0.01f, 3.0f},
+    {"TUNE", P_LIN, 2, -4.0f, 4.0f, 0.0833333f, 0, "OCT", 0, -3.0f, 3.0f},
+    {"DECAY", P_LOG, 2, 0.05f, 20.0f, 6.0f, 0.05f, "X", 0, 0.1f, 8.0f},
 };
 static par_t P[NPAR];
 static const uint8_t PAGE_PARS[6][4] = {{A_F0, A_RATIO, A_FB, A_IN}, {B_SR, B_BITS, B_CURVE, B_HYST},
@@ -136,8 +136,9 @@ static struct {
     float bxL, bxR;
     /* the voice (VOICE page: KICK SNARE HAT SYNTH instead of the FM pair) */
     vox_t vox;
-    float vox_ph;
-    int vox_kind;
+    vox_k_t vk;
+    float vox_ph, vlevel;
+    int vox_kind, vslot;
     /* view */
     float scope_min[240], scope_max[240], scope_c, scope_s;
     float cap_min[240], cap_max[240];
@@ -159,8 +160,8 @@ static void defaults(void)
     par_set(&DEF[E_BLK], &P[E_BLK], 512.0f);
     par_set(&DEF[E_JPER], &P[E_JPER], 3.0f);
     par_set(&DEF[F_RATE], &P[F_RATE], 2.0f);
-    par_set(&DEF[F_PITCH], &P[F_PITCH], 55.0f);
-    par_set(&DEF[F_DEC], &P[F_DEC], 0.4f);
+    par_set(&DEF[F_PITCH], &P[F_PITCH], 0.0f);
+    par_set(&DEF[F_DEC], &P[F_DEC], 1.0f);
     for (i = 0; i < NSTAGE; i++)
         sh.on[i] = 1;
     for (i = 0; i < NORDER; i++)
@@ -432,7 +433,6 @@ void pj_render(float *l, float *r, const float *inl, const float *inr, uint32_t 
     float jit, jper, bprob, inmix, fb, loop_t, index_t, gain_t;
     uint32_t blk;
     int kind = (int)P[F_KIND].v;
-    vox_k_t vk;
     if (sh.home_req != st.home_seen) {
         st.home_seen = sh.home_req;
         pj_reset_audio();
@@ -459,19 +459,23 @@ void pj_render(float *l, float *r, const float *inl, const float *inr, uint32_t 
     if (blk > BLKMAX)
         blk = BLKMAX;
     bprob = v[E_BPROB];
-    if (kind > 0) {                                  /* a voice: its kind's place, with PITCH, DECAY and INDEX added */
-        float p[NVP];
-        for (k = 0; k < NVP; k++)
-            p[k] = VK_POINT[kind - 1][k];
-        p[VP_PITCH] = v[F_PITCH];
-        p[VP_DEC] = v[F_DEC];
-        p[VP_INDEX] = m_clamp(p[VP_INDEX] + v[G_INDEX], 0.0f, 60.0f);
-        p[VP_FB] = m_clamp(p[VP_FB] + v[A_FB], -4.0f, 4.0f);
-        p[VP_XMOD] = 0.0f;
-        vox_coefs(&vk, p);
-        if (kind != st.vox_kind) {
-            st.vox_kind = kind;
-            vox_trig(&st.vox);
+    if (kind > 0) {                      /* SLOTS: the filled slots in turn, one a retrigger (one slot: only that) */
+        int s0, tries;
+        for (tries = 0, s0 = st.vslot; tries < MZ_SLOTS && !mz_slot(s0)->src; tries++)
+            s0 = (s0 + 1) % MZ_SLOTS;
+        if (!mz_slot(s0)->src)
+            kind = 0;                        /* no slot filled: the FM pair */
+        else {
+            float p[NVP];
+            st.vslot = s0;
+            vox_slot_place(p, mz_slot(s0), m_exp2(v[F_PITCH]), 1.0f, v[G_INDEX], v[A_FB], v[F_DEC]);
+            p[VP_XMOD] = 0.0f;
+            vox_coefs(&st.vk, p);
+            st.vlevel = vox_slot_level(mz_slot(s0)) * 1.6f;
+            if (kind != st.vox_kind) {
+                st.vox_kind = kind;
+                vox_trig(&st.vox, &st.vk);
+            }
         }
     }
     for (i = 0; i < n; i++) {
@@ -485,12 +489,23 @@ void pj_render(float *l, float *r, const float *inl, const float *inr, uint32_t 
             if (v[F_RATE] > 0.0f) {
                 st.vox_ph += v[F_RATE] * M_INV_SR;
                 if (st.vox_ph >= 1.0f) {
+                    int s1 = (st.vslot + 1) % MZ_SLOTS, tries;
                     st.vox_ph -= m_floor(st.vox_ph);
-                    vox_trig(&st.vox);
+                    for (tries = 0; tries < MZ_SLOTS && !mz_slot(s1)->src; tries++)
+                        s1 = (s1 + 1) % MZ_SLOTS;
+                    if (s1 != st.vslot && mz_slot(s1)->src) {   /* the next filled slot */
+                        float p[NVP];
+                        st.vslot = s1;
+                        vox_slot_place(p, mz_slot(s1), m_exp2(v[F_PITCH]), 1.0f, v[G_INDEX], v[A_FB], v[F_DEC]);
+                        p[VP_XMOD] = 0.0f;
+                        vox_coefs(&st.vk, p);
+                        st.vlevel = vox_slot_level(mz_slot(s1)) * 1.6f;
+                    }
+                    vox_trig(&st.vox, &st.vk);
                 }
             }
-            vk.xmod = st.loop_s;
-            x = vox_run(&st.vox, &vk, st.yprev);
+            st.vk.xmod = st.loop_s;
+            x = vox_run(&st.vox, &st.vk, st.yprev) * st.vlevel;
         } else {
             m = m_sin_pm(st.phm, fb * st.m1);
             st.m1 = m;

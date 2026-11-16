@@ -71,6 +71,7 @@ static const float PAN[NT] = {0.0f, -0.35f, 0.4f, -0.15f};
 static struct {
     uint32_t home_seen;
     vox_t v[NT];
+    vox_k_t kk[NT];
     float lock[NT];                      /* the destination's value this step (a lock, else the base) */
     uint8_t locked[NT];
     float phase;
@@ -84,7 +85,7 @@ static void trk_kind(trk_t *T, int kind)
     int d;
     T->kind = (uint8_t)kind;
     for (d = 0; d < NVP; d++)
-        T->p[d] = VK_POINT[kind][d];
+        T->p[d] = VB_POINT[kind][d];
 }
 
 static void trk_reset(trk_t *T, int kind, uint8_t dest, uint8_t len)
@@ -107,18 +108,42 @@ static void trk_reset(trk_t *T, int kind, uint8_t dest, uint8_t len)
 
 static void defaults(void)
 {
-    trk_reset(&sh.t[0], VK_KICK, VP_DEC, 16);
+    trk_reset(&sh.t[0], VB_KICK, VP_DEC, 16);
     sh.t[0].trig[0] = 1;                 /* one kick on the first step: the simplest place */
-    trk_reset(&sh.t[1], VK_SNARE, VP_NOISE, 12);
-    trk_reset(&sh.t[2], VK_HAT, VP_DEC, 7);
-    trk_reset(&sh.t[3], VK_SYNTH, VP_INDEX, 5);
+    trk_reset(&sh.t[1], VB_SNARE, VP_NOISE, 12);
+    trk_reset(&sh.t[2], VB_HAT, VP_DEC, 7);
+    trk_reset(&sh.t[3], VB_SYNTH, VP_INDEX, 5);
     sh.tempo = 112.0f;
     sh.mut = 0.12f;
+}
+
+/* the tracks follow their slots (EDIT's voice page, ALGO, black key 10): a new kind puts the track's numbers at that
+ * kind's place; an empty slot falls back to slot 1, so one source can play all four tracks */
+static uint32_t slot_seen = 0xFFFFFFFFu;
+static void follow_slots(void)
+{
+    static const uint8_t OWN[NT] = {VB_KICK, VB_SNARE, VB_HAT, VB_SYNTH};
+    int k;
+    if (mz_slot_rev() == slot_seen)
+        return;
+    slot_seen = mz_slot_rev();
+    for (k = 0; k < NT; k++) {
+        const mz_slot_t *v = mz_voice(k);
+        int kind = v ? v->src - 1 : OWN[k];
+        if (kind != sh.t[k].kind)
+            trk_kind(&sh.t[k], kind);
+    }
+    sh.plot_rev++;
 }
 
 void pj_init(uint32_t seed)
 {
     sh.seed = seed | 1u;
+    mz_slot_set(0, 1 + VB_KICK);         /* henka starts with four sources; empty a slot and it plays slot 1's */
+    mz_slot_set(1, 1 + VB_SNARE);
+    mz_slot_set(2, 1 + VB_HAT);
+    mz_slot_set(3, 1 + VB_SYNTH);
+    slot_seen = mz_slot_rev();
     defaults();
     ui.held_step = -1;
     pj_reset_audio();
@@ -252,7 +277,7 @@ static void step(int dir)
                 st.locked[k] = 1;
             }
             if (T->trig[p] && T->on)
-                vox_trig(&st.v[k]);
+                vox_trig(&st.v[k], &st.kk[k]);
         }
     }
     sh.plot_rev++;
@@ -262,7 +287,7 @@ void pj_render(float *out_l, float *out_r, const float *inl, const float *inr, u
 {
     uint32_t i;
     int k, d;
-    vox_k_t kk[NT];
+    vox_k_t *kk = st.kk;
     float steps_per_s = sh.tempo * (4.0f / 60.0f), dstep = m_abs(steps_per_s) * M_INV_SR, lvl[NT];
     (void)inl, (void)inr;
     if (sh.home_req != st.home_seen) {
@@ -289,8 +314,18 @@ void pj_render(float *out_l, float *out_r, const float *inl, const float *inr, u
                 st.lfo_ph[k] -= m_floor(st.lfo_ph[k]);
                 p[T->dest] = vp_clamp(T->dest, p[T->dest] + T->lfo_depth * (VP_HI[T->dest] - VP_LO[T->dest])
                                                             * m_sin_t(st.lfo_ph[k]));
-                vox_coefs(&kk[k], p);
-                lvl[k] = T->on ? VK_LEVEL[T->kind] : 0.0f;
+                {                        /* the track's slot moves its numbers (tune, brightness, decay, fb) */
+                    const mz_slot_t *v = mz_voice(k);
+                    if (v) {
+                        p[VP_PITCH] = vp_clamp(VP_PITCH, p[VP_PITCH] * m_exp2(v->tune));
+                        p[VP_INDEX] = vp_clamp(VP_INDEX, p[VP_INDEX] + v->bright);
+                        p[VP_FB] = vp_clamp(VP_FB, p[VP_FB] + v->fb);
+                        if (p[VP_DEC] < VP_HELD)
+                            p[VP_DEC] = vp_clamp(VP_DEC, p[VP_DEC] * v->dec_x);
+                    }
+                    vox_coefs(&kk[k], p);
+                    lvl[k] = T->on ? VB_LEVEL[T->kind] * (v ? m_db2lin(v->level_db) : 1.0f) : 0.0f;
+                }
             }
         }
         prev = st.v[NT - 1].y;
@@ -311,6 +346,7 @@ void pj_control(const mz_in_t *in, const mz_body_t *b)
 {
     trk_t *T = &sh.t[ui.trk];
     int i;
+    follow_slots();
     sh.energy = b->energy;
     for (i = 0; i < 16; i++) {
         uint32_t bit = 1u << WHITE[i];
@@ -329,7 +365,7 @@ void pj_control(const mz_in_t *in, const mz_body_t *b)
         if ((in->up & bit) && ui.held_step == i) {
             if (!ui.held_pressed && in->ms - ui.held_t < 350u && i < T->len) {
                 T->trig[i] = (uint8_t)!T->trig[i];
-                mz_say(T->trig[i] ? "TRIG" : "NO TRIG", VK_NAME[T->kind]);
+                mz_say(T->trig[i] ? "TRIG" : "NO TRIG", VB_NAME[T->kind]);
             }
             ui.held_step = -1;
             sh.plot_rev++;
@@ -340,14 +376,14 @@ void pj_control(const mz_in_t *in, const mz_body_t *b)
             continue;
         if (i < 4) {
             ui.trk = i;
-            mz_say("TRACK", VK_NAME[sh.t[i].kind]);
+            mz_say("TRACK", VB_NAME[sh.t[i].kind]);
         } else if (i >= 5 && i <= 8) {   /* in and out */
             trk_t *U = &sh.t[i - 5];
             U->on = (uint8_t)!U->on;
-            mz_say(VK_NAME[U->kind], U->on ? "IN" : "OUT");
+            mz_say(VB_NAME[U->kind], U->on ? "IN" : "OUT");
         } else if (i == 9) {
-            trk_kind(T, (T->kind + 1) % NVK);
-            mz_say("KIND", VK_NAME[T->kind]);
+            mz_slot_set(ui.trk, (uint8_t)(1 + (T->kind + 1) % NVB));   /* the track's slot: the next kind */
+            mz_say("KIND", VB_NAME[(T->kind + 1) % NVB]);
         } else if (i == 10) {
             T->p[VP_XMOD] = T->p[VP_XMOD] > 0.0f ? 0.0f : 2.5f;
             mz_say("XMOD", T->p[VP_XMOD] > 0.0f ? "FROM ABOVE" : "OFF");
@@ -362,7 +398,7 @@ void pj_control(const mz_in_t *in, const mz_body_t *b)
         sh.plot_rev++;
     }
     if (in->enc[HE_ALGO]) {
-        trk_kind(T, (T->kind + (in->enc[HE_ALGO] > 0 ? 1 : NVK - 1)) % NVK);
+        mz_slot_set(ui.trk, (uint8_t)(1 + (T->kind + (in->enc[HE_ALGO] > 0 ? 1 : NVB - 1)) % NVB));
         ui.hot[1] = in->ms + 400u;
         sh.plot_rev++;
     }
@@ -439,14 +475,17 @@ void pj_row(int i, mz_row_t *r)
         mz_cat(r->label, "TRACK");
         mz_int(r->value, ui.trk + 1);
         mz_cat(r->value, " ");
-        mz_cat(r->value, VK_SHORT[T->kind]);
+        {
+            char sh3[4] = {VB_NAME[T->kind][0], VB_NAME[T->kind][1], VB_NAME[T->kind][2], 0};
+            mz_cat(r->value, sh3);
+        }
         mz_cat(r->value, T->on ? " IN L" : " OUT L");
         mz_int(r->value, (int32_t)T->loops);
         r->alert = !T->on;
         break;
     case 1:
         mz_cat(r->label, "KIND");
-        mz_cat(r->value, VK_NAME[T->kind]);
+        mz_cat(r->value, VB_NAME[T->kind]);
         if (T->p[VP_XMOD] > 0.0f)
             mz_cat(r->value, " +XMOD");
         break;
@@ -510,7 +549,10 @@ void pj_plot(int h)
         trk_t *T = &sh.t[k];
         int y = 1 + k * 15;
         float lo = VP_LO[T->dest], span = VP_HI[T->dest] - lo;
-        scr_text(0, y + 4, 1, VK_SHORT[T->kind], !T->on ? C_DIMC : k == ui.trk ? C_HOT : C_LAB);
+        {
+            char sh3[4] = {VB_NAME[T->kind][0], VB_NAME[T->kind][1], VB_NAME[T->kind][2], 0};
+            scr_text(0, y + 4, 1, sh3, !T->on ? C_DIMC : k == ui.trk ? C_HOT : C_LAB);
+        }
         for (s = 0; s < T->len; s++) {
             int x = 22 + s * 13;
             uint16_t frame = s == sh.pos[k] ? C_HOT : C_RULE;

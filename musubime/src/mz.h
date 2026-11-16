@@ -62,6 +62,22 @@ typedef struct {
 #define C_GRN RGB565(110, 220, 130)
 #define C_CYN RGB565(90, 190, 230)
 
+/* ---- the sound slots (EDIT held: the voice page). A project plays its sound i with slot i; an empty slot falls back
+ * to slot 1, so one source alone serves everything; with slot 1 empty too, the project's own FM ---- */
+#define MZ_SLOTS 4
+typedef struct {
+    uint8_t src;                        /* 0 empty ("-"), else 1 + a kind of the bank (fmvox.h VB_*) */
+    float tune;                         /* octaves */
+    float bright;                       /* added to the index (rad) */
+    float dec_x;                        /* the decay multiplied */
+    float level_db;
+    float fb;                           /* added to the feedback (rad) */
+} mz_slot_t;
+const mz_slot_t *mz_voice(int i);       /* sound i's slot: slot i, else slot 1, else 0 (the project's own) */
+const mz_slot_t *mz_slot(int i);        /* slot i as it is */
+void mz_slot_set(int i, uint8_t src);   /* pj_init: a project's starting sources */
+uint32_t mz_slot_rev(void);             /* changes whenever a slot does */
+
 /* ---- the project (one per firmware) ---- */
 extern const char PJ_NAME[];            /* upper case, the screen's header */
 void pj_init(uint32_t seed);            /* boot: the simple state */

@@ -13,13 +13,14 @@
  * moving after stillness makes a change at once, far along the line. A white key points at a sound: the next changes
  * go there, as large as it is pressed. */
 #include "par.h"
-#include "fm.h"
+#include "fmvox.h"
 
 const char PJ_NAME[] = "SEN";
 
 #define MAXL 32
 enum { K_FREQ, K_RATIO, K_INDEX, K_FB, K_DUR, K_AMP, K_ATT, K_GAP, NK };
-static const char *const KNAME[NK] = {"REG", "RATIO", "INDEX", "FB", "DUR", "AMP", "ATT", "GAP"};
+static const char *const KNAME[NK + 1] = {"REG", "RATIO", "INDEX", "FB", "DUR", "AMP", "ATT", "GAP", "SLOT"};
+#define K_SLOT NK                        /* which slot a sound plays, changed like the other dimensions */
 /* each dimension's step on its torus is a different irrational fraction of STEP */
 static const float KALPHA[NK] = {0.6180340f, 0.4142136f, 0.7320508f, 0.2360680f, 0.6457513f, 0.1622777f,
                                  0.6055513f, 0.1231056f};
@@ -27,6 +28,7 @@ static const float KALPHA[NK] = {0.6180340f, 0.4142136f, 0.7320508f, 0.2360680f,
 typedef struct {
     float th[NK];                        /* turns: 0 = the simple place */
     int8_t dir[NK];
+    uint8_t slot;                        /* the slot this sound plays (an empty one falls back to slot 1) */
 } ev_t;
 
 static const char *const FOCUS_NAMES[] = {"AUTO", "REG", "RATIO", "INDEX", "FB", "DUR", "AMP", "ATT", "GAP"};
@@ -61,6 +63,9 @@ static struct {
 } sh;
 
 static struct {
+    vox_t vox;
+    vox_k_t vk;
+    uint8_t vplay;                       /* the sound now playing is a slot's voice (1) or the line's own FM (0) */
     uint32_t home_seen, jump_seen;
     int e;                               /* the sound playing */
     uint32_t t, dur_n, att_n, gap_n;
@@ -99,6 +104,8 @@ static void line_reset(void)
             sh.ev[i].th[k] = 0.0f;
             sh.ev[i].dir[k] = 1;
         }
+    for (i = 0; i < MAXL; i++)
+        sh.ev[i].slot = 0;
     sh.changes = sh.passes = 0;
     sh.last_ev = -1;
     sh.last_k = 0;
@@ -144,6 +151,8 @@ void pj_reset_audio(void)
     st.car.y = st.mod.y = 0.0f;
     st.x = 0.3141f;
     st.k = 0;
+    vox_reset(&st.vox);
+    st.vplay = 0;
 }
 
 /* one change: one sound, one dimension, never undone */
@@ -167,6 +176,22 @@ static void change(int far)
     }
     if (j >= sh.len)
         j = sh.len - 1;
+    if (st.x < 0.13f) {                  /* more than one slot filled: now and then the change is the sound's slot */
+        int t, sl = sh.ev[j].slot;
+        for (t = 0; t < MZ_SLOTS; t++) {
+            sl = (sl + (sh.sign > 0.0f ? 1 : MZ_SLOTS - 1)) % MZ_SLOTS;
+            if (sl == 0 || mz_slot(sl)->src)
+                break;
+        }
+        if (sl != sh.ev[j].slot && (sl == 0 || mz_slot(sl)->src)) {
+            sh.ev[j].slot = (uint8_t)sl;
+            sh.last_ev = j;
+            sh.last_k = K_SLOT;
+            sh.changes++;
+            sh.plot_rev++;
+            return;
+        }
+    }
     d = P[G_STEP].v * KALPHA[k] * (1.0f + 2.0f * sh.energy) * (sh.point >= 0 ? 0.5f + 3.0f * sh.point_amt : 1.0f);
     d *= m_max(0.2f, 1.0f / (1.0f + (float)sh.still * (1.0f / 40000.0f)));   /* stillness: smaller changes */
     sh.ev[j].th[k] += d * (float)sh.ev[j].dir[k] * sh.sign;
@@ -217,6 +242,18 @@ static void start_event(void)
     st.fb = val(e, K_FB);
     st.t = 0;
     st.env = 0.0f;
+    {                                    /* the sound's slot: a voice of the bank, moved by its dimensions */
+        const mz_slot_t *v = mz_voice(e->slot);
+        st.vplay = v != 0;
+        if (v) {
+            float p[NVP];
+            vox_slot_place(p, v, P[G_REG].v * (1.0f / 330.0f) * m_exp2(st.lf), st.ratio, st.index * P[G_THIN].v,
+                           st.fb * 0.6f, m_clamp(dur, 0.05f, 4.0f) * (1.0f / 0.45f));
+            vox_coefs(&st.vk, p);
+            vox_trig(&st.vox, &st.vk);
+            st.amp *= vox_slot_level(v) * 1.6f;
+        }
+    }
     sh.now_ev = st.e;
     sh.plot_rev++;
 }
@@ -251,7 +288,9 @@ void pj_render(float *l, float *r, const float *inl, const float *inr, uint32_t 
         float y = 0.0f;
         if (st.e < 0)
             next_event();
-        if (st.t < st.dur_n) {
+        if (st.vplay) {                  /* a slot's voice: its own envelope, through the gap too */
+            y = vox_run(&st.vox, &st.vk, 0.0f) * st.amp;
+        } else if (st.t < st.dur_n) {
             float f = reg * m_exp2(st.lf), m, g;
             if (st.t < st.att_n)
                 st.env = (float)st.t / (float)st.att_n;

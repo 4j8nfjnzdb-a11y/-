@@ -6,6 +6,7 @@
  *     0.3 s), a peak limiter at -3 dBFS, and any NaN or infinity turned into silence, counted and shown
  *   - the screen: the header, the seven encoders' rows, the project's plot, the meters; only what changed is sent */
 #include "mz.h"
+#include "fmvox.h"
 
 #define CEIL 0.7079f                    /* -3 dBFS */
 #define JG_RATIO 63.0f                  /* the jump guard: the last 5 ms' power over the last 1.5 s' by 18 dB */
@@ -113,6 +114,35 @@ void mz_render(float *l, float *r, const float *inl, const float *inr, uint32_t 
 
 void mz_panic(void) { ear.fade = 0.0f; }
 
+/* ------------------------------------------------------------------ the slots --- */
+static mz_slot_t slots[MZ_SLOTS];
+static uint32_t slot_rev;
+static void slot_clear(mz_slot_t *s)
+{
+    s->src = 0;
+    s->tune = 0.0f;
+    s->bright = 0.0f;
+    s->dec_x = 1.0f;
+    s->level_db = 0.0f;
+    s->fb = 0.0f;
+}
+const mz_slot_t *mz_slot(int i) { return &slots[i < 0 ? 0 : i >= MZ_SLOTS ? MZ_SLOTS - 1 : i]; }
+const mz_slot_t *mz_voice(int i)
+{
+    const mz_slot_t *s = mz_slot(i);
+    if (s->src)
+        return s;
+    return slots[0].src ? &slots[0] : 0;
+}
+void mz_slot_set(int i, uint8_t src)
+{
+    if (i >= 0 && i < MZ_SLOTS && src <= NVB) {
+        slots[i].src = src;
+        slot_rev++;
+    }
+}
+uint32_t mz_slot_rev(void) { return slot_rev; }
+
 /* ----------------------------------------------------------- the gesture loop --- */
 enum { GL_IDLE, GL_REC, GL_LOOP };
 enum { EV_ENC, EV_KDOWN, EV_KUP, EV_PRS, EV_BDOWN, EV_BUP };
@@ -145,7 +175,7 @@ static void gl_put(uint8_t type, uint8_t idx, int8_t val, uint8_t v2)
     gl.n++;
 }
 
-#define SHELL_BTNS ((1u << HB_REC) | (1u << HB_HOME) | (1u << HB_PLAY))
+#define SHELL_BTNS ((1u << HB_REC) | (1u << HB_HOME) | (1u << HB_PLAY) | (1u << HB_EDIT))
 
 static void gl_record(const mz_in_t *in)
 {
@@ -271,6 +301,9 @@ static struct {
     char head_cache[48];
     uint32_t plot_rev, plot_at, foot_at;
     uint32_t frames;
+    uint8_t vpage, vpage_was;             /* EDIT held: the voice page */
+    int vslot;
+    uint32_t vhot[HW_NENC];
 } ui;
 
 void mz_say(const char *a, const char *b)
@@ -304,6 +337,8 @@ void mz_init(uint32_t seed)
         ui.row_ok[i] = 0;
     ui.head_cache[0] = 0;
     ui.plot_rev = 0xFFFFFFFFu;
+    for (i = 0; i < MZ_SLOTS; i++)
+        slot_clear(&slots[i]);
     pj_init(seed ? seed : 0x1234567u);
 }
 
@@ -327,7 +362,11 @@ static void draw_head(void)
         mz_cat(flags, flags[0] ? " NAN" : "NAN");
         mz_int(flags, (int32_t)ear.bad);
     }
-    mz_cat(key, msg ? ui.msg_a : PJ_NAME);
+    if (ui.vpage && !msg) {
+        st[0] = 0;
+        mz_cat(st, PJ_NAME);
+    }
+    mz_cat(key, msg ? ui.msg_a : ui.vpage ? "VOICES" : PJ_NAME);
     mz_cat(key, "|");
     mz_cat(key, msg ? ui.msg_b : st);
     mz_cat(key, "|");
@@ -350,7 +389,7 @@ static void draw_head(void)
         scr_text(4, 3, 2, ui.msg_a, C_HOT);
         scr_text(236 - scr_text_w(1, ui.msg_b), 2, 1, ui.msg_b, C_VAL);
     } else {
-        scr_text(4, 3, 2, PJ_NAME, C_VAL);
+        scr_text(4, 3, 2, ui.vpage ? "VOICES" : PJ_NAME, ui.vpage ? C_CYN : C_VAL);
         scr_text(236 - scr_text_w(1, st), 2, 1, st, C_LAB);
     }
     scr_text(236 - scr_text_w(1, flags), 11, 1, flags, ear.bad_now ? C_RED : gl.state == GL_REC ? C_RED : C_GRN);
@@ -378,6 +417,109 @@ static int row_same(const mz_row_t *a, const mz_row_t *b)
     return 1;
 }
 
+/* the voice page's rows: the slot, its source, and its settings */
+static void voice_row(int i, mz_row_t *r)
+{
+    static const char *const LAB[HW_NENC] = {"SLOT", "SOURCE", "TUNE", "BRIGHT", "DECAY", "LEVEL", "FB"};
+    const mz_slot_t *s = &slots[ui.vslot];
+    int k;
+    for (k = 0; LAB[i][k]; k++)
+        r->label[k] = LAB[i][k];
+    r->label[k] = 0;
+    r->hot = hw_ms() < ui.vhot[i];
+    switch (i) {
+    case 0:
+        mz_int(r->value, ui.vslot + 1);
+        mz_cat(r->value, " / 4");
+        break;
+    case 1:
+        if (s->src)
+            mz_cat(r->value, VB_NAME[s->src - 1]);
+        else
+            mz_cat(r->value, ui.vslot == 0 ? "- (OWN FM)" : "- (= SLOT 1)");
+        break;
+    case 2:
+        mz_fix(r->value, s->tune, 2);
+        mz_cat(r->value, " OCT");
+        break;
+    case 3:
+        mz_fix(r->value, s->bright, 2);
+        mz_cat(r->value, " RAD");
+        break;
+    case 4:
+        mz_cat(r->value, "X");
+        mz_fix(r->value, s->dec_x, 2);
+        break;
+    case 5:
+        mz_fix(r->value, s->level_db, 1);
+        mz_cat(r->value, " DB");
+        break;
+    case 6:
+        mz_fix(r->value, s->fb, 2);
+        mz_cat(r->value, " RAD");
+        break;
+    }
+}
+
+/* the voice page's plot: the four slots, what each sound of the project falls back to */
+static void voice_plot(int h)
+{
+    int i;
+    (void)h;
+    for (i = 0; i < MZ_SLOTS; i++) {
+        const mz_slot_t *s = &slots[i];
+        int y = 2 + i * 15;
+        char t[24];
+        t[0] = 0;
+        mz_int(t, i + 1);
+        scr_text(4, y + 3, 1, t, i == ui.vslot ? C_HOT : C_LAB);
+        if (i == ui.vslot)
+            scr_rect(0, y, 240, 14, C_HOT);
+        t[0] = 0;
+        if (s->src)
+            mz_cat(t, VB_NAME[s->src - 1]);
+        else
+            mz_cat(t, i == 0 ? "-  OWN FM" : "-  = SLOT 1");
+        scr_text(16, y + 3, 1, t, s->src ? C_VAL : C_DIMC);
+    }
+}
+
+static void voice_turn(const mz_in_t *in)
+{
+    mz_slot_t *s = &slots[ui.vslot];
+    int i;
+    for (i = 0; i < HW_NENC; i++) {
+        int32_t d = in->enc[i];
+        if (!d)
+            continue;
+        ui.vhot[i] = in->ms + 400u;
+        switch (i) {
+        case 0:
+            ui.vslot = (ui.vslot + (d > 0 ? 1 : MZ_SLOTS - 1)) % MZ_SLOTS;
+            break;
+        case 1:
+            s->src = (uint8_t)(((int)s->src + (d > 0 ? 1 : NVB)) % (NVB + 1));
+            break;
+        case 2:
+            s->tune = m_clamp(s->tune + (float)d * 0.0833333f, -5.0f, 5.0f);   /* a twelfth of an octave a detent */
+            break;
+        case 3:
+            s->bright = m_clamp(s->bright + (float)d * 0.1f, -10.0f, 10.0f);
+            break;
+        case 4:
+            s->dec_x = m_clamp(s->dec_x * m_exp2((float)d * (1.0f / 6.0f)), 0.05f, 20.0f);
+            break;
+        case 5:
+            s->level_db = m_clamp(s->level_db + (float)d * 0.5f, -40.0f, 12.0f);
+            break;
+        case 6:
+            s->fb = m_clamp(s->fb + (float)d * 0.02f, -2.0f, 2.0f);
+            break;
+        }
+        slot_rev++;
+    }
+}
+
 static void draw_rows(void)
 {
     static const char *const TAG[HW_NENC] = {"SL", "AL", "PR", "K1", "K2", "K3", "K4"};
@@ -388,7 +530,10 @@ static void draw_rows(void)
         r.tag = TAG[i];
         r.label[0] = r.value[0] = 0;
         r.hot = r.alert = 0;
-        pj_row(i, &r);
+        if (ui.vpage)
+            voice_row(i, &r);
+        else
+            pj_row(i, &r);
         if (ui.row_ok[i] && row_same(&r, &ui.rows[i]))
             continue;
         ui.rows[i] = r;
@@ -526,6 +671,18 @@ void mz_frame(void)
         gl_play(&in, dt);
     }
     body_update(&body, &in);
+    ui.vpage = (uint8_t)((in.btn >> HB_EDIT) & 1u);    /* EDIT held: the voice page takes the encoders */
+    if (ui.vpage != ui.vpage_was) {
+        ui.vpage_was = ui.vpage;
+        for (i = 0; i < HW_NENC; i++)
+            ui.row_ok[i] = 0;
+        ui.plot_rev = 0xFFFFFFFFu;
+    }
+    if (ui.vpage) {
+        voice_turn(&in);
+        for (i = 0; i < HW_NENC; i++)
+            in.enc[i] = 0;
+    }
     pj_control(&in, &body);
     /* lights */
     bit = 0;
@@ -542,12 +699,15 @@ void mz_frame(void)
     draw_head();
     draw_rows();
     {
-        uint32_t rev = pj_plot_rev();
+        uint32_t rev = ui.vpage ? slot_rev * 7u + (uint32_t)ui.vslot : pj_plot_rev();
         if (rev != ui.plot_rev && now - ui.plot_at >= 50u) {
             ui.plot_rev = rev;
             ui.plot_at = now;
             hw_strip_begin(160, 62);
-            pj_plot(62);
+            if (ui.vpage)
+                voice_plot(62);
+            else
+                pj_plot(62);
             hw_strip_end();
         }
     }
