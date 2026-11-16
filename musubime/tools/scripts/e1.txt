@@ -1,0 +1,41 @@
+# KUZUSHI: from a sine to the broken loop. Realistic turning: 10-30 detents a second
+1 shot start
+2 spin 2 40 3000
+# INDEX up slowly
+6 spin 1 30 2000
+# LOOP up
+9 enc 0 1
+# page RATE
+9.5 spin 3 -60 4000
+# SR down
+14 spin 4 -40 3000
+# BITS down
+18 key 0 down 100
+18.2 prs 0 90
+19.5 key 0 up
+# push GAIN
+20 enc 0 1
+20.5 spin 4 -3 600
+# EXP down 8 -> 5
+22 enc 0 2
+22.5 spin 3 20 1500
+# JIT (page TIME, K1)
+25 shot mid
+26 key 9 down 80
+26.1 prs 9 120
+27 key 9 up
+# push LOOP
+28 enc 0 -4
+28.5 spin 3 -40 2500
+# F0 down
+32 spin 1 -4 200
+32.3 spin 1 4 200
+32.6 spin 1 -4 200
+32.9 spin 1 4 200
+33.2 spin 1 -4 200
+# back and forth: hysteresis
+36 shot late
+40 spin 2 -10 500
+# stillness then a sudden move: WIRE
+44 spin 2 6 300
+48 shot end
