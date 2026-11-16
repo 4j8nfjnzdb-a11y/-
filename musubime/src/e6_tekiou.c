@@ -373,8 +373,6 @@ void pj_row(int i, mz_row_t *r)
         mz_fix(r->value, P[p].v, 2);
         mz_cat(r->value, "+");
         mz_fix(r->value, m_min(0.6f, sh.age * 0.1f), 2);
-        mz_cat(r->value, " B");
-        mz_fix(r->value, sh.bright, 2);
         break;
     case G_REWIRE:
         mz_cat(r->value, "N");
@@ -403,9 +401,11 @@ void pj_row(int i, mz_row_t *r)
 
 void pj_status(char *s)
 {
-    mz_cat(s, "EDGES ");
+    mz_cat(s, "B");
+    mz_fix(s, sh.bright, 2);
+    mz_cat(s, " W");
     mz_int(s, count_edges());
-    mz_cat(s, " AGE ");
+    mz_cat(s, " AGE");
     mz_fix(s, sh.age, 1);
 }
 

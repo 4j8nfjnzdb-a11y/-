@@ -1,0 +1,415 @@
+<title>結び目 musubime</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=JetBrains+Mono:wght@400;600&family=Archivo+Narrow:wght@500;700&display=swap">
+<style>
+/* Layout: a test bench. The FM-1's panel on the left (its screen drawn by the firmware's own C), the project's
+   notes on the right; on a phone the panel first. Dark-first: the instrument's own black, a warm amber for values. */
+:root{
+  --bg:#141518; --bench:#1c1e22; --panel:#26282d; --well:#0b0c0e; --ink:#e7e5df; --dim:#9a988f; --faint:#5f5e59;
+  --line:rgba(231,229,223,.12); --amber:#ffb030; --amber-ink:#2a1a00; --led:#ff9e1f; --led-dim:rgba(255,158,31,.22);
+  --key-w:#d9d6cd; --key-w-ink:#2a2a2a; --key-b:#2b2c30; --alarm:#f04838;
+  --f-body:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  --f-label:"Archivo Narrow","Arial Narrow",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){
+  --bg:#e6e4de; --bench:#f1efea; --panel:#d8d5cd; --well:#0b0c0e; --ink:#1d1d1b; --dim:#5c5a54; --faint:#8a877f;
+  --line:rgba(29,29,27,.14); --amber:#c97800; --amber-ink:#fff6e6; --led:#e58600; --led-dim:rgba(229,134,0,.25);
+  --key-w:#fbfaf6; --key-w-ink:#2a2a2a; --key-b:#2b2c30; --alarm:#c8321f; color-scheme:light}}
+:root[data-theme="light"]{
+  --bg:#e6e4de; --bench:#f1efea; --panel:#d8d5cd; --well:#0b0c0e; --ink:#1d1d1b; --dim:#5c5a54; --faint:#8a877f;
+  --line:rgba(29,29,27,.14); --amber:#c97800; --amber-ink:#fff6e6; --led:#e58600; --led-dim:rgba(229,134,0,.25);
+  --key-w:#fbfaf6; --key-w-ink:#2a2a2a; --key-b:#2b2c30; --alarm:#c8321f; color-scheme:light}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.6;-webkit-tap-highlight-color:transparent}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px;display:flex;flex-direction:column;gap:18px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 16px}
+h1{margin:0;font-size:clamp(24px,3.4vw,32px);font-weight:700;letter-spacing:.04em}
+h1 small{font-family:var(--f-mono);font-size:12px;font-weight:400;color:var(--faint);letter-spacing:.12em;margin-left:8px}
+header p{margin:0;color:var(--dim);max-width:62ch;min-width:0}
+.tabs{display:flex;flex-wrap:wrap;gap:6px}
+.tab{border:1px solid var(--line);background:var(--bench);border-radius:6px;padding:7px 12px;display:flex;gap:8px;align-items:baseline}
+.tab b{font-weight:700}
+.tab span{font-family:var(--f-label);font-size:12px;letter-spacing:.1em;color:var(--dim)}
+.tab[aria-selected="true"]{background:var(--amber);color:var(--amber-ink);border-color:var(--amber)}
+.tab[aria-selected="true"] span{color:var(--amber-ink)}
+.main{display:grid;grid-template-columns:minmax(0,1fr);gap:18px;align-items:start}
+@media (min-width:980px){.main{grid-template-columns:minmax(0,560px) minmax(0,1fr)}}
+/* the panel */
+.fm1{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.toprow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:start}
+@media (max-width:520px){.toprow{grid-template-columns:minmax(0,1fr)}}
+.screen{background:var(--well);border-radius:6px;padding:8px;width:100%;max-width:420px}
+.screen canvas{display:block;width:100%;aspect-ratio:1;image-rendering:pixelated;image-rendering:crisp-edges}
+.side{display:flex;flex-direction:column;gap:10px;align-items:stretch;min-width:130px}
+.start{border:0;border-radius:8px;padding:12px 14px;background:var(--amber);color:var(--amber-ink);font-weight:700;letter-spacing:.06em}
+.start[aria-pressed="true"]{background:var(--bench);color:var(--ink);border:1px solid var(--line)}
+.lab{font-family:var(--f-label);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.master{display:flex;flex-direction:column;gap:4px}
+.master input{width:100%;accent-color:var(--amber)}
+.master output,.readout{font-family:var(--f-mono);font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+.encs{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.enc{display:flex;flex-direction:column;align-items:center;gap:3px;touch-action:none;user-select:none;-webkit-user-select:none}
+.knob{width:100%;max-width:54px;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 50% 38%,#4a4c52,#1d1e21 70%);border:1px solid #000;position:relative;cursor:ns-resize}
+.knob::after{content:"";position:absolute;left:50%;top:8%;width:3px;height:30%;margin-left:-1.5px;border-radius:2px;background:var(--amber);transform-origin:50% 140%;transform:rotate(var(--a,0deg))}
+.enc .lab{font-size:10px}
+.enc .pn{font-family:var(--f-mono);font-size:10px;color:var(--faint);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btns{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.btn{border:1px solid #000;border-radius:5px;background:#2f3136;color:#cfccc4;font-family:var(--f-label);font-size:11px;letter-spacing:.08em;padding:7px 0;touch-action:none;user-select:none;-webkit-user-select:none;position:relative}
+.btn.dim{box-shadow:inset 0 -3px 0 var(--led-dim)}
+.btn.lit{box-shadow:inset 0 -3px 0 var(--led);color:#fff}
+.btn.held{background:#45474d}
+.kbd{position:relative;height:118px;touch-action:none;user-select:none;-webkit-user-select:none}
+.key{position:absolute;border:1px solid #000;border-radius:0 0 5px 5px;overflow:hidden}
+.key.w{background:var(--key-w);top:0;height:100%;z-index:1}
+.key.b{background:var(--key-b);top:0;height:58%;z-index:2}
+.key .fill{position:absolute;left:0;right:0;bottom:0;background:var(--amber);opacity:.55;height:0}
+.key .led{position:absolute;left:50%;bottom:6px;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:transparent}
+.key.dim .led{background:var(--led-dim)}
+.key.lit .led{background:var(--led);box-shadow:0 0 6px var(--led)}
+.key.down{filter:brightness(.85)}
+.kbdnote{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.input{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.input select,.input input[type=file]{max-width:100%;min-width:0}
+.input select{background:var(--bench);border:1px solid var(--line);border-radius:6px;padding:5px 8px}
+.err{color:var(--alarm);font-size:13px}
+/* the notes */
+.notes{display:flex;flex-direction:column;gap:14px;min-width:0}
+.card{background:var(--bench);border:1px solid var(--line);border-radius:12px;padding:16px 18px;min-width:0}
+.card h2{margin:0 0 6px;font-size:20px;font-weight:700;letter-spacing:.03em;text-wrap:balance}
+.card h2 span{font-family:var(--f-label);font-size:13px;letter-spacing:.14em;color:var(--dim);margin-left:8px}
+.card h3{margin:14px 0 4px;font-family:var(--f-label);font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--amber)}
+.card p{margin:0;max-width:66ch}
+.card ul{margin:0;padding-left:1.2em;max-width:66ch}
+.card li{margin:2px 0}
+.mono{font-family:var(--f-mono);font-size:12.5px}
+.common{color:var(--dim);font-size:13px}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>結び目<small>MUSUBIME · FM-1 FIRMWARE PREVIEW</small></h1>
+    <p>M-VAVE FM-1 用に書いた C のファームウェアを、そのまま WebAssembly にして動かしています。画面も同じ C が描いています。6 つは別々のファームウェアで、切り替えると前の音は残りません。</p>
+  </header>
+
+  <div class="tabs" role="tablist" id="tabs"></div>
+
+  <div class="main">
+    <section class="fm1" aria-label="FM-1 パネル">
+      <div class="toprow">
+        <div class="screen"><canvas id="scr" width="240" height="240" aria-label="FM-1 の画面"></canvas></div>
+        <div class="side">
+          <button class="start" id="start" aria-pressed="false">音を出す</button>
+          <div class="master">
+            <label class="lab" for="master">MASTER</label>
+            <input id="master" type="range" min="-48" max="0" step="1" value="-18">
+            <output id="masterOut">-18 dB</output>
+          </div>
+          <div class="readout" id="rate">44.1 kHz</div>
+        </div>
+      </div>
+      <div class="encs" id="encs"></div>
+      <div class="btns" id="btns"></div>
+      <div class="kbd" id="kbd" aria-label="鍵盤 F3 から G5"></div>
+      <div class="kbdnote">
+        <span class="lab">鍵: 押した位置が低いほど強く。押したまま下へ引くと押し込み（圧力）</span>
+        <span class="lab">つまみ: 上下にドラッグ／ホイール。速さも身体として読まれる</span>
+      </div>
+      <div class="input">
+        <label class="lab" for="insel">外から入れる音</label>
+        <select id="insel">
+          <option value="none">なし（FM-1 自身の音だけ）</option>
+          <option value="file">音声ファイル（ループ）</option>
+          <option value="mic">マイク</option>
+        </select>
+        <input id="infile" type="file" accept="audio/*" hidden>
+        <span class="err" id="inerr" hidden></span>
+      </div>
+    </section>
+
+    <section class="notes">
+      <article class="card" id="pjcard"></article>
+      <article class="card common">
+        <h3>どのプロジェクトでも</h3>
+        <ul>
+          <li><b>REC</b> 手の動き（つまみ・鍵・ボタン）を録る → もう一度押すとそのままループ再生 → もう一度で停止。1 秒長押しで消去。ループの上から手で重ねて動かせる。</li>
+          <li><b>HOME</b> 0.7 秒長押しで、そのプロジェクトのいちばん単純な状態へ戻す。</li>
+          <li><b>PLAY</b> 音の on / off（系は動き続ける）。</li>
+          <li>出口には必ず DC カット、急な音量の跳ね上がりを抑えるガード（最大 -9 dB を 0.3 秒で戻す）、-3 dBFS のリミッターが入る。NaN や無限大は無音にして画面の右上に NAN と回数を出す。</li>
+          <li>画面右下の SPD / REV / STILL / E は、つまみの速さ・向きを変えた回数・静止時間・手の運動量。</li>
+        </ul>
+      </article>
+    </section>
+  </div>
+</div>
+
+<script>
+/*WASM*/
+/*WORKLET*/
+const PROJECTS = [
+  {id:"e1_kuzushi", ja:"崩し", en:"KUZUSHI", input:true, enc:["PAGE","LOOP","INDEX","P·1","P·2","P·3","P·4"],
+   what:"音そのものの数値を崩す（UNDERFLOW の発展）。崩した結果を FM キャリアの位相へ戻す（LOOP）ので、量子化・桁あふれ・アンダーフローが帰還ループの内側に入る。そこから出るのは一様なノイズではなく、周期の変わる軌道。",
+   ops:["SELECT ページ（SOURCE / RATE / FLOAT / BITS / TIME）、ALGO = LOOP、PRESET = INDEX、K1〜K4 = ページの 4 つ。OCT- / OCT+ でもページ。",
+        "SOURCE: F0・RATIO・FB B・IN ／ RATE: SR・BITS・CURVE・HYST ／ FLOAT: MANT・EXP・GAIN・OVF ／ BITS: MASK・PROB・ENDIAN・ABSORB ／ TIME: JIT・JPER・BLK・BPROB",
+        "白鍵 F3〜C5（12）: 押し込むほど、その軸を壊す方向へ押す（GAIN, SR, BITS, MANT, EXP, LOOP, INDEX, PROB, JIT, BLOCK, ABSORB, FB）。上の白鍵 4 つはベロシティで蹴る。",
+        "黒鍵 1〜9: 段のバイパス（OVF SR BIT FLT FLP END ABS JIT BLK）、10: 再構成（ZOH／直線／+AA）、11: 身体による配線 on / off。"],
+   neg:["SR < 0: 過去を逆向きに読む（|SR| で間引く）。SR = 0: 直前 2048 サンプルを凍結してループ。","BITS < 0: |BITS| ビットで量子化したとき捨てられる誤差だけを出す（2^(|BITS|-1) 倍して聞こえるようにしている）。","EXP: 指数部のビット数。3 なら -36 dBFS 未満はすべて 0 に落ちる（アンダーフロー）。","ABSORB: (x + 2^k) − 2^k を浮動小数で計算。正と負で刻みが 2 倍違う、浮動小数だけの非対称な量子化。"],
+   body:"往復するとヒステリシスが広がる（迷うと粘る）。速く回すとクロックが揺れる。2 秒以上止まってから動くと段の順番が一つ回り、5 秒以上ならその前に一瞬切れる。"},
+  {id:"e2_henka", ja:"変化", en:"HENKA", input:false, enc:["LANE","ALGO","DEST","BASE","LEN","TEMPO","MUT"],
+   what:"Digitakt のパラメーターロック・条件トリガー・ポリメーター・LFO を、音程ではなく音の中身（比率・インデックス・フィードバック・減衰・ビット）に当てる。4 レーンの長さは 16 / 12 / 7 / 5。MUT の確率で、ループの終わりごとに一か所だけ変わり、戻らない。",
+   ops:["SELECT レーン、ALGO FM アルゴリズム、PRESET 行き先（R2 R3 I2 I3 FB DEC CENT BITS）、K1 ベース値（ステップを押さえている間はそのロック値）、K2 長さ（押さえている間は条件）、K3 テンポ（マイナスで逆走、0 で時間が止まる）、K4 MUT。",
+        "白鍵 = ステップ: タップでロック on / off、押さえて押し込むとロック値。黒鍵 1〜4 レーン、5 FILL（押している間）、6〜11 行き先。LFO ボタン: レーンの LFO 深さ。FX: FILL。",
+        "条件: 確率、A:B、!A:B、PRE、!PRE、NEI、!NEI、1ST、!1ST、FILL、!FILL。"],
+   neg:["TEMPO < 0: ステップが逆向きに進む。0: 時間が止まり、音は鳴り続ける。"],
+   body:"往復すると全レーンの変異の向き（勢い）が反転する。止まってから動くと次のループが FILL。手の運動量が MUT に足される。"},
+  {id:"e3_sen", ja:"線", en:"SEN", input:false, enc:["LENGTH","FOCUS","STEP","THIN","TIME","GAP X","REG"],
+   what:"一音ずつ、上下関係なしに並ぶ線。一周ごとに一か所（一つの音の一つの次元）だけが変わり、元には戻らない。どこが変わるかはファイゲンバウム点のロジスティック写像（カオスの縁）で決まる。3 音から始まり、分裂しながら LENGTH まで伸びる。",
+   ops:["SELECT 長さの目標、ALGO 変える次元（AUTO / REG / RATIO / INDEX / FB / DUR / AMP / ATT / GAP）、PRESET 一回の変化量、K1 細さ（0 で純音の線）、K2 時間の伸縮、K3 間、K4 音域。",
+        "白鍵: その音を指さす（次の変化がそこへ、押し込むほど大きく）。黒鍵 1〜8 次元、9 AUTO、10 変化を止める（純粋な反復）、11 向きを反転。"],
+   neg:["STEP をマイナスにはできないが、黒鍵 11 と往復の身体で向きが裏返る。"],
+   body:"手の運動量が変化を大きくする。往復で向きが反転。静止が長いほど変化は小さくなり、反復に近づく（止まりはしない）。止まってから動くと、線の遠くの音が一つ変わる。"},
+  {id:"e4_feldman", ja:"フェルドマン", en:"FELDMAN", input:false, enc:["LAYER","NOTES","UNIT","ASYM","ABRASH","BRIGHT","REG"],
+   what:"ほぼ同じだが同じにならない、小さく静かな持続。3 層の短いパターンが、層ごとに少し違う単位時間（ASYM）で反復して、ずれていく。反復ごとに 1/f の揺らぎ（アブラッシュ）で色と音量が少し動き、ときどき一つの音が 1 単位伸び縮みして戻らない。音高は音階から選ばず、層ごとに無理数比、隣り合う音は数十セント。",
+   ops:["SELECT 層、ALGO 音数、PRESET 単位時間、K1 ASYM、K2 ABRASH、K3 明るさ、K4 音域。","白鍵: 押さえている間、その音が少しずつ永久に伸びる。黒鍵 1〜3 層の選択、4〜6 層の on / off。"],
+   neg:[],
+   body:"逆に応答する。手が激しいほど静かになる。静止すると揺らぎが収まる（伸び縮みは残る）。往復すると、伸び縮みを受ける層が移る。"},
+  {id:"e5_pmvrs", ja:"PMVRS", en:"PMVRS", input:false, enc:["MODE","P T","M L/S","V ACC","R BRTH","GROW","REG"],
+   what:"5 種類の時間を、混ぜずに切り替える。P パルス（アクセントなし）、M 長短（フィボナッチ語の並び）、V 速度感（指数的に縮む・伸びる間隔）、R 呼吸（押し込みがそのまま息）、S 無音。切り替えは切断。各モードは自分の音色を持ち、オンの間だけ複雑になっていく。",
+   ops:["白鍵 F3 G3 A3 B3 C4 = P M V R S。SELECT 順に切り替え、ALGO P の周期、PRESET M の長短比、K1 V の加速、K2 R の呼吸の長さ、K3 成長の速さ、K4 音域。","R では、他の鍵の押し込みがそのまま呼吸になる。"],
+   neg:["V ACC < 0: 遅くなる方向から始まる（限界で折り返す）。"],
+   body:"止まってからつまみを動かすと、いちばん長く離れていたモードへ移る（忘れていたものへの注意）。S の間も、すべてのモードの複雑さは少しずつ育つ。"},
+  {id:"e6_tekiou", ja:"適応", en:"TEKIOU", input:true, enc:["TARGET","REWIRE","PATNCE","BAND","HOMEO","LISTEN","REG"],
+   what:"自分の音を聴いて、自分の配線を変える系。4 つの FM オペレーターの 4×4 変調行列は空から始まる（純音）。明るさが目標の帯から外れ続けるか、変化がなさすぎる（退屈）と、構造が一歩変わる。目標は時間とともに上がり、複雑へ成熟していく。",
+   ops:["値ではなく系の構成を変える。SELECT 目標、ALGO REWIRE（回すとその場で構造が一歩）、PRESET 我慢の長さ、K1 帯の幅、K2 恒常性の符号と強さ（マイナスで暴走）、K3 聴く時定数、K4 音域。","白鍵 1〜4: オペレーターを出力に出す / 外す。白鍵 5〜8 の押し込み: そのオペレーターの周波数を曲げる。","外から音を入れると、それも聴かれ、オペレーター 1 を変調する。"],
+   neg:["HOMEO < 0: 明るさを目標から遠ざける方へ働く（暴走）。帯を出て構造が変わるまで続く。"],
+   body:"手が激しいほど帯が狭く（神経質に）、静止すると帯が広く我慢も長くなる。往復で恒常性の符号が反転し、止まってから動くと驚いて一歩変わる。"},
+];
+const BTN_NAMES = ["FX","SEL","ENV","LFO","EDIT","GLO","HOME","SAVE","ARP","SEQ","PLAY","REC","OCT-","OCT+"];
+const ENC_TAGS = ["SELECT","ALGO","PRESET","K1","K2","K3","K4"];
+const WHITE = [0,2,4,6,7,9,11,12,14,16,18,19,21,23,24,26], BLACK = [1,3,5,8,10,13,15,17,20,22,25];
+const NOTE = ["F","F#","G","G#","A","A#","B","C","C#","D","D#","E"];
+
+const $ = (id) => document.getElementById(id);
+let ctx = null, node = null, current = 0, inputNode = null, inputKind = "none", inputBuffer = null, micStream = null;
+const ctxPix = $("scr").getContext("2d"), img = ctxPix.createImageData(240, 240);
+const ang = new Array(7).fill(0);
+
+function b64bytes(s){ const b = atob(s), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u.buffer; }
+function send(m){ if (node) node.port.postMessage(m); }
+
+/* ---- the panel ---- */
+function buildTabs(){
+  const t = $("tabs");
+  PROJECTS.forEach((p, i) => {
+    const b = document.createElement("button");
+    b.className = "tab"; b.role = "tab"; b.id = "tab-" + p.en.toLowerCase();
+    b.innerHTML = "<b>" + p.ja + "</b><span>" + p.en + "</span>";
+    b.addEventListener("click", () => select(i));
+    t.appendChild(b);
+  });
+}
+function buildEncs(){
+  const e = $("encs");
+  ENC_TAGS.forEach((tag, i) => {
+    const d = document.createElement("div"); d.className = "enc";
+    d.innerHTML = '<div class="knob" tabindex="0" role="slider" aria-label="' + tag + '" id="knob' + i + '"></div><span class="lab">' + tag + '</span><span class="pn" id="pn' + i + '"></span>';
+    e.appendChild(d);
+    const k = d.querySelector(".knob");
+    let y0 = 0, acc = 0, active = false;
+    k.addEventListener("pointerdown", (ev) => { active = true; y0 = ev.clientY; acc = 0; k.setPointerCapture(ev.pointerId); ev.preventDefault(); });
+    k.addEventListener("pointermove", (ev) => {
+      if (!active) return;
+      acc += (y0 - ev.clientY) + (ev.movementX || 0) * 0; y0 = ev.clientY;
+      while (acc >= 6) { turn(i, 1); acc -= 6; }
+      while (acc <= -6) { turn(i, -1); acc += 6; }
+    });
+    const end = () => { active = false; };
+    k.addEventListener("pointerup", end); k.addEventListener("pointercancel", end);
+    k.addEventListener("wheel", (ev) => { ev.preventDefault(); turn(i, ev.deltaY < 0 ? 1 : -1); }, { passive: false });
+    k.addEventListener("keydown", (ev) => {
+      if (ev.key === "ArrowUp" || ev.key === "ArrowRight") { turn(i, 1); ev.preventDefault(); }
+      if (ev.key === "ArrowDown" || ev.key === "ArrowLeft") { turn(i, -1); ev.preventDefault(); }
+    });
+  });
+}
+function turn(i, d){
+  ang[i] = (ang[i] + d * 12) % 360;
+  $("knob" + i).style.setProperty("--a", ang[i] + "deg");
+  send({ t: "enc", i, d });
+}
+let btnMask = 0;
+function buildBtns(){
+  const b = $("btns");
+  BTN_NAMES.forEach((name, i) => {
+    const el = document.createElement("button"); el.className = "btn"; el.textContent = name; el.id = "btn" + i;
+    const down = (ev) => { ev.preventDefault(); el.setPointerCapture && el.setPointerCapture(ev.pointerId); btnMask |= 1 << i; el.classList.add("held"); send({ t: "btn", mask: btnMask }); };
+    const up = () => { if (!(btnMask & (1 << i))) return; btnMask &= ~(1 << i); el.classList.remove("held"); send({ t: "btn", mask: btnMask }); };
+    el.addEventListener("pointerdown", down); el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up);
+    el.addEventListener("keydown", (ev) => { if (ev.key === " " || ev.key === "Enter") { if (!(btnMask & (1 << i))) down(ev); } });
+    el.addEventListener("keyup", (ev) => { if (ev.key === " " || ev.key === "Enter") up(); });
+    b.appendChild(el);
+  });
+}
+const keyEls = [];
+function buildKbd(){
+  const k = $("kbd"), wW = 100 / 16;
+  const whiteIndex = {}; WHITE.forEach((key, i) => whiteIndex[key] = i);
+  for (let key = 0; key < 27; key++) {
+    const el = document.createElement("div");
+    const isW = key in whiteIndex;
+    el.className = "key " + (isW ? "w" : "b");
+    el.innerHTML = '<div class="fill"></div><div class="led"></div>';
+    el.setAttribute("aria-label", NOTE[key % 12] + (3 + Math.floor((key + 5) / 12)));
+    if (isW) { el.style.left = (whiteIndex[key] * wW) + "%"; el.style.width = wW + "%"; }
+    else { const prevW = whiteIndex[key - 1]; el.style.left = ((prevW + 1) * wW - wW * 0.32) + "%"; el.style.width = (wW * 0.64) + "%"; }
+    k.appendChild(el); keyEls[key] = el;
+    let y0 = 0, held = false;
+    el.addEventListener("pointerdown", (ev) => {
+      ev.preventDefault(); el.setPointerCapture(ev.pointerId); held = true;
+      const r = el.getBoundingClientRect(), frac = Math.min(1, Math.max(0, (ev.clientY - r.top) / r.height));
+      const vel = Math.round(30 + frac * 97); y0 = ev.clientY;
+      el.classList.add("down"); send({ t: "key", k: key, down: 1, vel });
+      setPressure(key, ev, 0);
+    });
+    el.addEventListener("pointermove", (ev) => { if (held) setPressure(key, ev, ev.clientY - y0); });
+    const up = () => { if (!held) return; held = false; el.classList.remove("down"); el.querySelector(".fill").style.height = "0"; send({ t: "key", k: key, down: 0 }); };
+    el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up);
+  }
+}
+function setPressure(key, ev, dy){
+  if (key >= 20) return;                            /* the top seven keys have no pressure on the FM-1 */
+  let p = Math.max(0, Math.min(127, Math.round(dy / 60 * 127)));
+  if (ev.pointerType === "pen" || (ev.pressure && ev.pressure !== 0.5 && ev.pressure !== 0)) p = Math.max(p, Math.round(ev.pressure * 127));
+  keyEls[key].querySelector(".fill").style.height = (p / 127 * 100) + "%";
+  send({ t: "prs", k: key, p });
+}
+/* computer keys: a row of the keyboard for F3 upward (velocity 90, no pressure) */
+const QW = "awsedftgyhujkolp;";
+const qwDown = new Set();
+window.addEventListener("keydown", (ev) => {
+  if (ev.repeat || ev.metaKey || ev.ctrlKey || ev.target.tagName === "INPUT" || ev.target.tagName === "SELECT") return;
+  const i = QW.indexOf(ev.key); if (i < 0 || qwDown.has(i)) return;
+  qwDown.add(i); keyEls[i].classList.add("down"); send({ t: "key", k: i, down: 1, vel: 90 });
+});
+window.addEventListener("keyup", (ev) => {
+  const i = QW.indexOf(ev.key); if (i < 0 || !qwDown.has(i)) return;
+  qwDown.delete(i); keyEls[i].classList.remove("down"); send({ t: "key", k: i, down: 0 });
+});
+
+/* ---- the notes ---- */
+function esc(s){ return s.replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
+function showNotes(i){
+  const p = PROJECTS[i];
+  let h = "<h2>" + p.ja + "<span>" + p.en + "</span></h2><p>" + esc(p.what) + "</p>";
+  h += "<h3>操作</h3><ul>" + p.ops.map(o => "<li>" + esc(o) + "</li>").join("") + "</ul>";
+  if (p.neg.length) h += "<h3>マイナスと極端な値</h3><ul>" + p.neg.map(o => "<li>" + esc(o) + "</li>").join("") + "</ul>";
+  h += "<h3>身体</h3><p>" + esc(p.body) + "</p>";
+  if (!p.input) h += '<p class="common" style="margin-top:10px">このプロジェクトは外からの音を使いません。</p>';
+  $("pjcard").innerHTML = h;
+  p.enc.forEach((n, k) => $("pn" + k).textContent = n);
+  document.querySelectorAll(".tab").forEach((t, k) => t.setAttribute("aria-selected", k === i ? "true" : "false"));
+}
+
+/* ---- the sound ---- */
+async function ensureCtx(){
+  if (ctx) return;
+  try { ctx = new AudioContext({ sampleRate: 44100, latencyHint: "interactive" }); }
+  catch (e) { ctx = new AudioContext({ latencyHint: "interactive" }); }
+  $("rate").textContent = (ctx.sampleRate / 1000).toFixed(1) + " kHz" + (ctx.sampleRate !== 44100 ? "（44.1 kHz から変換）" : "");
+  try {
+    await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET_SRC], { type: "text/javascript" })));
+  } catch (e) {                                     /* a page opened from a file: blob URLs have no origin there */
+    await ctx.audioWorklet.addModule("data:text/javascript;base64," + btoa(unescape(encodeURIComponent(WORKLET_SRC))));
+  }
+}
+function gainFromDb(db){ return Math.pow(10, db / 20); }
+async function startProject(i){
+  if (node) { node.port.onmessage = null; node.disconnect(); node.port.close(); node = null; }   /* nothing of the last one stays */
+  btnMask = 0; document.querySelectorAll(".btn").forEach(b => b.classList.remove("held"));
+  node = new AudioWorkletNode(ctx, "musubime-proc", { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2],
+    processorOptions: { wasm: b64bytes(WASM[PROJECTS[i].id]), seed: (Math.random() * 0xFFFFFFFF) >>> 0, gain: gainFromDb(+$("master").value) } });
+  node.port.onmessage = (e) => onMsg(e.data);
+  node.connect(ctx.destination);
+  connectInput();
+}
+function onMsg(m){
+  if (m.t !== "fb") return;
+  const fb = m.fb, d = img.data;
+  for (let i = 0; i < 57600; i++) {
+    const c = fb[i];
+    d[4 * i] = (c >> 11) << 3; d[4 * i + 1] = ((c >> 5) & 63) << 2; d[4 * i + 2] = (c & 31) << 3; d[4 * i + 3] = 255;
+  }
+  ctxPix.putImageData(img, 0, 0);
+  for (let b = 0; b < 14; b++) {
+    const el = $("btn" + b);
+    el.classList.toggle("lit", !!(m.b & (1 << b)));
+  }
+  for (let k = 0; k < 27; k++) {
+    keyEls[k].classList.toggle("lit", !!(m.k & (1 << k)));
+    keyEls[k].classList.toggle("dim", !(m.k & (1 << k)) && !!(m.d & (1 << k)));
+  }
+}
+async function select(i){
+  current = i; showNotes(i);
+  if (ctx && $("start").getAttribute("aria-pressed") === "true") await startProject(i);
+  else still(i);
+}
+$("start").addEventListener("click", async () => {
+  const on = $("start").getAttribute("aria-pressed") === "true";
+  if (on) {
+    if (node) { node.disconnect(); node.port.close(); node = null; }
+    $("start").setAttribute("aria-pressed", "false"); $("start").textContent = "音を出す";
+    return;
+  }
+  try {
+    await ensureCtx(); await ctx.resume(); await startProject(current);
+    $("start").setAttribute("aria-pressed", "true"); $("start").textContent = "止める";
+  } catch (e) { $("inerr").hidden = false; $("inerr").textContent = "音を始められませんでした: " + e.message; }
+});
+$("master").addEventListener("input", () => {
+  const db = +$("master").value; $("masterOut").textContent = db + " dB"; send({ t: "gain", g: gainFromDb(db) });
+});
+
+/* ---- the computer's sound (a file, the microphone) ---- */
+function connectInput(){
+  if (inputNode) { try { inputNode.disconnect(); } catch (e) {} inputNode = null; }
+  if (!ctx || !node || !PROJECTS[current].input) return;
+  if (inputKind === "file" && inputBuffer) {
+    const s = ctx.createBufferSource(); s.buffer = inputBuffer; s.loop = true; s.connect(node); s.start(); inputNode = s;
+  } else if (inputKind === "mic" && micStream) {
+    const s = ctx.createMediaStreamSource(micStream); s.connect(node); inputNode = s;
+  }
+}
+$("insel").addEventListener("change", async () => {
+  const v = $("insel").value; $("inerr").hidden = true; inputKind = v;
+  $("infile").hidden = v !== "file";
+  if (v === "mic") {
+    try { micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } }); }
+    catch (e) { $("inerr").hidden = false; $("inerr").textContent = "マイクが使えません（このページの表示環境では許可されないことがあります）。音声ファイルを使ってください。"; inputKind = "none"; $("insel").value = "none"; }
+  }
+  connectInput();
+});
+$("infile").addEventListener("change", async () => {
+  const f = $("infile").files[0]; if (!f) return;
+  try { await ensureCtx(); inputBuffer = await ctx.decodeAudioData(await f.arrayBuffer()); connectInput(); }
+  catch (e) { $("inerr").hidden = false; $("inerr").textContent = "このファイルは読めませんでした（WAV か MP3 を試してください）。"; }
+});
+
+/* the screen before the sound starts: a still frame of the firmware, rendered once without audio */
+async function still(i){
+  try {
+    const { instance } = await WebAssembly.instantiate(b64bytes(WASM[PROJECTS[i].id]), {});
+    const w = instance.exports;
+    w.wb_init(1); w.wb_ms(1000); w.wb_frame();
+    if (!node && current === i) onMsg({ t: "fb", fb: new Uint16Array(w.memory.buffer, w.wb_fb(), 57600).slice(), b: w.wb_led_b(), k: w.wb_led_k(), d: w.wb_led_d() });
+  } catch (e) {}
+}
+buildTabs(); buildEncs(); buildBtns(); buildKbd(); showNotes(0); still(0);
+</script>
