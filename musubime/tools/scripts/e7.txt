@@ -1,0 +1,11 @@
+# RUTEN left alone for five minutes from the floor; screens along the way, the operators (FX held) at 2 and 4 minutes
+10 shot s10
+60 shot s60
+120 btn FX down
+120.4 shot ops120
+120.6 btn FX up
+180 shot s180
+240 btn FX down
+240.4 shot ops240
+240.6 btn FX up
+295 shot s295

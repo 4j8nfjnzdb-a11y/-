@@ -3,7 +3,7 @@
 #   fm1/assemble.sh PROJECT                      -> fm1/build/PROJECT/ (app.c, app.h, fm1.toml, words.tsv, src/, tests/)
 #   fm1/assemble.sh PROJECT host  FM1_BASE       -> and the host simulator, then its tests (no toolchain needed)
 #   fm1/assemble.sh PROJECT fwsc  FM1_BASE       -> and the firmware package (JieLi toolchain + AC79 SDK: docs/INSTALL.md)
-# PROJECT: kuzushi henka sen feldman pmvrs tekiou, musubime (all six in one firmware: HOME held chooses), or all.
+# PROJECT: kuzushi henka sen feldman pmvrs tekiou ruten, musubime (all six in one firmware: HOME held chooses), or all.
 # fm1-base only compiles sources inside the app's own directory, so the shared C (src/) is copied in.
 set -e
 cd "$(dirname "$0")"
@@ -19,6 +19,7 @@ one() {
     feldman) src=e4_feldman; id=FM-1_64; tag="nearly the same, never the same: small, quiet, sustained" ;;
     pmvrs)   src=e5_pmvrs;   id=FM-1_65; tag="five kinds of time, cut, never mixed" ;;
     tekiou)  src=e6_tekiou;  id=FM-1_66; tag="it listens to itself and rewires itself" ;;
+    ruten)   src=e7_ruten;   id=FM-1_67; tag="henka whose changes change: a population of ways of changing" ;;
     musubime) src=all;       id=FM-1_60; tag="all six in one: hold HOME, turn SELECT or press a white key 1-6" ;;
     *) echo "unknown project: $p" >&2; exit 2 ;;
   esac
@@ -60,7 +61,7 @@ one() {
 }
 
 if [ "$1" = all ]; then
-  for p in kuzushi henka sen feldman pmvrs tekiou musubime; do one $p "$2" "$3"; done
+  for p in kuzushi henka sen feldman pmvrs tekiou ruten musubime; do one $p "$2" "$3"; done
 else
   one "$1" "$2" "$3"
 fi

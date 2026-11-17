@@ -65,7 +65,7 @@ jobs:
       - name: Collect the packages
         run: |
           mkdir -p out
-          for p in musubime kuzushi henka sen feldman pmvrs tekiou; do
+          for p in musubime kuzushi henka sen feldman pmvrs tekiou ruten; do
             cp "musubime/fm1/build/$p/build/$p.fwsc" out/
           done
           (cd out && sha256sum *.fwsc | tee SHA256SUMS)

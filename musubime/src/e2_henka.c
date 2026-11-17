@@ -1484,6 +1484,27 @@ void pj_control(const mz_in_t *in, const mz_body_t *b)
     }
 }
 
+/* the meter as text, cut to fit what is left of a row's value (16 bytes with its end) */
+static void meter_cat(char *v, const uint8_t *bars, int nb)
+{
+    char t[24];
+    int q, used = 0, room;
+    t[0] = 0;
+    for (q = 0; q < nb && bars[q]; q++) {
+        if (q)
+            mz_cat(t, "+");
+        mz_int(t, bars[q]);
+    }
+    while (v[used])
+        used++;
+    room = 15 - used;
+    if (room <= 0)
+        return;
+    for (q = 0; t[q] && q < room; q++)
+        v[used + q] = t[q];
+    v[used + q] = 0;
+}
+
 static void gen_row(int i, mz_row_t *r)
 {
     static const char *const LAB[HW_NENC] = {"METER", "COUPLE", "TOKENS", "LIFE", "HOP", "REGIME", "SHIFT"};
@@ -1495,11 +1516,10 @@ static void gen_row(int i, mz_row_t *r)
     switch (i) {
     case 0:
         mz_cat(r->value, METER_NAME[sh.meter_mode]);
-        if (sh.meter_mode == 1)
-            for (k = 0; k < sh.meter_n; k++) {
-                mz_cat(r->value, k ? "+" : " ");
-                mz_int(r->value, sh.meter[k]);
-            }
+        if (sh.meter_mode == 1) {
+            mz_cat(r->value, " ");
+            meter_cat(r->value, sh.meter, sh.meter_n);
+        }
         break;
     case 1:
         if (sh.couple >= 0.0f)
@@ -1560,14 +1580,8 @@ void pj_row(int i, mz_row_t *r)
         mz_cat(r->label, "TIME");
         mz_fix(r->value, sh.time, 2);
         if (sh.gen && sh.meter_mode) {   /* the meter now */
-            const uint8_t *bars = sh.meter_mode == 1 ? sh.meter : METERS[sh.meter_mode];
-            int nb = sh.meter_mode == 1 ? sh.meter_n : 4, q;
             mz_cat(r->value, " M");
-            for (q = 0; q < nb && bars[q]; q++) {
-                if (q)
-                    mz_cat(r->value, "+");
-                mz_int(r->value, bars[q]);
-            }
+            meter_cat(r->value, sh.meter_mode == 1 ? sh.meter : METERS[sh.meter_mode], sh.meter_mode == 1 ? sh.meter_n : 4);
         } else {
             mz_cat(r->value, " T");
             mz_fix(r->value, sh.tempo * sh.tempo_w * sh.tempo_r, 1);
