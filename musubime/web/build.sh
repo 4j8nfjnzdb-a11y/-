@@ -6,7 +6,7 @@ set -e
 cd "$(dirname "$0")/.."
 OUT=web/build
 mkdir -p "$OUT"
-for p in e1_kuzushi e2_henka e3_sen e4_feldman e5_pmvrs e6_tekiou e7_ruten; do
+for p in e1_kuzushi e2_henka e3_sen e4_feldman e5_pmvrs e6_tekiou e7_ruten e8_rendo; do
   clang --target=wasm32 -O2 -nostdlib -ffp-contract=off -fno-builtin -Wall -Wextra -Wno-unused-parameter -Werror \
     -Isrc -Wl,--no-entry -Wl,--initial-memory=4194304 -Wl,-z,stack-size=131072 \
     -o "$OUT/$p.wasm" src/shell.c src/body.c src/scr.c "src/$p.c" web/hw_web.c

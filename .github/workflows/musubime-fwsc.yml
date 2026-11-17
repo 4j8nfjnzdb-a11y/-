@@ -65,7 +65,7 @@ jobs:
       - name: Collect the packages
         run: |
           mkdir -p out
-          for p in musubime kuzushi henka sen feldman pmvrs tekiou ruten; do
+          for p in musubime kuzushi henka sen feldman pmvrs tekiou ruten rendo; do
             cp "musubime/fm1/build/$p/build/$p.fwsc" out/
           done
           (cd out && sha256sum *.fwsc | tee SHA256SUMS)
@@ -81,6 +81,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # every build is also kept under its own name, never replaced, so an earlier stage can be installed again
+          KEEP="musubime-b${GITHUB_RUN_NUMBER}-${GITHUB_SHA::7}"
+          gh release create "$KEEP" out/*.fwsc out/SHA256SUMS --target "$GITHUB_SHA" --prerelease \
+            --title "musubime firmware (build ${GITHUB_RUN_NUMBER}, kept)" \
+            --notes "Kept build of musubime/ at $GITHUB_SHA. Install: musubime/install-mac.sh with this name as the second argument." || true
           gh release delete musubime-latest --yes --cleanup-tag || true
           gh release create musubime-latest out/*.fwsc out/SHA256SUMS --target "$GITHUB_SHA" --prerelease \
             --title "musubime firmware (latest build)" \

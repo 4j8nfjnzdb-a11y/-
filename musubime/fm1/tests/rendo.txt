@@ -1,0 +1,38 @@
+# RENDO: the first patch running; MOD, CHAOS, DRUMS, DENS; touch pads LOOP, PITCH+HARM, TAPE; a cable re-patched; the
+# patch page (GLO held) with a depth turned
+wait 800
+shot boot.png
+master 4096
+peakreset
+wav rendo.wav
+wait 3000
+turn ALGO 20 30
+turn K1 15 30
+turn K2 20 30
+wait 2000
+key w0 down 80 40
+wait 600
+key w0 up
+key w2 down 90 100
+key w3 down 90 60
+wait 800
+key w2 up
+key w3 up
+key w7 down 90 90
+wait 900
+key w7 up
+wait 400
+key w8 down 90 0
+wait 80
+key w8 up
+press GLO
+wait 400
+turn K2 -8 30
+shot patch.png
+release GLO
+turn PRESET -20 30
+wait 2500
+shot play.png
+wavstop
+expect peak_db_min -40
+expect peak_db_max -2.5

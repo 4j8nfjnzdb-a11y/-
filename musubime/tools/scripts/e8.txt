@@ -1,0 +1,52 @@
+# RENDO: left alone, then every touch pad (white keys 1-8 = keys 0 2 4 6 7 9 11 12), the patch page, the macros
+20 shot a20
+90 shot a90
+150 shot a150
+# LOOP (light), then STUT (hard)
+160 key 0 down 60
+160.1 prs 0 20
+161.5 key 0 up
+163 key 2 down 100
+163.1 prs 2 110
+164.5 key 2 up
+# PITCH, HARM
+166 key 4 down 90
+166.1 prs 4 90
+168 key 4 up
+170 key 6 down 80
+170.1 prs 6 60
+171.5 shot harm
+172 key 6 up
+# REV, CRUSH, FREEZE, TAPE
+174 key 7 down 90
+175.5 key 7 up
+177 key 9 down 90
+177.1 prs 9 100
+178.5 key 9 up
+180 key 11 down 90
+182 key 11 up
+184 key 12 down 90
+184.1 prs 12 80
+186.5 key 12 up
+# two at once: LOOP + PITCH
+189 key 0 down 90
+189.05 key 4 down 90
+189.1 prs 4 120
+191 key 0 up
+191 key 4 up
+# patch page: GLO held, knobs turn cables; a cable key tapped re-patches
+195 btn GLO down
+195.5 enc 0 -10
+195.6 enc 3 12
+196 shot patch
+196.5 btn GLO up
+197 key 14 down 90
+197.1 key 14 up
+# macros: MOD wild, CHAOS up, DRUMS metal, DENS full then thin
+200 spin 1 30 1000
+202 spin 3 30 1000
+204 spin 4 40 1000
+206 spin 2 30 800
+220 shot wild
+222 spin 2 -60 1000
+235 shot thin

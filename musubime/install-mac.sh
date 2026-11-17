@@ -2,7 +2,9 @@
 # musubime: FM-1 に入れる（Mac）。ターミナルにこの 1 行を貼って return:
 #   curl -fsSL https://raw.githubusercontent.com/4j8nfjnzdb-a11y/-/refs/heads/claude/eloquent-mendel-xx2vgi/musubime/install-mac.sh | bash
 # 何も付けなければ 6 つ全部入り（musubime: HOME を押さえて選ぶ）。1 つだけ入れるときは最後に名前を付ける:
-#   ... | bash -s kuzushi   (musubime henka kuzushi sen feldman pmvrs tekiou ruten)
+#   ... | bash -s kuzushi   (musubime henka kuzushi sen feldman pmvrs tekiou ruten rendo)
+# 前の版を入れるときは、名前の後に版の名前（GitHub の Releases にある musubime-b番号-…）を付ける:
+#   ... | bash -s ruten musubime-b12-fa1302b
 #
 # 要るもの: Python 3.12（python.org、数十 MB）。Apple の開発ツールも git も要らない。
 # やること: 道具の確認と準備 -> ファイルのダウンロード -> FM-1 の今のバージョンを読む -> 公式 V15 でなければ先に V15 へ
@@ -10,9 +12,11 @@
 # 書き込む前には必ず y / n を聞く。書き込みは fm1-base の fm1_install.py（書く前にファイルと機器を確かめる）。
 set -u
 NAME="${1:-musubime}"
-case "${NAME}" in musubime|henka|kuzushi|sen|feldman|pmvrs|tekiou|ruten) ;;
-  *) echo "名前は musubime henka kuzushi sen feldman pmvrs tekiou ruten のどれか"; exit 1 ;; esac
-REL="https://github.com/4j8nfjnzdb-a11y/-/releases/download/musubime-latest"
+case "${NAME}" in musubime|henka|kuzushi|sen|feldman|pmvrs|tekiou|ruten|rendo) ;;
+  *) echo "名前は musubime henka kuzushi sen feldman pmvrs tekiou ruten rendo のどれか"; exit 1 ;; esac
+VER="${2:-musubime-latest}"              # a kept version (Releases: musubime-bN-xxxxxxx), or the latest
+case "${VER}" in musubime-*) ;; *) echo "版の名前は musubime- で始まります（例: musubime-b12-fa1302b）"; exit 1 ;; esac
+REL="https://github.com/4j8nfjnzdb-a11y/-/releases/download/${VER}"
 V15_URL="https://github.com/m-vave/fm1_open/raw/main/sdk/firmware/FM-1_015.fwsc"
 WORK="${HOME}/musubime-fm1"
 BASE="${WORK}/fm1-base"
