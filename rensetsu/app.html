@@ -1,0 +1,1530 @@
+<title>RENSETSU</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDGothic:wght@400;700&display=swap">
+<style>
+/* A console: black ground, white monospace text, nothing drawn. Two columns on wide screens:
+   listening state on the left, material and controls on the right; the tap field spans both. */
+:root{
+  --bg:#000; --fg:#f2f2f0; --dim:#9b9b98; --faint:#5c5c5a; --line:#2c2c2b;
+  --mono:"BIZ UDGothic","Osaka-Mono","MS Gothic",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{background:var(--bg);color:var(--fg)}
+body{margin:0;font-family:var(--mono);font-size:13px;line-height:1.6;-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--bg);z-index:10}
+button,input,label.btn{font:inherit;color:inherit}
+button,label.btn{display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:4px 11px;background:var(--bg);border:1px solid var(--fg);border-radius:0;cursor:pointer;white-space:nowrap}
+button[aria-pressed="true"]{background:var(--fg);color:var(--bg)}
+button:disabled{border-color:var(--faint);color:var(--faint);cursor:default}
+:focus-visible{outline:1px dashed var(--fg);outline-offset:3px}
+.vh{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.dim{color:var(--dim)}
+.faint{color:var(--faint)}
+.app{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 56px;display:flex;flex-direction:column;gap:18px}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:10px 8px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:2px}
+.bar .r{display:flex;flex-wrap:wrap;gap:0 14px;align-items:baseline;min-width:0}
+.bar b{font-weight:700;letter-spacing:.18em}
+.bar .sp{flex:1 1 0}
+.bar .hyp{color:var(--dim)}
+@media (max-width:440px){.bar .nm{display:none}}
+.q{margin:0;color:var(--dim)}
+.ctl{display:flex;flex-wrap:wrap;gap:10px 22px;align-items:center}
+.grp{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.grp>button+button{margin-left:-7px}
+.lb{color:var(--dim);margin-right:4px}
+.msg{margin:0;min-height:1.6em;color:var(--fg)}
+.tap{display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;gap:10px;width:100%;min-height:clamp(170px,30vh,320px);padding:16px;text-align:left;touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.tap .t1{font-size:22px;letter-spacing:.08em}
+.tap .t2{color:var(--dim);white-space:normal}
+.tap .t3{white-space:normal;font-variant-numeric:tabular-nums}
+.tap.hit{background:var(--fg);color:var(--bg)}
+.tap.hit .t2{color:var(--bg)}
+.cols{display:grid;grid-template-columns:minmax(0,1fr);gap:26px}
+@media (min-width:900px){.cols{grid-template-columns:minmax(0,1.08fr) minmax(0,1fr)}}
+.col{display:flex;flex-direction:column;gap:22px;min-width:0}
+section{display:flex;flex-direction:column;gap:8px;min-width:0}
+h2{margin:0;font-size:13px;font-weight:400;color:var(--dim);letter-spacing:.06em;border-bottom:1px solid var(--line);padding-bottom:3px}
+pre{margin:0;font:inherit;white-space:pre-wrap;word-break:break-all;min-width:0}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;font-variant-numeric:tabular-nums}
+th,td{padding:1px 14px 1px 0;text-align:left;font-weight:400;white-space:nowrap;vertical-align:baseline}
+th{color:var(--dim)}
+td.n,th.n{text-align:right}
+tr.off td{color:var(--faint)}
+td.hi{text-decoration:underline;text-underline-offset:3px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.sl{display:grid;grid-template-columns:8.5em minmax(0,1fr) 7.5em;align-items:center;gap:4px 10px}
+.sl output{text-align:right;font-variant-numeric:tabular-nums}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:30px;margin:0;background:transparent;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:1px;background:var(--fg)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;margin-top:-6px;background:var(--fg);border:0;border-radius:0}
+input[type=range]::-moz-range-track{height:1px;background:var(--fg)}
+input[type=range]::-moz-range-thumb{width:13px;height:13px;background:var(--fg);border:0;border-radius:0}
+input[type=text]{background:var(--bg);border:1px solid var(--fg);border-radius:0;padding:4px 8px;min-height:34px;width:9.5em;letter-spacing:.06em}
+.cue{min-width:5.6em}
+.notes{margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:6px;color:var(--dim);max-width:62ch}
+.notes b{color:var(--fg);font-weight:400}
+
+</style>
+<div class="app">
+  <header class="bar">
+    <div class="r"><b>RENSETSU</b><span class="dim nm">連接</span><span class="sp"></span><span id="barEng">エンジン ON</span><span id="barSeed" class="dim">seed --------</span><span id="barUnit" class="dim">#----</span></div>
+    <div class="r"><span class="hyp">聴き手モデル（仮説）</span><span id="barModel">a .20  b .20  c .20  d .20  e .20</span></div>
+  </header>
+
+  <p class="q">なぜこの音があるのか。聴く私はいかに成立するのか。</p>
+
+  <div class="ctl">
+    <div class="grp"><span class="lb">素材</span><button id="mSample" type="button" aria-pressed="true">サンプル</button><button id="mLive" type="button" aria-pressed="false">ライブ</button></div>
+    <div class="grp"><button id="go" type="button">開始</button><button id="stop" type="button" disabled>停止</button></div>
+    <div class="grp"><span class="lb">エンジン</span><button id="eOn" type="button" aria-pressed="true">ON</button><button id="eOff" type="button" aria-pressed="false">OFF</button></div>
+  </div>
+  <p id="msg" class="msg" role="status">ファイルを追加して、開始を押してください。</p>
+
+  <button id="tap" class="tap" type="button">
+    <span class="t1">ここで切れた</span>
+    <span class="t2">まとまりが切れた、と感じた瞬間に押す。キーボードではスペース。</span>
+    <span class="t3" id="tapInfo">タップ 0</span>
+  </button>
+
+  <div class="cols">
+    <div class="col">
+      <section aria-labelledby="hNow"><h2 id="hNow">いま鳴っている単位</h2><pre id="now">停止中</pre></section>
+      <section aria-labelledby="hCue">
+        <h2 id="hCue">手がかり</h2>
+        <div class="scroll"><table id="cueTab">
+          <thead><tr><th>手がかり</th><th class="n">強さ</th><th class="n">仮説の重み</th><th>境界の予測</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+        <pre id="cueNote" class="dim"></pre>
+      </section>
+      <section aria-labelledby="hBrk"><h2 id="hBrk">エンジンが崩した境界</h2><pre id="broken" class="dim">まだありません</pre></section>
+    </div>
+
+    <div class="col">
+      <section id="matSec" aria-labelledby="hMat">
+        <h2 id="hMat">素材</h2>
+        <div class="scroll"><table id="matTab"><thead><tr><th>番号</th><th class="n">長さ</th><th class="n">候補境界</th><th></th></tr></thead><tbody></tbody></table></div>
+        <div class="row" id="fileRow"><label class="btn" for="files">ファイルを追加</label><input id="files" class="vh" type="file" multiple><button id="clearMats" type="button">すべて外す</button><span class="dim">wav・mp3・m4a</span></div>
+      </section>
+
+      <section id="liveSec" aria-labelledby="hLive" hidden>
+        <h2 id="hLive">ライブ入力</h2>
+        <div class="row"><button id="micBtn" type="button">マイクを開始</button><span id="micState" class="dim">止まっています</span></div>
+        <div class="sl"><label for="bufLen">バッファの長さ</label><input id="bufLen" type="range" min="5" max="120" step="5" value="30"><output id="bufLenV" for="bufLen">30 s</output></div>
+        <div class="grp"><span class="lb">満杯になったら</span><button id="kDrop" type="button" aria-pressed="true">古い部分を捨てる</button><button id="kKeep" type="button" aria-pressed="false">古い部分を残す</button></div>
+        <div class="grp"><button id="freeze" type="button" aria-pressed="false">バッファを凍結</button></div>
+        <div class="grp"><span class="lb">出音の混入</span><button id="sAec" type="button" aria-pressed="true">エコー除去</button><button id="sGate" type="button" aria-pressed="false">出音中は取り込まない</button><button id="sNone" type="button" aria-pressed="false">何もしない</button></div>
+        <p class="dim" style="margin:0">入力はそのまま返しません。候補境界つきの素材として足されるだけです。ヘッドホンなら「何もしない」で構いません。</p>
+      </section>
+
+      <section aria-labelledby="hCut">
+        <h2 id="hCut">分節の細かさ・密度</h2>
+        <div class="sl"><label for="maxLen">長さの上限</label><input id="maxLen" type="range" min="40" max="400" step="10" value="200"><output id="maxLenV" for="maxLen">200 ms</output></div>
+        <div class="sl"><label for="sens">候補の感度</label><input id="sens" type="range" min="0" max="100" step="1" value="50"><output id="sensV" for="sens">50</output></div>
+        <div class="sl"><label for="density">密度</label><input id="density" type="range" min="0" max="100" step="1" value="50"><output id="densityV" for="density">0.251 s</output></div>
+        <div class="sl"><label for="nWin">直近N音</label><input id="nWin" type="range" min="4" max="16" step="1" value="8"><output id="nWinV" for="nWin">8</output></div>
+        <p class="dim" style="margin:0">密度は平均の発音間隔です（エンジンOFFでは録音された間隔のまま）。</p>
+      </section>
+
+      <section aria-labelledby="hCues">
+        <h2 id="hCues">競わせる手がかり</h2>
+        <div class="row" id="cueBtns"></div>
+      </section>
+
+      <section aria-labelledby="hSeed">
+        <h2 id="hSeed">シード</h2>
+        <div class="row"><input id="seed" type="text" inputmode="text" autocomplete="off" spellcheck="false" maxlength="8" aria-label="シード（16進8桁）"><button id="seedNew" type="button">別のシード</button></div>
+        <p class="dim" style="margin:0">開始のたびに、このシードから始めます。</p>
+      </section>
+
+      <section aria-labelledby="hExp">
+        <h2 id="hExp">書き出し</h2>
+        <div class="row"><button id="xWav" type="button" disabled>出力 wav</button><button id="xLog" type="button" disabled>出音ログ</button><button id="xTap" type="button" disabled>分節の線</button></div>
+        <pre id="expInfo" class="dim">録音 0:00 / 10:00</pre>
+      </section>
+
+      <section aria-labelledby="hAbout">
+        <h2 id="hAbout">このアプリについて</h2>
+        <ul class="notes">
+          <li>素材は、候補境界（スペクトルフラックスのピーク）つきの一続きの録音として持ちます。どこからどこまでを一音にするかは、次の音を選ぶたびに決め直します。同じ箇所が、一音にも、二音のまとまりにも、前の音の尾にもなります。</li>
+          <li><b>エンジンON</b>　時間的近接・音高近接・音色の類似・音量の強勢・パターン反復の五つが、それぞれ別の場所で区切りを示すように、次の単位・切り方・次の間隔を選びます。一つの手がかりが閾値を超えて強くなる選択は減点します。</li>
+          <li><b>エンジンOFF</b>　素材自身の分節を、録音された順と間隔のまま一音ずつ並べます。並べ替えも評価もしません。</li>
+          <li><b>タップ</b>　ONでは、その切れ目を支えていた手がかりを続く数音で弱め、同じ間隔で切れ目が戻らないようにします。OFFでは記録だけします。</li>
+          <li><b>聴き手モデル</b>　エンジンが置いている仮説です。あなたの聴き方の代わりではありません。ONでのタップで少しずつ書き換わります。</li>
+          <li><b>再現</b>　同じシード・同じ素材で開始し、ログに単位番号つきで残る操作とタップを同じ番号で行えば、同じ出音になります。ライブ入力は素材が動き続けるので、凍結したとき以外は再現しません。</li>
+          <li>音は一つずつ鳴ります。重ねず、響きも足しません。</li>
+        </ul>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+/* RENSETSU engine.
+   Material analysis (candidate boundaries only), cutting a unit anew for every choice,
+   and the anti-grouping choice of the next unit, its cut and the next interval.
+   Pure: no DOM, no Web Audio, no Math.random. The same seed, the same material and the
+   same events (taps and parameter changes at the same unit numbers) give the same output. */
+var RS = (function () {
+'use strict';
+const HOP = 256, WIN = 1024, NB = WIN / 2 + 1, PN = 4096;
+const CUES = ['a', 'b', 'c', 'd', 'e'];
+const CUE_NAME = { a: '時間的近接', b: '音高近接', c: '音色の類似', d: '音量の強勢', e: 'パターン反復' };
+// band each cue is kept in: above TH_HI a grouping settles, below TH_LO nothing can be heard out
+const TH_HI = { a: 0.7, b: 0.7, c: 0.7, d: 0.7, e: 0.45 }, TH_LO = 0.15;
+const SCALE = { a: 0.5, b: 0.35, c: 0.6, d: 0.5 };
+const LEVELS = [0, -4, -8, -12, -16];          // dB below the reference output level
+const OUT_REF = -14;                            // dBFS, loudest frame of a unit at level 0
+const REC = 0.65;                               // recency weight per gap
+const MAXC = 96;                                // cuts examined per choice
+const ETA = 0.12;                               // model update per tap
+const SUPP_DECAY = 0.7;                         // tap suppression fades over the next units
+const REACT = 0.15;                             // assumed reaction time of a tap (s)
+
+// simple integer ratios the intervals must stay away from (log2, tolerance)
+const LR = [];
+for (const [p, q] of [[1, 1], [2, 1], [3, 2], [4, 3], [5, 4], [3, 1], [5, 3], [5, 2], [4, 1]]) {
+  const r = Math.log2(p / q);
+  LR.push([r, p === q ? 0.085 : 0.03]);
+  if (p !== q) LR.push([-r, 0.03]);
+}
+function nearSimple(a, b, tol) {
+  const r = Math.log2(a / b);
+  for (const [x, t] of LR) if (Math.abs(r - x) < (tol || t)) return true;
+  return false;
+}
+
+// ---------- deterministic generator (a tool inside the engine, never the result) ----------
+function rng32(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// ---------- FFT ----------
+const TW = {};
+function tables(n) {
+  if (TW[n]) return TW[n];
+  const rev = new Uint32Array(n), bits = Math.round(Math.log2(n));
+  for (let i = 0; i < n; i++) { let r = 0, x = i; for (let b = 0; b < bits; b++) { r = (r << 1) | (x & 1); x >>= 1; } rev[i] = r; }
+  const cos = new Float64Array(n >> 1), sin = new Float64Array(n >> 1);
+  for (let i = 0; i < n >> 1; i++) { cos[i] = Math.cos(2 * Math.PI * i / n); sin[i] = -Math.sin(2 * Math.PI * i / n); }
+  return (TW[n] = { rev, cos, sin });
+}
+function fft(re, im, n, inv) {
+  const { rev, cos, sin } = tables(n);
+  for (let i = 0; i < n; i++) {
+    const j = rev[i];
+    if (j > i) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; }
+  }
+  for (let size = 2; size <= n; size <<= 1) {
+    const half = size >> 1, step = n / size;
+    for (let i = 0; i < n; i += size) {
+      for (let j = 0, k = 0; j < half; j++, k += step) {
+        const wr = cos[k], wi = inv ? -sin[k] : sin[k], a = i + j, b = a + half;
+        const xr = re[b] * wr - im[b] * wi, xi = re[b] * wi + im[b] * wr;
+        re[b] = re[a] - xr; im[b] = im[a] - xi; re[a] += xr; im[a] += xi;
+      }
+    }
+  }
+}
+const HANN = new Float64Array(WIN); let HSQ = 0;
+for (let i = 0; i < WIN; i++) { HANN[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / WIN); HSQ += HANN[i] * HANN[i]; }
+const PRE = new Float64Array(PN), PIM = new Float64Array(PN), PQ = new Float64Array(2049);
+const NOPITCH = { f0: 0, clar: 0 };
+
+// ---------- material: a continuous recording with candidate boundaries ----------
+// Positions are absolute sample indices. A live material is a ring: [start, end) slides on.
+class Mat {
+  constructor(id, sr, cap, ring) {
+    this.id = id; this.sr = sr; this.ring = !!ring;
+    this.C = Math.max(WIN * 2, cap | 0);
+    this.d = new Float32Array(this.C);
+    this.start = 0; this.end = 0;
+    this.CF = Math.ceil(this.C / HOP) + 8;
+    this.rms = new Float32Array(this.CF); this.cen = new Float32Array(this.CF);
+    this.fla = new Float32Array(this.CF); this.flx = new Float32Array(this.CF);
+    this.fNext = 0; this.pNext = 0;
+    this.prev = new Float64Array(NB); this.hasPrev = false;
+    this.peaks = [];                    // {pos, str}, sorted by pos; the candidates
+    this.fmean = 0; this.fglobal = 0; this.rmsMax = 1e-6;
+    this.fc = new Map(); this.pc = new Map();
+    this.defer = false; this.frozen = false;
+    this._re = new Float64Array(WIN); this._im = new Float64Array(WIN);
+  }
+  x(i) { return this.d[i % this.C]; }
+  get dur() { return (this.end - this.start) / this.sr; }
+  append(ch) {
+    const C = this.C, d = this.d; let e = this.end;
+    for (let i = 0; i < ch.length; i++) { d[e % C] = ch[i]; e++; }
+    this.end = e;
+    if (e - this.start > C) this.start = e - C;
+    this._frames();
+    if (!this.defer) this._pick(this.fNext - 9);
+    if (this.ring) this._prune();
+  }
+  _f0() { return Math.ceil(this.start / HOP); }
+  _frames() {
+    const f0 = this._f0();
+    if (this.fNext < f0) { this.fNext = f0; this.hasPrev = false; }
+    while (this.fNext * HOP + WIN <= this.end) { this._frame(this.fNext); this.fNext++; }
+  }
+  _frame(f) {
+    const s0 = f * HOP, re = this._re, im = this._im, C = this.C, d = this.d;
+    let e2 = 0;
+    for (let k = 0; k < WIN; k++) { const v = d[(s0 + k) % C] * HANN[k]; re[k] = v; im[k] = 0; e2 += v * v; }
+    const r = Math.sqrt(e2 / HSQ);
+    fft(re, im, WIN, false);
+    let num = 0, den = 0, lsum = 0, psum = 0, flux = 0;
+    const prev = this.prev, hp = this.hasPrev;
+    for (let b = 1; b < NB; b++) {
+      const p = re[b] * re[b] + im[b] * im[b], m = Math.sqrt(p);
+      num += b * m; den += m; lsum += Math.log(p + 1e-12); psum += p + 1e-12;
+      const lm = Math.log(1 + 100 * m);
+      if (hp) { const dd = lm - prev[b]; if (dd > 0) flux += dd; }
+      prev[b] = lm;
+    }
+    this.hasPrev = true;
+    const i = f % this.CF;
+    this.rms[i] = r;
+    this.cen[i] = den > 1e-9 ? num / den * this.sr / WIN : 0;
+    this.fla[i] = Math.exp(lsum / (NB - 1)) / (psum / (NB - 1));
+    this.flx[i] = flux;
+    if (r > this.rmsMax) this.rmsMax = r;
+    this.fmean = this.fmean === 0 ? flux : this.fmean + (flux - this.fmean) / 600;
+  }
+  // spectral-flux peaks become candidates; nothing is decided here
+  _pick(upto) {
+    const f0 = this._f0(), fl = this.flx, CF = this.CF, last = this.fNext - 1;
+    if (this.pNext < f0) this.pNext = f0;
+    const minGap = Math.round(0.025 * this.sr), gate = this.rmsMax * 0.003;
+    const scale = (this.fglobal || this.fmean) + 1e-9;
+    for (let f = this.pNext; f < upto; f++) {
+      const v = fl[f % CF];
+      if (v <= 0) continue;
+      let ok = true;
+      for (let k = 1; k <= 3 && ok; k++) {
+        if (f - k >= f0 && fl[(f - k) % CF] >= v) ok = false;
+        if (f + k <= last && fl[(f + k) % CF] > v) ok = false;
+      }
+      if (!ok) continue;
+      let sum = 0, n = 0;
+      for (let k = Math.max(f0, f - 8); k <= Math.min(last, f + 8); k++) { sum += fl[k % CF]; n++; }
+      const str = (v - sum / n) / scale;
+      if (str < 0.12) continue;
+      let r = 0;
+      for (let k = f; k <= Math.min(last, f + 4); k++) r = Math.max(r, this.rms[k % CF]);
+      if (r < gate) continue;
+      const pos = this._refine(f);
+      if (pos < 0 || this._lvl(pos, Math.round(0.012 * this.sr)) < gate) continue;
+      const P = this.peaks, L = P[P.length - 1];
+      if (L && pos - L.pos < minGap) {
+        if (str > L.str && (P.length < 2 || pos - P[P.length - 2].pos >= minGap)) P[P.length - 1] = { pos, str };
+        continue;
+      }
+      if (L && pos <= L.pos) continue;
+      P.push({ pos, str });
+    }
+    if (upto > this.pNext) this.pNext = upto;
+  }
+  // the onset is where the energy jumps most inside (or just after) the frame's window
+  _refine(f) {
+    const s0 = f * HOP, C = this.C, d = this.d, B = 64;
+    const a = Math.max(this.start, s0), b = Math.min(this.end, s0 + WIN + 256);
+    const nb = Math.floor((b - a) / B);
+    if (nb < 3) return Math.max(this.start, s0 + (WIN >> 1));
+    let best = -1, bestV = 0, e1 = 0, e2 = 0;
+    for (let k = 0; k < nb; k++) {
+      let e = 0;
+      for (let i = a + k * B, j = 0; j < B; i++, j++) { const v = d[i % C]; e += v * v; }
+      e = Math.sqrt(e / B);
+      if (k >= 2) { const up = e - Math.max(e1, e2); if (up > bestV) { bestV = up; best = k; } }
+      e2 = e1; e1 = e;
+    }
+    if (best < 0) return -1;   // nothing rises here (e.g. the click of a sound being cut off)
+    // first sample of that block that reaches a third of its peak, then a short pre-roll
+    const s1 = a + best * B; let pk = 0;
+    for (let i = s1; i < s1 + B; i++) pk = Math.max(pk, Math.abs(d[i % C]));
+    let i = s1 - B;
+    while (i < s1 + B && Math.abs(d[i % C]) < pk / 3) i++;
+    return Math.max(this.start, i - Math.round(0.0015 * this.sr));
+  }
+  _lvl(pos, n) {
+    let e = 0; const b = Math.min(this.end, pos + n);
+    for (let i = pos; i < b; i++) { const v = this.d[i % this.C]; e += v * v; }
+    return b > pos ? Math.sqrt(e / (b - pos)) : 0;
+  }
+  _prune() {
+    const s = this.start; let k = 0;
+    while (k < this.peaks.length && this.peaks[k].pos < s) k++;
+    if (k) this.peaks.splice(0, k);
+    if (this.fc.size > 4000) this.fc.clear();
+    if (this.pc.size > 4000) this.pc.clear();
+  }
+  finalize() {
+    const f0 = this._f0(); let s = 0, n = 0;
+    for (let f = f0; f < this.fNext; f++) { s += this.flx[f % this.CF]; n++; }
+    this.fglobal = n ? s / n : 0;
+    this.peaks = []; this.pNext = f0; this.defer = false;
+    this._pick(this.fNext);
+  }
+  lb(pos) {
+    const P = this.peaks; let lo = 0, hi = P.length;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (P[m].pos < pos) lo = m + 1; else hi = m; }
+    return lo;
+  }
+  cands(thr, a, b) {
+    const P = this.peaks, out = [];
+    for (let i = this.lb(a); i < P.length && P[i].pos < b; i++) if (P[i].str >= thr) out.push(P[i].pos);
+    return out;
+  }
+  next(thr, pos) {
+    const P = this.peaks;
+    for (let i = this.lb(pos); i < P.length; i++) if (P[i].str >= thr) return P[i].pos;
+    return -1;
+  }
+  count(thr) { let n = 0; for (const p of this.peaks) if (p.str >= thr) n++; return n; }
+
+  // features of the span [s, e) taken as one unit
+  feat(s, e) {
+    const key = s + ':' + e, hit = this.fc.get(key);
+    if (hit) return hit;
+    const sr = this.sr, CF = this.CF, fv = this._f0(), fl = this.fNext - 1;
+    let fa = Math.max(fv, Math.ceil((s - WIN / 2) / HOP)), fb = Math.min(fl, Math.floor((e - WIN / 2) / HOP));
+    if (fb < fa) { fa = fb = Math.max(fv, Math.min(fl, Math.round((s - WIN / 2) / HOP))); }
+    // spectrum from the analysis frames
+    let w = 0, cw = 0, flw = 0;
+    for (let f = fa; f <= fb; f++) {
+      const i = f % CF, r = this.rms[i], e2 = r * r;
+      w += e2; cw += e2 * this.cen[i]; flw += e2 * this.fla[i];
+    }
+    // level, attack and decay from the samples of the span itself (frames bleed in the neighbours)
+    const BL = 256, nb = Math.max(1, Math.ceil((e - s) / BL)), blk = new Float64Array(nb);
+    let pk = 0;
+    for (let i = s, b = 0, acc = 0, n = 0; i < e; i++) {
+      const v = this.d[i % this.C], a = Math.abs(v);
+      if (a > pk) pk = a;
+      acc += v * v; n++;
+      if (n === BL || i === e - 1) { blk[b++] = Math.sqrt(acc / n); acc = 0; n = 0; }
+    }
+    let rmax = 0, bmax = 0;
+    for (let b = 0; b < nb; b++) if (blk[b] > rmax) { rmax = blk[b]; bmax = b; }
+    const third = Math.max(1, Math.floor(nb / 3));
+    let r1 = 0, r2 = 0;
+    for (let k = 0; k < third; k++) { r1 += blk[k]; r2 += blk[nb - 1 - k]; }
+    const cent = w > 0 ? cw / w : 1000, fla = w > 0 ? flw / w : 0.5;
+    const rise = Math.max(1, (bmax + 0.5) * BL / sr * 1000);
+    const pt = this.pitch(s, e), voiced = pt.clar > 0.7;
+    const hz = voiced ? pt.f0 : Math.max(60, cent);
+    const F = {
+      len: (e - s) / sr, f0: voiced ? pt.f0 : 0, clar: pt.clar, voiced,
+      h: 69 + 12 * Math.log2(hz / 440), cent, fla,
+      L0: 20 * Math.log10(rmax + 1e-9), rise, pk, decaying: nb < 3 || r2 < 0.6 * r1,
+      T: [Math.log2(Math.max(cent, 50) / 1000) * 0.8, fla * 2, Math.log2(rise / 8) * 0.3, voiced ? 0 : 0.5],
+    };
+    this.fc.set(key, F);
+    return F;
+  }
+  // YIN on the start of the unit; the autocorrelation goes through the FFT
+  pitch(s, e) {
+    const sr = this.sr, skip = Math.round(0.004 * sr);
+    const W = Math.min(2048, (e - s - skip) & ~255);
+    if (W < 480) return NOPITCH;
+    const key = s + ':' + W, hit = this.pc.get(key);
+    if (hit) return hit;
+    const re = PRE, im = PIM, q = PQ;
+    re.fill(0); im.fill(0); q[0] = 0;
+    for (let k = 0; k < W; k++) { const v = this.d[(s + skip + k) % this.C]; re[k] = v; q[k + 1] = q[k] + v * v; }
+    let res = NOPITCH;
+    if (q[W] > 1e-7 * W) {
+      fft(re, im, PN, false);
+      for (let k = 0; k < PN; k++) { re[k] = re[k] * re[k] + im[k] * im[k]; im[k] = 0; }
+      fft(re, im, PN, true);
+      const tmin = Math.max(2, Math.floor(sr / 1500)), tmax = Math.min(Math.floor(sr / 55), W >> 1);
+      const dn = new Float64Array(tmax + 2);
+      let run = 0;
+      for (let t = 1; t <= tmax + 1; t++) {
+        const d = q[W - t] + (q[W] - q[t]) - 2 * re[t] / PN;
+        run += d; dn[t] = run > 0 ? d * t / run : 1;
+      }
+      let best = tmin, bestV = 1e9, found = -1;
+      for (let t = tmin; t <= tmax; t++) {
+        if (dn[t] < bestV) { bestV = dn[t]; best = t; }
+        if (dn[t] < 0.15) { let u = t; while (u + 1 <= tmax && dn[u + 1] < dn[u]) u++; found = u; break; }
+      }
+      const t0 = found > 0 ? found : best;
+      let tt = t0;
+      if (t0 > tmin && t0 < tmax) {
+        const a = dn[t0 - 1], b = dn[t0], c = dn[t0 + 1], den = a - 2 * b + c;
+        if (Math.abs(den) > 1e-12) tt = t0 + 0.5 * (a - c) / den;
+      }
+      res = { f0: sr / tt, clar: Math.max(0, Math.min(1, 1 - dn[t0])) };
+    }
+    this.pc.set(key, res);
+    return res;
+  }
+}
+
+async function analyzeFile(mat, data, prog) {
+  mat.defer = true;
+  const CH = 1 << 15;
+  for (let i = 0, k = 0; i < data.length; i += CH, k++) {
+    mat.append(data.subarray(i, Math.min(data.length, i + CH)));
+    if (k % 8 === 7) { if (prog) prog(i / data.length); await new Promise(r => setTimeout(r, 0)); }
+  }
+  mat.finalize();
+}
+
+function hashMat(mat) {
+  let h = 0x811c9dc5;
+  for (let i = mat.start; i < mat.end; i++) {
+    const v = Math.round(mat.x(i) * 32767) & 0xffff;
+    h ^= v & 255; h = Math.imul(h, 16777619);
+    h ^= v >>> 8; h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(16).padStart(8, '0');
+}
+
+// ---------- parameters ----------
+const sensThr = sens => 3.5 * Math.pow(0.05, sens / 100);
+const ioiCenter = density => 0.9 * Math.pow(0.07 / 0.9, density / 100);
+const usableEnd = mat => mat.ring ? Math.max(mat.start, mat.end - Math.round(0.3 * mat.sr)) : mat.end;
+const gl = g => g + '|' + (g + 1);
+
+function gainDb(F, target) {
+  return Math.min(target - F.L0, 20 * Math.log10(0.9 / Math.max(F.pk, 1e-6)), 36);
+}
+
+// ---------- engine state ----------
+function newState(seed) {
+  return {
+    seed: seed >>> 0, rng: rng32(seed), n: 0, hist: [],
+    cur: { m: 0, pos: -1 },
+    w: { a: 0.2, b: 0.2, c: 0.2, d: 0.2, e: 0.2 },   // the listener model: a hypothesis, not the listener
+    supp: { a: 0, b: 0, c: 0, d: 0, e: 0 },
+    tapGaps: [], tapPeriod: 0, tapSig: '',
+    pendingTaps: [],
+    stat: { ON: { pairs: 0, simple: 0 }, OFF: { pairs: 0, simple: 0 } },
+  };
+}
+
+function weights(st, P) {
+  const M = {}; let s = 0, n = 0;
+  for (const x of CUES) if (P.cues[x]) { s += st.w[x]; n++; }
+  for (const x of CUES) M[x] = P.cues[x] && s > 0 ? st.w[x] / (s / n) : 0;
+  return M;
+}
+
+// ---------- how strongly each cue segments the recent units, and where ----------
+function tdist(A, B) {
+  let s = 0;
+  for (let i = 0; i < A.length; i++) { const d = A[i] - B[i]; s += d * d; }
+  return Math.sqrt(s);
+}
+function contrastN(arr, j, n) {
+  let nb = 0, k = 0;
+  if (j > 0) { nb += arr[j - 1]; k++; }
+  if (j + 1 < n) { nb += arr[j + 1]; k++; }
+  return Math.max(0, arr[j] - (k ? nb / k : 0));
+}
+function udist(U, i, i2) {
+  const A = U[i], Ap = U[i - 1], B = U[i2], Bp = U[i2 - 1];
+  const dh1 = (A.h - Ap.h) * (A.v && Ap.v ? 1 : 0.5), dh2 = (B.h - Bp.h) * (B.v && Bp.v ? 1 : 0.5);
+  const li = Math.log2(A.ioi / B.ioi), dl = (A.L - Ap.L) - (B.L - Bp.L), dt = tdist(A.T, B.T);
+  // mostly the pitch-interval and interval sequences; level and timbre count for less
+  const a = (dh1 - dh2) / 3, b = li / 0.2, c = dl / 6, d = dt / 0.8;
+  return a * a + b * b + 0.5 * c * c + 0.25 * d * d;
+}
+// the part of the repetition test that only involves units already played
+function prepE(Ueb) {
+  const Ke = Ueb.length + 1, out = [];
+  for (let k = 2; 2 * k <= Ke - 1; k++) {
+    let sum = 0, n = 0;
+    for (let i = Ke - k; i < Ke - 1; i++) { const i2 = i - k; if (i2 < 1) continue; sum += udist(Ueb, i, i2); n++; }
+    out[k] = { sum, n };
+  }
+  return out;
+}
+const LOC = 3;   // the boundary fight is fought over the last three gaps (A|BC against AB|C)
+function pairDis(dist, str, M, G0, G, W) {
+  for (const c of CUES) { const d = dist[c]; if (!d) continue; const r = W.sq[c]; for (let j = G0; j < G; j++) r[j] = Math.sqrt(d[j]); }
+  let num = 0, den = 0;
+  for (let i = 0; i < 5; i++) for (let k = i + 1; k < 5; k++) {
+    const X = CUES[i], Y = CUES[k], wxy = M[X] * M[Y];
+    if (!wxy) continue;
+    den += wxy;
+    if (!dist[X] || !dist[Y]) continue;
+    const rx = W.sq[X], ry = W.sq[Y];
+    let bc = 0;
+    for (let j = G0; j < G; j++) bc += rx[j] * ry[j];
+    num += wxy * Math.min(str[X], str[Y]) * (1 - bc);
+  }
+  return den ? num / den : 0;
+}
+// working arrays for evaluate: reused while searching, fresh for results that are kept
+function mkScratch(n) {
+  const f = () => new Float64Array(n), o = () => ({ a: f(), b: f(), c: f(), d: f(), e: f() });
+  return { n, x: new Float64Array(n + 1), y: f(), z: f(), q: f(), rec: f(), cons: f(), b: o(), pa: o(), la: o(), sq: o() };
+}
+const RECP = []; for (let j = 0; j < 64; j++) RECP[j] = Math.pow(REC, j);
+// U: the last N units (a..d), Ue: the last 2N units (e). Gap j lies between U[j] and U[j+1].
+function evaluate(U, Ue, M, pre, W) {
+  const K = U.length, G = K - 1;
+  const S = { a: 0, b: 0, c: 0, d: 0, e: 0 };
+  const res = { S, G, b: null, p: null, cons: null, dis: 0, disG: 0 };
+  if (G < 1) return res;
+  if (!W || W.n < G) W = mkScratch(G);
+  const x = W.x, y = W.y, z = W.z, q = W.q, rec = W.rec, b = W.b;
+  for (let j = 0; j < K; j++) { const u = U[j]; x[j] = Math.log2(u.ioi) + 0.5 * Math.max(0, u.ioi - u.snd) / u.ioi; }
+  for (let j = 0; j < G; j++) {
+    const A = U[j], B = U[j + 1];
+    y[j] = Math.abs(B.h - A.h) * (A.v && B.v ? 1 : 0.5);
+    z[j] = tdist(A.T, B.T);
+    const dl = B.L - A.L; q[j] = dl > 0 ? dl : -0.5 * dl;
+  }
+  for (let j = 0; j < G; j++) {
+    b.a[j] = Math.max(0, x[j] - (j > 0 ? 0.5 * (x[j - 1] + x[j + 1]) : x[j + 1]));
+    b.b[j] = contrastN(y, j, G) / 12;
+    b.c[j] = contrastN(z, j, G);
+    b.d[j] = contrastN(q, j, G) / 12;
+    b.e[j] = 0;
+    rec[j] = RECP[G - 1 - j];
+  }
+  // pattern repetition: does the latest stretch of k units repeat the k before it?
+  const Ke = Ue.length, off = Ke - K;
+  for (let k = 2; 2 * k <= Ke - 1; k++) {
+    let dist = 0, n = 0;
+    if (pre && pre[k]) {
+      dist = pre[k].sum; n = pre[k].n;
+      if (Ke - 1 - k >= 1) { dist += udist(Ue, Ke - 1, Ke - 1 - k); n++; }
+    } else {
+      for (let i = Ke - k; i < Ke; i++) { const i2 = i - k; if (i2 < 1) continue; dist += udist(Ue, i, i2); n++; }
+    }
+    if (!n) continue;
+    const sim = Math.exp(-0.5 * dist / n);
+    if (sim > S.e) S.e = sim;
+    let j = Ke - k - 1 - off; if (j >= 0 && j < G && sim > b.e[j]) b.e[j] = sim;
+    j = Ke - 2 * k - 1 - off; if (j >= 0 && j < G && sim > b.e[j]) b.e[j] = sim;
+  }
+  for (const c of ['a', 'b', 'c', 'd']) {
+    let mx = 0; const bc = b[c];
+    for (let j = 0; j < G; j++) { const v = bc[j] * (0.4 + 0.6 * rec[j]); if (v > mx) mx = v; }
+    S[c] = 1 - Math.exp(-mx / SCALE[c]);
+  }
+  // where each cue puts the boundary, as a distribution over the gaps (window-wide, by recency),
+  // and over the last LOC gaps alone, with each cue's strength there
+  const G0 = Math.max(0, G - LOC), p = {}, pl = {}, sl = {};
+  for (const c of CUES) {
+    const bc = b[c], pc = W.pa[c], lc = W.la[c];
+    let s = 0, sL = 0, mx = 0;
+    for (let j = 0; j < G; j++) {
+      pc[j] = bc[j] * rec[j]; s += pc[j];
+      if (j >= G0) { lc[j] = bc[j]; sL += bc[j]; if (bc[j] > mx) mx = bc[j]; } else lc[j] = 0;
+    }
+    if (s > 1e-9) { for (let j = 0; j < G; j++) pc[j] /= s; p[c] = pc; } else p[c] = null;
+    if (sL > 1e-9) { for (let j = G0; j < G; j++) lc[j] /= sL; pl[c] = lc; } else pl[c] = null;
+    sl[c] = c === 'e' ? mx : 1 - Math.exp(-mx / SCALE[c]);
+  }
+  // disagreement: strong cues that put their boundaries in different places
+  res.dis = pairDis(pl, sl, M, G0, G, W);
+  res.disG = pairDis(p, S, M, 0, G, W);
+  res.sl = sl;
+  const cons = W.cons; let mw = 0;
+  for (let j = 0; j < G; j++) cons[j] = 0;
+  for (const c of CUES) mw += M[c];
+  for (const c of CUES) if (M[c] && p[c]) for (let j = 0; j < G; j++) cons[j] += M[c] * S[c] * p[c][j];
+  if (mw) for (let j = 0; j < G; j++) cons[j] /= mw;
+  res.b = b; res.p = p; res.cons = cons;
+  return res;
+}
+function argmax(a, n) { let k = 0; for (let j = 1; j < n; j++) if (a[j] > a[k]) k = j; return k; }
+function predOf(ev, nBase) {
+  const out = {};
+  for (const c of CUES) out[c] = ev.p && ev.p[c] ? gl(nBase + argmax(ev.p[c], ev.G)) : '-';
+  return out;
+}
+
+// ---------- cutting: the same place can be one sound, two, or the tail of the one before ----------
+function cutsIn(mat, k, a, b, thr, maxL, minL, rng, out) {
+  const ue = usableEnd(mat);
+  a = Math.max(a, mat.start); b = Math.min(b, ue - minL);
+  if (b <= a) return;
+  const cs = mat.cands(thr, a, Math.min(ue, b + 4 * maxL));
+  const push = (s, e, ks, ke, absorbed, skipped) => {
+    if (e - s < minL || e > ue || s < mat.start) return;
+    out.push({ m: k, s, e, ks, ke, absorbed, skipped });
+  };
+  for (let i = 0; i < cs.length && cs[i] < b; i++) {
+    const c = cs[i], n1 = i + 1 < cs.length ? cs[i + 1] : ue;
+    const n2 = i + 2 < cs.length ? cs[i + 2] : -1, n3 = i + 3 < cs.length ? cs[i + 3] : -1, lim = c + maxL;
+    push(c, Math.min(n1, lim), 'cand', n1 > lim ? 'cap' : (n1 === ue ? 'end' : 'next'), [], n1 > lim && n1 < ue ? [n1] : []);
+    if (n2 > 0 && n1 < lim) push(c, Math.min(n2, lim), 'cand', 'merge', [n1], n2 > lim ? [n2] : []);
+    if (n3 > 0 && n2 > 0 && n2 < lim) push(c, Math.min(n3, lim), 'cand', 'merge', [n1, n2], n3 > lim ? [n3] : []);
+    const len0 = Math.min(n1, lim) - c, f = 0.3 + 0.35 * rng();
+    if (len0 * f >= minL) push(c, c + Math.round(len0 * f), 'cand', 'trunc', [], n1 < ue ? [n1] : []);
+    if (n1 - c >= 3 * minL) {
+      const g = 0.25 + 0.4 * rng(), ts = c + 128 * Math.round(g * Math.min(n1 - c, 2 * maxL) / 128);
+      if (n1 - ts >= minL) {
+        const merge = n2 > 0 && n1 - ts < maxL * 0.6 && rng() < 0.5;
+        const e = merge ? Math.min(n2, ts + maxL) : Math.min(n1, ts + maxL);
+        push(ts, e, 'tail', merge ? 'merge' : (n1 > ts + maxL ? 'cap' : 'next'), merge ? [n1] : [], [c]);
+      }
+    }
+  }
+}
+
+// the material's own next unit from a position (what OFF plays, and the reference for ON)
+function natural(mat, k, pos, thr, maxL, wait) {
+  const ue = usableEnd(mat);
+  const c = mat.next(thr, pos);
+  if (c < 0 || c >= ue - Math.round(0.01 * mat.sr)) return null;
+  let cn = mat.next(thr, c + 1), atEnd = false;
+  if (cn < 0 || cn >= ue) { if (wait) return null; cn = ue; atEnd = true; }
+  const e = Math.min(cn, c + maxL);
+  return {
+    m: k, s: c, e, ks: 'cand', ke: e < cn ? 'cap' : (atEnd ? 'end' : 'next'),
+    absorbed: [], skipped: e < cn && !atEnd ? [cn] : [], ioi: Math.min(6, Math.max(0.005, (cn - c) / mat.sr)), next: cn,
+  };
+}
+
+function fixCursor(st, mats) {
+  if (st.cur.m < 0 || st.cur.m >= mats.length) st.cur = { m: 0, pos: mats[0].start };
+  const mt = mats[st.cur.m], ue = usableEnd(mt);
+  if (st.cur.pos < mt.start) st.cur.pos = mt.start;
+  if (st.cur.pos >= ue) {
+    if (mt.ring && !mt.frozen) st.cur.pos = Math.max(mt.start, ue - 1);
+    else if (mt.ring) st.cur.pos = mt.start;
+    else { const k = (st.cur.m + 1) % mats.length; st.cur = { m: k, pos: mats[k].start }; }
+  }
+}
+
+function decideOff(st, mats, P) {
+  const thr = sensThr(P.sens);
+  for (let tries = 0; tries <= mats.length; tries++) {
+    const mat = mats[st.cur.m], maxL = Math.round(P.maxLen / 1000 * mat.sr);
+    const live = mat.ring && !mat.frozen;
+    const u = natural(mat, st.cur.m, st.cur.pos, thr, maxL, live);
+    if (u) {
+      u.F = mat.feat(u.s, u.e);
+      const gdb = gainDb(u.F, OUT_REF + 3 + u.F.L0 - 20 * Math.log10(mat.rmsMax + 1e-9));
+      u.gain = Math.pow(10, gdb / 20); u.L = u.F.L0 + gdb; u.lv = null;
+      u.adv = u.next >= usableEnd(mat) ? usableEnd(mat) : u.next;
+      u.broken = '-';
+      return u;
+    }
+    if (live) return null;
+    const k = (st.cur.m + 1) % mats.length;
+    st.cur = { m: k, pos: mats[k].start };
+  }
+  return null;
+}
+
+// how well the recent intervals sit on one period and its multiples (a grid with jitter)
+function gridFit(hist, ioi) {
+  const v = hist.concat([ioi]); let best = 0;
+  for (const base of v) for (let div = 1; div <= 3; div++) {
+    const T = base / div; if (T < 0.025) continue;
+    let fit = 0;
+    for (const x of v) { const k = Math.round(x / T); if (k >= 1 && k <= 4 && Math.abs(Math.log2(x / (k * T))) < 0.07) fit++; }
+    if (fit > best) best = fit;
+  }
+  return best / v.length;
+}
+function scoreCand(ctx, c, L, ioi, keep) {
+  const F = c.F, st = ctx.st, M = ctx.M;
+  const snd = Math.max(0.005, Math.min(F.len, ioi - 0.003));
+  const u = { n: st.n + 1, h: F.h, v: F.voiced, T: F.T, L, ioi, snd };
+  ctx.U[ctx.U.length - 1] = u; ctx.Ue[ctx.Ue.length - 1] = u;
+  const ev = evaluate(ctx.U, ctx.Ue, M, ctx.pre, keep ? null : ctx.W);
+  let sc = ev.dis + 0.5 * ev.disG, en = 0, sumS = 0;
+  for (const x of CUES) {
+    if (!M[x]) continue;
+    en++; sumS += ev.S[x];
+    sc -= M[x] * (3 * Math.max(0, ev.S[x] - TH_HI[x]) + 0.3 * Math.max(0, TH_LO - ev.S[x]) + 0.8 * st.supp[x] * ev.S[x]);
+  }
+  if (en) sc -= 2 * Math.max(0, TH_LO - sumS / en);
+  let gf = ctx.grid.get(ioi);
+  if (gf === undefined) { gf = gridFit(ctx.hIoi, ioi); ctx.grid.set(ioi, gf); }
+  if (gf > 0.55) sc -= 2 * (gf - 0.55);
+  // density sets where the intervals sit on average, not each interval
+  const u0 = Math.log2(ioi / ctx.c0), mu = (ctx.hLog + u0) / (ctx.hIoi.length + 1);
+  sc -= 0.8 * mu * mu + 0.04 * u0 * u0;
+  if (ev.cons) {
+    // a tapped grouping must not come back at the same spacing
+    if (st.tapPeriod && st.tapGaps.length) {
+      const lastG = st.tapGaps[st.tapGaps.length - 1];
+      for (const g of [lastG + st.tapPeriod, lastG + 2 * st.tapPeriod]) {
+        const j = g - ctx.nBase;
+        if (j >= 0 && j < ev.G) sc -= 0.5 * ev.cons[j];
+      }
+    }
+    // nor be held up by the same cues again at the newest gap
+    if (st.tapSig) {
+      const j = ev.G - 1;
+      if (ev.cons[j] > 0.15 && sigAt(ev, j) === st.tapSig) sc -= 0.3;
+    }
+  }
+  return { sc, ev };
+}
+function sigAt(ev, j) {
+  let s = '';
+  for (const c of CUES) {
+    const bc = ev.b[c]; let mx = 0;
+    for (let i = 0; i < ev.G; i++) if (bc[i] > mx) mx = bc[i];
+    if (mx > 1e-9 && bc[j] >= 0.5 * mx && ev.S[c] > 0.2) s += c;
+  }
+  return s;
+}
+
+function brokenText(evR, evC, M, nBase) {
+  if (!evR.cons || !evC.cons) return '-';
+  const G0 = Math.max(0, evR.G - LOC); let jb = G0;
+  for (let j = G0 + 1; j < evR.G; j++) if (evR.cons[j] > evR.cons[jb]) jb = j;
+  const agree = CUES.filter(x => M[x] > 0 && evR.S[x] > 0.12 && evR.p[x] && argmax(evR.p[x], evR.G) === jb);
+  if (agree.length >= 2) {
+    const still = CUES.filter(x => M[x] > 0 && evC.S[x] > 0.12 && evC.p[x] && argmax(evC.p[x], evC.G) === jb);
+    return `${gl(nBase + jb)} ${agree.join('+')} ${evR.cons[jb].toFixed(2)}→${evC.cons[jb].toFixed(2)}${still.length >= 2 ? ' 残' : ''}`;
+  }
+  const over = CUES.filter(x => M[x] > 0 && evR.S[x] > TH_HI[x]);
+  if (over.length) return over.map(x => `${x}過剰 ${evR.S[x].toFixed(2)}→${evC.S[x].toFixed(2)}`).join(' ');
+  return '-';
+}
+
+function decideOn(st, mats, P) {
+  const mat0 = mats[st.cur.m], sr = mat0.sr, thr = sensThr(P.sens), rng = st.rng;
+  const maxL = Math.max(Math.round(0.03 * sr), Math.round(P.maxLen / 1000 * sr)), minL = Math.round(0.025 * sr);
+  const N = Math.max(3, P.N | 0), M = weights(st, P);
+  const live0 = mat0.ring && !mat0.frozen;
+  const nat = natural(mat0, st.cur.m, st.cur.pos, thr, maxL, live0);
+  const cuts = [];
+  const wins = [[st.cur.m, st.cur.pos - Math.round(1.5 * sr), st.cur.pos + Math.round(2.5 * sr)]];
+  if (mats.length > 1) {
+    const rel = (st.cur.pos - mat0.start) / Math.max(1, usableEnd(mat0) - mat0.start);
+    for (let k = 0; k < mats.length; k++) if (k !== st.cur.m) {
+      const mk = mats[k], c = mk.start + Math.round(rel * (usableEnd(mk) - mk.start));
+      wins.push([k, c - Math.round(1.0 * sr), c + Math.round(1.5 * sr)]);
+    }
+  }
+  for (const [k, a, b] of wins) cutsIn(mats[k], k, a, b, thr, maxL, minL, rng, cuts);
+  if (!cuts.length) for (let k = 0; k < mats.length; k++) cutsIn(mats[k], k, mats[k].start, usableEnd(mats[k]), thr, maxL, minL, rng, cuts);
+  if (!cuts.length) return null;
+  if (cuts.length > MAXC) {
+    for (let i = 0; i < MAXC; i++) {
+      const j = i + Math.floor(rng() * (cuts.length - i));
+      const t = cuts[i]; cuts[i] = cuts[j]; cuts[j] = t;
+    }
+    cuts.length = MAXC;
+  }
+  if (nat) cuts.unshift(nat);
+  const pool = [];
+  for (const c of cuts) {
+    const mt = mats[c.m];
+    c.F = mt.feat(c.s, c.e);
+    if (c.F.L0 < 20 * Math.log10(mt.rmsMax + 1e-9) - 45) continue;
+    pool.push(c);
+  }
+  if (!pool.length) return null;
+  // the next interval: spread over a wide range, kept off simple ratios with the last two
+  const H = st.hist, last = H[H.length - 1], prev = H[H.length - 2];
+  const c0 = ioiCenter(P.density), o = rng();
+  let iois = [];
+  for (let k = 0; k < 20; k++) {
+    const v = Math.min(3, Math.max(0.04, c0 * Math.pow(2, -1.0 + (k + o) * (2.1 / 20))));
+    if (last && nearSimple(v, last.ioi)) continue;
+    if (prev && nearSimple(v, prev.ioi)) continue;
+    iois.push(v);
+  }
+  if (!iois.length) iois = [c0 * Math.pow(2, 0.37 + 0.1 * o)];
+  const Ub = H.slice(-(N - 1)), Ueb = H.slice(-(2 * N - 1));
+  const ctx = { U: Ub.concat([null]), Ue: Ueb.concat([null]), M, st, nBase: st.n + 1 - Ub.length, pre: prepE(Ueb), W: mkScratch(N), grid: new Map(), hIoi: H.slice(-(N - 1)).map(u => u.ioi), c0 };
+  ctx.hLog = ctx.hIoi.reduce((s, v) => s + Math.log2(v / c0), 0);
+  const recent = new Set(), recentS = new Set();
+  for (const u of H.slice(-N)) { recent.add(u.m + ':' + u.s + ':' + u.e); recentS.add(u.m + ':' + u.s); }
+  // stage A: every cut at every level, with one probe interval; stage B: the best of those with every interval
+  const probe = iois[Math.floor(iois.length * 0.5)];
+  const A = [];
+  for (const c of pool) {
+    let pen = recent.has(c.m + ':' + c.s + ':' + c.e) ? 0.3 : recentS.has(c.m + ':' + c.s) ? 0.12 : 0;
+    pen += c.m === st.cur.m ? 0.008 * Math.abs(c.s - st.cur.pos) / sr : 0.02;
+    c.pen = pen;
+    for (const lv of LEVELS) {
+      const gdb = gainDb(c.F, OUT_REF + lv), L = c.F.L0 + gdb;
+      A.push({ c, lv, gdb, L, sc: scoreCand(ctx, c, L, probe).sc - pen });
+    }
+  }
+  A.sort((x, y) => y.sc - x.sc);
+  let B = null;
+  for (const t of A.slice(0, 16)) for (const v of iois) {
+    const sc = scoreCand(ctx, t.c, t.L, v).sc - t.c.pen;
+    if (!B || sc > B.sc) B = { t, ioi: v, sc };
+  }
+  B.ev = scoreCand(ctx, B.t.c, B.t.L, B.ioi, true).ev;
+  const c = B.t.c;
+  const rec = {
+    m: c.m, s: c.s, e: c.e, ks: c.ks, ke: c.ke, absorbed: c.absorbed, skipped: c.skipped,
+    F: c.F, L: B.t.L, gain: Math.pow(10, B.t.gdb / 20), lv: B.t.lv, ioi: B.ioi, sc: B.sc,
+    nc: pool.length, ni: iois.length, ev: B.ev, nBase: ctx.nBase, broken: '-',
+  };
+  if (nat && nat.F && nat.F.L0 >= 20 * Math.log10(mat0.rmsMax + 1e-9) - 45) {
+    const refL = last ? last.L : nat.F.L0 + gainDb(nat.F, OUT_REF);
+    const refIoi = Math.min(c0 * 2.1, Math.max(c0 * 0.5, nat.ioi));
+    rec.broken = brokenText(scoreCand(ctx, nat, refL, refIoi, true).ev, B.ev, M, ctx.nBase);
+  }
+  return rec;
+}
+
+// taps arrive as evidence of a grouping that is settling; applied at the next choice
+function applyTaps(st, P, on) {
+  const out = [];
+  while (st.pendingTaps.length) {
+    const tp = st.pendingTaps.shift();
+    const N = Math.max(3, P.N | 0), U = st.hist.slice(-N), M = weights(st, P);
+    tp.atUnit = st.n + 1; tp.applied = false; tp.support = null;
+    if (U.length >= 2) {
+      const ev = evaluate(U, st.hist.slice(-2 * N), M), j = tp.u - 1 - U[0].n;
+      if (ev.b && j >= 0 && j < ev.G) {
+        const sup = {};
+        for (const c of CUES) {
+          let mx = 0; for (let i = 0; i < ev.G; i++) if (ev.b[c][i] > mx) mx = ev.b[c][i];
+          sup[c] = mx > 1e-9 ? ev.b[c][j] / mx * Math.min(1, ev.S[c] / TH_LO) : 0;
+        }
+        tp.support = sup;
+        if (on) {
+          let tot = 0, wen = 0;
+          for (const c of CUES) if (P.cues[c]) { tot += sup[c]; wen += st.w[c]; }
+          if (tot > 0) {
+            // the enabled cues keep their share; within it, weight moves toward what held this boundary up
+            for (const c of CUES) if (P.cues[c]) st.w[c] = (1 - ETA) * st.w[c] + ETA * wen * sup[c] / tot;
+            let s = 0; for (const c of CUES) { st.w[c] = Math.max(0.04, st.w[c]); s += st.w[c]; }
+            for (const c of CUES) st.w[c] /= s;
+          }
+          for (const c of CUES) st.supp[c] = Math.min(1.5, st.supp[c] + sup[c]);
+          const g = tp.u - 1, lastG = st.tapGaps[st.tapGaps.length - 1];
+          if (lastG !== undefined) { const k = g - lastG; st.tapPeriod = k >= 2 && k <= 16 ? k : 0; }
+          st.tapGaps.push(g); if (st.tapGaps.length > 8) st.tapGaps.shift();
+          st.tapSig = CUES.filter(c => sup[c] >= 0.5).join('');
+          tp.applied = true;
+        }
+      }
+    }
+    out.push(tp);
+  }
+  return out;
+}
+
+function commit(st, rec, mats, P, on) {
+  const mat = mats[rec.m], sr = mat.sr, N = Math.max(3, P.N | 0);
+  st.n++; rec.n = st.n; rec.eng = on ? 'ON' : 'OFF';
+  rec.snd = Math.max(0.005, Math.min(rec.F.len, rec.ioi - 0.003));
+  const last = st.hist[st.hist.length - 1];
+  if (last) { const k = st.stat[rec.eng]; k.pairs++; if (nearSimple(rec.ioi, last.ioi, 0.02)) k.simple++; }
+  st.hist.push({ n: st.n, m: rec.m, s: rec.s, e: rec.e, h: rec.F.h, v: rec.F.voiced, T: rec.F.T, L: rec.L, ioi: rec.ioi, snd: rec.snd });
+  if (st.hist.length > 64) st.hist.shift();
+  const U = st.hist.slice(-N);
+  const ev = on && rec.ev ? rec.ev : evaluate(U, st.hist.slice(-2 * N), weights(st, P));
+  rec.S = Object.assign({}, ev.S); rec.dis = ev.dis;
+  rec.pred = predOf(ev, U[0].n);
+  rec.w = Object.assign({}, st.w);
+  delete rec.ev;
+  if (on) st.cur = { m: st.cur.m, pos: st.cur.pos + Math.round(rec.ioi * sr) };
+  else st.cur = { m: rec.m, pos: rec.adv };
+  for (const c of CUES) st.supp[c] *= SUPP_DECAY;
+}
+
+function decide(st, mats, P, on) {
+  if (!mats.length) return null;
+  fixCursor(st, mats);
+  const taps = applyTaps(st, P, on);
+  const rec = on ? decideOn(st, mats, P) : decideOff(st, mats, P);
+  if (!rec) return null;
+  rec.taps = taps;
+  commit(st, rec, mats, P, on);
+  return rec;
+}
+
+// a unit as it sounds: attack + decay, faded at its end
+function render(mat, rec) {
+  const sr = mat.sr, span = rec.e - rec.s;
+  const n = Math.max(8, Math.min(span, Math.round(rec.snd * sr)));
+  const out = new Float32Array(n), g = rec.gain;
+  const cut = n < span || rec.ke === 'cap' || rec.ke === 'trunc';
+  const atk = Math.max(2, Math.min(Math.round(0.002 * sr), n >> 2));
+  const fade = Math.max(2, Math.min(Math.round((cut ? 0.010 : 0.005) * sr), n >> 1));
+  const dbEnd = rec.F.decaying ? 6 : 18, k = (dbEnd / 8.6859) / n;
+  for (let i = 0; i < n; i++) {
+    let env = Math.exp(-i * k);
+    if (i < atk) env *= 0.5 - 0.5 * Math.cos(Math.PI * i / atk);
+    const r = n - 1 - i;
+    if (r < fade) env *= 0.5 - 0.5 * Math.cos(Math.PI * r / fade);
+    out[i] = mat.x(rec.s + i) * env * g;
+  }
+  return out;
+}
+
+return {
+  Mat, analyzeFile, hashMat, newState, decide, render, evaluate, nearSimple, sensThr, ioiCenter, usableEnd,
+  CUES, CUE_NAME, TH_HI, TH_LO, LEVELS, OUT_REF, REACT, HOP, WIN, version: '1.0',
+};
+})();
+if (typeof module !== 'undefined') module.exports = RS;
+
+/* RENSETSU interface: audio scheduling, taps, live input, display and export. */
+(function () {
+'use strict';
+const E = RS;
+const $ = id => document.getElementById(id);
+const inViewer = !!(window.claude && typeof window.claude.use === 'function');
+const LOOK = 0.2, TAPE_MAX = 600, FILE_MAX = 360;
+const CUE_SHORT = { a: '時間', b: '音高', c: '音色', d: '音量', e: '反復' };
+const KS = { cand: '候補', tail: '前の音の尾' };
+const KE = { next: '次の候補', merge: '吸収', cap: '上限', trunc: '切詰', end: '素材の終わり' };
+
+let ctx = null, master = null;
+const S = {
+  mode: 'sample', files: [], live: null, nextId: 1,
+  P: { maxLen: 200, sens: 50, density: 50, N: 8, cues: { a: true, b: true, c: true, d: true, e: true } },
+  eng: true, seed: newSeed(), st: null, playing: false, sess: null, nextT: 0, timer: 0,
+  queue: [], shown: null, gates: [], srcs: [], waiting: false,
+  lv: { len: 30, keep: false, frozen: false, self: 'aec', full: false }, mic: null,
+  lastInfo: 0,
+};
+
+function newSeed() {
+  const a = new Uint32Array(1);
+  try { crypto.getRandomValues(a); } catch (e) { a[0] = (Date.now() * 2654435761) >>> 0; }
+  return a[0] >>> 0;
+}
+const hex = n => (n >>> 0).toString(16).padStart(8, '0');
+const f2 = v => v.toFixed(2).replace(/^0\./, '.').replace(/^-0\./, '-.');
+const sec = (p, sr) => (p / sr).toFixed(4);
+function msg(t) { $('msg').textContent = t; }
+
+// ---------- audio ----------
+function ensureCtx() {
+  if (ctx) return ctx;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  try { ctx = new AC({ latencyHint: 'interactive' }); } catch (e) { ctx = new AC(); }
+  master = ctx.createGain(); master.gain.value = 1; master.connect(ctx.destination);
+  return ctx;
+}
+function unlock() {
+  ensureCtx();
+  try { if (navigator.audioSession) navigator.audioSession.type = S.mode === 'live' ? 'play-and-record' : 'playback'; } catch (e) { /* older Safari */ }
+  if (ctx.state !== 'running') ctx.resume();
+  const b = ctx.createBuffer(1, 1, ctx.sampleRate), s = ctx.createBufferSource();
+  s.buffer = b; s.connect(ctx.destination); s.start(0);
+}
+const latency = () => Math.max(0, (ctx.outputLatency || 0) + (ctx.baseLatency || 0));
+const mats = () => S.mode === 'live' ? (S.live ? [S.live] : []) : S.files;
+const matLabel = m => S.mode === 'live' ? 'L' : String(m + 1);
+
+// output tape: what was played, sample-exact, on the session clock
+class Tape {
+  constructor(sr, maxSec) { this.sr = sr; this.max = sr * maxSec; this.ch = []; this.len = 0; this.full = false; }
+  write(off, data) {
+    const sr = this.sr;
+    for (let i = 0; i < data.length; i++) {
+      const p = off + i;
+      if (p < 0) continue;
+      if (p >= this.max) { this.full = true; break; }
+      const c = (p / sr) | 0, k = p - c * sr;
+      while (this.ch.length <= c) this.ch.push(new Int16Array(sr));
+      let v = data[i]; v = v > 1 ? 1 : v < -1 ? -1 : v;
+      this.ch[c][k] = Math.round(v * 32767);
+    }
+    this.len = Math.max(this.len, Math.min(this.max, off + data.length));
+  }
+  wav() {
+    const n = this.len, sr = this.sr, out = new Uint8Array(44 + n * 2), dv = new DataView(out.buffer);
+    const w4 = (o, s) => { for (let i = 0; i < 4; i++) out[o + i] = s.charCodeAt(i); };
+    w4(0, 'RIFF'); dv.setUint32(4, 36 + n * 2, true); w4(8, 'WAVE'); w4(12, 'fmt ');
+    dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+    dv.setUint32(24, sr, true); dv.setUint32(28, sr * 2, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true);
+    w4(36, 'data'); dv.setUint32(40, n * 2, true);
+    for (let p = 0; p < n; p++) { const c = (p / sr) | 0, ch = this.ch[c]; dv.setInt16(44 + p * 2, ch ? ch[p - c * sr] : 0, true); }
+    return out;
+  }
+}
+
+// ---------- playing ----------
+function start() {
+  unlock();
+  if (S.mode === 'live' && !S.mic) { micStart(); return; }
+  const ms = mats();
+  if (!ms.length) {
+    msg(S.mode === 'live' ? 'マイクを開始して、素材がたまるのを待ってください。' : '素材がありません。ファイルを追加してください。');
+    return;
+  }
+  stopPlay();
+  readSeed();
+  const sr = ctx.sampleRate, thr = E.sensThr(S.P.sens);
+  S.st = E.newState(S.seed);
+  S.st.cur = { m: 0, pos: S.mode === 'live' ? Math.max(ms[0].start, ms[0].end - Math.round(2 * sr)) : ms[0].start };
+  S.sess = {
+    t0: ctx.currentTime + 0.15, units: [], taps: [], events: [], tape: new Tape(sr, TAPE_MAX), lat: latency(),
+    date: new Date(), seed: S.seed, mode: S.mode, P0: JSON.parse(JSON.stringify(S.P)), eng0: S.eng,
+    mats: ms.map((m, i) => ({ n: matLabel(i), dur: m.dur, count: m.count(thr), hash: S.mode === 'live' ? '（ライブ）' : m.hash })),
+  };
+  S.nextT = S.sess.t0; S.queue = []; S.shown = null; S.gates = []; S.playing = true; S.waiting = false;
+  S.timer = setInterval(tick, 25);
+  tick();
+  requestAnimationFrame(frame);
+  msg(S.mode === 'live' ? 'ライブ入力の素材から鳴らしています。' : '鳴らしています。');
+  syncUI();
+}
+function stopPlay() {
+  if (!S.playing) return;
+  S.playing = false;
+  clearInterval(S.timer);
+  for (const s of S.srcs) { try { s.stop(); } catch (e) { /* already ended */ } }
+  S.srcs = [];
+  syncUI();
+}
+function tick() {
+  if (!S.playing) return;
+  const now = ctx.currentTime;
+  if (S.nextT < now + 0.005) S.nextT = now + 0.03;
+  for (let k = 0; k < 12 && S.nextT < now + LOOK; k++) {
+    const ms = mats();
+    const rec = ms.length ? E.decide(S.st, ms, S.P, S.eng) : null;
+    if (!rec) {
+      S.nextT = now + 0.1;
+      if (!S.waiting) { S.waiting = true; msg(S.mode === 'live' ? '素材がたまるのを待っています。' : '候補境界がありません。感度を上げるか、素材を足してください。'); }
+      return;
+    }
+    if (S.waiting) { S.waiting = false; msg('鳴らしています。'); }
+    play(rec, ms[rec.m]);
+    S.nextT += rec.ioi;
+  }
+}
+function play(rec, mat) {
+  const data = E.render(mat, rec), sr = ctx.sampleRate;
+  const buf = ctx.createBuffer(1, data.length, sr);
+  if (buf.copyToChannel) buf.copyToChannel(data, 0); else buf.getChannelData(0).set(data);
+  const src = ctx.createBufferSource();
+  src.buffer = buf; src.connect(master); src.start(S.nextT);
+  S.srcs.push(src);
+  src.onended = () => { const i = S.srcs.indexOf(src); if (i >= 0) S.srcs.splice(i, 1); };
+  rec.t = S.nextT - S.sess.t0;
+  rec.ml = matLabel(rec.m);
+  S.sess.tape.write(Math.round(rec.t * sr), data);
+  S.sess.units.push(rec);
+  S.queue.push(rec);
+  S.gates.push([S.nextT, S.nextT + data.length / sr]);
+  if (S.gates.length > 64) S.gates.shift();
+}
+function frame() {
+  if (!S.playing) return;
+  const t = ctx.currentTime - S.sess.t0 - S.sess.lat;
+  let cur = null;
+  while (S.queue.length && S.queue[0].t <= t) cur = S.queue.shift();
+  if (cur) show(cur);
+  const now = performance.now();
+  if (now - S.lastInfo > 250) { S.lastInfo = now; expInfo(); if (S.mode === 'live') renderMats(); }
+  requestAnimationFrame(frame);
+}
+function event(text) {
+  if (!S.playing || !S.sess) return;
+  S.sess.events.push({ t: ctx.currentTime - S.sess.t0, n: S.st.n + 1, text });
+}
+
+// ---------- display ----------
+function unadopted(r, sr) {
+  const a = r.absorbed.map(p => '内' + sec(p, sr)), b = r.skipped.map(p => (p < r.s ? '前' : '外') + sec(p, sr));
+  return a.concat(b).join(' ') || '-';
+}
+function cutName(r) {
+  const ke = r.ke === 'merge' ? `吸収${r.absorbed.length}` : KE[r.ke];
+  return `始=${KS[r.ks]}  終=${ke}`;
+}
+function show(r) {
+  S.shown = r;
+  const sr = ctx.sampleRate, F = r.F;
+  const f0 = F.voiced ? `${F.f0.toFixed(1)} Hz` : 'なし';
+  $('now').textContent =
+    `#${String(r.n).padStart(4, '0')}  ${r.eng === 'ON' ? 'エンジンON' : 'エンジンOFF'}  t ${r.t.toFixed(3)} s\n` +
+    `素材 ${r.ml}  ${sec(r.s, sr)} – ${sec(r.e, sr)} s  (${((r.e - r.s) / sr * 1000).toFixed(1)} ms)\n` +
+    `切り方 ${cutName(r)}\n` +
+    `不採用の候補 ${unadopted(r, sr)}\n` +
+    `次の間隔 ${r.ioi.toFixed(4)} s  発音 ${r.snd.toFixed(4)} s\n` +
+    `f0 ${f0}（明瞭度 ${f2(F.clar)}）  重心 ${F.cent.toFixed(0)} Hz\n` +
+    `量 ${r.L.toFixed(1)} dB  立上 ${F.rise.toFixed(0)} ms  平坦度 ${f2(F.fla)}`;
+  const rows = E.CUES.map(c => {
+    const on = S.P.cues[c], hi = r.S[c] > E.TH_HI[c];
+    return `<tr class="${on ? '' : 'off'}"><td>${c} ${E.CUE_NAME[c]}</td><td class="n${hi ? ' hi' : ''}">${f2(r.S[c])}</td><td class="n">${f2(r.w[c])}</td><td>${on ? r.pred[c] : '（外す）'}</td></tr>`;
+  });
+  $('cueTab').tBodies[0].innerHTML = rows.join('');
+  const st = S.st.stat, pc = k => st[k].pairs ? `${(st[k].simple / st[k].pairs * 100).toFixed(1)}%（${st[k].pairs}組）` : '—';
+  $('cueNote').textContent =
+    `食い違い ${f2(r.dis)}　閾値 ${f2(E.TH_HI.a)}（e ${f2(E.TH_HI.e)}）　下限 ${f2(E.TH_LO)}\n` +
+    `単純な整数比に近い隣接間隔　ON ${pc('ON')}　OFF ${pc('OFF')}` +
+    (r.eng === 'OFF' ? '\nエンジンOFF：強さは観察だけで、選択には使っていません。' : '');
+  const br = [];
+  for (let i = S.sess.units.length - 1; i >= 0 && br.length < 9; i--) {
+    const u = S.sess.units[i];
+    if (u.t > r.t) continue;
+    if (u.eng === 'ON' && u.broken !== '-') br.push(`#${String(u.n).padStart(4, '0')}  ${u.broken}`);
+  }
+  $('broken').textContent = br.length ? br.join('\n') : 'まだありません';
+  $('barUnit').textContent = '#' + String(r.n).padStart(4, '0');
+  $('barModel').textContent = E.CUES.map(c => `${c} ${f2(r.w[c])}`).join('  ');
+}
+function syncUI() {
+  $('mSample').setAttribute('aria-pressed', S.mode === 'sample');
+  $('mLive').setAttribute('aria-pressed', S.mode === 'live');
+  $('eOn').setAttribute('aria-pressed', S.eng);
+  $('eOff').setAttribute('aria-pressed', !S.eng);
+  $('barEng').textContent = S.eng ? 'エンジン ON' : 'エンジン OFF';
+  $('barSeed').textContent = 'seed ' + hex(S.seed);
+  $('go').textContent = S.playing ? '最初から' : '開始';
+  $('stop').disabled = !S.playing;
+  $('matSec').hidden = S.mode !== 'sample';
+  $('liveSec').hidden = S.mode !== 'live';
+  const has = !!(S.sess && S.sess.units.length);
+  $('xWav').disabled = $('xLog').disabled = $('xTap').disabled = !has;
+  $('kDrop').setAttribute('aria-pressed', !S.lv.keep);
+  $('kKeep').setAttribute('aria-pressed', S.lv.keep);
+  $('freeze').setAttribute('aria-pressed', S.lv.frozen);
+  $('sAec').setAttribute('aria-pressed', S.lv.self === 'aec');
+  $('sGate').setAttribute('aria-pressed', S.lv.self === 'gate');
+  $('sNone').setAttribute('aria-pressed', S.lv.self === 'none');
+  $('micBtn').textContent = S.mic ? 'マイクを止める' : 'マイクを開始';
+  for (const c of E.CUES) $('cue_' + c).setAttribute('aria-pressed', S.P.cues[c]);
+  if (!S.playing && !S.shown) $('barModel').textContent = E.CUES.map(c => `${c} ${f2(S.st ? S.st.w[c] : 0.2)}`).join('  ');
+  expInfo();
+  renderMats();
+}
+function renderMats() {
+  const thr = E.sensThr(S.P.sens), tb = $('matTab').tBodies[0];
+  if (S.mode === 'live') {
+    const L = S.live;
+    $('micState').textContent = !L ? (S.mic ? '取り込み中' : '止まっています')
+      : `${S.mic ? (S.lv.frozen ? '凍結' : S.lv.full ? '満杯（取り込み停止）' : '取り込み中') : '止まっています'}　${L.dur.toFixed(1)} / ${S.lv.len} s　候補境界 ${L.count(thr)}`;
+    return;
+  }
+  tb.innerHTML = S.files.length ? S.files.map((m, i) =>
+    `<tr><td>${i + 1}</td><td class="n">${m.dur.toFixed(2)} s${m.trunc ? '（先頭のみ）' : ''}</td><td class="n">${m.count(thr)}</td><td><button type="button" data-rm="${i}">外す</button></td></tr>`).join('')
+    : '<tr><td colspan="4" class="dim">まだありません</td></tr>';
+}
+function expInfo() {
+  const s = S.sess;
+  if (!s) { $('expInfo').textContent = `録音 0:00 / ${TAPE_MAX / 60}:00`; return; }
+  const t = s.tape.len / s.tape.sr, mm = Math.floor(t / 60), ss = Math.floor(t % 60);
+  $('expInfo').textContent = `録音 ${mm}:${String(ss).padStart(2, '0')} / ${TAPE_MAX / 60}:00${s.tape.full ? '（上限に達しました）' : ''}　単位 ${s.units.length}　タップ ${s.taps.length}`;
+  const has = s.units.length > 0;
+  if ($('xWav').disabled === has) { $('xWav').disabled = $('xLog').disabled = $('xTap').disabled = !has; }
+}
+
+// ---------- taps: the listener's line of segmentation ----------
+// the time is taken when the finger lands; the tap counts once it lifts without having scrolled
+function doTap(at) {
+  const el = $('tap');
+  el.classList.add('hit'); setTimeout(() => el.classList.remove('hit'), 70);
+  if (!S.playing || !S.sess || !S.sess.units.length) { $('tapInfo').textContent = '開始してから押してください'; return; }
+  if (ctx.state !== 'running') ctx.resume();
+  const t = (at === undefined ? ctx.currentTime : at) - S.sess.t0, heard = t - S.sess.lat, us = S.sess.units;
+  let k = us.length - 1;
+  while (k > 0 && us[k].t > heard - E.REACT) k--;
+  const u = us[k].n;
+  const tp = { id: S.sess.taps.length + 1, t, heard, u, eng: S.eng ? 'ON' : 'OFF' };
+  S.sess.taps.push(tp);
+  S.st.pendingTaps.push(tp);
+  $('tapInfo').textContent = `タップ ${tp.id}　t ${t.toFixed(3)} s　境界 ${u - 1}|${u}　${S.eng ? '次の数音でこの切れ目の手がかりを弱めます' : '記録のみ（エンジンOFF）'}`;
+}
+
+// ---------- files ----------
+function decodeWith(c, ab) {
+  return new Promise((res, rej) => { const p = c.decodeAudioData(ab, res, rej); if (p && p.catch) p.catch(rej); });
+}
+async function decode(ab) {
+  const copy = ab.slice(0);
+  try { return await decodeWith(ctx, ab); }
+  catch (e) {
+    const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    if (!OAC) throw e;
+    return await decodeWith(new OAC(2, ctx.sampleRate, ctx.sampleRate), copy);
+  }
+}
+function mixdown(buf, maxSec) {
+  const n = Math.min(buf.length, Math.round(maxSec * buf.sampleRate)), out = new Float32Array(n), ch = buf.numberOfChannels;
+  for (let c = 0; c < ch; c++) { const d = buf.getChannelData(c); for (let i = 0; i < n; i++) out[i] += d[i] / ch; }
+  return out;
+}
+async function addFiles(list) {
+  if (!list.length) return;
+  ensureCtx();
+  let ok = 0, bad = 0;
+  for (let i = 0; i < list.length; i++) {
+    msg(`読み込み中 ${i + 1}/${list.length}`);
+    try {
+      const buf = await decode(await list[i].arrayBuffer());
+      if (buf.sampleRate !== ctx.sampleRate) throw new Error('rate');
+      const mono = mixdown(buf, FILE_MAX);
+      const m = new E.Mat(S.nextId++, ctx.sampleRate, mono.length, false);
+      await E.analyzeFile(m, mono, p => msg(`解析中 ${i + 1}/${list.length}　${Math.round(p * 100)}%`));
+      m.hash = E.hashMat(m); m.trunc = buf.duration > FILE_MAX;
+      S.files.push(m); ok++;
+      renderMats();
+    } catch (err) { bad++; }
+  }
+  msg(bad ? `${ok} 個を読み込みました。${bad} 個は読めませんでした（wav・mp3・m4a を選んでください）。` : `${ok} 個を読み込みました。開始を押してください。`);
+  if (S.playing) event(`素材を追加（${S.files.length} 個に）`);
+}
+
+// ---------- live input ----------
+const WK = `class C extends AudioWorkletProcessor{constructor(){super();this.b=new Float32Array(2048);this.i=0}
+process(I){const x=I[0];if(x&&x.length){const a=x[0],c=x[1];for(let k=0;k<a.length;k++){this.b[this.i++]=c?(a[k]+c[k])*.5:a[k];
+if(this.i===2048){this.port.postMessage({b:this.b,t:currentTime+(k+1)/sampleRate},[this.b.buffer]);this.b=new Float32Array(2048);this.i=0}}}return true}}
+registerProcessor('rs-cap',C)`;
+async function micStart() {
+  unlock();
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    msg(inViewer ? 'この表示ではマイクを使えません。index.html をブラウザで直接開くと使えます。' : 'このブラウザではマイクを使えません。');
+    return;
+  }
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: S.lv.self === 'aec', noiseSuppression: false, autoGainControl: false, channelCount: 1 } });
+  } catch (err) {
+    msg(inViewer ? 'この表示ではマイクを使えません。index.html をブラウザで直接開くと使えます。'
+      : 'マイクの許可が得られませんでした。ブラウザの設定でこのページにマイクを許可してください。');
+    return;
+  }
+  if (ctx.state !== 'running') await ctx.resume();
+  if (!S.live) S.live = new E.Mat('L', ctx.sampleRate, Math.round(S.lv.len * ctx.sampleRate), true);
+  S.live.frozen = S.lv.frozen;
+  const src = ctx.createMediaStreamSource(stream), sink = ctx.createGain();
+  sink.gain.value = 0; sink.connect(ctx.destination);
+  let node = null;
+  try {
+    if (!ctx.audioWorklet || !window.AudioWorkletNode) throw new Error('no worklet');
+    const url = URL.createObjectURL(new Blob([WK], { type: 'application/javascript' }));
+    await Promise.race([ctx.audioWorklet.addModule(url), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 5000))]);
+    node = new AudioWorkletNode(ctx, 'rs-cap', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] });
+    node.port.onmessage = e => onChunk(e.data.b, e.data.t);
+  } catch (err) {
+    node = ctx.createScriptProcessor(2048, 1, 1);
+    node.onaudioprocess = e => { const d = e.inputBuffer.getChannelData(0); onChunk(new Float32Array(d), e.playbackTime - (ctx.baseLatency || 0)); };
+  }
+  src.connect(node); node.connect(sink);
+  S.mic = { stream, src, node, sink, timer: setInterval(() => { if (!S.playing) renderMats(); }, 300) };
+  msg(S.playing ? 'マイクから取り込み直しています。' : 'マイクから素材を取り込んでいます。少したまったら開始を押してください。');
+  syncUI();
+}
+function micStop() {
+  const m = S.mic; if (!m) return;
+  clearInterval(m.timer);
+  try { m.src.disconnect(); m.node.disconnect(); m.sink.disconnect(); } catch (e) { /* already gone */ }
+  if (m.node.port) m.node.port.onmessage = null;
+  for (const t of m.stream.getTracks()) t.stop();
+  S.mic = null;
+  syncUI();
+}
+function onChunk(b, tEnd) {
+  const L = S.live;
+  if (!L || S.lv.frozen || !S.mic) return;
+  if (S.lv.self === 'gate' && S.gates.length) {
+    const sr = ctx.sampleRate, n = b.length;
+    for (const [a, e] of S.gates) {
+      const i0 = Math.max(0, Math.floor(n - 1 - (tEnd - (a - 0.005)) * sr)), i1 = Math.min(n, Math.ceil(n - 1 - (tEnd - (e + 0.15)) * sr));
+      for (let i = i0; i < i1; i++) b[i] = 0;
+    }
+  }
+  if (S.lv.keep && L.end - L.start + b.length > L.C) {
+    if (!S.lv.full) { S.lv.full = true; L.frozen = true; event('バッファが満杯（古い部分を残す）'); }
+    return;
+  }
+  L.append(b);
+}
+function rebuildLive() {
+  if (!ctx) return;
+  const old = S.live, sr = ctx.sampleRate, m = new E.Mat('L', sr, Math.round(S.lv.len * sr), true);
+  if (old) {
+    const a = Math.max(old.start, old.end - m.C), tmp = new Float32Array(old.end - a);
+    for (let i = a; i < old.end; i++) tmp[i - a] = old.x(i);
+    for (let i = 0; i < tmp.length; i += 4096) m.append(tmp.subarray(i, i + 4096));
+  }
+  S.lv.full = false;
+  m.frozen = S.lv.frozen;
+  S.live = m;
+  if (S.playing && S.mode === 'live') S.st.cur = { m: 0, pos: Math.max(m.start, m.end - 2 * sr) };
+}
+
+// ---------- export ----------
+function stamp(d) {
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+}
+function header(kind) {
+  const s = S.sess, P = s.P0;
+  const cues = E.CUES.filter(c => P.cues[c]).join('') || 'なし';
+  return [
+    `# RENSETSU ${kind}`,
+    '# 時刻 t = 開始後の出力時刻（秒）。出音ログ・分節の線・出力 wav の 0 秒は同じ。',
+    `# シード ${hex(s.seed)}　サンプルレート ${ctx.sampleRate}　出力遅延の見込み ${s.lat.toFixed(3)} s　開始 ${s.date.toISOString()}`,
+    `# モード ${s.mode === 'live' ? 'ライブ入力' : 'サンプル'}　開始時の設定: 長さの上限 ${P.maxLen} ms / 候補の感度 ${P.sens} / 密度 ${P.density} / 直近N ${P.N} / 手がかり ${cues} / エンジン ${s.eng0 ? 'ON' : 'OFF'}`,
+    ...s.mats.map(m => `# 素材 ${m.n}　${m.dur.toFixed(3)} s　候補境界 ${m.count}　hash ${m.hash}`),
+  ];
+}
+function buildLog() {
+  const s = S.sess, sr = ctx.sampleRate, L = header('出音ログ');
+  L.push('# 再現: 同じシード・同じ素材（hash）で開始し、下の # 行の操作とタップを同じ単位番号で行えば、同じ出音になる。');
+  L.push('# 採用した境界: 始=/終= のあとに位置（素材上の秒）と種類。不採用の候補: 内=一音の中に吸収、外=届かずに切った、前=尾として切り出した音の頭。');
+  L.push('# 強さ・境界の予測・食い違いは、その単位を置いたあとの直近N音で測った値。崩した境界: 素材のままなら手がかりが揃っていた切れ目と、その一致の度合いの変化。');
+  const cols = ['t', '単位', 'エンジン', '素材', '開始s', '終了s', '長さms', '次の間隔s', '発音s', '採用した境界', '不採用の候補', 'f0Hz', '明瞭度', '重心Hz', '平坦度', '量dB', '立上ms', '強さ(a b c d e)', '境界の予測(a b c d e)', '食い違い', '崩した境界'];
+  L.push(cols.join('\t'));
+  const ev = s.events.slice().sort((a, b) => a.n - b.n || a.t - b.t);
+  let k = 0;
+  for (const r of s.units) {
+    while (k < ev.length && ev[k].n <= r.n) { L.push(`# t=${ev[k].t.toFixed(3)} 単位#${ev[k].n}から: ${ev[k].text}`); k++; }
+    const F = r.F;
+    L.push([
+      r.t.toFixed(4), r.n, r.eng, r.ml, sec(r.s, sr), sec(r.e, sr), ((r.e - r.s) / sr * 1000).toFixed(1),
+      r.ioi.toFixed(4), r.snd.toFixed(4),
+      `始=${sec(r.s, sr)}(${KS[r.ks]}) 終=${sec(r.e, sr)}(${r.ke === 'merge' ? '吸収' + r.absorbed.length : KE[r.ke]})`,
+      unadopted(r, sr), F.voiced ? F.f0.toFixed(1) : '-', F.clar.toFixed(2), F.cent.toFixed(0), F.fla.toFixed(3),
+      r.L.toFixed(1), F.rise.toFixed(1),
+      E.CUES.map(c => r.S[c].toFixed(3)).join(' '), E.CUES.map(c => r.pred[c]).join(' '), r.dis.toFixed(3), r.broken,
+    ].join('\t'));
+  }
+  while (k < ev.length) { L.push(`# t=${ev[k].t.toFixed(3)} 単位#${ev[k].n}から: ${ev[k].text}`); k++; }
+  return L.join('\n') + '\n';
+}
+function buildTaps() {
+  const s = S.sess, L = header('分節の線（聴き手のタップ）');
+  L.push(`# 聴取補正t = t − 出力遅延の見込み。境界 = 聴取補正t の ${E.REACT} s 前までに始まった最後の単位の直前。`);
+  L.push('# 反映 = エンジンが受け取った単位番号（ONのときだけ出音に効く）。支え = その切れ目を各手がかりがどれだけ示していたか（0〜1）。');
+  L.push(['t', '聴取補正t', 'タップ', '境界', 'エンジン', '反映', '支え(a b c d e)'].join('\t'));
+  for (const tp of s.taps) {
+    L.push([tp.t.toFixed(4), tp.heard.toFixed(4), tp.id, `${tp.u - 1}|${tp.u}`, tp.eng,
+      tp.atUnit ? `#${tp.atUnit}${tp.applied ? '' : '（記録のみ）'}` : '-',
+      tp.support ? E.CUES.map(c => tp.support[c].toFixed(2)).join(' ') : '-'].join('\t'));
+  }
+  return L.join('\n') + '\n';
+}
+const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(u) { let c = 0xFFFFFFFF; for (let i = 0; i < u.length; i++) c = CRC[(c ^ u[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+// uncompressed ZIP: the claude.ai viewer saves .zip but not .wav
+function zip(name, data) {
+  const nm = new TextEncoder().encode(name), crc = crc32(data), d = new Date();
+  const dt = ((d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1)) & 0xFFFF, dd = (((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate()) & 0xFFFF;
+  const L = new DataView(new ArrayBuffer(30)); L.setUint32(0, 0x04034b50, true); L.setUint16(4, 20, true); L.setUint16(6, 0x0800, true); L.setUint16(10, dt, true); L.setUint16(12, dd, true); L.setUint32(14, crc, true); L.setUint32(18, data.length, true); L.setUint32(22, data.length, true); L.setUint16(26, nm.length, true);
+  const C = new DataView(new ArrayBuffer(46)); C.setUint32(0, 0x02014b50, true); C.setUint16(4, 20, true); C.setUint16(6, 20, true); C.setUint16(8, 0x0800, true); C.setUint16(12, dt, true); C.setUint16(14, dd, true); C.setUint32(16, crc, true); C.setUint32(20, data.length, true); C.setUint32(24, data.length, true); C.setUint16(28, nm.length, true);
+  const Z = new DataView(new ArrayBuffer(22)); Z.setUint32(0, 0x06054b50, true); Z.setUint16(8, 1, true); Z.setUint16(10, 1, true); Z.setUint32(12, 46 + nm.length, true); Z.setUint32(16, 30 + nm.length + data.length, true);
+  return new Blob([L.buffer, nm, data, C.buffer, nm, Z.buffer]);
+}
+async function deliver(name, data) {
+  const isWav = name.endsWith('.wav');
+  if (inViewer) {
+    const dl = await window.claude.use('downloads');
+    if (!dl) throw new Error('この表示ではファイルを保存できません。');
+    const fn = isWav ? name.replace(/\.wav$/, '.zip') : name;
+    try { await dl.save({ filename: fn, data: isWav ? zip(name, data) : data }); return isWav ? `${fn} を保存しました（中に ${name}）。` : `${fn} を保存しました。`; }
+    catch (e) {
+      const c = e && e.code;
+      if (c === 'declined') return '保存をやめました。';
+      if (c === 'rate_limited') throw new Error('保存の確認がまだ開いています。閉じてからもう一度押してください。');
+      throw new Error('この表示ではファイルを保存できません。');
+    }
+  }
+  const blob = new Blob([data], { type: isWav ? 'audio/wav' : 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = name; document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  return `${name} を書き出しました。`;
+}
+async function exportOne(kind) {
+  const s = S.sess; if (!s) return;
+  const base = `rensetsu_${hex(s.seed)}_${stamp(s.date)}`;
+  try {
+    if (kind === 'wav') msg(await deliver(base + '.wav', s.tape.wav()));
+    else if (kind === 'log') msg(await deliver(base + '_log.txt', buildLog()));
+    else msg(await deliver(base + '_taps.txt', buildTaps()));
+  } catch (e) { msg(e.message || '書き出せませんでした。'); }
+}
+
+// ---------- controls ----------
+function readSeed() {
+  const v = $('seed').value.trim().toLowerCase();
+  if (/^[0-9a-f]{1,8}$/.test(v)) S.seed = parseInt(v, 16) >>> 0;
+  $('seed').value = hex(S.seed);
+}
+function slider(id, fmt, set) {
+  const el = $(id), out = $(id + 'V');
+  const upd = () => { out.textContent = fmt(+el.value); };
+  el.addEventListener('input', () => { upd(); set(+el.value); });
+  el.addEventListener('change', () => event(`${el.labels && el.labels[0] ? el.labels[0].textContent : id} → ${out.textContent}`));
+  upd();
+}
+function bind() {
+  $('mSample').onclick = () => { if (S.mode === 'sample') return; stopPlay(); micStop(); S.mode = 'sample'; msg(S.files.length ? '開始を押してください。' : 'ファイルを追加して、開始を押してください。'); syncUI(); };
+  $('mLive').onclick = () => { if (S.mode === 'live') return; stopPlay(); S.mode = 'live'; syncUI(); micStart(); };
+  $('go').onclick = start;
+  $('stop').onclick = () => { stopPlay(); msg('止めました。書き出しができます。'); };
+  $('eOn').onclick = () => { if (!S.eng) { S.eng = true; event('エンジン ON'); syncUI(); } };
+  $('eOff').onclick = () => { if (S.eng) { S.eng = false; event('エンジン OFF'); syncUI(); } };
+  const tap = $('tap'); let down = null;
+  tap.addEventListener('pointerdown', e => { down = { id: e.pointerId, x: e.clientX, y: e.clientY, t: ctx ? ctx.currentTime : 0 }; });
+  tap.addEventListener('pointerup', e => {
+    if (!down || down.id !== e.pointerId) return;
+    const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y), at = down.t; down = null;
+    if (moved < 14) doTap(at);
+  });
+  tap.addEventListener('pointercancel', () => { down = null; });
+  tap.addEventListener('click', e => { if (e.detail === 0) doTap(); });
+  document.addEventListener('keydown', e => {
+    if (e.code !== 'Space' || e.repeat) return;
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || (t.tagName === 'BUTTON' && t !== tap))) return;
+    e.preventDefault(); doTap();
+  });
+  $('files').addEventListener('change', e => { const l = [...e.target.files]; e.target.value = ''; addFiles(l); });
+  $('clearMats').onclick = () => { stopPlay(); S.files = []; renderMats(); msg('素材を外しました。'); };
+  $('matTab').addEventListener('click', e => {
+    const b = e.target.closest('button[data-rm]'); if (!b) return;
+    if (S.playing) stopPlay();
+    S.files.splice(+b.dataset.rm, 1); renderMats(); msg('素材を外しました。番号が詰まるので、開始し直してください。');
+  });
+  slider('maxLen', v => `${v} ms`, v => { S.P.maxLen = v; });
+  slider('sens', v => String(v), v => { S.P.sens = v; renderMats(); });
+  slider('density', v => `${E.ioiCenter(v).toFixed(3)} s`, v => { S.P.density = v; });
+  slider('nWin', v => String(v), v => { S.P.N = v; });
+  slider('bufLen', v => `${v} s`, v => { S.lv.len = v; rebuildLive(); renderMats(); });
+  const box = $('cueBtns');
+  for (const c of E.CUES) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.id = 'cue_' + c; b.className = 'cue'; b.textContent = `${c} ${CUE_SHORT[c]}`;
+    b.title = E.CUE_NAME[c];
+    b.onclick = () => { S.P.cues[c] = !S.P.cues[c]; event(`手がかり ${c} ${S.P.cues[c] ? 'オン' : 'オフ'}`); syncUI(); };
+    box.append(b);
+  }
+  $('seed').addEventListener('change', () => { readSeed(); syncUI(); });
+  $('seedNew').onclick = () => { S.seed = newSeed(); $('seed').value = hex(S.seed); syncUI(); if (S.playing) msg('新しいシードは次の開始から使います。'); };
+  $('micBtn').onclick = () => { if (S.mic) micStop(); else micStart(); };
+  $('kDrop').onclick = () => { S.lv.keep = false; S.lv.full = false; if (S.live) S.live.frozen = S.lv.frozen; event('満杯時: 古い部分を捨てる'); syncUI(); };
+  $('kKeep').onclick = () => { S.lv.keep = true; event('満杯時: 古い部分を残す'); syncUI(); };
+  $('freeze').onclick = () => { S.lv.frozen = !S.lv.frozen; if (S.live) S.live.frozen = S.lv.frozen || S.lv.full; event(S.lv.frozen ? 'バッファを凍結' : '凍結を解く'); syncUI(); };
+  const self = v => () => { if (S.lv.self === v) return; S.lv.self = v; syncUI(); if (S.mic) { micStop(); micStart(); } };
+  $('sAec').onclick = self('aec'); $('sGate').onclick = self('gate'); $('sNone').onclick = self('none');
+  $('xWav').onclick = () => exportOne('wav');
+  $('xLog').onclick = () => exportOne('log');
+  $('xTap').onclick = () => exportOne('tap');
+}
+
+bind();
+$('seed').value = hex(S.seed);
+syncUI();
+window.__rensetsu = S;
+})();
+
+</script>

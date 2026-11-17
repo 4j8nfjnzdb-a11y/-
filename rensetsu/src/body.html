@@ -1,0 +1,93 @@
+<div class="app">
+  <header class="bar">
+    <div class="r"><b>RENSETSU</b><span class="dim nm">連接</span><span class="sp"></span><span id="barEng">エンジン ON</span><span id="barSeed" class="dim">seed --------</span><span id="barUnit" class="dim">#----</span></div>
+    <div class="r"><span class="hyp">聴き手モデル（仮説）</span><span id="barModel">a .20  b .20  c .20  d .20  e .20</span></div>
+  </header>
+
+  <p class="q">なぜこの音があるのか。聴く私はいかに成立するのか。</p>
+
+  <div class="ctl">
+    <div class="grp"><span class="lb">素材</span><button id="mSample" type="button" aria-pressed="true">サンプル</button><button id="mLive" type="button" aria-pressed="false">ライブ</button></div>
+    <div class="grp"><button id="go" type="button">開始</button><button id="stop" type="button" disabled>停止</button></div>
+    <div class="grp"><span class="lb">エンジン</span><button id="eOn" type="button" aria-pressed="true">ON</button><button id="eOff" type="button" aria-pressed="false">OFF</button></div>
+  </div>
+  <p id="msg" class="msg" role="status">ファイルを追加して、開始を押してください。</p>
+
+  <button id="tap" class="tap" type="button">
+    <span class="t1">ここで切れた</span>
+    <span class="t2">まとまりが切れた、と感じた瞬間に押す。キーボードではスペース。</span>
+    <span class="t3" id="tapInfo">タップ 0</span>
+  </button>
+
+  <div class="cols">
+    <div class="col">
+      <section aria-labelledby="hNow"><h2 id="hNow">いま鳴っている単位</h2><pre id="now">停止中</pre></section>
+      <section aria-labelledby="hCue">
+        <h2 id="hCue">手がかり</h2>
+        <div class="scroll"><table id="cueTab">
+          <thead><tr><th>手がかり</th><th class="n">強さ</th><th class="n">仮説の重み</th><th>境界の予測</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+        <pre id="cueNote" class="dim"></pre>
+      </section>
+      <section aria-labelledby="hBrk"><h2 id="hBrk">エンジンが崩した境界</h2><pre id="broken" class="dim">まだありません</pre></section>
+    </div>
+
+    <div class="col">
+      <section id="matSec" aria-labelledby="hMat">
+        <h2 id="hMat">素材</h2>
+        <div class="scroll"><table id="matTab"><thead><tr><th>番号</th><th class="n">長さ</th><th class="n">候補境界</th><th></th></tr></thead><tbody></tbody></table></div>
+        <div class="row" id="fileRow"><label class="btn" for="files">ファイルを追加</label><input id="files" class="vh" type="file" multiple><button id="clearMats" type="button">すべて外す</button><span class="dim">wav・mp3・m4a</span></div>
+      </section>
+
+      <section id="liveSec" aria-labelledby="hLive" hidden>
+        <h2 id="hLive">ライブ入力</h2>
+        <div class="row"><button id="micBtn" type="button">マイクを開始</button><span id="micState" class="dim">止まっています</span></div>
+        <div class="sl"><label for="bufLen">バッファの長さ</label><input id="bufLen" type="range" min="5" max="120" step="5" value="30"><output id="bufLenV" for="bufLen">30 s</output></div>
+        <div class="grp"><span class="lb">満杯になったら</span><button id="kDrop" type="button" aria-pressed="true">古い部分を捨てる</button><button id="kKeep" type="button" aria-pressed="false">古い部分を残す</button></div>
+        <div class="grp"><button id="freeze" type="button" aria-pressed="false">バッファを凍結</button></div>
+        <div class="grp"><span class="lb">出音の混入</span><button id="sAec" type="button" aria-pressed="true">エコー除去</button><button id="sGate" type="button" aria-pressed="false">出音中は取り込まない</button><button id="sNone" type="button" aria-pressed="false">何もしない</button></div>
+        <p class="dim" style="margin:0">入力はそのまま返しません。候補境界つきの素材として足されるだけです。ヘッドホンなら「何もしない」で構いません。</p>
+      </section>
+
+      <section aria-labelledby="hCut">
+        <h2 id="hCut">分節の細かさ・密度</h2>
+        <div class="sl"><label for="maxLen">長さの上限</label><input id="maxLen" type="range" min="40" max="400" step="10" value="200"><output id="maxLenV" for="maxLen">200 ms</output></div>
+        <div class="sl"><label for="sens">候補の感度</label><input id="sens" type="range" min="0" max="100" step="1" value="50"><output id="sensV" for="sens">50</output></div>
+        <div class="sl"><label for="density">密度</label><input id="density" type="range" min="0" max="100" step="1" value="50"><output id="densityV" for="density">0.251 s</output></div>
+        <div class="sl"><label for="nWin">直近N音</label><input id="nWin" type="range" min="4" max="16" step="1" value="8"><output id="nWinV" for="nWin">8</output></div>
+        <p class="dim" style="margin:0">密度は平均の発音間隔です（エンジンOFFでは録音された間隔のまま）。</p>
+      </section>
+
+      <section aria-labelledby="hCues">
+        <h2 id="hCues">競わせる手がかり</h2>
+        <div class="row" id="cueBtns"></div>
+      </section>
+
+      <section aria-labelledby="hSeed">
+        <h2 id="hSeed">シード</h2>
+        <div class="row"><input id="seed" type="text" inputmode="text" autocomplete="off" spellcheck="false" maxlength="8" aria-label="シード（16進8桁）"><button id="seedNew" type="button">別のシード</button></div>
+        <p class="dim" style="margin:0">開始のたびに、このシードから始めます。</p>
+      </section>
+
+      <section aria-labelledby="hExp">
+        <h2 id="hExp">書き出し</h2>
+        <div class="row"><button id="xWav" type="button" disabled>出力 wav</button><button id="xLog" type="button" disabled>出音ログ</button><button id="xTap" type="button" disabled>分節の線</button></div>
+        <pre id="expInfo" class="dim">録音 0:00 / 10:00</pre>
+      </section>
+
+      <section aria-labelledby="hAbout">
+        <h2 id="hAbout">このアプリについて</h2>
+        <ul class="notes">
+          <li>素材は、候補境界（スペクトルフラックスのピーク）つきの一続きの録音として持ちます。どこからどこまでを一音にするかは、次の音を選ぶたびに決め直します。同じ箇所が、一音にも、二音のまとまりにも、前の音の尾にもなります。</li>
+          <li><b>エンジンON</b>　時間的近接・音高近接・音色の類似・音量の強勢・パターン反復の五つが、それぞれ別の場所で区切りを示すように、次の単位・切り方・次の間隔を選びます。一つの手がかりが閾値を超えて強くなる選択は減点します。</li>
+          <li><b>エンジンOFF</b>　素材自身の分節を、録音された順と間隔のまま一音ずつ並べます。並べ替えも評価もしません。</li>
+          <li><b>タップ</b>　ONでは、その切れ目を支えていた手がかりを続く数音で弱め、同じ間隔で切れ目が戻らないようにします。OFFでは記録だけします。</li>
+          <li><b>聴き手モデル</b>　エンジンが置いている仮説です。あなたの聴き方の代わりではありません。ONでのタップで少しずつ書き換わります。</li>
+          <li><b>再現</b>　同じシード・同じ素材で開始し、ログに単位番号つきで残る操作とタップを同じ番号で行えば、同じ出音になります。ライブ入力は素材が動き続けるので、凍結したとき以外は再現しません。</li>
+          <li>音は一つずつ鳴ります。重ねず、響きも足しません。</li>
+        </ul>
+      </section>
+    </div>
+  </div>
+</div>
