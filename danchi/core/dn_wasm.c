@@ -4,11 +4,16 @@
 #define EXPORT(n) __attribute__((export_name(n)))
 static dn_state S;
 static dn_big B;
-static float OL[DN_BLOCK], OR_[DN_BLOCK];
+static float OL[DN_BLOCK], OR_[DN_BLOCK], IN[DN_BLOCK];
 static uint16_t FB[DN_SCREEN * DN_SCREEN];
 
 EXPORT("init") void w_init(float sr, int seed) { dn_init(&S, &B, sr, (uint32_t)seed); }
 EXPORT("process") void w_process(int n) { dn_process(&S, OL, OR_, n > DN_BLOCK ? DN_BLOCK : n); }
+EXPORT("process_in") void w_process_in(int n) { dn_process_in(&S, IN, OL, OR_, n > DN_BLOCK ? DN_BLOCK : n); }
+EXPORT("in_buf") float *w_in_buf(void) { return IN; }
+EXPORT("samp_area") int16_t *w_samp_area(void) { return dn_sample_area(&S); }
+EXPORT("samp_max") int w_samp_max(void) { return DN_SAMPBUF - 2 * DN_BLOCK; }
+EXPORT("samp_commit") void w_samp_commit(int n) { dn_sample_commit(&S, n); }
 EXPORT("out_l") float *w_out_l(void) { return OL; }
 EXPORT("out_r") float *w_out_r(void) { return OR_; }
 EXPORT("view") const float *w_view(void) { return dn_view(&S); }

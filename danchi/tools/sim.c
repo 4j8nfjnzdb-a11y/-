@@ -396,12 +396,94 @@ static void t_longrun(void) {
     check("measured ERASE over 32-bar windows does not flatten", mx - mn > 0.15, "window means %.2f..%.2f (sd %.3f)", mn, mx, sqrt(sd));
 }
 
+/* ---------------------------------------------------------------- sources: a file, the input */
+static uint32_t lcg = 12345;
+static uint32_t lcg_next(void) { lcg = lcg * 1664525u + 1013904223u; return lcg; }
+
+/* one unit, one hit at step 0 (micro in 1/64 step), long; the input is silent except one click.
+   returns the delay (samples) from the click going in to it coming out */
+static long live_delay_for(int micro, float *expect) {
+    dn_init(&S, &B, SR, 3);
+    scene_clear(&S);
+    dn_button(&S, DN_BTN_KEEPER, 2);
+    unit(&S, 1, 0, 4.0f, 0.0f, 0.0f, 0.0f);
+    S.tr[1].hit[0].micro = (int8_t)micro;
+    S.tr[1].dist = 0.0f;
+    dn_set_knob(&S, DN_K_ROOM, 0.0f);
+    dn_button(&S, DN_BTN_SOURCE, DN_SRC_LIVE);
+    float in[256], L[256], R[256];
+    for (int i = 0; i < 256; i++) in[i] = 0.0f;
+    while (S.bar < 2) dn_process_in(&S, in, L, R, 256);
+    uint32_t t0 = S.cur_start + S.cur_len;               /* the next bar */
+    float D = (float)(int32_t)fminf(4.0f * S.cur_step, (float)(DN_SAMPBUF - DN_BLOCK - 512) - S.cur_step);
+    float dv = (float)micro / 64.0f;
+    int32_t devs = (int32_t)(dv * S.cur_step);
+    *expect = D + (float)devs;
+    uint32_t tau = t0 - (uint32_t)D + 3000u;
+    long found = -1;
+    for (int k = 0; k < 4000 && found < 0; k++) {
+        for (int i = 0; i < 256; i++) in[i] = (S.now + (uint32_t)i == tau) ? 0.9f : 0.0f;
+        uint32_t base = S.now;
+        dn_process_in(&S, in, L, R, 256);
+        for (int i = 0; i < 256 && found < 0; i++)
+            if ((int32_t)(base + (uint32_t)i - tau) > 0 && fabsf(L[i]) > 0.02f) found = (long)(int32_t)(base + (uint32_t)i - tau);
+    }
+    return found;
+}
+
+static void t_sources(void) {
+    float L[256], R[256], in[256];
+    /* a file: the host writes 16-bit mono, then commits it */
+    dn_init(&S, &B, SR, 8);
+    int16_t *a = dn_sample_area(&S);
+    int n = (int)(0.4f * SR);
+    for (int i = 0; i < n; i++) a[i] = (int16_t)((float)((int32_t)(lcg_next() >> 17) - 16384) * expf(-6.0f * (float)i / (float)n));
+    dn_sample_commit(&S, n);
+    stats_t st = { 0 };
+    run(&S, 12.0, &st, NULL, NULL);
+    const float *v = dn_view(&S);
+    check("a loaded sound becomes the object and is placed like the FM one",
+          v[V_SRC] == DN_SRC_BUF && fabsf(v[V_SAMP_LEN] - 0.4f) < 0.02f && st.peak > 0.05 && st.peak < 1.0 && st.nan == 0,
+          "source %g, %.2f s, peak %.2f", v[V_SRC], v[V_SAMP_LEN], st.peak);
+    /* the input does not overwrite a fixed object */
+    uint32_t sum0 = 0, sum1 = 0;
+    for (int i = 0; i < DN_SAMPBUF; i++) sum0 = sum0 * 31u + (uint16_t)a[i];
+    for (int k = 0; k < 200; k++) { for (int i = 0; i < 256; i++) in[i] = (float)(lcg_next() >> 8) / 16777216.0f - 0.5f; dn_process_in(&S, in, L, R, 256); }
+    for (int i = 0; i < DN_SAMPBUF; i++) sum1 = sum1 * 31u + (uint16_t)a[i];
+    check("input is ignored while a fixed object plays", sum0 == sum1, "%s", sum0 == sum1 ? "buffer unchanged" : "buffer changed");
+
+    /* the input itself: a copy's offset from the grid is heard as a different delay */
+    float e0, e1;
+    long d0 = live_delay_for(0, &e0), d1 = live_delay_for(-16, &e1);
+    check("live: a copy on the grid plays the input one beat later", d0 >= 0 && labs(d0 - (long)e0) <= 3, "delay %ld samples (expect %.0f)", d0, e0);
+    check("live: a copy placed 1/4 step early has 1/4 step less delay", d1 >= 0 && labs(d1 - (long)e1) <= 3, "delay %ld samples (expect %.0f)", d1, e1);
+
+    /* capture: what just came in becomes a fixed object, from where it starts to sound */
+    dn_init(&S, &B, SR, 9);
+    dn_button(&S, DN_BTN_SOURCE, DN_SRC_LIVE);
+    for (int k = 0; k < (int)(1.0f * SR / 256); k++) { for (int i = 0; i < 256; i++) in[i] = 0.0f; dn_process_in(&S, in, L, R, 256); }
+    dn_button(&S, DN_BTN_CAPTURE, 0);
+    v = dn_view(&S);
+    int quiet_ok = v[V_SRC] == DN_SRC_LIVE && v[V_SRC_NOTE] == 2;
+    double ph = 0;
+    for (int k = 0; k < (int)(0.6f * SR / 256); k++) { for (int i = 0; i < 256; i++) { in[i] = 0.5f * (float)sin(ph); ph += 2 * 3.14159265358979 * 300 / SR; } dn_process_in(&S, in, L, R, 256); }
+    for (int k = 0; k < (int)(0.2f * SR / 256); k++) { for (int i = 0; i < 256; i++) in[i] = 0.0f; dn_process_in(&S, in, L, R, 256); }
+    dn_button(&S, DN_BTN_CAPTURE, 0);
+    v = dn_view(&S);
+    float src = v[V_SRC], len = v[V_SAMP_LEN];
+    stats_t s2 = { 0 };
+    run(&S, 8.0, &s2, NULL, NULL);
+    check("capturing silence is refused; capturing a sound keeps it from its start",
+          quiet_ok && src == DN_SRC_BUF && len > 0.75f && len < 0.85f && s2.peak > 0.05,
+          "silence refused: %s; sound -> %.2f s object, peak afterwards %.2f", quiet_ok ? "yes" : "no", len, s2.peak);
+}
+
 /* ---------------------------------------------------------------- main */
 int main(int argc, char **argv) {
     if (argc >= 3 && !strcmp(argv[1], "test") && !strcmp(argv[2], "steer")) { t_steer(); return fails != 0; }
     if (argc >= 3 && !strcmp(argv[1], "test") && !strcmp(argv[2], "pushsteer")) { push_only = 1; t_steer(); return fails != 0; }
     if (argc >= 3 && !strcmp(argv[1], "test") && !strcmp(argv[2], "quick")) {
-        t_memory(); t_causality(); t_debt(); t_phases(); t_motion(); t_determinism(); t_no_trap(); t_denormal();
+        t_memory(); t_causality(); t_debt(); t_phases(); t_motion(); t_determinism(); t_no_trap(); t_denormal(); t_sources();
         printf("%s (%d failed)\n", fails ? "FAILED" : "all passed", fails); return fails != 0;
     }
     if (argc >= 2 && !strcmp(argv[1], "test")) {
@@ -411,6 +493,7 @@ int main(int argc, char **argv) {
         t_phases();
         t_motion();
         t_determinism();
+        t_sources();
         t_no_trap();
         t_denormal();
         t_headroom();
@@ -569,16 +652,26 @@ int main(int argc, char **argv) {
         return 0;
     }
     if (argc >= 4 && !strcmp(argv[1], "raw")) {
-        /* raw float32 left channel, 128-frame blocks, the same scripted touches as tools/same_core.mjs */
+        /* raw float32 left channel, 128-frame blocks, the same script as tools/same_core.mjs:
+           FM with touches, then the live input, a capture, and a loaded sound */
         double sec = atof(argv[2]);
         dn_init(&S, &B, SR, 42);
         FILE *f = fopen(argv[3], "wb");
         long blocks = (long)(sec * 44100 / 128);
-        float L[128], R[128];
+        float L[128], R[128], IN[128];
+        uint32_t r = 777;
         for (long b = 0; b < blocks; b++) {
-            dn_process(&S, L, R, 128);
+            for (int i = 0; i < 128; i++) { r = r * 1664525u + 1013904223u; IN[i] = (float)(r >> 16) / 65536.0f - 0.5f; }
+            dn_process_in(&S, IN, L, R, 128);
             fwrite(L, sizeof(float), 128, f);
             if (b % 2000 == 0) { dn_encoder(&S, 1, 1); dn_key(&S, 5, 1); dn_key(&S, 5, 0); }
+            if (b == 3000) dn_button(&S, DN_BTN_SOURCE, DN_SRC_LIVE);
+            if (b == 7000) dn_button(&S, DN_BTN_CAPTURE, 0);
+            if (b == 11000) {
+                int16_t *sa = dn_sample_area(&S);
+                for (int i = 0; i < 20000; i++) { r = r * 1664525u + 1013904223u; sa[i] = (int16_t)((int32_t)(r >> 16) - 32768); }
+                dn_sample_commit(&S, 20000);
+            }
         }
         fclose(f);
         return 0;

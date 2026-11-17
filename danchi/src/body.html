@@ -21,6 +21,37 @@
       <p class="hint">窓を押すと、その部屋で物が鳴り、その位置に置かれます。長く押すとその部屋の音が伸びます。右下の灯りで部屋の出し入れ。<span class="keys">キー: 1234 / QWER / ASDF / ZXCV（上の階から）、Shift で出し入れ、Space で音を出す・止める</span></p>
     </section>
 
+    <section class="source" aria-label="物の出どころ" id="source">
+      <div class="sec-head"><h2>物の出どころ<small>どの部屋も、ここで決めた同じ一つの音の写しを鳴らす</small></h2></div>
+      <div class="group" role="group" aria-label="出どころ">
+        <button type="button" class="tbtn seg" data-src="fm" aria-pressed="true">FM の音</button>
+        <button type="button" class="tbtn seg" data-src="file" aria-pressed="false">ファイル</button>
+        <button type="button" class="tbtn seg" data-src="in" aria-pressed="false">入力</button>
+      </div>
+      <div class="srcpane" id="pane-file" hidden>
+        <div class="group">
+          <label class="tbtn" for="file" id="filelabel">WAV / MP3 を選ぶ</label>
+          <input id="file" type="file" hidden>
+          <span class="fname mono" id="fname">ここに落としても入ります</span>
+        </div>
+        <canvas id="wave" aria-label="ファイルの波形。押した所から約 1.5 秒が物になる"></canvas>
+        <p class="hint">波形を押すと、その位置から約 1.5 秒が物になります。音の高さは変えません。</p>
+      </div>
+      <div class="srcpane" id="pane-in" hidden>
+        <div class="group">
+          <label class="sel">機器 <select id="indev"><option value="">（許可すると一覧が出ます）</option></select></label>
+          <label class="sel">チャンネル <select id="inch"><option value="2">1+2</option><option value="0">1</option><option value="1">2</option></select></label>
+        </div>
+        <div class="inmeter" aria-label="入力の大きさ"><i id="inlvl"></i></div>
+        <div class="group">
+          <button type="button" class="tbtn" id="inlive">そのまま流す</button>
+          <button type="button" class="tbtn" id="incap">つかむ（いまの入力を物にする）</button>
+        </div>
+        <p class="hint">「そのまま流す」では、どの部屋の写しも <b>1 拍前の入力</b>を鳴らします。拍より早く置かれた写しは、その分だけ遅れが短くなります。入力そのものはここでは鳴らしません（インターフェイス側でモニターしてください）。スピーカーとマイクだと回り込むので、ヘッドホンで。</p>
+      </div>
+      <p class="srcnow" id="srcnow"></p>
+    </section>
+
     <section class="time" aria-label="各部屋の時間">
       <div class="sec-head">
         <h2>時間<small>拍からどれだけ前か後ろか、何に押されたか</small></h2>

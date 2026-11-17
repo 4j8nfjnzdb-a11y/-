@@ -35,7 +35,8 @@
 #define DN_MR_SPB   64      /* motion slots per bar */
 #define DN_MR_BARS  8
 #define DN_ROOMBUF  1152
-#define DN_ECHOBUF  30720
+#define DN_ECHOBUF  30720     /* echo stored as 16-bit */
+#define DN_SAMPBUF  65536     /* 16-bit: the object from a file / the input, ~1.49 s at 44.1 kHz */
 #define DN_DIFBUF   512
 #define DN_HIST     16
 #define DN_LOG      8
@@ -73,7 +74,16 @@ enum { DN_BTN_TRACK,      /* arg: track 1..15 -> toggle in/out (held by hand)   
        DN_BTN_OBJECT,     /* apply the object candidate (encoder 7 push)                */
        DN_BTN_UNIT_CLEAR, /* arg: track -> empty that unit and hand it back to auto     */
        DN_BTN_REBUILD,    /* new placements and operators (object unchanged)            */
-       DN_BTN_TRACK_AUTO  /* arg: track -> release the hand's hold (auto again)        */
+       DN_BTN_TRACK_AUTO, /* arg: track -> release the hand's hold (auto again)        */
+       DN_BTN_SOURCE,     /* arg: DN_SRC_FM or DN_SRC_LIVE (BUF comes from a load or a capture) */
+       DN_BTN_CAPTURE     /* freeze the last ~1.4 s of live input as the object          */
+};
+/* where the object comes from */
+enum { DN_SRC_FM,       /* the FM tone                                                     */
+       DN_SRC_BUF,      /* a fixed sound: part of a file, or input that was captured         */
+       DN_SRC_LIVE      /* the input itself: every copy plays the input as it was one beat
+                           before its place on the grid, so a copy's offset from the grid is
+                           heard as a different delay of the live sound                      */
 };
 /* log entry types */
 enum { DN_LG_NONE, DN_LG_ACT, DN_LG_BORN, DN_LG_DIED, DN_LG_PHASE, DN_LG_REWARD };
@@ -127,6 +137,11 @@ enum { DN_LG_NONE, DN_LG_ACT, DN_LG_BORN, DN_LG_DIED, DN_LG_PHASE, DN_LG_REWARD 
 #define V_STEPLEN_MS 51
 #define V_C_COMB     52
 #define V_FLAMS      53
+#define V_SRC        54
+#define V_SAMP_LEN   55   /* seconds */
+#define V_IN_PEAK    56
+#define V_LIVE_DELAY 57   /* ms */
+#define V_SRC_NOTE   58   /* 0, 1 captured, 2 input too quiet to capture, 3 loaded */
 
 #define V_TRACK0     64
 #define V_TS         48   /* per-track stride */
@@ -203,7 +218,9 @@ typedef struct {
 } dn_track;
 
 typedef struct {
-    uint8_t active, track, stage, keeper;
+    uint8_t active, track, stage, keeper, src, pad[3];
+    uint32_t pos;          /* read position in the sample ring (BUF / LIVE) */
+    int32_t left;          /* samples left in the sound (BUF) */
     float phc, phm, incc, incm, amp, idx, prev;
     float amp_t, amp_c, att_inc, idx_t, idx_c, rel_c, fb, gain;
     int32_t delay, gate;
@@ -213,6 +230,7 @@ typedef struct {
 
 typedef struct {
     uint32_t t, gate;
+    int32_t devs;         /* realized - grid, in samples */
     float dev;            /* realized - grid (steps) */
     uint8_t track, used, keeper;
     int8_t cause;
@@ -234,7 +252,8 @@ typedef struct {
 
 typedef struct dn_big {
     float room[DN_ROOMS][3][DN_ROOMBUF];
-    float echo[2][DN_ECHOBUF];
+    int16_t echo[2][DN_ECHOBUF];
+    int16_t samp[DN_SAMPBUF];
 } dn_big;
 
 typedef struct dn_state {
@@ -254,6 +273,10 @@ typedef struct dn_state {
     dn_event ev[DN_EVQ];
     int keeper_mode;           /* 0 auto (phase decides), 1 in, 2 out */
     int hand_stop;             /* the hand turned the last unit off: stay quiet until it turns one on */
+    /* source of the object */
+    int src, src_note, seg_valid;
+    uint32_t seg_start, seg_len, live_since;
+    float samp_gain, in_peak, live_delay;
     int keeper_on;
 
     /* clock */
@@ -327,6 +350,9 @@ typedef struct dn_state {
 /* ---- API ---- */
 void dn_init(dn_state *s, dn_big *b, float sr, uint32_t seed);
 void dn_process(dn_state *s, float *L, float *R, int n);   /* n <= DN_BLOCK */
+void dn_process_in(dn_state *s, const float *in, float *L, float *R, int n);  /* with mono input (may be NULL) */
+int16_t *dn_sample_area(dn_state *s);                       /* the host writes mono 16-bit here ...   */
+void dn_sample_commit(dn_state *s, int n);                  /* ... then commits n samples as the object */
 void dn_encoder(dn_state *s, int knob, int detents);
 void dn_key(dn_state *s, int unit, int down);               /* unit 0..15 (0 = caretaker) */
 void dn_button(dn_state *s, int btn, int arg);

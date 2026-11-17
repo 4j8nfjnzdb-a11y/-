@@ -64,16 +64,17 @@ button:focus-visible, canvas:focus-visible { outline: 2px solid var(--lamp); out
 .grid {
   display: grid; gap: 14px;
   grid-template-columns: 300px minmax(0, 1fr) 300px;
-  grid-template-areas: "building time state" "controls controls controls" "ops ops device";
+  grid-template-areas: "building time state" "source time state" "controls controls controls" "ops ops device";
 }
-.building { grid-area: building; } .time { grid-area: time; } .state { grid-area: state; }
+.time, .state { align-self: start; }
+.building { grid-area: building; } .source { grid-area: source; } .time { grid-area: time; } .state { grid-area: state; }
 .controls { grid-area: controls; } .ops { grid-area: ops; } .device { grid-area: device; }
 .grid > section { min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 12px; }
 @media (max-width: 1180px) {
-  .grid { grid-template-columns: 300px minmax(0, 1fr); grid-template-areas: "building state" "time time" "controls controls" "ops ops" "device device"; }
+  .grid { grid-template-columns: 300px minmax(0, 1fr); grid-template-areas: "building state" "source state" "time time" "controls controls" "ops ops" "device device"; }
 }
 @media (max-width: 720px) {
-  .grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "building" "controls" "time" "state" "ops" "device"; }
+  .grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "building" "source" "controls" "time" "state" "ops" "device"; }
 }
 .sec-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; margin-bottom: 8px; }
 .sec-head h2 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: 0.06em; }
@@ -115,6 +116,24 @@ button:focus-visible, canvas:focus-visible { outline: 2px solid var(--lamp); out
 .win.keeper { border-color: var(--rail); }
 .win.keeper .no { color: var(--ink); }
 .facade .entrance { grid-column: 1 / -1; height: 10px; background: var(--ink); margin: 0 -8px; opacity: 0.85; }
+
+/* source */
+.source { display: flex; flex-direction: column; gap: 8px; }
+.source.drop { outline: 2px dashed var(--lamp); outline-offset: -4px; }
+.srcpane { display: flex; flex-direction: column; gap: 8px; }
+[hidden] { display: none !important; }
+.fname { font-size: 11px; color: var(--dim); min-width: 0; overflow-wrap: anywhere; }
+#wave { display: block; width: 100%; height: 64px; background: var(--bg); border: 1px solid var(--line); border-radius: 2px; cursor: pointer; touch-action: none; }
+.sel { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dim); min-width: 0; }
+.sel select { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 3px; padding: 3px 4px; max-width: 100%; min-width: 0; }
+.group .sel:first-child { flex: 1 1 160px; }
+.group .sel:first-child select { flex: 1; width: 100%; }
+.inmeter { height: 8px; background: var(--line); border-radius: 1px; position: relative; overflow: hidden; }
+.inmeter i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--rail); }
+.inmeter i.hot { background: var(--warn); }
+.srcnow { margin: 0; font-size: 12px; }
+.srcnow b { font-weight: 700; }
+.srcnow .err { color: var(--warn); }
 
 /* lanes */
 .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: var(--dim); }

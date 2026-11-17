@@ -118,8 +118,19 @@ void dn_draw_rows(const dn_state *s, uint16_t *buf, int y0, int nrows) {
     x = text(&b, x + 6, 2, itoa_(s->ph_left, num, 1), DIM);
     x = text(&b, x, 2, "/", DIM);
     text(&b, x, 2, itoa_(s->ph_len, num, 1), DIM);
-    text(&b, 142, 2, "#", DIM);
-    text(&b, 148, 2, itoa_((int)s->obj.seed, num, 4), s->seed_cand != s->obj.seed ? TGT : INK);
+    if (s->src == DN_SRC_FM) {
+        text(&b, 142, 2, "#", DIM);
+        text(&b, 148, 2, itoa_((int)s->obj.seed, num, 4), s->seed_cand != s->obj.seed ? TGT : INK);
+    } else if (s->src == DN_SRC_BUF) {
+        int x2 = text(&b, 136, 2, "SMP", INK);
+        int cs = (int)((float)s->seg_len * s->isr * 10.0f + 0.5f);
+        x2 = text(&b, x2 + 4, 2, itoa_(cs / 10, num, 1), DIM);
+        x2 = text(&b, x2, 2, ".", DIM);
+        text(&b, x2, 2, itoa_(cs % 10, num, 1), DIM);
+    } else {
+        text(&b, 136, 2, "LIVE", EARLY);
+        rect(&b, 162, 4, (int)(dn_clamp01(s->in_peak) * 26.0f), 3, s->in_peak > 0.9f ? WARN : INK);
+    }
     text(&b, 196, 2, itoa_((int)(dn_tempo_bpm(s) + 0.5f), num, 3), INK);
     text(&b, 216, 2, "BPM", DIM);
 

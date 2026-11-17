@@ -51,9 +51,14 @@ for (let i = 0; i < 44100 * 6 / 256; i++) local.process(256);
 localView(); localScreen();
 
 function send(m) {
-  if (node) { node.port.postMessage(m); return; }
+  if (node) { node.port.postMessage(m, m.t === 'pcm' ? [m.data.buffer] : []); return; }
   if (!local) return;
-  if (m.t === 'enc') local.enc(m.k, m.d);
+  if (m.t === 'pcm') {
+    const n = Math.min(m.data.length, local.samp_max());
+    new Int16Array(local.memory.buffer, local.samp_area(), n).set(m.data.subarray(0, n));
+    local.samp_commit(n);
+  } else if (m.t === 'inch') inch = m.v;
+  else if (m.t === 'enc') local.enc(m.k, m.d);
   else if (m.t === 'key') local.key(m.u, m.d);
   else if (m.t === 'btn') local.btn(m.b, m.a);
   if (mode === 'preview') { localView(); localScreen(); }
@@ -71,7 +76,8 @@ async function startAudio() {
     const url = URL.createObjectURL(new Blob([WORKLET_SRC], { type: 'application/javascript' }));
     await Promise.race([ctx.audioWorklet.addModule(url), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 6000))]);
     node = new AudioWorkletNode(ctx, 'danchi', {
-      numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2],
+      numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2],
+      channelCount: 2, channelCountMode: 'explicit', channelInterpretation: 'discrete',
       processorOptions: { wasm: wasmBytes.buffer.slice(0), seed: SEED, knobs },
     });
     node.port.onmessage = (e) => {
@@ -88,10 +94,17 @@ async function startAudio() {
     for (const [k, v] of knobs) local.set_knob(k, v);
     const L = () => new Float32Array(local.memory.buffer, local.out_l(), 256);
     const R = () => new Float32Array(local.memory.buffer, local.out_r(), 256);
-    sp = ctx.createScriptProcessor(CORE === 'js' ? 4096 : 1024, 0, 2);
+    const IN = () => new Float32Array(local.memory.buffer, local.in_buf(), 256);
+    sp = ctx.createScriptProcessor(CORE === 'js' ? 4096 : 1024, 2, 2);
     sp.onaudioprocess = (e) => {
       const a = e.outputBuffer.getChannelData(0), b = e.outputBuffer.getChannelData(1);
-      for (let o = 0; o < a.length; o += 256) { local.process(256); a.set(L(), o); b.set(R(), o); }
+      const ia = e.inputBuffer.getChannelData(0), ib = e.inputBuffer.numberOfChannels > 1 ? e.inputBuffer.getChannelData(1) : ia;
+      for (let o = 0; o < a.length; o += 256) {
+        const x = IN();
+        if (inch === 0) x.set(ia.subarray(o, o + 256)); else if (inch === 1) x.set(ib.subarray(o, o + 256));
+        else for (let i = 0; i < 256; i++) x[i] = 0.5 * (ia[o + i] + ib[o + i]);
+        local.process_in(256); a.set(L(), o); b.set(R(), o);
+      }
       localView();
       for (let y = 0; y < 240; y += 60) local.draw(y, 60);
       FB = new Uint16Array(local.memory.buffer, local.fb(), 57600).slice();
@@ -224,6 +237,171 @@ $('loop').addEventListener('click', () => send({ t: 'btn', b: 4, a: 0 }));
 $('clear').addEventListener('click', () => send({ t: 'btn', b: 3, a: 0 }));
 $('rebuild').addEventListener('click', () => send({ t: 'btn', b: 7, a: 0 }));
 for (const b of document.querySelectorAll('[data-keeper]')) b.addEventListener('click', () => send({ t: 'btn', b: 1, a: +b.dataset.keeper }));
+
+// ---------- the object's source: FM, a part of a file, or the input ----------
+const SRC_FM = 0, SRC_BUF = 1, SRC_LIVE = 2;
+let fileData = null, fileStart = 0, inStream = null, inNode = null, inch = 2, srcErr = '', inInfo = '', devices = [], autoPicked = false;
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function showPane(which) {
+  $('pane-file').hidden = which !== 'file';
+  $('pane-in').hidden = which !== 'in';
+  for (const b of document.querySelectorAll('[data-src]')) b.setAttribute('aria-pressed', String(b.dataset.src === which));
+  if (which === 'file') drawWave();
+}
+for (const b of document.querySelectorAll('[data-src]')) b.addEventListener('click', async () => {
+  const w = b.dataset.src;
+  srcErr = '';
+  showPane(w);
+  if (w === 'fm') { await ensurePlaying(); send({ t: 'btn', b: 9, a: SRC_FM }); }
+  else if (w === 'file') { if (fileData) { await ensurePlaying(); applyFile(); } }
+  else await openInput($('indev').value || null);
+});
+
+// a file: decoded by the browser (WAV, MP3, ...), mixed to mono; about 1.5 s of it becomes the object
+const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+const SAMP_MAX = 65536 - 512;
+function decodeWith(c, ab) {
+  return new Promise((res, rej) => { const p = c.decodeAudioData(ab, res, rej); if (p && p.catch) p.catch(rej); });
+}
+$('filelabel').addEventListener('click', () => { ensurePlaying(); });   // start the sound while the click still counts
+$('file').addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (f) loadFile(f); e.target.value = ''; });
+async function loadFile(f) {
+  srcErr = '';
+  $('fname').textContent = `${f.name} を読んでいます…`;
+  try {
+    await ensurePlaying();
+    const ab = await (f.arrayBuffer ? f.arrayBuffer() : new Response(f).arrayBuffer());
+    const copy = ab.slice(0);
+    let buf;
+    try { buf = await decodeWith(ctx, ab); }
+    catch (e) { if (!OAC) throw e; buf = await decodeWith(new OAC(2, ctx.sampleRate, ctx.sampleRate), copy); }
+    const n = buf.length, ch = buf.numberOfChannels, pcm = new Float32Array(n);
+    for (let c = 0; c < ch; c++) { const d = buf.getChannelData(c); for (let i = 0; i < n; i++) pcm[i] += d[i] / ch; }
+    let pk = 0;
+    for (let i = 0; i < n; i++) { const a = Math.abs(pcm[i]); if (a > pk) pk = a; }
+    if (pk < 1e-4) throw new Error('silent');
+    let st = 0;
+    for (let i = 0; i < n; i++) if (Math.abs(pcm[i]) > pk * 0.1) { st = i; break; }
+    fileData = { name: f.name, pcm, sr: buf.sampleRate, peak: pk };
+    fileStart = Math.max(0, st - Math.round(0.005 * buf.sampleRate));
+    $('fname').textContent = `${f.name} · ${(n / buf.sampleRate).toFixed(2)} 秒`;
+    showPane('file');
+    applyFile();
+  } catch (e) {
+    fileData = null;
+    $('fname').textContent = 'ここに落としても入ります';
+    srcErr = e && e.message === 'silent' ? `「${f.name}」は無音でした。` : `「${f.name}」を読めませんでした。音声ファイルでないか、このブラウザが読めない形式です（WAV か MP3 で試してください）。`;
+    drawWave();
+  }
+}
+function applyFile() {
+  if (!fileData) return;
+  const { pcm } = fileData, n = Math.min(SAMP_MAX, pcm.length - fileStart);
+  if (n < 64) return;
+  const k = 32767 * 0.98 / fileData.peak, out = new Int16Array(n);
+  for (let i = 0; i < n; i++) out[i] = Math.max(-32767, Math.min(32767, Math.round(pcm[fileStart + i] * k)));
+  send({ t: 'pcm', data: out });
+  drawWave();
+}
+function drawWave() {
+  const cv = $('wave');
+  if (cv.offsetParent === null) return;
+  const [g, W, H] = fitCanvas(cv);
+  g.clearRect(0, 0, W, H);
+  if (!fileData) {
+    g.fillStyle = C.dim; g.font = '12px ' + getComputedStyle(document.body).fontFamily; g.textBaseline = 'middle';
+    g.fillText('WAV / MP3 を選ぶか、ここに落とす', 8, H / 2);
+    return;
+  }
+  const { pcm, peak } = fileData, n = pcm.length, per = n / W, k = (H / 2 - 2) / peak;
+  const x0 = fileStart / per, x1 = Math.min(n, fileStart + SAMP_MAX) / per;
+  g.fillStyle = C.lamp; g.globalAlpha = 0.25; g.fillRect(x0, 0, Math.max(1, x1 - x0), H); g.globalAlpha = 1;
+  g.fillStyle = C.ink;
+  for (let x = 0; x < W; x++) {
+    const a = Math.floor(x * per), b = Math.min(n, Math.floor((x + 1) * per)), step = Math.max(1, ((b - a) / 48) | 0);
+    let mn = 0, mx = 0;
+    for (let i = a; i < b; i += step) { const v = pcm[i]; if (v < mn) mn = v; if (v > mx) mx = v; }
+    g.fillRect(x, H / 2 - mx * k, 1, Math.max(1, (mx - mn) * k));
+  }
+  g.fillStyle = C.lamp; g.fillRect(x0, 0, 2, H);
+}
+(function waveInput() {
+  const cv = $('wave');
+  let drag = false;
+  const at = (e) => {
+    if (!fileData) return;
+    const r = cv.getBoundingClientRect();
+    fileStart = Math.max(0, Math.min(fileData.pcm.length - 64, Math.round((e.clientX - r.left) / r.width * fileData.pcm.length)));
+    drawWave();
+  };
+  cv.addEventListener('pointerdown', (e) => { if (!fileData) { $('file').click(); return; } drag = true; try { cv.setPointerCapture(e.pointerId); } catch (_) {} at(e); });
+  cv.addEventListener('pointermove', (e) => { if (drag) at(e); });
+  const end = () => { if (drag) { drag = false; applyFile(); } };
+  cv.addEventListener('pointerup', end);
+  cv.addEventListener('pointercancel', end);
+})();
+(function dropFiles() {
+  const box = $('source');
+  box.addEventListener('dragover', (e) => { e.preventDefault(); box.classList.add('drop'); });
+  box.addEventListener('dragleave', () => box.classList.remove('drop'));
+  box.addEventListener('drop', (e) => {
+    e.preventDefault(); box.classList.remove('drop');
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFile(f);
+  });
+})();
+
+// the input (an audio interface such as an RME Fireface, or a microphone): no echo cancelling,
+// no noise suppression, no automatic gain; the sound as it comes in
+async function openInput(deviceId) {
+  srcErr = '';
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    srcErr = 'この表示では入力を使えません。手元で index.html を開いてください（localhost か https で）。';
+    return;
+  }
+  await ensurePlaying();
+  closeInput();
+  const audio = { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: { ideal: 2 } };
+  if (deviceId) audio.deviceId = { exact: deviceId };
+  try { inStream = await navigator.mediaDevices.getUserMedia({ audio }); }
+  catch (e) {
+    if (deviceId && (e.name === 'OverconstrainedError' || e.name === 'NotFoundError')) return openInput(null);
+    srcErr = e.name === 'NotAllowedError' || e.name === 'SecurityError'
+      ? '入力が許可されませんでした。claude.ai の公開ページでは入力を使えません。手元で index.html を開いてください（localhost か https で）。'
+      : e.name === 'NotFoundError' ? '入力機器が見つかりません。' : `入力を開けませんでした（${e.name}）。`;
+    return;
+  }
+  inNode = ctx.createMediaStreamSource(inStream);
+  inNode.connect(node || sp);
+  const tr = inStream.getAudioTracks()[0], set = tr && tr.getSettings ? tr.getSettings() : {};
+  await listDevices(set.deviceId);
+  if (!deviceId && !autoPicked) {   // an RME Fireface, if one is connected and nothing was chosen yet
+    autoPicked = true;
+    const ff = devices.find((d) => /fireface|rme/i.test(d.label));
+    if (ff && ff.deviceId !== set.deviceId) return openInput(ff.deviceId);
+  }
+  inInfo = `${tr ? tr.label || '入力' : '入力'} · ${set.channelCount || '?'} ch を受信`;
+  send({ t: 'btn', b: 9, a: SRC_LIVE });
+}
+function closeInput() {
+  if (inNode) { try { inNode.disconnect(); } catch (_) {} inNode = null; }
+  if (inStream) { inStream.getTracks().forEach((t) => t.stop()); inStream = null; }
+}
+async function listDevices(cur) {
+  try { devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'audioinput'); } catch (_) { devices = []; }
+  const sel = $('indev');
+  sel.textContent = '';
+  for (const d of devices) { const o = document.createElement('option'); o.value = d.deviceId; o.textContent = d.label || '入力'; sel.appendChild(o); }
+  if (cur) sel.value = cur;
+}
+$('indev').addEventListener('change', (e) => openInput(e.target.value || null));
+$('inch').addEventListener('change', (e) => { inch = +e.target.value; send({ t: 'inch', v: inch }); });
+$('inlive').addEventListener('click', async () => { srcErr = ''; if (!inStream) await openInput($('indev').value || null); else send({ t: 'btn', b: 9, a: SRC_LIVE }); });
+$('incap').addEventListener('click', () => {
+  srcErr = '';
+  if ((V[DN.V_SRC] | 0) !== SRC_LIVE) { srcErr = 'つかむ前に「そのまま流す」で入力を流してください。'; return; }
+  send({ t: 'btn', b: 10, a: 0 });
+});
 
 // ---------- meters (listening) ----------
 const METERS = [
@@ -377,9 +555,28 @@ function updateDom() {
   $('clock').textContent = `${V[DN.V_BAR] | 0} 小節`;
   $('bnum').textContent = String(V[DN.V_SEED] | 0).padStart(4, '0');
   const cand = V[DN.V_SEED_CAND] | 0, cur = V[DN.V_SEED] | 0;
-  $('objinfo').innerHTML = `${V[DN.V_OBJ_F0].toFixed(1)} Hz · 比 ${V[DN.V_OBJ_RATIO].toFixed(3)}<br>${cand !== cur ? `候補 #${String(cand).padStart(4, '0')} ${V[DN.V_CAND_F0].toFixed(1)} Hz` : '物は変わらない'}`;
+  const srcNow = V[DN.V_SRC] | 0;
+  const first = srcNow === 0 ? `${V[DN.V_OBJ_F0].toFixed(1)} Hz · 比 ${V[DN.V_OBJ_RATIO].toFixed(3)}`
+    : srcNow === 1 ? `${(V[DN.V_SRC_NOTE] | 0) === 1 ? '入力からつかんだ音' : 'ファイルの音'} · ${V[DN.V_SAMP_LEN].toFixed(2)} 秒` : '入力そのもの · 1 拍遅れ';
+  const oi = `${first}<br>${cand !== cur ? `候補 #${String(cand).padStart(4, '0')} ${V[DN.V_CAND_F0].toFixed(1)} Hz` : '物は変わらない'}`;
+  if ($('objinfo').innerHTML !== oi) $('objinfo').innerHTML = oi;
   $('objapply').disabled = cand === cur;
   $('objapply').textContent = cand !== cur ? `#${String(cand).padStart(4, '0')} の物にする` : 'この物にする';
+  // source
+  {
+    const src = V[DN.V_SRC] | 0, note = V[DN.V_SRC_NOTE] | 0, len = V[DN.V_SAMP_LEN].toFixed(2);
+    let t;
+    if (src === SRC_FM) t = `いまの物：<b>FM の音 #${String(cur).padStart(4, '0')}</b>（${V[DN.V_OBJ_F0].toFixed(1)} Hz、比 ${V[DN.V_OBJ_RATIO].toFixed(3)}）`;
+    else if (src === SRC_BUF) t = note === 1 ? `いまの物：<b>入力からつかんだ ${len} 秒</b>` : `いまの物：<b>${esc(fileData ? fileData.name : 'ファイル')} の ${len} 秒</b>`;
+    else t = `いまの物：<b>入力そのもの</b>（${Math.round(V[DN.V_LIVE_DELAY])} ms ＝ 1 拍前の入力を、各部屋の位置で）${inInfo ? `<br>${esc(inInfo)}` : ''}`;
+    if (src === SRC_LIVE && note === 2) t += '<br><span class="err">入力が小さすぎて、つかめませんでした。</span>';
+    if (srcErr) t += `<br><span class="err">${esc(srcErr)}</span>`;
+    if ($('srcnow').innerHTML !== t) $('srcnow').innerHTML = t;
+    const lv = Math.min(1, V[DN.V_IN_PEAK]);
+    $('inlvl').style.width = (lv * 100).toFixed(0) + '%';
+    $('inlvl').classList.toggle('hot', lv > 0.9);
+    $('incap').disabled = src !== SRC_LIVE;
+  }
   // knobs
   const lanes = V[DN.V_MR_LANES] | 0, gest = V[DN.V_MR_GEST] | 0;
   for (const K of KNOBS) {
@@ -457,4 +654,4 @@ function frame(t) {
 }
 updateDom(); drawLanes(); drawPlane(); drawScreen();
 requestAnimationFrame(frame);
-window.addEventListener('resize', () => { drawLanes(); drawPlane(); });
+window.addEventListener('resize', () => { drawLanes(); drawPlane(); drawWave(); });
