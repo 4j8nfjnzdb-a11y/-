@@ -336,6 +336,91 @@ static void gl_stop_rec(void)
     gl.state = gl.n ? GL_LOOP : GL_IDLE;
 }
 
+/* the loop varies as it repeats, never back, and never moves where a knob ends up over a pass (its net turn): one
+ * knob's gesture slides in time against the others (its phase), runs backwards in time, or is squeezed or stretched
+ * around its middle; two played knobs whose gestures come back to where they started may swap. Keys and buttons stay */
+static uint32_t gl_seed = 0x9E3779B9u;
+static uint32_t gl_varied;               /* passes that changed (the header shows the loop is moving) */
+static void gl_resort(void)
+{
+    uint32_t i, j;
+    for (i = 1; i < gl.n; i++) {         /* in time order again (stable; nearly sorted already) */
+        gl_ev_t e = gl_ev[i];
+        for (j = i; j > 0 && gl_ev[j - 1u].t > e.t; j--)
+            gl_ev[j] = gl_ev[j - 1u];
+        gl_ev[j] = e;
+    }
+}
+static void gl_vary(void)
+{
+    uint32_t i, used = 0;
+    int32_t net[HW_NENC];
+    int a, b, n_used = 0, pick;
+    float what;
+    if (gl.n < 2 || gl.n > 1024u || m_rnd(&gl_seed) > 0.55f)
+        return;
+    for (a = 0; a < HW_NENC; a++)
+        net[a] = 0;
+    for (i = 0; i < gl.n; i++)
+        if (gl_ev[i].type == EV_ENC) {
+            net[gl_ev[i].idx] += gl_ev[i].val;
+            if (!(used >> gl_ev[i].idx & 1u)) {
+                used |= 1u << gl_ev[i].idx;
+                n_used++;
+            }
+        }
+    if (!n_used)
+        return;
+    pick = (int)(m_rnd(&gl_seed) * (float)n_used) % n_used;
+    for (a = 0; a < HW_NENC; a++)
+        if ((used >> a & 1u) && pick-- == 0)
+            break;
+    what = m_rnd(&gl_seed);
+    if (what < 0.5f) {                   /* its phase slides: 3..20% of the loop, either way */
+        float f = (0.03f + 0.17f * m_rnd(&gl_seed)) * (m_rnd(&gl_seed) < 0.5f ? -1.0f : 1.0f);
+        uint32_t off = (uint32_t)((f < 0.0f ? 1.0f + f : f) * (float)gl.len);
+        for (i = 0; i < gl.n; i++)
+            if (gl_ev[i].type == EV_ENC && gl_ev[i].idx == a)
+                gl_ev[i].t = (gl_ev[i].t + off) % gl.len;
+        gl_resort();
+    } else if (what < 0.75f) {           /* backwards in time (each turn the other way, in reverse order) */
+        if (net[a])                      /* (only a gesture that comes back: else it would undo itself) */
+            return;
+        for (i = 0; i < gl.n; i++)
+            if (gl_ev[i].type == EV_ENC && gl_ev[i].idx == a) {
+                gl_ev[i].t = gl.len - 1u - gl_ev[i].t;
+                gl_ev[i].val = (int8_t)-gl_ev[i].val;
+            }
+        gl_resort();
+    } else if (what < 0.85f) {           /* squeezed (x0.7) or stretched (x1.4) around its middle */
+        uint32_t lo = gl.len, hi = 0, mid;
+        float k = m_rnd(&gl_seed) < 0.5f ? 0.7f : 1.4f;
+        for (i = 0; i < gl.n; i++)
+            if (gl_ev[i].type == EV_ENC && gl_ev[i].idx == a) {
+                lo = gl_ev[i].t < lo ? gl_ev[i].t : lo;
+                hi = gl_ev[i].t > hi ? gl_ev[i].t : hi;
+            }
+        mid = (lo + hi) / 2u;
+        for (i = 0; i < gl.n; i++)
+            if (gl_ev[i].type == EV_ENC && gl_ev[i].idx == a) {
+                float d = ((float)gl_ev[i].t - (float)mid) * k + (float)mid;
+                gl_ev[i].t = (uint32_t)m_clamp(d, 0.0f, (float)(gl.len - 1u));
+            }
+        gl_resort();
+    } else {                             /* swaps with another knob of the loop, if both come back (never onto a knob
+                                          * that was not played, and SELECT stays SELECT's) */
+        if (a == HE_SELECT || net[a])
+            return;
+        b = 1 + (int)(m_rnd(&gl_seed) * (float)(HW_NENC - 1)) % (HW_NENC - 1);
+        if (b == a || net[b] || !(used >> b & 1u))
+            return;
+        for (i = 0; i < gl.n; i++)
+            if (gl_ev[i].type == EV_ENC)
+                gl_ev[i].idx = (uint8_t)(gl_ev[i].idx == a ? b : gl_ev[i].idx == b ? a : gl_ev[i].idx);
+    }
+    gl_varied++;
+}
+
 /* the loop's events up to now, merged into the frame's input (the hand plays on top) */
 static void gl_play(mz_in_t *in, uint32_t dt)
 {
@@ -382,6 +467,8 @@ static void gl_play(mz_in_t *in, uint32_t dt)
         end -= gl.len;                           /* the loop's end: again from its start */
         gl.pos = 0;
         wrapped = 1;
+        if (gl.state == GL_LOOP)                 /* (not while layering: the events are being put in) */
+            gl_vary();
     }
     gl.t = end < gl.len ? end : 0;
     {
@@ -445,6 +532,7 @@ void mz_init(uint32_t seed)
     body_reset(&body);
     gl.state = GL_IDLE;
     gl.n = 0;
+    gl_varied = 0;
     ui.playing = 1;
     ui.last_ms = hw_ms();
     for (i = 0; i < HW_NENC; i++)
@@ -483,6 +571,7 @@ static void pj_switch(int k, uint32_t now)
     pj_control(&rel, &body);
     gl.state = GL_IDLE;                  /* a loop of hands was made for the one left */
     gl.n = 0;
+    gl_varied = 0;
     gl.keys = gl.btn = 0;
     for (i = 0; i < HW_NKEYS; i++)
         gl.prs[i] = 0;
@@ -546,7 +635,7 @@ static void draw_head(void)
         mz_cat(flags, "DUB ");
         mz_fix(flags, (float)gl.len * 0.001f, 1);
     } else if (gl.state == GL_LOOP) {
-        mz_cat(flags, "LOOP ");
+        mz_cat(flags, gl_varied ? "LOOP~" : "LOOP ");
         mz_fix(flags, (float)gl.len * 0.001f, 1);
     }
     if (!ui.playing)
@@ -921,6 +1010,8 @@ void mz_frame(void)
             gl.prs[i] = 0;
         gl.state = GL_IDLE;
         gl.n = 0;
+        gl_varied = 0;
+    gl_varied = 0;
         gl.keys = gl.btn = 0;
         mz_say("LOOP", "FORGOTTEN");
     }
@@ -928,6 +1019,9 @@ void mz_frame(void)
         if (gl.state == GL_IDLE) {
             gl.state = GL_REC;
             gl.n = 0;
+            gl_varied = 0;
+        gl_varied = 0;
+    gl_varied = 0;
             gl.t = 0;
             gl.rec_keys = 0;
             mz_say("REC", "HANDS RECORDED");

@@ -1,8 +1,14 @@
-# HENKA with GEN (FX tapped at 1 s), left alone: regimes come and go, the synth track gets notes, chords, echoes
+# HENKA with GEN (FX tapped at 1 s), left alone: travelling effects, regimes, the meter, coupled step clocks
 1 btn FX down
 1.1 btn FX up
 30 shot gen30
 90 shot gen90
+# FX held: GEN's page; COUPLE turned toward push, TOKENS up
+120 btn FX down
+120.3 enc 1 -10
+120.6 enc 2 3
+121 shot page
+121.5 btn FX up
 150 shot gen150
 200 btn FX down
 202 shot burst

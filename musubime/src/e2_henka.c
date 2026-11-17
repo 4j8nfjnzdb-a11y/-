@@ -52,29 +52,49 @@ static const char *const RATE_NAME[] = {"1/4", "1/3", "1/2", "2/3", "3/4", "1", 
 #define NRATE 11
 #define RATE_ONE 5
 
-/* GEN's acts, one or more on a step */
-enum { A_RAT = 1, A_NOTE = 2, A_CHORD = 4, A_ECHO = 8, A_STUT = 16, A_CRUSH = 32, A_SWEEP = 64, NACT = 7 };
-static const uint16_t ACT_COL[NACT] = {C_VAL, C_HOT, C_GRN, C_CYN, C_RED, C_LAB, C_VAL2};
-/* the regimes: the acts' weights (RAT NOTE CHORD ECHO STUT CRUSH SWEEP), their share of the trigs, the tracks' weights,
- * the echo (in steps) and its feedback */
+/* GEN's acts: what a travelling effect does to the note it sits on */
+enum { A_RAT = 1, A_NOTE = 2, A_CHORD = 4, A_ECHO = 8, A_STUT = 16, A_CRUSH = 32, A_SWEEP = 64, A_CUT = 128, NACT = 8 };
+static const uint16_t ACT_COL[NACT] = {C_VAL, C_HOT, C_GRN, C_CYN, C_RED, C_LAB, C_VAL2, C_DIMC};
+/* the regimes: the acts' weights (RAT NOTE CHORD ECHO STUT CRUSH SWEEP CUT), the tracks' weights, the echo (in steps)
+ * and its feedback, how fast the density moves, each track's density shift, how many effects travel (times TOKENS),
+ * and which tracks start again at each bar of the meter */
 typedef struct {
     const char *name;
-    float share, w[NACT], trk[4], echo_steps, echo_fb;
-    float churn;                         /* how fast its marks turn over */
-    float dens[4];                       /* added to each track's DENSITY while it lasts */
+    float w[NACT], trk[4], echo_steps, echo_fb;
+    float churn;
+    float dens[4];
+    float ntok;
+    uint8_t follow;
+    float tempo;                         /* the regime leans the tempo (times the one set) */
+    uint8_t max_bars;                    /* how long it may last at most */
 } regime_t;
 static const regime_t RG[] = {
-    {"PULSE", 0.35f, {0.45f, 0.10f, 0.00f, 0.10f, 0.05f, 0.25f, 0.05f}, {1.0f, 1.0f, 1.0f, 0.5f}, 0.75f, 0.35f,
-     0.4f, {0.06f, 0.0f, 0.12f, 0.0f}},
-    {"SONG", 0.75f, {0.05f, 0.45f, 0.30f, 0.15f, 0.00f, 0.00f, 0.05f}, {0.2f, 0.3f, 0.3f, 1.0f}, 1.5f, 0.5f,
-     0.7f, {0.0f, -0.04f, -0.05f, 0.35f}},
-    {"BREAK", 0.55f, {0.30f, 0.05f, 0.00f, 0.05f, 0.35f, 0.25f, 0.00f}, {1.0f, 1.0f, 0.8f, 0.6f}, 0.333f, 0.3f,
-     1.6f, {0.12f, 0.15f, 0.05f, 0.05f}},
-    {"DRIFT", 0.45f, {0.00f, 0.30f, 0.15f, 0.30f, 0.00f, 0.00f, 0.25f}, {0.3f, 0.4f, 0.4f, 1.0f}, 2.0f, 0.65f,
-     0.35f, {-0.04f, 0.0f, -0.08f, 0.2f}},
-    {"VOID", 0.08f, {0.00f, 0.20f, 0.10f, 0.60f, 0.00f, 0.00f, 0.10f}, {0.5f, 0.5f, 0.5f, 0.5f}, 3.0f, 0.7f,
-     0.25f, {-0.12f, -0.1f, -0.15f, 0.0f}},
+    {"PULSE", {0.40f, 0.10f, 0.00f, 0.10f, 0.05f, 0.20f, 0.05f, 0.25f}, {1.0f, 1.0f, 1.0f, 0.5f}, 0.75f, 0.35f,
+     0.4f, {0.06f, 0.0f, 0.12f, 0.0f}, 1.0f, 0x5, 1.0f, 24},
+    {"SONG", {0.05f, 0.40f, 0.30f, 0.15f, 0.00f, 0.00f, 0.05f, 0.10f}, {0.2f, 0.3f, 0.3f, 1.0f}, 1.5f, 0.5f,
+     0.7f, {0.0f, -0.04f, -0.05f, 0.35f}, 1.2f, 0x1, 0.94f, 24},
+    {"BREAK", {0.25f, 0.05f, 0.00f, 0.05f, 0.30f, 0.20f, 0.00f, 0.25f}, {1.0f, 1.0f, 0.8f, 0.6f}, 0.333f, 0.3f,
+     1.6f, {0.12f, 0.15f, 0.05f, 0.05f}, 1.6f, 0xF, 1.06f, 16},
+    {"DRIFT", {0.00f, 0.30f, 0.15f, 0.30f, 0.00f, 0.00f, 0.25f, 0.05f}, {0.3f, 0.4f, 0.4f, 1.0f}, 2.0f, 0.65f,
+     0.35f, {-0.04f, 0.0f, -0.08f, 0.2f}, 0.8f, 0x0, 0.82f, 24},
+    {"VOID", {0.00f, 0.20f, 0.10f, 0.50f, 0.00f, 0.00f, 0.10f, 0.10f}, {0.5f, 0.5f, 0.5f, 0.5f}, 3.0f, 0.7f,
+     0.25f, {-0.12f, -0.1f, -0.15f, 0.0f}, 0.4f, 0x1, 0.9f, 3},
 };
+/* a travelling effect: it sits on a note for LIFE plays, then waits for the next note its HOP rule lets it take; it
+ * may turn into another effect when it moves, and when two meet one of them does */
+typedef struct {
+    uint8_t on, wait, type, k, s, life, skip, from, note, rat, left_now;
+} tok_t;
+#define NTOK 12
+static const char *const HOP_NAME[] = {"NEXT", "ANY", "SKIP 1", "SKIP 2", "COUNT", "SAME"};
+enum { H_NEXT, H_ANY, H_SKIP1, H_SKIP2, H_COUNT, H_SAME, NHOP };
+/* the meter: OFF, AUTO (it changes with the regimes), or a fixed one; bars in sixteenths */
+static const uint8_t METERS[][4] = {{0}, {0}, {16, 0}, {7, 9, 0}, {5, 6, 5, 0}, {11, 13, 0}, {6, 7, 0},
+                                    {9, 7, 5, 0}, {3, 5, 7, 0}, {13, 0}};
+static const char *const METER_NAME[] = {"OFF", "AUTO", "16", "7+9", "5+6+5", "11+13", "6+7", "9+7+5", "3+5+7",
+                                         "13"};
+#define NMETER 10
+static const char *const REG_LOCK_NAME[] = {"AUTO", "PULSE", "SONG", "BREAK", "DRIFT", "VOID"};
 #define NREG 5
 #define NFIELD 7
 #define NNOTE (NFIELD * 3)              /* three octaves of the field */
@@ -96,9 +116,6 @@ typedef struct {
     uint8_t rate_i;                      /* the track's rate against the tempo (RATES) */
     uint8_t nudge[NS];                   /* how late a step plays, in sixteenths of a step (0..10) */
     float tone, dec_x;                   /* K1 / K2: brightness added, decay multiplied */
-    uint8_t act[NS];                     /* GEN's marks on a step (A_*) */
-    uint8_t note[NS];                    /* a pitch from the field (index; with A_NOTE) */
-    uint8_t rat[NS];                     /* a ratchet's strikes in the step (with A_RAT) */
     int8_t tmom;                         /* the time's momentum (nudges grow one way until a wall) */
     uint32_t loops;
     uint8_t last_true;
@@ -111,6 +128,7 @@ static struct {
     trk_t t[NT];
     float tempo, mut, time;
     float tempo_w;                       /* the tempo's breath (TIME), a multiplier near 1 */
+    float tempo_r;                       /* the regime's lean on it (GEN), glided */
     uint8_t fill_held, fill_next, frozen;
     volatile uint32_t home_req;
     uint32_t plot_rev, seed;
@@ -126,6 +144,12 @@ static struct {
     uint8_t field[NFIELD];               /* harmonic numbers: the notes' ratios */
     uint8_t walk[NT];                    /* each track's place in the notes (a contour, not a choice) */
     uint32_t regime_rev;
+    tok_t tok[NTOK];                     /* the travelling effects */
+    uint8_t ntok, life, hop, regime_lock, meter_mode;   /* FX held: GEN's page */
+    float couple, shift;
+    uint8_t meter[4], meter_n;           /* the bars now (sixteenths) */
+    int8_t cm[NT][NT];                   /* who pulls (+1) or pushes (-1) whose steps when it sounds */
+    uint8_t hopc;
     /* SAVE: a moment kept */
     uint8_t has_snap;
     trk_t snap[NT];
@@ -138,7 +162,7 @@ static struct {
     uint32_t held_t, hot[HW_NENC], sel_t, save_t;
     uint8_t held_pressed, sel_done, save_done;
     uint32_t fx_t;
-    uint8_t fx_burst;
+    uint8_t fx_burst, fx_knob, fx_page, fx_was;
 } ui;
 
 static const uint8_t WHITE[16] = {0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26};
@@ -178,6 +202,9 @@ static struct {
     float e_lp, e_lp2;
     uint32_t rseed;
     float lvl[NT], spsec, bar_ph;
+    float base_ph;                       /* the meter's clock: sixteenths of the tempo */
+    uint32_t meter_pos, mi;
+    uint8_t cut[NT];
 } st;
 
 static float vp_clamp(int d, float x) { return m_clamp(x, VP_LO[d], VP_HI[d]); }
@@ -196,8 +223,6 @@ static void trk_clear(trk_t *T)
     for (s = 0; s < NS; s++) {
         T->trig[s] = T->has[s] = T->cond[s] = 0;
         T->nudge[s] = 0;
-        T->act[s] = T->note[s] = 0;
-        T->rat[s] = 2;
         T->val[s] = T->p[T->dest];
     }
 }
@@ -232,6 +257,7 @@ static void defaults(void)
     sh.mut = 0.2f;
     sh.time = 0.3f;
     sh.tempo_w = 1.0f;
+    sh.tempo_r = 1.0f;
     sh.frozen = 0;
     /* GEN: off until FX; the field starts as harmonics 4..10 without 8 (a seventh and a ninth among them) */
     sh.gen = 0;
@@ -248,6 +274,26 @@ static void defaults(void)
         for (i = 0; i < NT; i++)
             sh.walk[i] = (uint8_t)(NFIELD + (i == 3 ? 0 : 2));
     }
+    {
+        static const int8_t CM0[NT][NT] = {{0, 0, 1, 1}, {0, 0, -1, 0}, {0, 1, 0, 1}, {1, -1, 0, 0}};
+        int i, j;
+        for (i = 0; i < NTOK; i++)
+            sh.tok[i].on = 0;
+        for (i = 0; i < NT; i++)
+            for (j = 0; j < NT; j++)
+                sh.cm[i][j] = CM0[i][j];
+    }
+    sh.ntok = 3;
+    sh.life = 2;
+    sh.hop = H_NEXT;
+    sh.regime_lock = 0;
+    sh.meter_mode = 1;
+    sh.couple = 0.35f;
+    sh.shift = 0.4f;
+    sh.meter[0] = 16;
+    sh.meter[1] = 12;
+    sh.meter_n = 2;
+    sh.hopc = 0;
     sh.regime_rev++;
 }
 
@@ -329,6 +375,11 @@ void pj_reset_audio(void)
             stut_l[i] = stut_r[i] = 0;
     }
     st.ew = st.sw = st.s_left = 0;
+    st.base_ph = 0.999f;
+    st.meter_pos = 0;
+    st.mi = 0;
+    for (k = 0; k < NT; k++)
+        st.cut[k] = 0;
     st.e_lp = st.e_lp2 = 0.0f;
     st.rseed = sh.seed ^ 0x5EEDu;
 }
@@ -446,7 +497,21 @@ static void time_mutate(int k)
     trk_t *T = &sh.t[k];
     float r = m_rnd(&sh.seed);
     int s;
-    if (r < 0.6f && (s = pick(T, 1)) >= 0) {
+    if (r < 0.16f && T->len > 1) {       /* the whole pattern turns by a step: the same shape in another place */
+        int dir = T->tmom > 0 ? 1 : -1, i, from;
+        trk_t c = *T;
+        for (i = 0; i < T->len; i++) {
+            from = ((i - dir) % T->len + T->len) % T->len;
+            T->trig[i] = c.trig[from];
+            T->has[i] = c.has[from];
+            T->cond[i] = c.cond[from];
+            T->nudge[i] = c.nudge[from];
+            T->val[i] = c.val[from];
+        }
+        for (i = 0; i < NTOK; i++)       /* the effects on it turn with it */
+            if (sh.tok[i].on && !sh.tok[i].wait && sh.tok[i].k == k)
+                sh.tok[i].s = (uint8_t)(((int)sh.tok[i].s + dir + T->len) % T->len);
+    } else if (r < 0.6f && (s = pick(T, 1)) >= 0) {
         int nv = T->nudge[s] + T->tmom * (1 + (int)(m_rnd(&sh.seed) * 2.0f));
         if (nv > 10 || nv < 0) {
             T->tmom = (int8_t)-T->tmom;
@@ -528,31 +593,28 @@ static void new_regime(void)
 {
     int jump = 1 + 2 * pd_bit() + pd_bit();   /* 1..4: never the same one twice */
     float u = m_max(0.002f, m_rnd(&sh.seed));
-    sh.regime = (uint8_t)((sh.regime + jump) % NREG);
+    sh.regime = sh.regime_lock ? (uint8_t)(sh.regime_lock - 1) : (uint8_t)((sh.regime + jump) % NREG);
+    if (sh.meter_mode == 1) {            /* AUTO: one bar of the meter moves, or one comes, or one goes */
+        float r = m_rnd(&sh.seed);
+        int i = (int)(m_rnd(&sh.seed) * (float)sh.meter_n) % sh.meter_n;
+        if (r < 0.55f)
+            sh.meter[i] = (uint8_t)m_clampi((int)sh.meter[i] + (m_rnd(&sh.seed) < 0.5f ? -1 : 1) *
+                                                                   (1 + (int)(m_rnd(&sh.seed) * 3.0f)), 3, 16);
+        else if (r < 0.78f && sh.meter_n < 4)
+            sh.meter[sh.meter_n++] = (uint8_t)(3 + (int)(m_rnd(&sh.seed) * 13.0f));
+        else if (sh.meter_n > 1)
+            sh.meter_n--;
+    }
+    {                                    /* one pull between two tracks turns: +1 0 -1 */
+        int a = (int)(m_rnd(&sh.seed) * (float)NT) % NT, b = (a + 1 + (int)(m_rnd(&sh.seed) * 3.0f)) % NT;
+        sh.cm[a][b] = (int8_t)(sh.cm[a][b] > 0 ? -1 : sh.cm[a][b] < 0 ? 0 : 1);
+    }
     /* how many bars it lasts: Pareto (alpha 1.2): mostly one to three, now and then dozens; no length to average to */
-    sh.dwell = (uint16_t)m_clampi(1 + (int)(1.5f * m_exp2(-m_log2(u) * (1.0f / 1.2f))), 1, 48);
+    sh.dwell = (uint16_t)m_clampi(1 + (int)(1.5f * m_exp2(-m_log2(u) * (1.0f / 1.2f))), 1, RG[sh.regime].max_bars);
     field_move();
     sh.morph = MORPH[(int)(m_rnd(&sh.seed) * (float)NMORPH) % NMORPH];
     sh.regime_rev++;
     sh.plot_rev++;
-}
-
-static int act_count(const trk_t *T)
-{
-    int s, n = 0;
-    for (s = 0; s < T->len; s++)
-        n += T->trig[s] && T->act[s];
-    return n;
-}
-
-/* a trig step with (want 1) or without (want 0) a mark, from a random place; -1 none */
-static int pick_act(const trk_t *T, int want)
-{
-    int s = (int)(m_rnd(&sh.seed) * (float)T->len) % T->len, tries;
-    for (tries = 0; tries < T->len; tries++, s = (s + 1) % T->len)
-        if (T->trig[s] && (T->act[s] != 0) == want)
-            return s;
-    return -1;
 }
 
 /* the next note of track k: its contour moves by a small step, mostly, now and then a leap */
@@ -568,80 +630,184 @@ static uint8_t next_note(int k)
     return sh.walk[k];
 }
 
-static void add_act(int k, int s)
+/* ---- the travelling effects ---- */
+static uint8_t tok_pick(int k, int not_type)
 {
-    static const uint8_t RATS[6] = {2, 3, 3, 4, 5, 7};
-    trk_t *T = &sh.t[k];
     const regime_t *R = &RG[sh.regime];
     float w[NACT], tot = 0.0f, x;
-    int i, tries;
-    for (tries = 0; tries < 1 + (m_rnd(&sh.seed) < 0.18f); tries++) {   /* now and then two at once */
-        for (i = 0; i < NACT; i++) {
-            w[i] = R->w[i];
-            if (k < 3 && (i == 1 || i == 2))   /* drums take pitches less, chords hardly */
-                w[i] *= i == 2 ? 0.15f : 0.5f;
-            tot += w[i];
-        }
-        if (tot <= 0.0f)
-            return;
-        x = m_rnd(&sh.seed) * tot;
-        for (i = 0; i < NACT - 1 && x >= w[i]; i++)
-            x -= w[i];
-        T->act[s] |= (uint8_t)(1u << i);
-        if (i == 1 || i == 2) {
-            T->act[s] |= A_NOTE;
-            T->note[s] = next_note(k);
-        }
-        if (i == 0)
-            T->rat[s] = RATS[(int)(m_rnd(&sh.seed) * 6.0f) % 6];
-        tot = 0.0f;
+    int i;
+    for (i = 0; i < NACT; i++) {
+        w[i] = i == not_type ? 0.0f : R->w[i];
+        if (k < 3 && (i == 1 || i == 2))   /* drums take pitches less, chords hardly */
+            w[i] *= i == 2 ? 0.15f : 0.5f;
+        tot += w[i];
+    }
+    if (tot <= 0.0f)
+        return (uint8_t)(not_type == 0 ? 3 : 0);
+    x = m_rnd(&sh.seed) * tot;
+    for (i = 0; i < NACT - 1 && x >= w[i]; i++)
+        x -= w[i];
+    return (uint8_t)i;
+}
+
+static int tok_target(void)
+{
+    if (sh.burst)
+        return NTOK;
+    return m_clampi((int)((float)sh.ntok * RG[sh.regime].ntok + 0.5f), 0, NTOK);
+}
+
+static int tok_active(void)
+{
+    int i, n = 0;
+    for (i = 0; i < NTOK; i++)
+        n += sh.tok[i].on;
+    return n;
+}
+
+/* how many notes a leaving effect lets pass (its HOP rule) */
+static uint8_t hop_skip(void)
+{
+    switch (sh.hop) {
+    case H_SKIP1: return 1;
+    case H_SKIP2: return 2;
+    case H_COUNT: sh.hopc = (uint8_t)((sh.hopc + 1u) % 5u); return sh.hopc;   /* 1 2 3 4 0 1 ...: a cycle of distances */
+    default: return 0;
     }
 }
 
-/* GEN at a step of track k: below its regime's share a mark appears, above it one goes, at it one turns into
- * another; a burst (FX held) marks nearly everything */
+/* how many plays it stays: mostly one, sometimes up to LIFE */
+static uint8_t life_pick(void)
+{
+    float u = m_rnd(&sh.seed);
+    return (uint8_t)(1 + (int)((float)sh.life * u * u));
+}
+
+static void tok_take(tok_t *t, int k, int p)
+{
+    static const uint8_t RATS[6] = {2, 3, 3, 4, 5, 7};
+    t->wait = 0;
+    t->k = (uint8_t)k;
+    t->s = (uint8_t)p;
+    t->life = life_pick();
+    if (t->type == 1 || t->type == 2)
+        t->note = next_note(k);
+    if (t->type == 0)
+        t->rat = RATS[(int)(m_rnd(&sh.seed) * 6.0f) % 6];
+}
+
+static void tok_leave(tok_t *t, int k)
+{
+    if (tok_active() > tok_target()) {  /* more than the regime wants: this one goes */
+        t->on = 0;
+        return;
+    }
+    t->wait = 1;
+    t->from = (uint8_t)k;
+    t->skip = hop_skip();
+    t->left_now = 1;
+    if (m_rnd(&sh.seed) < sh.shift)     /* moving, it may become another effect */
+        t->type = tok_pick(k, t->type);
+}
+
+/* a note of track k at step p sounds: the effects on it act, use a life, and leave; waiting ones may take it; a new
+ * one may start waiting. Returns the acts on this note (and its pitch and ratchet) */
+static uint8_t on_onset(int k, int p, uint8_t *note, uint8_t *rat)
+{
+    uint8_t acts = 0;
+    int i;
+    *note = 0;
+    *rat = 2;
+    if (!sh.gen)
+        return 0;
+    for (i = 0; i < NTOK; i++)
+        sh.tok[i].left_now = 0;
+    for (i = 0; i < NTOK; i++) {         /* the effects sitting here */
+        tok_t *t = &sh.tok[i];
+        if (!t->on || t->wait || t->k != k || t->s != p)
+            continue;
+        acts |= (uint8_t)(1u << t->type);
+        if (t->type == 1 || t->type == 2)
+            *note = t->note;
+        if (t->type == 0)
+            *rat = t->rat;
+        if (t->life)
+            t->life--;
+        if (!t->life)
+            tok_leave(t, k);
+    }
+    for (i = 0; i < NTOK; i++) {         /* the waiting ones: is this note theirs? */
+        tok_t *t = &sh.tok[i];
+        if (!t->on || !t->wait || t->left_now)
+            continue;
+        if ((sh.hop == H_NEXT || sh.hop == H_COUNT || sh.hop == H_SKIP1 || sh.hop == H_SKIP2) && k == t->from)
+            continue;                    /* another track's note */
+        if (sh.hop == H_SAME && k != t->from)
+            continue;
+        if (t->skip) {
+            t->skip--;
+            continue;
+        }
+        if (acts >> t->type & 1u)        /* two meet: this one becomes something else */
+            t->type = tok_pick(k, t->type);
+        tok_take(t, k, p);
+        acts |= (uint8_t)(1u << t->type);
+        if (t->type == 1 || t->type == 2)
+            *note = t->note;
+        if (t->type == 0)
+            *rat = t->rat;
+        if (--t->life == 0)              /* it acted now: one play used */
+            tok_leave(t, k);
+    }
+    if (tok_active() < tok_target()) {   /* a new one waits for the next note */
+        for (i = 0; i < NTOK; i++)
+            if (!sh.tok[i].on) {
+                tok_t *t = &sh.tok[i];
+                t->on = 1;
+                t->wait = 1;
+                t->from = (uint8_t)k;
+                t->skip = 0;
+                t->left_now = 1;
+                t->type = tok_pick((k + 1) % NT, -1);
+                break;
+            }
+    }
+    return acts;
+}
+
+/* the track's loop came round: effects on steps that no longer sound (no trig, beyond the length) move on */
+static void tok_tidy(int k)
+{
+    trk_t *T = &sh.t[k];
+    int i;
+    for (i = 0; i < NTOK; i++) {
+        tok_t *t = &sh.tok[i];
+        if (t->on && !t->wait && t->k == k && (t->s >= T->len || !T->trig[t->s] || !T->on))
+            tok_leave(t, k);
+    }
+}
+
+/* GEN at a step of track k: the regime's density, quickly (sections differ, they do not average) */
 static void gen_step(int k)
 {
     trk_t *T = &sh.t[k];
     const regime_t *R = &RG[sh.regime];
     float rate = (0.05f + 0.45f * sh.mut + 0.3f * sh.energy) * R->trk[k] * R->churn * (sh.burst ? 6.0f : 1.0f);
-    int n, na, target, s = -1;
+    int n, s, want;
     if (m_rnd(&sh.seed) >= m_min(1.0f, rate))
         return;
     n = trig_count(T);
-    {                                    /* the regime's density first, quickly: sections differ, not average */
-        int want = (int)(m_clamp(T->density + R->dens[k], 0.0f, 1.0f) * (float)T->len + 0.5f);
-        if (n < want && m_rnd(&sh.seed) < 0.6f && (s = pick(T, 0)) >= 0) {
-            T->trig[s] = 1;
-            T->cond[s] = 0;
-            n++;
-        } else if (n > want + 1 && m_rnd(&sh.seed) < 0.4f && (s = pick(T, 1)) >= 0) {
-            T->trig[s] = T->has[s] = T->act[s] = 0;
-            n--;
-        }
-        s = -1;
+    want = (int)(m_clamp(T->density + R->dens[k], 0.0f, 1.0f) * (float)T->len + 0.5f);
+    if (n < want && m_rnd(&sh.seed) < 0.6f && (s = pick(T, 0)) >= 0) {
+        T->trig[s] = 1;
+        T->cond[s] = 0;
+    } else if (n > want + 1 && m_rnd(&sh.seed) < 0.4f && (s = pick(T, 1)) >= 0) {
+        T->trig[s] = T->has[s] = 0;
+    } else {
+        return;
     }
-    na = act_count(T);
-    target = (int)((sh.burst ? 0.95f : R->share) * (float)n + 0.5f);
-    if (na < target) {
-        s = pick_act(T, 0);
-        if (s >= 0)
-            add_act(k, s);
-    } else if (na > target) {
-        s = pick_act(T, 1);
-        if (s >= 0)
-            T->act[s] = 0;
-    } else if (na && m_rnd(&sh.seed) < 0.5f) {
-        s = pick_act(T, 1);
-        if (s >= 0) {
-            T->act[s] = 0;
-            add_act(k, s);
-        }
-    }
-    if (s >= 0) {
-        T->flash_step = (int8_t)s;
-        T->flash_until = hw_ms() + 400u;
-    }
+    T->flash_step = (int8_t)s;
+    T->flash_until = hw_ms() + 400u;
 }
 
 /* the synth track (4) drifts toward the regime's place in the bank: its timbre, not its pitch or its length */
@@ -685,6 +851,8 @@ static void coefs_one(int k, uint32_t n)
     if (p[VP_DEC] < VP_HELD)
         p[VP_DEC] = vp_clamp(VP_DEC, p[VP_DEC] * T->dec_x);
     vox_gate(p, 4.0f * T->dec_x / m_max(0.25f, m_abs(st.spsec) * RATES[T->rate_i]));   /* four of its steps */
+    if (st.cut[k])                       /* a cut: this note short */
+        p[VP_DEC] = vp_clamp(VP_DEC, p[VP_DEC] * 0.12f);
     vox_coefs(&st.kk[k], p);
     if (st.swp[k])                       /* a sweep: the index rises (or falls) about 45 times over the step */
         st.kk[k].k_idx = m_exp2((st.swp[k] > 0 ? 5.5f : -5.5f) / m_max(64.0f, st.sps[k]));
@@ -736,7 +904,15 @@ static void fire(int k, float gain)
 {
     static const uint8_t CRUSH[4] = {3, 5, 9, 17};
     uint8_t a = st.pact[k];
+    int j;
+    st.cut[k] = (uint8_t)((a & A_CUT) != 0);
     st.note_r[k] = (a & A_NOTE) ? note_ratio(st.pnote[k]) : 1.0f;
+    if (sh.gen && sh.couple != 0.0f)     /* its sound pulls (or pushes) the others' step clocks: phases interact */
+        for (j = 0; j < NT; j++)
+            if (j != k && sh.cm[k][j]) {
+                float ph = st.ph[j], c = sh.couple * (float)sh.cm[k][j];
+                st.ph[j] = m_clamp(ph - c * 0.12f * m_sin_t(ph), 0.0f, 0.9999f);
+            }
     st.swp[k] = (int8_t)((a & A_SWEEP) ? (m_rnd(&st.rseed) < 0.5f ? 1 : -1) : 0);
     coefs_one(k, 0);
     st.vel_gain[k] = gain;
@@ -776,6 +952,8 @@ static void step_one(int k, int dir, float samples_per_step)
             time_mutate(k);
         if (k == 0)
             sh.fill_next = 0;
+        if (sh.gen)
+            tok_tidy(k);
     }
     if (p >= T->len)
         p = 0;
@@ -793,9 +971,7 @@ static void step_one(int k, int dir, float samples_per_step)
             st.locked[k] = 1;
         }
         if (T->trig[p] && T->on) {
-            st.pact[k] = sh.gen ? T->act[p] : 0;   /* the marks sound only while GEN is on (they are kept) */
-            st.pnote[k] = T->note[p];
-            st.prat[k] = T->rat[p];
+            st.pact[k] = on_onset(k, p, &st.pnote[k], &st.prat[k]);   /* the travelling effects on this note */
             if (T->nudge[p]) {           /* late by a fraction of its own step */
                 st.pend[k] = 1u + (uint32_t)((float)T->nudge[p] * (1.0f / 16.0f) * samples_per_step);
                 st.pend_gain[k] = 1.0f;
@@ -828,7 +1004,8 @@ void pj_render(float *out_l, float *out_r, const float *inl, const float *inr, u
         st.breath_n = 0;
         sh.tempo_w += ((1.0f + sh.time * 0.07f * pink_next(&st.breath, &sh.seed)) - sh.tempo_w) * 0.3f;
     }
-    st.spsec = sh.tempo * sh.tempo_w * (4.0f / 60.0f);
+    sh.tempo_r += ((sh.gen ? RG[sh.regime].tempo : 1.0f) - sh.tempo_r) * 0.004f;   /* over a few seconds */
+    st.spsec = sh.tempo * sh.tempo_w * sh.tempo_r * (4.0f / 60.0f);
     dstep = m_abs(st.spsec) * M_INV_SR;
     coefs(n);
     {                                    /* the echo: the regime's length in steps of the tempo */
@@ -854,6 +1031,29 @@ void pj_render(float *out_l, float *out_r, const float *inl, const float *inr, u
             st.bar_ph -= 16.0f;
             if (sh.gen && !sh.frozen && sh.dwell && --sh.dwell == 0)
                 new_regime();
+        }
+        st.base_ph += dstep;             /* the meter: bars of changing length; the following tracks start again */
+        if (st.base_ph >= 1.0f) {
+            st.base_ph -= 1.0f;
+            if (sh.gen && sh.meter_mode) {
+                const uint8_t *bars = sh.meter_mode == 1 ? sh.meter : METERS[sh.meter_mode];
+                int nb = sh.meter_mode == 1 ? sh.meter_n : 0;
+                if (!nb)
+                    while (nb < 4 && bars[nb])
+                        nb++;
+                if (st.mi >= (uint32_t)nb)
+                    st.mi = 0;
+                if (++st.meter_pos >= bars[st.mi]) {
+                    uint8_t f = (uint8_t)(RG[sh.regime].follow | 1u);   /* the kick always */
+                    st.meter_pos = 0;
+                    st.mi = (st.mi + 1u) % (uint32_t)nb;
+                    for (k = 0; k < NT; k++)
+                        if (f >> k & 1u) {
+                            sh.pos[k] = st.spsec < 0.0f ? sh.t[k].len : -1;
+                            st.ph[k] = 1.0f;
+                        }
+                }
+            }
         }
         for (k = 0; k < NT; k++) {       /* each track on its own clock */
             float rate = RATES[sh.t[k].rate_i];
@@ -1010,25 +1210,77 @@ void pj_control(const mz_in_t *in, const mz_body_t *b)
         }
     }
     sh.fill_held = (uint8_t)((in->keys >> BLACK[4]) & 1u);
-    /* FX: GEN on / off; held, a burst (marks nearly everywhere while held; they thin out after) */
+    /* FX: a tap turns GEN on / off; held, the knobs are GEN's page; held still for 0.7 s, a burst (effects on nearly
+     * every note while held, thinning out after) */
     if (in->bdown & (1u << HB_FX)) {
         ui.fx_t = in->ms;
-        ui.fx_burst = 0;
+        ui.fx_burst = ui.fx_knob = 0;
     }
-    if ((in->btn & (1u << HB_FX)) && !ui.fx_burst && in->ms - ui.fx_t >= 450u) {
+    {
+        int i2, turned = 0;
+        for (i2 = 0; i2 < HW_NENC; i2++)
+            turned |= in->enc[i2] != 0;
+        if ((in->btn & (1u << HB_FX)) && turned) {
+            ui.fx_knob = 1;
+            if (sh.burst)                /* turning: the page, not a burst */
+                sh.burst = 0;
+        }
+    }
+    ui.fx_page = (uint8_t)((in->btn & (1u << HB_FX)) && (in->ms - ui.fx_t >= 180u || ui.fx_knob));
+    if (ui.fx_page != ui.fx_was) {
+        ui.fx_was = ui.fx_page;
+        sh.plot_rev++;
+    }
+    if ((in->btn & (1u << HB_FX)) && !ui.fx_burst && !ui.fx_knob && in->ms - ui.fx_t >= 700u) {
         ui.fx_burst = 1;
         sh.gen = 1;
         sh.burst = 1;
         mz_say("BURST", RG[sh.regime].name);
     }
     if (in->bup & (1u << HB_FX)) {
-        if (ui.fx_burst) {
+        if (ui.fx_burst || ui.fx_knob) {
             sh.burst = 0;
         } else {
             sh.gen = (uint8_t)!sh.gen;
-            mz_say(sh.gen ? "GEN" : "GEN OFF", sh.gen ? RG[sh.regime].name : "MARKS KEPT");
+            mz_say(sh.gen ? "GEN" : "GEN OFF", sh.gen ? RG[sh.regime].name : "");
         }
+        ui.fx_page = 0;
         sh.plot_rev++;
+    }
+    if (ui.fx_page) {                    /* GEN's page: the processes, not values */
+        if (in->enc[HE_SELECT]) {        /* METER: OFF, AUTO, or a fixed one */
+            sh.meter_mode = (uint8_t)(((int)sh.meter_mode + in->enc[HE_SELECT]) % NMETER + NMETER) % NMETER;
+            ui.hot[0] = in->ms + 400u;
+        }
+        if (in->enc[HE_ALGO]) {          /* COUPLE: + the notes pull the others' steps toward them, - push away */
+            sh.couple = m_clamp(sh.couple + (float)in->enc[HE_ALGO] * par_accel(b->speed[HE_ALGO]) * 0.05f, -1.0f, 1.0f);
+            if (m_abs(sh.couple) < 0.024f)
+                sh.couple = 0.0f;
+            ui.hot[1] = in->ms + 400u;
+        }
+        if (in->enc[HE_PRESET]) {        /* TOKENS: how many effects travel */
+            sh.ntok = (uint8_t)m_clampi((int)sh.ntok + in->enc[HE_PRESET], 0, NTOK);
+            ui.hot[2] = in->ms + 400u;
+        }
+        if (in->enc[HE_K1]) {            /* LIFE: how many plays one stays at most */
+            sh.life = (uint8_t)m_clampi((int)sh.life + in->enc[HE_K1], 1, 8);
+            ui.hot[3] = in->ms + 400u;
+        }
+        if (in->enc[HE_K2]) {            /* HOP: which note a leaving effect takes */
+            sh.hop = (uint8_t)(((int)sh.hop + in->enc[HE_K2]) % NHOP + NHOP) % NHOP;
+            ui.hot[4] = in->ms + 400u;
+        }
+        if (in->enc[HE_K3]) {            /* REGIME: AUTO, or held at one */
+            sh.regime_lock = (uint8_t)(((int)sh.regime_lock + in->enc[HE_K3]) % (NREG + 1) + NREG + 1) % (NREG + 1);
+            if (sh.regime_lock)
+                sh.regime = (uint8_t)(sh.regime_lock - 1);
+            sh.regime_rev++;
+            ui.hot[5] = in->ms + 400u;
+        }
+        if (in->enc[HE_K4]) {            /* SHIFT: how often a moving effect becomes another */
+            sh.shift = m_clamp(sh.shift + (float)in->enc[HE_K4] * 0.05f, 0.0f, 1.0f);
+            ui.hot[6] = in->ms + 400u;
+        }
     }
     if (in->down >> BLACK[9] & 1u) {
         T->lfo_depth = T->lfo_depth >= 0.39f ? 0.0f : T->lfo_depth < 0.04f ? 0.05f : T->lfo_depth < 0.14f ? 0.15f : 0.4f;
@@ -1095,82 +1347,84 @@ void pj_control(const mz_in_t *in, const mz_body_t *b)
         sh.tempo = sh.tempo == 0.0f ? 30.0f : m_clamp(sh.tempo * 2.0f, -300.0f, 300.0f);
         mz_say("DOUBLE TIME", "");
     }
-    /* encoders: at once on the track; with a step key held, on the step. Fast turning goes further */
-    if (in->enc[HE_SELECT]) {            /* TEMPO, through 0 into backwards */
-        sh.tempo = m_clamp(sh.tempo + (float)in->enc[HE_SELECT] * par_accel(b->speed[HE_SELECT]), -300.0f, 300.0f);
-        if (m_abs(sh.tempo) < 0.5f)
-            sh.tempo = 0.0f;
-        ui.hot[0] = in->ms + 400u;
-    }
-    T = &sh.t[ui.trk];
-    if (in->enc[HE_ALGO]) {              /* TIME: how much the time itself changes */
-        sh.time = m_clamp(sh.time + (float)in->enc[HE_ALGO] * par_accel(b->speed[HE_ALGO]) * 0.02f, 0.0f, 1.0f);
-        ui.hot[1] = in->ms + 400u;
-    }
-    {
-        int hs = ui.held_step >= 0 && ui.held_step < T->len ? ui.held_step : -1;
-        if (in->enc[HE_PRESET]) {
-            if (hs >= 0) {               /* the lock's destination */
-                int d = ((T->dest + in->enc[HE_PRESET]) % NVP + NVP) % NVP;
-                for (i = 0; i < NS; i++)
-                    T->val[i] = vp_clamp(d, T->p[d] + (T->val[i] - T->p[T->dest]) / (VP_HI[T->dest] - VP_LO[T->dest])
-                                                       * (VP_HI[d] - VP_LO[d]));
-                T->dest = (uint8_t)d;
-                ui.held_pressed = 1;
-            } else {                     /* RATE: the track against the tempo */
-                T->rate_i = (uint8_t)m_clampi(T->rate_i + in->enc[HE_PRESET], 0, NRATE - 1);
-            }
-            ui.hot[2] = in->ms + 400u;
-            sh.plot_rev++;
+    if (!ui.fx_page) {
+        /* encoders: at once on the track; with a step key held, on the step. Fast turning goes further */
+        if (in->enc[HE_SELECT]) {            /* TEMPO, through 0 into backwards */
+            sh.tempo = m_clamp(sh.tempo + (float)in->enc[HE_SELECT] * par_accel(b->speed[HE_SELECT]), -300.0f, 300.0f);
+            if (m_abs(sh.tempo) < 0.5f)
+                sh.tempo = 0.0f;
+            ui.hot[0] = in->ms + 400u;
         }
-        if (in->enc[HE_K1]) {
-            float det = (float)in->enc[HE_K1] * par_accel(b->speed[HE_K1]);
-            if (hs >= 0) {               /* the lock */
-                int d = T->dest;
-                T->has[hs] = 1;
-                if (VP_LOGSTEP[d])
-                    T->val[hs] = vp_clamp(d, T->val[hs] * m_exp2(det * (1.0f / 24.0f)));
-                else
-                    T->val[hs] = vp_clamp(d, T->val[hs] + det * (VP_HI[d] - VP_LO[d]) * 0.005f);
-                ui.held_pressed = 1;
-            } else {                     /* TONE */
-                T->tone = m_clamp(T->tone + det * 0.1f, -12.0f, 12.0f);
-            }
-            ui.hot[3] = in->ms + 400u;
-            sh.plot_rev++;
+        T = &sh.t[ui.trk];
+        if (in->enc[HE_ALGO]) {              /* TIME: how much the time itself changes */
+            sh.time = m_clamp(sh.time + (float)in->enc[HE_ALGO] * par_accel(b->speed[HE_ALGO]) * 0.02f, 0.0f, 1.0f);
+            ui.hot[1] = in->ms + 400u;
         }
-        if (in->enc[HE_K2]) {
-            if (hs >= 0) {               /* the condition */
-                T->cond[hs] = (uint8_t)(((T->cond[hs] + in->enc[HE_K2]) % NCOND + NCOND) % NCOND);
-                ui.held_pressed = 1;
-            } else {                     /* DECAY */
-                T->dec_x = m_clamp(T->dec_x * m_exp2((float)in->enc[HE_K2] * par_accel(b->speed[HE_K2]) * (1.0f / 8.0f)),
-                                   0.05f, 16.0f);
+        {
+            int hs = ui.held_step >= 0 && ui.held_step < T->len ? ui.held_step : -1;
+            if (in->enc[HE_PRESET]) {
+                if (hs >= 0) {               /* the lock's destination */
+                    int d = ((T->dest + in->enc[HE_PRESET]) % NVP + NVP) % NVP;
+                    for (i = 0; i < NS; i++)
+                        T->val[i] = vp_clamp(d, T->p[d] + (T->val[i] - T->p[T->dest]) / (VP_HI[T->dest] - VP_LO[T->dest])
+                                                           * (VP_HI[d] - VP_LO[d]));
+                    T->dest = (uint8_t)d;
+                    ui.held_pressed = 1;
+                } else {                     /* RATE: the track against the tempo */
+                    T->rate_i = (uint8_t)m_clampi(T->rate_i + in->enc[HE_PRESET], 0, NRATE - 1);
+                }
+                ui.hot[2] = in->ms + 400u;
+                sh.plot_rev++;
             }
-            ui.hot[4] = in->ms + 400u;
-            sh.plot_rev++;
-        }
-        if (in->enc[HE_K3]) {
-            if (hs >= 0) {               /* the nudge */
-                T->nudge[hs] = (uint8_t)m_clampi(T->nudge[hs] + in->enc[HE_K3], 0, 10);
-                T->trig[hs] = 1;
-                ui.held_pressed = 1;
-            } else {                     /* DENSITY */
-                T->density = m_clamp(T->density + (float)in->enc[HE_K3] * par_accel(b->speed[HE_K3]) * 0.02f, 0.0f,
-                                     1.0f);
+            if (in->enc[HE_K1]) {
+                float det = (float)in->enc[HE_K1] * par_accel(b->speed[HE_K1]);
+                if (hs >= 0) {               /* the lock */
+                    int d = T->dest;
+                    T->has[hs] = 1;
+                    if (VP_LOGSTEP[d])
+                        T->val[hs] = vp_clamp(d, T->val[hs] * m_exp2(det * (1.0f / 24.0f)));
+                    else
+                        T->val[hs] = vp_clamp(d, T->val[hs] + det * (VP_HI[d] - VP_LO[d]) * 0.005f);
+                    ui.held_pressed = 1;
+                } else {                     /* TONE */
+                    T->tone = m_clamp(T->tone + det * 0.1f, -12.0f, 12.0f);
+                }
+                ui.hot[3] = in->ms + 400u;
+                sh.plot_rev++;
             }
-            ui.hot[5] = in->ms + 400u;
-            sh.plot_rev++;
-        }
-        if (in->enc[HE_K4]) {
-            if (hs >= 0) {               /* the track's length */
-                T->len = (uint8_t)m_clampi(T->len + in->enc[HE_K4], 1, NS);
-                ui.held_pressed = 1;
-            } else {                     /* MUT */
-                sh.mut = m_clamp(sh.mut + (float)in->enc[HE_K4] * par_accel(b->speed[HE_K4]) * 0.01f, 0.0f, 1.0f);
+            if (in->enc[HE_K2]) {
+                if (hs >= 0) {               /* the condition */
+                    T->cond[hs] = (uint8_t)(((T->cond[hs] + in->enc[HE_K2]) % NCOND + NCOND) % NCOND);
+                    ui.held_pressed = 1;
+                } else {                     /* DECAY */
+                    T->dec_x = m_clamp(T->dec_x * m_exp2((float)in->enc[HE_K2] * par_accel(b->speed[HE_K2]) * (1.0f / 8.0f)),
+                                       0.05f, 16.0f);
+                }
+                ui.hot[4] = in->ms + 400u;
+                sh.plot_rev++;
             }
-            ui.hot[6] = in->ms + 400u;
-            sh.plot_rev++;
+            if (in->enc[HE_K3]) {
+                if (hs >= 0) {               /* the nudge */
+                    T->nudge[hs] = (uint8_t)m_clampi(T->nudge[hs] + in->enc[HE_K3], 0, 10);
+                    T->trig[hs] = 1;
+                    ui.held_pressed = 1;
+                } else {                     /* DENSITY */
+                    T->density = m_clamp(T->density + (float)in->enc[HE_K3] * par_accel(b->speed[HE_K3]) * 0.02f, 0.0f,
+                                         1.0f);
+                }
+                ui.hot[5] = in->ms + 400u;
+                sh.plot_rev++;
+            }
+            if (in->enc[HE_K4]) {
+                if (hs >= 0) {               /* the track's length */
+                    T->len = (uint8_t)m_clampi(T->len + in->enc[HE_K4], 1, NS);
+                    ui.held_pressed = 1;
+                } else {                     /* MUT */
+                    sh.mut = m_clamp(sh.mut + (float)in->enc[HE_K4] * par_accel(b->speed[HE_K4]) * 0.01f, 0.0f, 1.0f);
+                }
+                ui.hot[6] = in->ms + 400u;
+                sh.plot_rev++;
+            }
         }
     }
     /* the body */
@@ -1180,13 +1434,60 @@ void pj_control(const mz_in_t *in, const mz_body_t *b)
             int k;
             for (k = 0; k < NT; k++)
                 sh.t[k].momentum = -sh.t[k].momentum;
-            mz_say("MOMENTUM", "TURNED");
         }
         rev_prev = b->revs;
         if (b->onset_any >= 1.5f) {
             sh.fill_next = 1;
-            mz_say("FILL", "NEXT LOOP");
         }
+    }
+}
+
+static void gen_row(int i, mz_row_t *r)
+{
+    static const char *const LAB[HW_NENC] = {"METER", "COUPLE", "TOKENS", "LIFE", "HOP", "REGIME", "SHIFT"};
+    int k;
+    for (k = 0; LAB[i][k]; k++)
+        r->label[k] = LAB[i][k];
+    r->label[k] = 0;
+    r->hot = hw_ms() < ui.hot[i];
+    switch (i) {
+    case 0:
+        mz_cat(r->value, METER_NAME[sh.meter_mode]);
+        if (sh.meter_mode == 1)
+            for (k = 0; k < sh.meter_n; k++) {
+                mz_cat(r->value, k ? "+" : " ");
+                mz_int(r->value, sh.meter[k]);
+            }
+        break;
+    case 1:
+        if (sh.couple >= 0.0f)
+            mz_cat(r->value, "+");
+        mz_fix(r->value, sh.couple, 2);
+        mz_cat(r->value, sh.couple > 0.0f ? " PULL" : sh.couple < 0.0f ? " PUSH" : " FREE");
+        break;
+    case 2:
+        mz_int(r->value, sh.ntok);
+        mz_cat(r->value, " ON ");
+        mz_int(r->value, tok_active());
+        break;
+    case 3:
+        mz_cat(r->value, "1-");
+        mz_int(r->value, sh.life);
+        mz_cat(r->value, sh.life == 1 ? " PLAY" : " PLAYS");
+        break;
+    case 4:
+        mz_cat(r->value, HOP_NAME[sh.hop]);
+        break;
+    case 5:
+        mz_cat(r->value, REG_LOCK_NAME[sh.regime_lock]);
+        if (!sh.regime_lock) {
+            mz_cat(r->value, " ");
+            mz_cat(r->value, RG[sh.regime].name);
+        }
+        break;
+    case 6:
+        mz_fix(r->value, sh.shift, 2);
+        break;
     }
 }
 
@@ -1195,19 +1496,38 @@ void pj_row(int i, mz_row_t *r)
     trk_t *T = &sh.t[ui.trk];
     uint32_t now = hw_ms();
     int hs = ui.held_step >= 0 && ui.held_step < T->len ? ui.held_step : -1, d = T->dest;
+    if (ui.fx_page) {
+        gen_row(i, r);
+        return;
+    }
     r->hot = now < ui.hot[i] || (hs >= 0 && i >= 2);
     switch (i) {
     case 0:
         mz_cat(r->label, "TEMPO");
         mz_fix(r->value, sh.tempo, m_abs(sh.tempo) < 99.5f ? 1 : 0);
         mz_cat(r->value, " BPM");
+        if (m_abs(sh.tempo * sh.tempo_w * sh.tempo_r - sh.tempo) >= 1.0f) {   /* where it is now (TIME, GEN) */
+            mz_cat(r->value, " ~");
+            mz_fix(r->value, sh.tempo * sh.tempo_w * sh.tempo_r, 0);
+        }
         r->alert = sh.tempo <= 0.0f;
         break;
     case 1:
         mz_cat(r->label, "TIME");
         mz_fix(r->value, sh.time, 2);
-        mz_cat(r->value, " T");
-        mz_fix(r->value, sh.tempo * sh.tempo_w, 1);
+        if (sh.gen && sh.meter_mode) {   /* the meter now */
+            const uint8_t *bars = sh.meter_mode == 1 ? sh.meter : METERS[sh.meter_mode];
+            int nb = sh.meter_mode == 1 ? sh.meter_n : 4, q;
+            mz_cat(r->value, " M");
+            for (q = 0; q < nb && bars[q]; q++) {
+                if (q)
+                    mz_cat(r->value, "+");
+                mz_int(r->value, bars[q]);
+            }
+        } else {
+            mz_cat(r->value, " T");
+            mz_fix(r->value, sh.tempo * sh.tempo_w * sh.tempo_r, 1);
+        }
         break;
     case 2:
         if (hs >= 0) {
@@ -1318,15 +1638,15 @@ void pj_plot(int h)
                 int hh = 1 + (int)(5.0f * m_clamp((T->val[s] - lo) / span, 0.0f, 1.0f));
                 hw_fill(x + 2, y + 13 - hh, 7, hh, flash ? C_HOT : C_GRN);
             }
-            if (T->trig[s] && T->act[s]) {   /* GEN's marks: a tick each, in its colour (grey while GEN is off) */
-                int a, tx = x + 2;
-                for (a = 0; a < NACT; a++)
-                    if (T->act[s] >> a & 1u) {
-                        hw_fill(tx, y + 8, 1, 3, sh.gen ? ACT_COL[a] : C_DIMC);
-                        tx += 2;
-                        if (tx > x + 9)
-                            break;
+            {                            /* the travelling effects sitting here: a tick each, in its colour */
+                int i, tx = x + 2;
+                for (i = 0; i < NTOK; i++) {
+                    const tok_t *t = &sh.tok[i];
+                    if (t->on && !t->wait && t->k == k && t->s == s && tx <= x + 8) {
+                        hw_fill(tx, y + 8, 2, 4, ACT_COL[t->type]);
+                        tx += 3;
                     }
+                }
             }
         }
         if (T->rate_i != RATE_ONE)

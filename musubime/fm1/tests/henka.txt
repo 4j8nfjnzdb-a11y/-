@@ -13,9 +13,21 @@ turn SELECT 12 30
 tap FX
 wait 2000
 press FX
-wait 800
+wait 300
+turn ALGO -6 30
+turn PRESET 3 30
+turn SELECT 2 30
+release FX
+wait 1500
+press FX
+wait 900
 release FX
 wait 1000
+tap REC
+turn K1 8 200
+turn K1 -8 200
+tap REC
+wait 3000
 tap ARP
 wait 300
 tap ARP
