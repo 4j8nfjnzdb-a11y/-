@@ -1,0 +1,136 @@
+<div class="app" id="app">
+  <canvas id="world" aria-label="制作空間。音の断片、線路、部屋、波紋などが置かれる平面"></canvas>
+
+  <header class="bar" id="bar">
+    <div class="brand" title="触り sawari"><b>触</b><span>sawari</span></div>
+    <div class="grp">
+      <button id="play" class="btn play" type="button" aria-pressed="false" title="再生（Space）"><span class="i-play" aria-hidden="true"></span><span class="sr">再生・一時停止</span></button>
+      <button id="stop" class="btn" type="button" title="時間を最初に戻す"><span class="i-stop" aria-hidden="true"></span><span class="sr">最初に戻す</span></button>
+      <output id="clock" class="clock mono">0:00.0  1.1</output>
+    </div>
+    <div class="grp">
+      <label class="num" title="拍の速さ（BPM）">拍<input id="bpm" type="number" min="20" max="300" step="1" inputmode="numeric"></label>
+      <label class="num" title="偶然の種。同じ種なら同じ展開を書き出せます">種<input id="seed" type="number" min="0" step="1" inputmode="numeric"></label>
+      <button id="reseed" class="btn sm" type="button" title="種を振り直す（同じ配置で別の偶然）">振る</button>
+    </div>
+    <div class="grp">
+      <button id="lawsBtn" class="btn tog" type="button" aria-pressed="false" title="法則（L）">法則</button>
+      <button id="libBtn" class="btn tog" type="button" aria-pressed="false" title="素材（M）">素材</button>
+    </div>
+    <div class="grp">
+      <button id="undo" class="btn sm" type="button" title="取り消す（⌘Z）">↶</button>
+      <button id="redo" class="btn sm" type="button" title="やり直す（⇧⌘Z）">↷</button>
+    </div>
+    <div class="grp end">
+      <button id="rec" class="btn rec" type="button" aria-pressed="false" title="いま鳴っている音を録音して WAV にする"><i aria-hidden="true"></i><span id="recLabel">録音</span></button>
+      <button id="exportBtn" class="btn" type="button" title="最初から決まった長さを WAV に書き出す">書き出し</button>
+      <button id="saveBtn" class="btn" type="button" title="音ごと保存（⌘S）">保存</button>
+      <button id="openBtn" class="btn" type="button" title="保存したものを開く（⌘O）">開く</button>
+      <button id="menuBtn" class="btn sm" type="button" title="その他" aria-haspopup="true">…</button>
+    </div>
+  </header>
+
+  <nav class="tools" id="tools" aria-label="道具"></nav>
+
+  <aside class="insp" id="insp" aria-label="性質"></aside>
+
+  <section class="lib" id="lib" hidden aria-label="素材">
+    <header class="libh"><h2>素材</h2>
+      <span class="acts"><button id="libFiles" class="btn sm" type="button">ファイルを選ぶ</button><button id="libSynth" class="btn sm" type="button">合成音</button><button id="libClose" class="btn sm" type="button">閉じる</button></span>
+    </header>
+    <div id="libList" class="liblist"></div>
+  </section>
+
+  <section class="laws" id="laws" hidden aria-label="法則"></section>
+
+  <footer class="foot">
+    <p class="hint" id="hint"></p>
+    <div class="scenes" id="scenes"></div>
+    <div class="viewctl">
+      <label title="俯瞰の角度（見た目だけ。音は変わりません）">俯瞰<input id="tilt" type="range" min="0" max="1.05" step="0.01"></label>
+      <button id="fit" class="btn sm" type="button" title="全体を見る（0）">全体</button>
+    </div>
+  </footer>
+
+  <div class="empty" id="empty">
+    <div class="emptybox">
+      <h1>音を、ここに落とす。</h1>
+      <p>WAV・AIFF・MP3 を画面に落とすと、その場所に「断片」が置かれます。線路の列車、波紋、部屋、群れはもう動ける状態です。断片をそれらの近くへ動かすと、鳴り方が変わります。</p>
+      <p class="acts"><button id="eFiles" class="btn" type="button">音声ファイルを選ぶ</button><button id="eSynth" class="btn ghostbtn" type="button">合成音で試す</button></p>
+    </div>
+  </div>
+
+  <div class="drop" id="drop" hidden><p>落とした場所に断片が置かれます</p></div>
+
+  <div class="pop" id="exportPop" hidden role="dialog" aria-label="書き出し">
+    <h3>書き出し</h3>
+    <p class="note">いまの世界を<strong>最初から</strong>、種 と 配置どおりに鳴らして WAV（24 bit）にします。同じ種なら何度でも同じ音になります。弾きながらの音を残すときは「録音」を使ってください。</p>
+    <div class="row"><label for="exportLen">長さ</label><input id="exportLen" type="number" min="2" max="900" step="1" value="60"><span class="unit">秒（＋響きの尾）</span></div>
+    <div class="row tog-row"><label for="exportAsSrc"><input id="exportAsSrc" type="checkbox"><span>結果を素材にも加える（帯の断片として置く）</span></label></div>
+    <p class="acts"><button id="exportGo" class="btn primary" type="button">書き出す</button><output id="exportProg" class="mono"></output></p>
+  </div>
+
+  <div class="pop" id="menuPop" hidden role="menu">
+    <button id="mFiles" class="mi" type="button" role="menuitem">音声ファイルを読む…</button>
+    <button id="mSynth" class="mi" type="button" role="menuitem">合成音で試す</button>
+    <button id="mFit" class="mi" type="button" role="menuitem">全体を見る</button>
+    <button id="mNew" class="mi" type="button" role="menuitem">新しい世界</button>
+    <button id="mHelp" class="mi" type="button" role="menuitem">使い方と操作（?）</button>
+  </div>
+
+  <div class="help" id="help" hidden role="dialog" aria-label="使い方">
+    <div class="helpbox">
+      <header><h2>触り — 使い方</h2><button id="helpClose" class="btn sm" type="button">閉じる</button></header>
+      <div class="cols">
+        <section>
+          <h3>考え方</h3>
+          <p>画面は一つの世界です。音は<b>断片</b>として置かれ、それ自体は鳴りません。<b>列車・波紋・掃引・走査・群れ</b>が触れたとき、<b>糸</b>でつながった断片が鳴ったとき、あなたが<b>触</b>れたときに鳴ります。</p>
+          <p>どこに置くか、どれくらい大きいか、どちらを向くか、何の近くにあるか、どの部屋の中か。そうした空間の性質が音をどう変えるかは<b>法則</b>の表で決まります。表は自由に書き換えられ、断片ごとに 甲・乙・丙 のどれに従うかを選べます。</p>
+          <p>断片の<b>姿</b>は音から決まりません。同じ音に違う姿、違う音に同じ姿を与えられます。見た目と音がずれていて構いません。</p>
+          <h3>時間</h3>
+          <p>波紋は<b>距離</b>を、掃引は<b>角度</b>を、列車は<b>線路の順序</b>を、走査は<b>横の位置</b>を時間にします。拍に合わせるもの（同期）と秒で動くもの（非同期）を混ぜられます。群れと「偶然」は、規則の中で予想外を起こします。種を残せば同じ展開を書き出せます。</p>
+        </section>
+        <section>
+          <h3>道具</h3>
+          <dl class="keys">
+            <dt>V 選</dt><dd>選ぶ・動かす。Alt+ドラッグで複製、丸い取っ手で回転、四角で大きさ</dd>
+            <dt>F 触</dt><dd>断片に触れて鳴らす。なぞって次々に。帯の断片はなぞった場所を読む</dd>
+            <dt>R 線</dt><dd>線路。ドラッグで自由線、クリックで点、Shift+ドラッグで円</dd>
+            <dt>T 車</dt><dd>線路に列車を足す</dd>
+            <dt>P 波</dt><dd>波紋の源を置く</dd>
+            <dt>S 掃</dt><dd>クリックで回る針、ドラッグで走査線</dd>
+            <dt>D 群</dt><dd>群れを放つ</dd>
+            <dt>B 室</dt><dd>部屋を建てる（中の音に加工が掛かる）</dd>
+            <dt>W 糸</dt><dd>断片から断片へ糸を張る</dd>
+            <dt>O 物</dt><dd>音のない物を置く</dd>
+            <dt>H 手</dt><dd>見る場所を動かす（Space+ドラッグでも）</dd>
+          </dl>
+        </section>
+        <section>
+          <h3>鍵盤</h3>
+          <dl class="keys">
+            <dt>Space</dt><dd>再生・一時停止</dd>
+            <dt>⌘Z / ⇧⌘Z</dt><dd>取り消す・やり直す</dd>
+            <dt>⌘D</dt><dd>複製</dd>
+            <dt>⌘G / ⇧⌘G</dt><dd>まとめる・ほどく</dd>
+            <dt>⌘A</dt><dd>断片をすべて選ぶ</dd>
+            <dt>Delete</dt><dd>削除</dd>
+            <dt>矢印</dt><dd>少し動かす（Shift で大きく）</dd>
+            <dt>[ ]</dt><dd>回す</dd>
+            <dt>- =</dt><dd>小さく・大きく（何も選んでいなければ拡大縮小）</dd>
+            <dt>1–6</dt><dd>場面を呼び出す（Shift で残す）</dd>
+            <dt>L / M</dt><dd>法則 / 素材</dd>
+            <dt>Tab</dt><dd>画面の道具を隠す</dd>
+            <dt>0</dt><dd>全体を見る</dd>
+            <dt>⌘S / ⌘O</dt><dd>保存・開く（ZIP に音ごと入ります）</dd>
+          </dl>
+          <p class="note">作業はこのブラウザに自動で残ります。別の機械へ持ち出すときは「保存」を使ってください。</p>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <input type="file" id="fileAudio" multiple accept="audio/*,.wav,.wave,.aif,.aiff,.aifc,.mp3,.m4a,.flac,.ogg,.caf" hidden>
+  <input type="file" id="fileProj" accept=".zip,.json,application/zip" hidden>
+</div>
