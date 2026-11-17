@@ -1,0 +1,78 @@
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <h1>団地 <span>DANCHI</span></h1>
+      <p>音は一つだけ（同じ高さ、同じ音色）。どのトラックもその写しで、違いは置かれる場所と、隣に何がいるかだけ。</p>
+    </div>
+    <div class="transport">
+      <button type="button" id="play" class="play" aria-pressed="false">音を出す</button>
+      <div class="phase" id="phase" aria-live="polite"><b id="phasename">個体</b><span id="phaseleft">—</span></div>
+      <div class="clock mono" id="clock">0 小節</div>
+    </div>
+  </header>
+
+  <main class="grid">
+    <section class="building" aria-label="棟と16の部屋">
+      <div class="bldg-head">
+        <span class="bnum" id="bnum">0001</span><span class="bunit">号棟</span>
+        <span class="objinfo mono" id="objinfo"></span>
+      </div>
+      <div class="facade" id="facade"></div>
+      <p class="hint">窓を押すと、その部屋で物が鳴り、その位置に置かれます。長く押すとその部屋の音が伸びます。右下の灯りで部屋の出し入れ。<span class="keys">キー: 1234 / QWER / ASDF / ZXCV（上の階から）、Shift で出し入れ、Space で音を出す・止める</span></p>
+    </section>
+
+    <section class="time" aria-label="各部屋の時間">
+      <div class="sec-head">
+        <h2>時間<small>拍からどれだけ前か後ろか、何に押されたか</small></h2>
+        <div class="legend"><span class="lg early">先に入った</span><span class="lg late">遅れた</span><span class="lg push">押した音から</span><span class="lg keep">拍を守る</span></div>
+      </div>
+      <div class="lanes-wrap"><canvas id="lanes" aria-label="16部屋 × 1小節の打点"></canvas></div>
+    </section>
+
+    <section class="state" aria-label="聴いた状態と、求める状態">
+      <div class="sec-head"><h2>状態<small>聴いた結果 ● と、求める所 ○</small></h2></div>
+      <canvas id="plane" aria-label="個体↔塊、拍どおり↔食い込み の平面"></canvas>
+      <div class="meters" id="meters"></div>
+    </section>
+
+    <section class="controls" aria-label="つまみとボタン">
+      <div class="knobs" id="knobs"></div>
+      <div class="buttons">
+        <div class="group" role="group" aria-label="手の動き">
+          <span class="glabel">手の動き</span>
+          <button type="button" id="rec" class="tbtn" aria-pressed="false">録る</button>
+          <button type="button" id="loop" class="tbtn mono">4小節</button>
+          <button type="button" id="clear" class="tbtn">消す</button>
+          <span class="lanes-ind" id="mrlanes" aria-hidden="true"></span>
+        </div>
+        <div class="group" role="group" aria-label="管理人（拍を守る層）">
+          <span class="glabel">管理人</span>
+          <button type="button" class="tbtn seg" data-keeper="0" aria-pressed="true">局面まかせ</button>
+          <button type="button" class="tbtn seg" data-keeper="1" aria-pressed="false">いる</button>
+          <button type="button" class="tbtn seg" data-keeper="2" aria-pressed="false">いない</button>
+        </div>
+        <div class="group">
+          <button type="button" id="objapply" class="tbtn" disabled>この物にする</button>
+          <button type="button" id="rebuild" class="tbtn">建て替え</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="ops" aria-label="オペレーター">
+      <div class="sec-head"><h2>オペレーター<small>合う向きに変えたものが力を得て、尽きたものは死に、いちばん強いものの子が生まれる</small></h2></div>
+      <div class="table-wrap">
+        <table class="optable">
+          <thead><tr><th>変え方</th><th>部屋</th><th>力</th><th>前回の効き</th><th>間隔</th><th>年齢</th></tr></thead>
+          <tbody id="opbody"></tbody>
+        </table>
+      </div>
+      <ol class="log" id="log"></ol>
+    </section>
+
+    <section class="device" aria-label="FM-1 の画面">
+      <div class="sec-head"><h2>FM-1 画面<small>240×240、同じ C コードが帯ごとに描く</small></h2></div>
+      <canvas id="screen" width="240" height="240"></canvas>
+      <p class="hint mono" id="engine"></p>
+    </section>
+  </main>
+</div>
