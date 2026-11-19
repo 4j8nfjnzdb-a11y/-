@@ -54,7 +54,11 @@ fi
 PATIENT=0
 # fm1_install.py, or (PATIENT=1) the same with longer waits for the FM-1's answers: a firmware busy with its sound can
 # answer late (an older one of these could be very busy), and the tool's own waits are about a second
+FM1PORT=""
 inst() {
+  if [ -n "${FM1PORT}" ]; then
+    set -- --port "${FM1PORT}" "$@"
+  fi
   if [ "${PATIENT}" = 1 ]; then
     FM1BASE="${BASE}" "${PY}" - "$@" <<'PYEOF'
 import os, sys
@@ -98,17 +102,30 @@ say "3/5 FM-1 を探します"
 note "FM-1 を USB ケーブルで Mac につなぎ、電源を入れておいてください。"
 note "DAW や音楽アプリ、MIDI を使うアプリは閉じてください。"
 printf '  準備ができたら return を押してください'; read -r _ </dev/tty
-for app in "Logic Pro" "Logic Pro X" "GarageBand" "Ableton Live" "MainStage"; do
-  while pgrep -xq "${app}" 2>/dev/null; do   # a music app open talks to the FM-1 too
-    note "「${app}」が開いています。終わらせてください（そのアプリを前に出して ⌘Q）。"
-    printf '  終わらせたら return を押してください'; read -r _ </dev/tty
-  done
-done
 ID=$(identity)
 if [ -z "${ID}" ]; then
   note "FM-1 の返事がありません。返事が遅いだけかもしれないので、待ち時間を長くしてもう一度探します（1 分ほど）…"
   PATIENT=1
   ID=$(identity)
+fi
+if [ -z "${ID}" ]; then
+  # every MIDI port, one by one, asked directly: an FM-1 waiting in its update mode, or one the Mac shows under
+  # another name (USB MIDI device), is not looked for by its name
+  note "MIDI のポートを一つずつ直接呼んでみます…"
+  PORTS=$("${PY}" -c 'import mido; print("\n".join(mido.get_input_names()))' 2>/dev/null)
+  while IFS= read -r port; do
+    [ -n "${port}" ] || continue
+    out=$(inst --info --port "${port}" 2>&1)
+    id=$(printf '%s\n' "$out" | sed -n 's/^\([A-Za-z0-9_-]*_[A-Za-z0-9_]*\)  \[.*/\1/p' | head -1)
+    if [ -n "${id}" ]; then
+      note "「${port}」が答えました: ${id}"
+      ID="${id}"
+      FM1PORT="${port}"
+      break
+    fi
+  done <<EOP
+${PORTS}
+EOP
 fi
 if [ -z "${ID}" ]; then
   inst --info 2>&1 | sed 's/^/  /'
@@ -134,6 +151,7 @@ if [ "${NEED15}" = 1 ]; then
   note "書き込み中は USB を抜かないでください。"
   ask "V15 を書き込みますか？" || { say "やめました。何も書き込んでいません。"; exit 0; }
   inst --yes "${WORK}/FM-1_015.fwsc" || stop "V15 の書き込みで止まりました"
+  FM1PORT=""                             # (after a restart it may come back under another name)
   note "FM-1 の再起動を待っています…"
   for i in 1 2 3 4 5 6 7 8 9 10; do
     sleep 3
