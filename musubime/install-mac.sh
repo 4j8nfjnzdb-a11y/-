@@ -51,7 +51,24 @@ if [ -z "${PY}" ]; then
   open "https://www.python.org/downloads/release/python-31210/" 2>/dev/null
   exit 0
 fi
-inst() { "${PY}" "${BASE}/tools/fm1_install.py" "$@"; }
+PATIENT=0
+# fm1_install.py, or (PATIENT=1) the same with longer waits for the FM-1's answers: a firmware busy with its sound can
+# answer late (an older one of these could be very busy), and the tool's own waits are about a second
+inst() {
+  if [ "${PATIENT}" = 1 ]; then
+    FM1BASE="${BASE}" "${PY}" - "$@" <<'PYEOF'
+import os, sys
+sys.path.insert(0, os.path.join(os.environ["FM1BASE"], "tools"))
+import fm1_install as f
+for k, m in (("hs", 6.0), ("hs_full", 6.0), ("hello", 4.0), ("poll", 2.0)):
+    f.DELAY[k] = f.DELAY[k] * m
+sys.argv = ["fm1_install.py"] + sys.argv[1:]
+sys.exit(f.main())
+PYEOF
+  else
+    "${PY}" "${BASE}/tools/fm1_install.py" "$@"
+  fi
+}
 if ! "${PY}" -c 'import mido, rtmidi' 2>/dev/null; then
   note "USB-MIDI の部品（mido, python-rtmidi）を入れます…"
   "${PY}" -m pip install --user --quiet --only-binary=:all: mido python-rtmidi 2>/dev/null ||
@@ -81,10 +98,28 @@ say "3/5 FM-1 を探します"
 note "FM-1 を USB ケーブルで Mac につなぎ、電源を入れておいてください。"
 note "DAW や音楽アプリ、MIDI を使うアプリは閉じてください。"
 printf '  準備ができたら return を押してください'; read -r _ </dev/tty
+for app in "Logic Pro" "Logic Pro X" "GarageBand" "Ableton Live" "MainStage"; do
+  while pgrep -xq "${app}" 2>/dev/null; do   # a music app open talks to the FM-1 too
+    note "「${app}」が開いています。終わらせてください（そのアプリを前に出して ⌘Q）。"
+    printf '  終わらせたら return を押してください'; read -r _ </dev/tty
+  done
+done
 ID=$(identity)
 if [ -z "${ID}" ]; then
+  note "FM-1 の返事がありません。返事が遅いだけかもしれないので、待ち時間を長くしてもう一度探します（1 分ほど）…"
+  PATIENT=1
+  ID=$(identity)
+fi
+if [ -z "${ID}" ]; then
   inst --info 2>&1 | sed 's/^/  /'
-  stop "FM-1 が見つかりません（ケーブル・電源・ほかのアプリを確かめて、もう一度 1 行を貼ってください）"
+  note ""
+  note "Mac は FM-1 を見つけていますが（上の MIDI inputs に FM-1 があれば）、FM-1 が返事をしません。"
+  note "1) FM-1 の電源を切って入れ直し、もう一度 1 行を貼る。"
+  note "2) それでもだめなら: FM-1 の ARP・ENV・SEQ・LFO を押して 4 つとも消灯させ（音を止める）、"
+  note "   1〜2 分待ってから、もう一度 1 行を貼る（音の計算で手いっぱいだと返事ができないため）。"
+  note "3) それでもだめなら: 電源を切り、REC を押したまま電源を入れる（UPDATE MODE と出る）。"
+  note "   その状態で M-VAVE の M-UPGRADE で公式ファームに戻してから、もう一度 1 行を貼る。"
+  stop "FM-1 が返事をしません"
 fi
 case "${ID}" in
   FM-1_015) note "今の FM-1: 公式ファーム V15（このまま入れられます）"; NEED15=0 ;;
