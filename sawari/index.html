@@ -171,6 +171,22 @@ canvas.mini{display:block;width:100%;height:34px;margin-top:4px;background:var(-
 .cell:hover{border-color:var(--ink)}
 .lawread{margin:8px 0 0;font-size:11.5px;color:var(--dim);min-height:1.5em}
 
+/* meters, circuit */
+.meter{position:relative;display:inline-block;width:64px;height:8px;background:var(--well);border:1px solid var(--line);border-radius:2px;overflow:hidden;vertical-align:middle;--lv:0;--pk:0}
+.meter i{position:absolute;left:0;top:0;bottom:0;width:calc(var(--lv) * 100%);background:var(--signal);transition:width .05s linear}
+.meter b{position:absolute;top:0;bottom:0;left:calc(var(--pk) * 100%);width:2px;background:var(--rec)}
+#cirMeter{display:block;width:100%;height:12px;margin:6px 0}
+.circuit{max-height:min(78vh,720px)}
+.cirgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:0 18px}
+.cirgrid .sec{border-bottom:0;padding-left:0;padding-right:0}
+.knobrow{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center}
+.btn.learning{background:var(--signal);border-color:var(--signal);color:#1b1f22}
+.links{margin:0 0 6px;padding-left:1.1em;font-size:12px;color:var(--dim)}
+.note.warn{color:var(--rec)}
+.grid .gh{font:500 10px var(--f-mono);letter-spacing:.14em;color:var(--accent);padding:6px 0 1px}
+.grid .rh .bi{font-style:normal;font:10px var(--f-mono);color:var(--faint);margin-left:3px}
+.viewctl select{min-height:24px;padding:1px 4px;font-size:12px}
+
 /* footer */
 .foot{position:absolute;left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));bottom:calc(env(safe-area-inset-bottom,0px) + 10px);display:flex;gap:10px;align-items:center;pointer-events:none;z-index:4}
 .foot>*{pointer-events:auto}
@@ -237,6 +253,7 @@ body.bare .bar,body.bare .tools,body.bare .insp,body.bare .lib,body.bare .laws,b
       <button id="play" class="btn play" type="button" aria-pressed="false" title="再生（Space）"><span class="i-play" aria-hidden="true"></span><span class="sr">再生・一時停止</span></button>
       <button id="stop" class="btn" type="button" title="時間を最初に戻す"><span class="i-stop" aria-hidden="true"></span><span class="sr">最初に戻す</span></button>
       <output id="clock" class="clock mono">0:00.0  1.1</output>
+      <span id="outMeter" class="meter out" title="出力" aria-hidden="true"><i></i></span>
     </div>
     <div class="grp">
       <label class="num" title="拍の速さ（BPM）">拍<input id="bpm" type="number" min="20" max="300" step="1" inputmode="numeric"></label>
@@ -246,6 +263,7 @@ body.bare .bar,body.bare .tools,body.bare .insp,body.bare .lib,body.bare .laws,b
     <div class="grp">
       <button id="lawsBtn" class="btn tog" type="button" aria-pressed="false" title="法則（L）">法則</button>
       <button id="libBtn" class="btn tog" type="button" aria-pressed="false" title="素材（M）">素材</button>
+      <button id="cirBtn" class="btn tog" type="button" aria-pressed="false" title="回路：オーディオ入力・MIDI・つまみ（K）">回路</button>
     </div>
     <div class="grp">
       <button id="undo" class="btn sm" type="button" title="取り消す（⌘Z）">↶</button>
@@ -272,11 +290,13 @@ body.bare .bar,body.bare .tools,body.bare .insp,body.bare .lib,body.bare .laws,b
   </section>
 
   <section class="laws" id="laws" hidden aria-label="法則"></section>
+  <section class="laws circuit" id="circuit" hidden aria-label="回路"></section>
 
   <footer class="foot">
     <p class="hint" id="hint"></p>
     <div class="scenes" id="scenes"></div>
     <div class="viewctl">
+      <label title="聴く位置。画面＝画面の中心で聴く／漂う＝ひとりでにさまよう（画面も動く）／乗る＝列車や群れに乗る">耳<select id="earMode"><option value="view">画面</option><option value="wander">漂う</option><option value="ride">乗る</option><option value="off">なし</option></select></label>
       <label title="俯瞰の角度（見た目だけ。音は変わりません）">俯瞰<input id="tilt" type="range" min="0" max="1.05" step="0.01"></label>
       <button id="fit" class="btn sm" type="button" title="全体を見る（0）">全体</button>
     </div>
@@ -285,7 +305,8 @@ body.bare .bar,body.bare .tools,body.bare .insp,body.bare .lib,body.bare .laws,b
   <div class="empty" id="empty">
     <div class="emptybox">
       <h1>音を、ここに落とす。</h1>
-      <p>WAV・AIFF・MP3 を画面に落とすと、その場所に「断片」が置かれます。線路の列車、波紋、部屋、群れはもう動ける状態です。断片をそれらの近くへ動かすと、鳴り方が変わります。</p>
+      <p>WAV・AIFF・MP3 を画面に落とすと、その場所に「断片」が置かれます。▶ を押すと、回る針・列車・波紋・走査・群れが断片を鳴らし、それぞれのやり方で音を変えます（針は角度で、走査は高さで音程が変わり、列車は和音とドップラーで曲げます）。</p>
+      <p>鳴っている最中も音は世界に従います。断片を掴んで動かす、画面を動かす（画面の中心が耳）、回路のつまみを回すと、その場で音が変わります。</p>
       <p class="acts"><button id="eFiles" class="btn" type="button">音声ファイルを選ぶ</button><button id="eSynth" class="btn ghostbtn" type="button">合成音で試す</button></p>
     </div>
   </div>
@@ -319,6 +340,10 @@ body.bare .bar,body.bare .tools,body.bare .insp,body.bare .lib,body.bare .laws,b
           <p>断片の<b>姿</b>は音から決まりません。同じ音に違う姿、違う音に同じ姿を与えられます。見た目と音がずれていて構いません。</p>
           <h3>時間</h3>
           <p>波紋は<b>距離</b>を、掃引は<b>角度</b>を、列車は<b>線路の順序</b>を、走査は<b>横の位置</b>を時間にします。拍に合わせるもの（同期）と秒で動くもの（非同期）を混ぜられます。群れと「偶然」は、規則の中で予想外を起こします。種を残せば同じ展開を書き出せます。</p>
+          <h3>それぞれが変える音</h3>
+          <p><b>針</b>：置いた角度が音程（文字盤）。<b>走査</b>：枠の中の高さが音程（楽譜）。<b>列車</b>：車両ごとの和音と、通り過ぎるときのドップラー。<b>波紋</b>：遠いほど暗く響き、輪ごとに音の別の場所から。<b>群れ</b>：一羽ごとの高さと粒。<b>糸</b>：渡るたびに移調。<b>部屋</b>：奥に入るほど深く加工。<b>物</b>：耳との間にあると音がこもる。</p>
+          <h3>耳と回路</h3>
+          <p>画面の中心が<b>耳</b>です。画面を動かすと近いものが大きく、遠いものは小さく暗くなります。耳は漂わせたり、列車に乗せたりできます（画面も一緒に動きます）。<b>回路</b>（K）では、オーディオインターフェースやマイクの音を世界に置き、MIDI の鍵盤で断片を弾き、つまみ A〜D を法則につなげます。</p>
         </section>
         <section>
           <h3>道具</h3>
@@ -332,7 +357,8 @@ body.bare .bar,body.bare .tools,body.bare .insp,body.bare .lib,body.bare .laws,b
             <dt>D 群</dt><dd>群れを放つ</dd>
             <dt>B 室</dt><dd>部屋を建てる（中の音に加工が掛かる）</dd>
             <dt>W 糸</dt><dd>断片から断片へ糸を張る</dd>
-            <dt>O 物</dt><dd>音のない物を置く</dd>
+            <dt>O 物</dt><dd>音のない物を置く（耳との間にあると音がこもる）</dd>
+            <dt>I 入</dt><dd>オーディオ入力を置く（回路で入力を使う）</dd>
             <dt>H 手</dt><dd>見る場所を動かす（Space+ドラッグでも）</dd>
           </dl>
         </section>
@@ -349,7 +375,7 @@ body.bare .bar,body.bare .tools,body.bare .insp,body.bare .lib,body.bare .laws,b
             <dt>[ ]</dt><dd>回す</dd>
             <dt>- =</dt><dd>小さく・大きく（何も選んでいなければ拡大縮小）</dd>
             <dt>1–6</dt><dd>場面を呼び出す（Shift で残す）</dd>
-            <dt>L / M</dt><dd>法則 / 素材</dd>
+            <dt>L / M / K</dt><dd>法則 / 素材 / 回路</dd>
             <dt>Tab</dt><dd>画面の道具を隠す</dd>
             <dt>0</dt><dd>全体を見る</dd>
             <dt>⌘S / ⌘O</dt><dd>保存・開く（ZIP に音ごと入ります）</dd>
@@ -703,23 +729,31 @@ const SAWARI_WORLD = (() => {
   const DT = 0.01;           // simulation step (s)
   const HIST = 256;          // flock position history (steps) for late drawing
 
-  // ---- what space can say (law sources), each 0..1 ----
+  // ---- law sources, each 0..1. bi: centred (0.5 = no change); otherwise 0 = no change ----
   const SOURCES = [
-    { k: 'x', l: '横', d: '左右の位置' },
-    { k: 'y', l: '縦', d: '上下の位置' },
-    { k: 'size', l: '大きさ', d: '断片の大きさ' },
-    { k: 'turn', l: '向き', d: '回転の角度（0° と 180° が両端）' },
-    { k: 'shape', l: '形', d: '姿の種類と角の数' },
-    { k: 'height', l: '高さ', d: '立体の高さ' },
-    { k: 'near', l: '近さ', d: 'いちばん近いものとの距離（近いほど大きい）' },
-    { k: 'crowd', l: '混み', d: 'まわりにあるものの数' },
-    { k: 'center', l: '中心', d: '世界の中心への近さ' },
-    { k: 'room', l: '奥', d: '部屋のどれだけ奥にいるか' },
-    { k: 'motion', l: '動き', d: '断片そのものの速さ' },
-    { k: 'force', l: '勢い', d: '鳴らしたもの（列車・波紋・群れ・指）の勢い' },
-    { k: 'sway', l: '揺らぎ', d: '見えない、ゆっくりした波' },
-    { k: 'chance', l: '偶然', d: '鳴るたびに変わる乱数' },
+    { k: 'x', l: '横', d: '左右の位置', bi: true, g: '位置と形' },
+    { k: 'y', l: '縦', d: '上下の位置（上ほど大きい）', bi: true, g: '位置と形' },
+    { k: 'size', l: '大きさ', d: '断片の大きさ', bi: true, g: '位置と形' },
+    { k: 'turn', l: '向き', d: '回転の角度（0° と 180° が両端）', bi: true, g: '位置と形' },
+    { k: 'shape', l: '形', d: '姿の種類と角の数', bi: true, g: '位置と形' },
+    { k: 'height', l: '高さ', d: '立体の高さ', bi: false, g: '位置と形' },
+    { k: 'near', l: '近さ', d: 'いちばん近いものとの近さ', bi: false, g: '関係' },
+    { k: 'crowd', l: '混み', d: 'まわりにあるものの数', bi: false, g: '関係' },
+    { k: 'center', l: '中心', d: '世界の中心への近さ', bi: false, g: '関係' },
+    { k: 'room', l: '奥', d: '部屋のどれだけ奥にいるか', bi: false, g: '関係' },
+    { k: 'far', l: '遠さ', d: '耳（画面の中心）からの遠さ', bi: false, g: '関係' },
+    { k: 'motion', l: '動き', d: '断片そのものが動く速さ（ドラッグも）', bi: false, g: '動きと偶然' },
+    { k: 'force', l: '勢い', d: '鳴らしたもの（列車・波紋・群れ・指・鍵盤）の勢い', bi: false, g: '動きと偶然' },
+    { k: 'sway', l: '揺らぎ', d: '見えない、ゆっくりした波', bi: true, g: '動きと偶然' },
+    { k: 'chance', l: '偶然', d: '鳴るたびに変わる乱数', bi: true, g: '動きと偶然' },
+    { k: 'inLevel', l: '入力', d: 'オーディオ入力の大きさ', bi: false, g: '外から' },
+    { k: 'knobA', l: 'つまみA', d: '回路のつまみ A（MIDI でも動かせる）', bi: true, g: '外から' },
+    { k: 'knobB', l: 'つまみB', d: '回路のつまみ B', bi: true, g: '外から' },
+    { k: 'knobC', l: 'つまみC', d: '回路のつまみ C', bi: true, g: '外から' },
+    { k: 'knobD', l: 'つまみD', d: '回路のつまみ D', bi: true, g: '外から' },
+    { k: 'key', l: '鍵', d: '最後に弾いた MIDI の鍵の高さ', bi: true, g: '外から' },
   ];
+  const SMAP = Object.fromEntries(SOURCES.map(s => [s.k, s]));
   // ---- what sound can do (law targets) ----
   // span: how far one law at full strength moves the value; base is the fragment's own setting
   const TARGETS = [
@@ -742,6 +776,22 @@ const SAWARI_WORLD = (() => {
   ];
   const TMAP = Object.fromEntries(TARGETS.map(t => [t.k, t]));
   const baseParams = () => ({ vol: 0, rate: 0, pitch: 0, stretch: 0, pan: 0, tone: 0, start: 0, len: 1, grain: 0, spray: 0.25, rev: 0, drive: 0, dly: 0, verb: 0.12, prob: 1, lag: 0, fin: 4, fout: 25 });
+
+  // ---- pitch material for the activators that play tunes ----
+  const SCALES = { free: null, chrom: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], penta: [0, 2, 4, 7, 9], major: [0, 2, 4, 5, 7, 9, 11], minor: [0, 2, 3, 5, 7, 8, 10], whole: [0, 2, 4, 6, 8, 10] };
+  const SCALE_L = { free: '連続', chrom: '半音', penta: '五音', major: '長', minor: '短', whole: '全音' };
+  function quant(st, scale) {
+    const sc = SCALES[scale];
+    if (!sc) return st;
+    const o = Math.floor(st / 12), r = st - o * 12;
+    let best = 0, bd = Infinity;
+    for (const d of [...sc, 12]) { const dd = Math.abs(d - r); if (dd < bd) { bd = dd; best = d; } }
+    return o * 12 + best;
+  }
+  const CHORDS = { same: [0], fifths: [0, 7, 12, 19], chord: [0, 4, 7, 12, 16], minor: [0, 3, 7, 10, 12], down: [0, -2, -5, -7, -12, -14], scatter: null };
+  const CHORD_L = { same: '同じ', fifths: '五度', chord: '和音', minor: '短和音', down: '下る', scatter: '散らす' };
+  const BIRD_PENTA = [0, 7, 12, 4, -5, 9, 2, 16, -8, 14];
+  const wrapSt = s => { while (s > 19) s -= 24; while (s < -19) s += 24; return s; };
 
   // ---- skins: how a thing looks; `sv` is the hidden "shape" value a law can read ----
   const SKINS = [
@@ -789,27 +839,28 @@ const SAWARI_WORLD = (() => {
   // ---- laws ----
   function defaultLaws() {
     return [
-      { name: '甲', m: { 'size>vol': 0.3, 'size>rate': -0.45, 'x>pan': 0.8, 'y>tone': -0.45, 'turn>start': 0.7, 'near>verb': 0.6, 'crowd>grain': 0.55, 'force>vol': 0.35, 'motion>pitch': 0.5, 'height>rate': -0.4, 'chance>spray': 0.4, 'sway>tone': 0.2, 'room>len': -0.3 } },
-      { name: '乙', m: { 'x>rate': 0.6, 'y>start': 0.8, 'size>stretch': 0.6, 'turn>pitch': 0.7, 'near>rev': 0.7, 'crowd>prob': -0.5, 'sway>pan': 0.9, 'chance>lag': 0.25, 'shape>grain': 0.7, 'force>drive': 0.5, 'center>dly': 0.7, 'height>verb': 0.6 } },
+      { name: '甲', m: { 'y>rate': 0.55, 'size>vol': 0.3, 'size>tone': -0.3, 'turn>start': 0.8, 'near>grain': 0.6, 'near>dly': 0.5, 'far>verb': 0.7, 'room>len': -0.3, 'motion>pitch': 0.7, 'motion>grain': 0.4, 'force>vol': 0.35, 'sway>tone': 0.35, 'chance>spray': 0.5, 'chance>pan': 0.25, 'height>rate': -0.5, 'knobA>tone': 0.8, 'knobB>grain': 0.9, 'knobC>rate': 0.6, 'knobD>dly': 0.9, 'inLevel>drive': 0.5 } },
+      { name: '乙', m: { 'x>rate': 0.6, 'y>start': 0.8, 'size>stretch': 0.6, 'turn>pitch': 0.7, 'near>rev': 0.9, 'crowd>prob': -0.5, 'sway>pan': 0.9, 'chance>lag': 0.25, 'shape>grain': 0.7, 'force>drive': 0.5, 'center>dly': 0.7, 'height>verb': 0.6, 'far>grain': 0.6, 'knobA>rate': 0.7, 'knobB>stretch': 0.6, 'key>pitch': 0.8 } },
       { name: '丙', m: {} },
     ];
   }
   function randomLaw(rng, density = 0.035) {
     const m = {};
     for (const s of SOURCES) for (const t of TARGETS) if (rng() < density) m[s.k + '>' + t.k] = Math.round((rng() * 2 - 1) * 20) / 20;
-    if (!Object.keys(m).length) m['x>pan'] = 0.7;
+    if (!Object.keys(m).length) m['y>rate'] = 0.7;
     return m;
   }
 
   // ---- factories ----
-  function newFrag(src, a, b, x, y, rng, dur) {
-    const len = b - a;
+  function newFrag(src, a, b, x, y, rng) {
+    const len = b - a, m = rng();
     return {
       id: uid('f'), kind: 'frag', src, a, b, x, y,
       r: Math.round(clamp(24 + 11 * Math.log2(1 + len) + rng() * 14, 14, 120)), ang: rng() * TAU,
-      mode: 'hit', law: 0, mut: 0, group: null,
+      mode: 'hit', law: 0, mut: 0, group: null, key: null,
       skin: randomSkin(rng), p: baseParams(),
-      move: { type: 'none', speed: 0.3, radius: 60, audible: true },
+      // some fragments start out moving on their own (visibly, and audibly through the laws)
+      move: { type: m < 0.22 ? 'spin' : m < 0.42 ? 'drift' : 'none', speed: 0.15 + rng() * 0.25, radius: 50, audible: true },
     };
   }
   function newThing(x, y, rng, type) {
@@ -817,29 +868,51 @@ const SAWARI_WORLD = (() => {
     return { id: uid('o'), kind: 'thing', x, y, r: Math.round(30 + rng() * 40), ang: rng() * TAU, skin, group: null };
   }
   const newRail = (pts, closed) => ({ id: uid('r'), kind: 'rail', pts, closed });
-  const newTrain = (rail, s0) => ({ id: uid('t'), kind: 'train', rail, s0, speed: 140, cars: 2, reach: 60, end: 'bounce', sync: false, beats: 16 });
-  const newRipple = (x, y) => ({ id: uid('w'), kind: 'ripple', x, y, period: 2.5, sync: true, beats: 4, speed: 240, reach: 520, phase: 0 });
-  const newSweep = (x, y) => ({ id: uid('s'), kind: 'sweep', x, y, r: 320, period: 6, sync: true, beats: 8, dir: 1, ang0: -Math.PI / 2 });
-  const newScan = (x, y, w, h) => ({ id: uid('c'), kind: 'scan', x, y, w, h, ang: 0, period: 8, sync: true, beats: 16, phase: 0 });
-  const newFlock = (x, y) => ({ id: uid('b'), kind: 'flock', x, y, n: 4, speed: 110, wander: 0.5, mode: 'wander', leash: 420, quant: 0 });
+  const newTrain = (rail, s0) => ({ id: uid('t'), kind: 'train', rail, s0, speed: 140, cars: 3, reach: 70, end: 'bounce', sync: false, beats: 16, chord: 'chord', doppler: 0.6 });
+  const newRipple = (x, y) => ({ id: uid('w'), kind: 'ripple', x, y, period: 2.5, sync: true, beats: 4, speed: 240, reach: 560, phase: 0, dark: 0.7, adv: 0.3 });
+  const newSweep = (x, y) => ({ id: uid('s'), kind: 'sweep', x, y, r: 340, period: 6, sync: true, beats: 8, dir: 1, ang0: -Math.PI / 2, range: 12, scale: 'penta' });
+  const newScan = (x, y, w, h) => ({ id: uid('c'), kind: 'scan', x, y, w, h, ang: 0, period: 8, sync: true, beats: 16, phase: 0, range: 24, scale: 'penta' });
+  const newFlock = (x, y) => ({ id: uid('b'), kind: 'flock', x, y, n: 4, speed: 110, wander: 0.5, mode: 'wander', leash: 420, quant: 0, song: 'penta', gran: 0.5 });
   const newRoom = (x, y, w, h, fx) => ({ id: uid('m'), kind: 'room', x, y, w, h, walls: false, name: '', fx: fx || [newFx('verb')] });
-  const newThread = (a, b) => ({ id: uid('l'), kind: 'thread', a, b, prob: 0.8, sync: false, beats: 1, mul: 1 });
+  const newThread = (a, b) => ({ id: uid('l'), kind: 'thread', a, b, prob: 0.8, sync: false, beats: 1, mul: 1, step: 7 });
+  const newInput = (x, y) => ({ id: uid('i'), kind: 'input', x, y, r: 34, ang: 0, ch: 'mix', mon: 0.8, trig: 'ripple', thr: 0.12, auto: false, capLen: 4, capMode: 'hit', law: 0, p: { ...baseParams(), verb: 0.1 }, skin: { type: 'pillar', sides: 6, tex: 'solid', hue: 205, h: 46, glyph: '入', seed: 7 }, move: { type: 'none', speed: 0.3, radius: 60, audible: true } });
+
+  // older saves (and autosaves) get the fields added later
+  function normalize(w) {
+    w.ear = Object.assign({ mode: 'view', x: 0, y: 0, r: 900, amt: 0.8, target: null }, w.ear || {});
+    const ck = (w.circuit && w.circuit.knobs) || [];
+    w.circuit = Object.assign({ pb: 2 }, w.circuit || {});
+    w.circuit.knobs = [0, 1, 2, 3].map(i => Object.assign({ v: 0.5, cc: null }, ck[i] || {}));
+    w.dragSound = w.dragSound ?? true;
+    for (const o of w.objs) {
+      if (o.kind === 'train') { o.chord = o.chord ?? 'chord'; o.doppler = o.doppler ?? 0.6; }
+      else if (o.kind === 'ripple') { o.dark = o.dark ?? 0.7; o.adv = o.adv ?? 0.3; }
+      else if (o.kind === 'sweep') { o.range = o.range ?? 12; o.scale = o.scale ?? 'penta'; }
+      else if (o.kind === 'scan') { o.range = o.range ?? 24; o.scale = o.scale ?? 'penta'; }
+      else if (o.kind === 'flock') { o.song = o.song ?? 'penta'; o.gran = o.gran ?? 0.5; }
+      else if (o.kind === 'thread') { o.step = o.step ?? 7; }
+      else if (o.kind === 'frag') { if (o.key === undefined) o.key = null; }
+    }
+    return w;
+  }
 
   function newWorld(seed) {
     const rng = makeRng(seed);
-    const rail = newRail(C.circlePts(-560, 40, 330, 36), true);
-    const train = newTrain(rail.id, 0); train.cars = 2; train.speed = 130;
-    const rip = newRipple(330, -250);
-    const room = newRoom(470, 330, 560, 300, [newFx('delay'), newFx('verb')]); room.name = '響の間';
-    room.fx[0].mix = 0.35; room.fx[1].mix = 0.55;
-    const flock = newFlock(60, 40); flock.n = 3;
-    const t1 = newThing(-80, 380, rng, 'tower'); t1.r = 34; t1.skin.h = 150;
-    const t2 = newThing(820, -420, rng, 'tree'); t2.r = 40;
-    return {
-      v: 1, seed: seed >>> 0, bpm: 92, chance: 0.5, threadSpeed: 420, vlag: 0, tilt: 0.5,
+    const rail = newRail(C.circlePts(-880, 60, 300, 36), true);
+    const train = newTrain(rail.id, 0); train.speed = 150;
+    const sweep = newSweep(-60, -40); sweep.r = 360;
+    const rip = newRipple(720, -420);
+    const room = newRoom(760, 400, 560, 320, [newFx('delay'), newFx('verb')]); room.name = '響の間';
+    room.fx[0].mix = 0.35; room.fx[1].mix = 0.6;
+    const scan = newScan(-420, 640, 880, 260);
+    const flock = newFlock(260, 60); flock.n = 4; flock.mode = 'seek';
+    const t1 = newThing(330, 380, rng, 'tower'); t1.r = 36; t1.skin.h = 170;
+    const t2 = newThing(1180, -60, rng, 'tree'); t2.r = 44;
+    return normalize({
+      v: 2, seed: seed >>> 0, bpm: 92, chance: 0.5, threadSpeed: 420, vlag: 0, tilt: 0.5,
       master: { vol: 0.8, dBeats: 0.75, dFb: 0.38, dTone: 3200, vSize: 3.4, vDamp: 0.45 },
-      sources: [], objs: [room, rail, train, rip, flock, t1, t2], laws: defaultLaws(),
-    };
+      sources: [], objs: [room, rail, train, sweep, rip, scan, flock, t1, t2], laws: defaultLaws(),
+    });
   }
 
   // ---- simulation ----
@@ -852,14 +925,17 @@ const SAWARI_WORLD = (() => {
     const b = Math.max(k0, k1) * P + target;
     return (b - u0) / (u1 - u0);
   }
+  const smooth = t => t * t * (3 - 2 * t);
 
   class Sim {
-    constructor(world) { this.w = world; this.reset(); }
+    constructor(world) { this.w = world; this.ext = { inLevel: 0, key: 0.5, bend: 0 }; this.reset(); }
     reset() {
+      normalize(this.w);
       this.T = 0; this.steps = 0;
       this.rng = makeRng((this.w.seed ^ 0x9e3779b9) >>> 0);
       this.flocks = new Map();      // flock id -> agents
       this.queue = [];              // pending thread events
+      this.extRings = [];           // rings sent by the live input
       this.last = new Map();        // frag id -> last event time (retrigger guard)
       this.proj = new Map();        // rail id -> Map(frag id -> projection)
       this.poses = new Map();       // id -> sound pose at T
@@ -870,17 +946,18 @@ const SAWARI_WORLD = (() => {
     }
     // rebuild lookups; call after the object list changes (undo, load, add, delete)
     index() {
-      const byId = new Map(), frags = [], things = [], rails = [], trains = [], ripples = [], sweeps = [], scans = [], flocks = [], rooms = [], threads = [];
+      const byId = new Map(), frags = [], things = [], rails = [], trains = [], ripples = [], sweeps = [], scans = [], flocks = [], rooms = [], threads = [], inputs = [];
       for (const o of this.w.objs) {
         byId.set(o.id, o);
-        ({ frag: frags, thing: things, rail: rails, train: trains, ripple: ripples, sweep: sweeps, scan: scans, flock: flocks, room: rooms, thread: threads })[o.kind]?.push(o);
+        ({ frag: frags, thing: things, rail: rails, train: trains, ripple: ripples, sweep: sweeps, scan: scans, flock: flocks, room: rooms, thread: threads, input: inputs })[o.kind]?.push(o);
       }
-      Object.assign(this, { byId, frags, things, rails, trains, ripples, sweeps, scans, flockObjs: flocks, rooms, threads });
+      Object.assign(this, { byId, frags, things, rails, trains, ripples, sweeps, scans, flockObjs: flocks, rooms, threads, inputs });
       this.srcIds = new Set(this.w.sources.map(s => s.id));
       this.threadsFrom = new Map();
       for (const t of threads) { if (!this.threadsFrom.has(t.a)) this.threadsFrom.set(t.a, []); this.threadsFrom.get(t.a).push(t); }
       for (const fl of flocks) this.ensureFlock(fl);
       for (const id of [...this.flocks.keys()]) if (!byId.has(id)) this.flocks.delete(id);
+      this.solids = things.filter(t => SKMAP[t.skin.type] && SKMAP[t.skin.type].solid);
     }
     beat() { return 60 / clamp(this.w.bpm || 92, 20, 300); }
 
@@ -902,6 +979,7 @@ const SAWARI_WORLD = (() => {
       const swap = this.prevPoses; this.prevPoses = this.poses; this.poses = swap; this.poses.clear();
       for (const f of this.frags) this.poses.set(f.id, this.pose(f, T, true));
       for (const t of this.things) this.poses.set(t.id, { x: t.x, y: t.y, ang: t.ang, r: t.r });
+      for (const t of this.inputs) this.poses.set(t.id, { x: t.x, y: t.y, ang: t.ang, r: t.r });
     }
     // recompute poses after an edit while time is not running
     refresh() { this.updatePoses(this.T); this.prevPoses = new Map(this.poses); }
@@ -913,12 +991,40 @@ const SAWARI_WORLD = (() => {
       return best;
     }
 
+    // ---- the ear: where the world is heard from ----
+    earAt(T) {
+      const E = this.w.ear;
+      if (E.mode === 'ride') {
+        const o = this.byId.get(E.target);
+        if (o && o.kind === 'train') { const c = this.trainCars(o, T)[0]; if (c) return { ...E, x: c.x, y: c.y }; }
+        if (o && o.kind === 'flock') { const ags = this.flocks.get(o.id) || []; if (ags.length) { let x = 0, y = 0; for (const a of ags) { x += a.x; y += a.y; } return { ...E, x: x / ags.length, y: y / ags.length }; } }
+      }
+      if (E.mode === 'wander') return { ...E, x: (noise1('ear-x', T * 0.025) - 0.5) * 2 * 1150, y: (noise1('ear-y', T * 0.025 + 5) - 0.5) * 2 * 700 };
+      return E;
+    }
+    earFx(p) {
+      const E = this.earAt(this.T);
+      if (E.mode === 'off' || !(E.amt > 0)) return { db: 0, pan: 0, tone: 0, occ: 0, far: 0 };
+      const amt = E.amt, r = Math.max(100, E.r), d = Math.hypot(p.x - E.x, p.y - E.y), q = d / r;
+      let db = -amt * 11 * Math.pow(q, 1.5), tone = -amt * clamp((q - 0.4) * 0.5, 0, 0.7), occ = 0;
+      const pan = clamp((p.x - E.x) / r * 1.4, -1, 1) * amt;
+      // solid things between the ear and the fragment muffle it
+      for (const t of this.solids) {
+        if (occ >= 2) break;
+        const dx = p.x - E.x, dy = p.y - E.y, l2 = dx * dx + dy * dy || 1;
+        const u = ((t.x - E.x) * dx + (t.y - E.y) * dy) / l2;
+        if (u < 0.06 || u > 0.94) continue;
+        if (Math.hypot(E.x + dx * u - t.x, E.y + dy * u - t.y) < t.r * 0.8) { occ++; tone -= 0.32 * amt; db -= 5 * amt; }
+      }
+      return { db: Math.max(-40, db), pan, tone, occ, far: clamp(q / 2, 0, 1) };
+    }
+
     // ---- what space says about a fragment (all 0..1) ----
     features(f, p, energy, atEvent) {
       const B = BOUNDS, T = this.T;
       const ft = {
         x: clamp((p.x - B.x0) / (B.x1 - B.x0), 0, 1),
-        y: clamp((p.y - B.y0) / (B.y1 - B.y0), 0, 1),
+        y: 1 - clamp((p.y - B.y0) / (B.y1 - B.y0), 0, 1),
         size: clamp((Math.log2(Math.max(p.r, 1)) - 3) / (Math.log2(240) - 3), 0, 1),
         turn: (1 - Math.cos(p.ang)) / 2,
         shape: shapeValue(f.skin),
@@ -939,10 +1045,17 @@ const SAWARI_WORLD = (() => {
       ft.room = rm ? clamp(Math.min(p.x - (rm.x - rm.w / 2), rm.x + rm.w / 2 - p.x, p.y - (rm.y - rm.h / 2), rm.y + rm.h / 2 - p.y) / (Math.min(rm.w, rm.h) / 2), 0, 1) : 0;
       const pp = this.prevPoses.get(f.id);
       ft.motion = pp ? clamp((Math.hypot(p.x - pp.x, p.y - pp.y) + Math.abs(p.ang - pp.ang) * p.r * 0.5 + Math.abs(p.r - pp.r)) / DT / 220, 0, 1) : 0;
+      if (this.dragMotion && this.dragMotion.has(f.id)) ft.motion = Math.max(ft.motion, this.dragMotion.get(f.id));
       ft.force = clamp(energy, 0, 1);
       ft.sway = 0.5 + 0.5 * Math.sin(hash01(f.id + 's') * TAU + TAU * T / (5 + 12 * hash01(f.id + 'p')));
       ft.chance = atEvent ? this.rng() : noise1(f.id + 'c', T * 0.6);
-      ft._room = rm;
+      const ear = this.earFx(p);
+      ft.far = ear.far;
+      ft.inLevel = clamp(this.ext.inLevel || 0, 0, 1);
+      const kn = this.w.circuit.knobs;
+      ft.knobA = kn[0].v; ft.knobB = kn[1].v; ft.knobC = kn[2].v; ft.knobD = kn[3].v;
+      ft.key = this.ext.key ?? 0.5;
+      ft._room = rm; ft._roomW = rm ? smooth(clamp(ft.room * 3, 0, 1)) : 0; ft._ear = ear;
       return ft;
     }
     resolve(f, ft) {
@@ -950,10 +1063,29 @@ const SAWARI_WORLD = (() => {
       const m = law ? law.m : null;
       for (const t of TARGETS) {
         let v = b[t.k] ?? 0;
-        if (m) for (const s of SOURCES) { const a = m[s.k + '>' + t.k]; if (a) v += a * (ft[s.k] - 0.5) * 2 * t.span; }
-        P[t.k] = clamp(v, t.min, t.max);
+        if (m) for (const s of SOURCES) {
+          const a = m[s.k + '>' + t.k];
+          if (a) v += a * (s.bi ? (ft[s.k] - 0.5) * 2 : ft[s.k]) * t.span;
+        }
+        P[t.k] = v;
       }
+      // the ear: distance, side and what stands in between
+      const e = ft._ear;
+      if (e) { P.vol += e.db; P.pan += e.pan; P.tone += e.tone; }
+      P.rate += (this.ext.bend || 0) * (this.w.circuit.pb || 2);
+      for (const t of TARGETS) P[t.k] = clamp(P[t.k], t.min, t.max);
       P.fin = b.fin; P.fout = b.fout;
+      P.room = ft._room ? ft._room.id : null; P.roomW = ft._roomW || 0;
+      return P;
+    }
+    applyMod(P, m, withStart) {
+      if (!m) return P;
+      if (m.st) P.rate = clamp(P.rate + m.st, -36, 36);
+      if (m.tone) P.tone = clamp(P.tone + m.tone, -1, 1);
+      if (m.verb) P.verb = clamp(P.verb + m.verb, 0, 1);
+      if (m.grain) P.grain = clamp(P.grain + m.grain, 0, 1);
+      if (m.vol) P.vol = clamp(P.vol + m.vol, -60, 12);
+      if (withStart && m.start) P.start = mod(P.start + m.start, 0.95);
       return P;
     }
     // full parameter picture for the inspector (no randomness consumed)
@@ -991,6 +1123,16 @@ const SAWARI_WORLD = (() => {
       }
       return out;
     }
+    carSt(tr, j) {
+      if (tr.chord === 'scatter') return Math.round((hash01(tr.id + ':' + j) * 2 - 1) * 12);
+      const c = CHORDS[tr.chord] || [0];
+      return c[j % c.length] + (j >= c.length ? 12 * Math.floor(j / c.length) * Math.sign(c[c.length - 1] || 1) : 0);
+    }
+    birdSt(fl, i) {
+      if (fl.song === 'off') return 0;
+      if (fl.song === 'wide') return Math.round((hash01(fl.id + 'b' + i) * 2 - 1) * 14);
+      return BIRD_PENTA[i % BIRD_PENTA.length];
+    }
     ripplePeriod(rp) { return Math.max(0.05, rp.sync ? rp.beats * this.beat() : rp.period); }
     rings(rp, T) {
       const per = this.ripplePeriod(rp), life = rp.reach / Math.max(1, rp.speed), out = [];
@@ -1001,6 +1143,8 @@ const SAWARI_WORLD = (() => {
     sweepPeriod(sw) { return Math.max(0.1, sw.sync ? sw.beats * this.beat() : sw.period); }
     sweepAngle(sw, T) { return sw.ang0 + (sw.dir || 1) * TAU * T / this.sweepPeriod(sw); }
     scanPos(sc, T) { const per = this.sweepPeriod(sc); return -sc.w / 2 + sc.w * mod(T / per + (sc.phase || 0), 1); }
+    sweepSt(sw, phi) { const u = mod((sw.dir || 1) * (phi - sw.ang0) / TAU, 1); return quant(u * (sw.range || 0), sw.scale); }
+    scanSt(sc, ly) { const v = clamp(-ly / (sc.h / 2), -1, 1); return quant(v * (sc.range || 0) / 2, sc.scale); }
 
     // ---- flocks ----
     ensureFlock(fl) {
@@ -1009,7 +1153,7 @@ const SAWARI_WORLD = (() => {
       if (!a) { a = []; this.flocks.set(fl.id, a); }
       while (a.length < n) {
         const r = makeRng((hash01(fl.id + a.length) * 4294967296) >>> 0), ang = r() * TAU, d = r() * 60;
-        a.push({ x: fl.x + Math.cos(ang) * d, y: fl.y + Math.sin(ang) * d, vx: Math.cos(ang + 1), vy: Math.sin(ang + 1), turn: 0, ins: new Set(), tgt: null, hx: new Float32Array(HIST), hy: new Float32Array(HIST), sp: 0.8 + r() * 0.4 });
+        a.push({ x: fl.x + Math.cos(ang) * d, y: fl.y + Math.sin(ang) * d, vx: Math.cos(ang + 1), vy: Math.sin(ang + 1), turn: 0, ins: new Set(), tgt: null, hx: new Float32Array(HIST), hy: new Float32Array(HIST), sp: 0.8 + r() * 0.4, v: 0 });
       }
       if (a.length > n) a.length = n;
       return a;
@@ -1023,7 +1167,7 @@ const SAWARI_WORLD = (() => {
       const ags = this.ensureFlock(fl), rng = this.rng, n = ags.length;
       let cx = 0, cy = 0; for (const a of ags) { cx += a.x; cy += a.y; } if (n) { cx /= n; cy /= n; }
       const base = Math.max(5, fl.speed), wander = clamp(fl.wander, 0, 1);
-      for (const a of ags) {
+      ags.forEach((a, ai) => {
         let hx = a.vx, hy = a.vy;
         a.turn = a.turn * 0.94 + (rng() - 0.5) * wander * 0.9 * (0.5 + this.w.chance);
         const ca = Math.cos(a.turn * dt * 8), sa = Math.sin(a.turn * dt * 8);
@@ -1042,7 +1186,7 @@ const SAWARI_WORLD = (() => {
         hx += sx; hy += sy;
         const hn = Math.hypot(hx, hy) || 1; hx /= hn; hy /= hn;
         a.vx = hx; a.vy = hy;
-        const v = base * a.sp;
+        const v = base * a.sp; a.v = v;
         let nx = a.x + hx * v * dt, ny = a.y + hy * v * dt;
         const B = BOUNDS;
         if (nx < B.x0 || nx > B.x1) { a.vx = -a.vx; nx = a.x; }
@@ -1058,8 +1202,8 @@ const SAWARI_WORLD = (() => {
           }
         }
         a.x = nx; a.y = ny;
-        // contacts
         const energy = clamp(v / 260, 0.1, 1);
+        const bmod = { st: this.birdSt(fl, ai), grain: (fl.gran || 0) * 0.7, src: { k: 'flock', id: fl.id, i: ai } };
         for (const f of this.frags) {
           const q = this.poses.get(f.id); if (!q) continue;
           const inside = Math.hypot(q.x - nx, q.y - ny) < q.r;
@@ -1069,19 +1213,21 @@ const SAWARI_WORLD = (() => {
             if (f.mode !== 'tape') {
               let t = T0 + dt;
               if (fl.quant > 0) { const g = fl.quant * this.beat(); t = Math.ceil(t / g - 1e-9) * g; }
-              out.push({ t, id: f.id, energy, via: 'flock', gen: 0 });
+              out.push({ t, id: f.id, energy, via: 'flock', gen: 0, mod: bmod });
             }
           } else if (!inside && had) a.ins.delete(f.id);
-          if (inside && f.mode === 'tape') contacts.push(this.tapeContact(f, q, nx, ny, a.vx * v, a.vy * v, T0 + dt, fl.id + ':' + ags.indexOf(a), energy));
+          if (inside && f.mode === 'tape') contacts.push(this.tapeContact(f, q, nx, ny, a.vx * v, a.vy * v, T0 + dt, fl.id + ':' + ai, energy, { st: bmod.st }));
         }
-      }
+      });
     }
-    tapeContact(f, q, x, y, vx, vy, t, key, energy) {
+    tapeContact(f, q, x, y, vx, vy, t, key, energy, m) {
       const ax = Math.cos(q.ang), ay = Math.sin(q.ang);
       const lx = (x - q.x) * ax + (y - q.y) * ay;
       const along = vx * ax + vy * ay;
-      return { t, id: f.id, key: f.id + '|' + key, pos: clamp((lx + q.r) / (2 * q.r), 0, 1), dir: along < 0 ? -1 : 1, energy, speed: Math.abs(along) };
+      return { t, id: f.id, key: f.id + '|' + key, pos: clamp((lx + q.r) / (2 * q.r), 0, 1), dir: along < 0 ? -1 : 1, energy, speed: Math.abs(along), mod: m || null };
     }
+    // a ring sent out by the live input (or anything outside the world's own clock)
+    addRing(x, y, t, energy = 1, speed = 380, reach = 700) { this.extRings.push({ x, y, t0: t, speed, reach, energy }); }
 
     // ---- one step: returns sound events; tape contacts in this.contacts ----
     step(dt = DT) {
@@ -1090,7 +1236,7 @@ const SAWARI_WORLD = (() => {
       this.updatePoses(T1);
       const live = f => f && this.srcIds.has(f.src);
 
-      // trains
+      // trains: every car plays its own interval
       for (const tr of this.trains) {
         const rail = this.byId.get(tr.rail);
         if (!rail || rail.pts.length < 2) continue;
@@ -1111,22 +1257,21 @@ const SAWARI_WORLD = (() => {
             const u0 = tr.s0 * L + sp * T0 - j * this.carGap() * sg, u1 = u0 + sp * dt;
             for (const tg of targets) {
               const fr = crossFrac(u0, u1, tg, Pd);
-              if (fr >= 0) raw.push({ t: T0 + fr * dt, id: f.id, energy: clamp(Math.abs(sp) / 300, 0.15, 1) * (1 - 0.5 * pr.d / (tr.reach + q.r)), via: 'train', gen: 0, car: j });
+              if (fr >= 0) raw.push({ t: T0 + fr * dt, id: f.id, energy: clamp(Math.abs(sp) / 300, 0.15, 1) * (1 - 0.5 * pr.d / (tr.reach + q.r)), via: 'train', gen: 0, mod: { st: this.carSt(tr, j), src: { k: 'train', id: tr.id, car: j } } });
             }
           }
         }
-        // tape: cars passing over tape fragments read them
         const cars = this.trainCars(tr, T1);
         for (let j = 0; j < cars.length; j++) {
           const c = cars[j], vx = Math.cos(c.ang) * Math.abs(sp), vy = Math.sin(c.ang) * Math.abs(sp);
           for (const f of this.frags) {
             if (f.mode !== 'tape' || !live(f)) continue;
             const q = this.poses.get(f.id);
-            if (Math.hypot(q.x - c.x, q.y - c.y) < q.r) contacts.push(this.tapeContact(f, q, c.x, c.y, vx, vy, T1, tr.id + ':' + j, clamp(Math.abs(sp) / 300, 0.15, 1)));
+            if (Math.hypot(q.x - c.x, q.y - c.y) < q.r) contacts.push(this.tapeContact(f, q, c.x, c.y, vx, vy, T1, tr.id + ':' + j, clamp(Math.abs(sp) / 300, 0.15, 1), { st: this.carSt(tr, j) }));
           }
         }
       }
-      // ripples
+      // ripples: farther = later, darker and wetter; each ring reads a little further in
       for (const rp of this.ripples) {
         const per = this.ripplePeriod(rp), life = rp.reach / Math.max(1, rp.speed);
         const k0 = Math.max(0, Math.ceil((T0 - life) / per - rp.phase - 1)), k1 = Math.floor(T1 / per - rp.phase);
@@ -1137,11 +1282,25 @@ const SAWARI_WORLD = (() => {
             const q = this.poses.get(f.id), d = Math.max(0, Math.hypot(q.x - rp.x, q.y - rp.y) - q.r * 0.7);
             if (d > rp.reach) continue;
             const th = tk + d / rp.speed;
-            if (th > T0 && th <= T1) raw.push({ t: th, id: f.id, energy: clamp(1 - d / rp.reach, 0.12, 1), via: 'ripple', gen: 0 });
+            if (th > T0 && th <= T1) {
+              const dd = d / rp.reach;
+              raw.push({ t: th, id: f.id, energy: clamp(1 - dd, 0.12, 1), via: 'ripple', gen: 0, mod: { tone: -(rp.dark || 0) * dd * 0.9, verb: (rp.dark || 0) * dd * 0.4, start: rp.adv ? mod(k * rp.adv * 0.618, 1) : 0 } });
+            }
           }
         }
       }
-      // radar sweeps
+      // input rings
+      if (this.extRings.length) {
+        for (const ring of this.extRings) for (const f of this.frags) {
+          if (!live(f)) continue;
+          const q = this.poses.get(f.id), d = Math.max(0, Math.hypot(q.x - ring.x, q.y - ring.y) - q.r * 0.7);
+          if (d > ring.reach) continue;
+          const th = ring.t0 + d / ring.speed;
+          if (th > T0 && th <= T1) raw.push({ t: th, id: f.id, energy: clamp(ring.energy * (1 - d / ring.reach), 0.12, 1), via: 'input', gen: 0, mod: { tone: -0.5 * d / ring.reach } });
+        }
+        this.extRings = this.extRings.filter(r => (T1 - r.t0) * r.speed <= r.reach);
+      }
+      // radar sweeps: the angle where the hand meets a fragment is its pitch
       for (const sw of this.sweeps) {
         const per = this.sweepPeriod(sw), dir = sw.dir || 1;
         for (const f of this.frags) {
@@ -1151,10 +1310,10 @@ const SAWARI_WORLD = (() => {
           const phi = Math.atan2(q.y - sw.y, q.x - sw.x);
           const base = dir * (sw.ang0 - phi) / TAU;
           const u0 = base + T0 / per, u1 = base + T1 / per;
-          if (Math.floor(u1) > Math.floor(u0)) raw.push({ t: T0 + (Math.floor(u1) - u0) / (u1 - u0) * dt, id: f.id, energy: clamp(1 - 0.6 * d / sw.r, 0.2, 1), via: 'sweep', gen: 0 });
+          if (Math.floor(u1) > Math.floor(u0)) raw.push({ t: T0 + (Math.floor(u1) - u0) / (u1 - u0) * dt, id: f.id, energy: clamp(1 - 0.6 * d / sw.r, 0.2, 1), via: 'sweep', gen: 0, mod: { st: this.sweepSt(sw, phi) } });
         }
       }
-      // line scans
+      // line scans: across is time, up and down is pitch (a score you can walk into)
       for (const sc of this.scans) {
         const per = this.sweepPeriod(sc), ca = Math.cos(-sc.ang), sa = Math.sin(-sc.ang);
         for (const f of this.frags) {
@@ -1164,7 +1323,7 @@ const SAWARI_WORLD = (() => {
           if (Math.abs(ly) > sc.h / 2 + q.r * 0.3 || Math.abs(lx) > sc.w / 2) continue;
           const off = (lx + sc.w / 2) / sc.w;
           const u0 = T0 / per + (sc.phase || 0) - off, u1 = T1 / per + (sc.phase || 0) - off;
-          if (Math.floor(u1) > Math.floor(u0)) raw.push({ t: T0 + (Math.floor(u1) - u0) / (u1 - u0) * dt, id: f.id, energy: 0.6, via: 'scan', gen: 0 });
+          if (Math.floor(u1) > Math.floor(u0)) raw.push({ t: T0 + (Math.floor(u1) - u0) / (u1 - u0) * dt, id: f.id, energy: 0.6, via: 'scan', gen: 0, mod: { st: this.scanSt(sc, ly) } });
         }
       }
       // flocks
@@ -1188,7 +1347,7 @@ const SAWARI_WORLD = (() => {
         const f = this.byId.get(c.id); if (!f) continue;
         const save = this.rng.get();
         const ft = this.features(f, this.poses.get(f.id), c.energy, false); this.rng.set(save);
-        c.P = this.resolve(f, ft); c.room = ft._room ? ft._room.id : null;
+        c.P = this.applyMod(this.resolve(f, ft), c.mod, false); c.room = c.P.room;
         this.contacts.push(c);
       }
       return out;
@@ -1202,21 +1361,55 @@ const SAWARI_WORLD = (() => {
       this.last.set(f.id, r.t);
       const q = this.poses.get(f.id) || this.pose(f, r.t, true);
       const ft = this.features(f, q, r.energy, true);
-      const P = this.resolve(f, ft);
+      const m = r.mod || {};
+      const P = this.applyMod(this.resolve(f, ft), m, true);
+      P.rate = clamp(P.rate + this.bend(m.src, f.id, this.T), -36, 36);
       const sounds = this.rng() < P.prob;
-      const e = { t: r.t, id: f.id, P, energy: r.energy, via: r.via, gen: r.gen || 0, room: ft._room ? ft._room.id : null, silent: !sounds, loop: f.mode === 'loop', from: r.from || null };
+      const e = { t: r.t, id: f.id, P, energy: r.energy, via: r.via, gen: r.gen || 0, room: P.room, silent: !sounds, loop: f.mode === 'loop', from: r.from || null, mod: m, src: m.src || null, ch: ft.chance };
       if (sounds) {
         if (f.mut > 0 && this.rng() < f.mut * 0.3 * (0.4 + this.w.chance)) this.mutate(f);
         const ths = this.threadsFrom.get(f.id);
         if (ths && e.gen < 24) for (const th of ths) {
           if (this.rng() >= th.prob) continue;
           const b = this.byId.get(th.b); if (!b) continue;
-          const qa = q, qb = this.poses.get(th.b) || b;
-          const delay = th.sync ? Math.max(0.02, th.beats * this.beat()) : Math.max(0.02, Math.hypot(qb.x - qa.x, qb.y - qa.y) / Math.max(20, this.w.threadSpeed) * (th.mul || 1));
-          this.queue.push({ t: r.t + delay, id: th.b, energy: r.energy * 0.92, via: 'thread', gen: e.gen + 1, from: f.id, t0: r.t, th: th.id });
+          const qb = this.poses.get(th.b) || b;
+          const delay = th.sync ? Math.max(0.02, th.beats * this.beat()) : Math.max(0.02, Math.hypot(qb.x - q.x, qb.y - q.y) / Math.max(20, this.w.threadSpeed) * (th.mul || 1));
+          this.queue.push({ t: r.t + delay, id: th.b, energy: r.energy * 0.92, via: 'thread', gen: e.gen + 1, from: f.id, t0: r.t, th: th.id, mod: { st: wrapSt((m.st || 0) + (th.step || 0)) } });
         }
       }
       return e;
+    }
+    // continuous pitch bend of a sounding voice: the train (or bird) that set it off
+    // hears it rise while approaching and fall away while leaving
+    bend(src, fragId, T) {
+      if (!src) return 0;
+      const q = this.poses.get(fragId); if (!q) return 0;
+      let x, y, vx, vy, c;
+      if (src.k === 'train') {
+        const tr = this.byId.get(src.id); if (!tr || !(tr.doppler > 0)) return 0;
+        const a = this.trainCars(tr, T)[src.car], b = this.trainCars(tr, T - 0.02)[src.car];
+        if (!a || !b) return 0;
+        x = a.x; y = a.y; vx = (a.x - b.x) / 0.02; vy = (a.y - b.y) / 0.02; c = 2600 * Math.pow(230 / 2600, tr.doppler);
+      } else if (src.k === 'flock') {
+        const ag = (this.flocks.get(src.id) || [])[src.i]; if (!ag) return 0;
+        x = ag.x; y = ag.y; vx = ag.vx * ag.v; vy = ag.vy * ag.v; c = 700;
+      } else return 0;
+      const dx = q.x - x, dy = q.y - y, d = Math.hypot(dx, dy) || 1;
+      const vr = (vx * dx + vy * dy) / d;     // > 0: moving toward the fragment
+      return clamp(12 * Math.log2(Math.max(0.25, (c + vr) / c)), -12, 12);
+    }
+    // parameters for a voice that is already sounding, as the world is now
+    liveP(v) {
+      const f = this.byId.get(v.id);
+      if (!f || (f.kind !== 'frag' && f.kind !== 'input')) return null;
+      const q = this.poses.get(f.id) || this.pose(f, this.T, true);
+      const save = this.rng.get();
+      const ft = this.features(f, q, v.energy ?? 0.5, false);
+      this.rng.set(save);
+      if (v.chance != null) ft.chance = v.chance;
+      const P = this.applyMod(this.resolve(f, ft), v.mod, false);
+      P.rate = clamp(P.rate + this.bend(v.src, f.id, this.T), -36, 36);
+      return P;
     }
     mutate(f) {
       const r = this.rng, c = 0.5 + this.w.chance;
@@ -1228,12 +1421,12 @@ const SAWARI_WORLD = (() => {
       else f.r = clamp(Math.round(f.r * (0.85 + r() * 0.3)), 10, 200);
       this.mutated = (this.mutated || 0) + 1;
     }
-    // a direct touch from the person; t is world time
-    manual(id, energy, t) {
+    // a direct touch (pointer, key, MIDI); t is world time
+    manual(id, energy, t, m) {
       const f = this.byId.get(id);
       if (!f || f.kind !== 'frag') return null;
       const keepT = this.T; this.T = t;
-      const e = this.fire({ t, id, energy, via: 'touch', gen: 0 });
+      const e = this.fire({ t, id, energy, via: 'touch', gen: 0, mod: m });
       this.T = keepT;
       return e;
     }
@@ -1243,10 +1436,10 @@ const SAWARI_WORLD = (() => {
       const sp = Math.hypot(vx, vy);
       const c = this.tapeContact(f, q, x, y, vx, vy, t, 'touch', clamp(sp / 600, 0.15, 1));
       const save = this.rng.get(); const ft = this.features(f, q, c.energy, false); this.rng.set(save);
-      c.P = this.resolve(f, ft); c.room = ft._room ? ft._room.id : null;
+      c.P = this.resolve(f, ft); c.room = c.P.room;
       return c;
     }
-    // continuous voices: every loop fragment with its current parameters
+    // continuous voices: every loop fragment and live input with its current parameters
     loopStates() {
       const out = [];
       const save = this.rng.get();
@@ -1258,9 +1451,19 @@ const SAWARI_WORLD = (() => {
       this.rng.set(save);
       return out;
     }
+    inputStates() {
+      const out = [];
+      const save = this.rng.get();
+      for (const o of this.inputs) {
+        const ft = this.features(o, this.poses.get(o.id) || o, 0.5, false);
+        out.push({ id: o.id, o, P: this.resolve(o, ft) });
+      }
+      this.rng.set(save);
+      return out;
+    }
   }
 
-  return { BOUNDS, DT, HIST, SOURCES, TARGETS, TMAP, SKINS, SKMAP, TEXTURES, GLYPHS, FX, FX_ORDER, newFx, baseParams, randomSkin, shapeValue, defaultLaws, randomLaw, newFrag, newThing, newRail, newTrain, newRipple, newSweep, newScan, newFlock, newRoom, newThread, newWorld, Sim, crossFrac };
+  return { BOUNDS, DT, HIST, SOURCES, SMAP, TARGETS, TMAP, SCALES, SCALE_L, CHORDS, CHORD_L, quant, SKINS, SKMAP, TEXTURES, GLYPHS, FX, FX_ORDER, newFx, baseParams, randomSkin, shapeValue, defaultLaws, randomLaw, newFrag, newThing, newRail, newTrain, newRipple, newSweep, newScan, newFlock, newRoom, newThread, newInput, newWorld, normalize, Sim, crossFrac };
 })();
 if (typeof module === 'object' && module.exports) module.exports = SAWARI_WORLD;
 
@@ -1273,7 +1476,7 @@ const SAWARI_AUDIO = (() => {
   const { clamp, lerp } = C;
   const HANN = (() => { const n = 64, a = new Float32Array(n); for (let i = 0; i < n; i++) a[i] = Math.sin(Math.PI * i / (n - 1)) ** 2; return a; })();
   const dbg = db => Math.pow(10, db / 20);
-  const MAX_VOICES = 90;
+  const MAX_VOICES = 64;
 
   // decaying, darkening stereo noise; seeded so exports repeat exactly
   function makeIR(ctx, size, damp, seed) {
@@ -1382,7 +1585,7 @@ const SAWARI_AUDIO = (() => {
       this.ctx = ctx; this.w = world; this.offline = !!opts.offline;
       this.srcs = opts.srcs || new Map();
       this.rng = C.makeRng(((world.seed || 1) ^ 0x51ed27) >>> 0);
-      this.rooms = new Map(); this.loops = new Map(); this.tapes = new Map(); this.streams = []; this.live = new Set();
+      this.rooms = new Map(); this.loops = new Map(); this.tapes = new Map(); this.inputs = new Map(); this.voices = [];
       this.find = opts.find || (id => this.w.objs.find(o => o.id === id));
       const c = ctx;
       this.out = c.createGain(); this.out.gain.value = world.master.vol;
@@ -1424,63 +1627,49 @@ const SAWARI_AUDIO = (() => {
       }
       for (const [id, r] of this.rooms) if (!seen.has(id)) { r.dispose(); this.rooms.delete(id); }
     }
-    dest(roomId) { const r = roomId && this.rooms.get(roomId); return r ? r.in : this.dry; }
+    load() { let n = 0; for (const v of this.voices) if (!v.dead) n++; return n + this.loops.size + this.tapes.size; }
 
-    // ---- per-voice chains ----
-    // one-shots: only the nodes a voice needs
-    chain(P, dest) {
+    // ---- a voice chain: every stage present, so a sounding voice can glide anywhere ----
+    // env -> (dry | drive) -> lowpass -> highpass -> pan -> vol -> {world, room} + sends
+    chain(P, at) {
       const c = this.ctx, nodes = [];
-      const env = c.createGain(); env.gain.value = 0; nodes.push(env);
-      let n = env;
-      if (P.drive > 0.02) { const sh = c.createWaveShaper(); sh.curve = driveCurve(P.drive); sh.oversample = '2x'; n.connect(sh); n = sh; nodes.push(sh); }
-      if (Math.abs(P.tone) > 0.02) {
-        const bq = c.createBiquadFilter();
-        if (P.tone < 0) { bq.type = 'lowpass'; bq.frequency.value = clamp(18000 * 2 ** (P.tone * 7.2), 60, 20000); }
-        else { bq.type = 'highpass'; bq.frequency.value = clamp(25 * 2 ** (P.tone * 8.2), 20, 12000); }
-        bq.Q.value = 0.85; n.connect(bq); n = bq; nodes.push(bq);
-      }
-      if (c.createStereoPanner) { const p = c.createStereoPanner(); p.pan.value = clamp(P.pan, -1, 1); n.connect(p); n = p; nodes.push(p); }
-      const vol = c.createGain(); vol.gain.value = dbg(P.vol) / (1 + P.drive * 1.5); n.connect(vol); nodes.push(vol);
-      vol.connect(dest);
-      if (P.dly > 0.01) { const s = c.createGain(); s.gain.value = P.dly; vol.connect(s); s.connect(this.dIn); nodes.push(s); }
-      if (P.verb > 0.01) { const s = c.createGain(); s.gain.value = P.verb; vol.connect(s); s.connect(this.vIn); nodes.push(s); }
-      return { env, nodes, dispose() { for (const x of nodes) { try { x.disconnect(); } catch (e) {} } } };
-    }
-    // continuous voices (loops, tape readers): every stage present so it can glide
-    contChain(dest, at) {
-      const c = this.ctx, nodes = [];
-      const mk = (n) => { nodes.push(n); return n; };
+      const mk = n => { nodes.push(n); return n; };
       const env = mk(c.createGain()); env.gain.value = 0;
       const dryG = mk(c.createGain()), wetG = mk(c.createGain()), sh = mk(c.createWaveShaper()), sum = mk(c.createGain());
-      sh.curve = driveCurve(0.6); wetG.gain.value = 0;
+      sh.curve = driveCurve(0.6);
       env.connect(dryG); dryG.connect(sum); env.connect(sh); sh.connect(wetG); wetG.connect(sum);
       const lp = mk(c.createBiquadFilter()), hp = mk(c.createBiquadFilter());
-      lp.type = 'lowpass'; lp.frequency.value = 20000; hp.type = 'highpass'; hp.frequency.value = 10;
+      lp.type = 'lowpass'; hp.type = 'highpass'; lp.Q.value = 0.8; hp.Q.value = 0.7;
       sum.connect(lp); lp.connect(hp);
       let n = hp, pan = null;
       if (c.createStereoPanner) { pan = mk(c.createStereoPanner()); n.connect(pan); n = pan; }
       const vol = mk(c.createGain()); n.connect(vol);
-      const sd = mk(c.createGain()), sv = mk(c.createGain()); sd.gain.value = 0; sv.gain.value = 0;
+      const sd = mk(c.createGain()), sv = mk(c.createGain());
       vol.connect(sd); sd.connect(this.dIn); vol.connect(sv); sv.connect(this.vIn);
-      const route = mk(c.createGain()); vol.connect(route); route.connect(dest);
-      const ch = { env, vol, dryG, wetG, lp, hp, pan, sd, sv, route, dest, nodes, extra: [] };
-      ch.set = (P, t, tc = 0.04) => {
-        const tone = P.tone;
-        lp.frequency.setTargetAtTime(tone < 0 ? clamp(18000 * 2 ** (tone * 7.2), 60, 20000) : 20000, t, tc);
-        hp.frequency.setTargetAtTime(tone > 0 ? clamp(25 * 2 ** (tone * 8.2), 20, 12000) : 10, t, tc);
-        dryG.gain.setTargetAtTime(1 - P.drive, t, tc); wetG.gain.setTargetAtTime(P.drive, t, tc);
-        if (pan) pan.pan.setTargetAtTime(clamp(P.pan, -1, 1), t, tc);
-        vol.gain.setTargetAtTime(dbg(P.vol) / (1 + P.drive * 1.5), t, tc);
-        sd.gain.setTargetAtTime(P.dly, t, tc); sv.gain.setTargetAtTime(P.verb, t, tc);
+      const dryR = mk(c.createGain()); vol.connect(dryR); dryR.connect(this.dry);
+      const ch = { env, vol, lp, hp, pan, nodes, wet: null, wetDest: null };
+      const lpF = tone => (tone < 0 ? clamp(18000 * 2 ** (tone * 7.2), 60, 20000) : 20000);
+      const hpF = tone => (tone > 0 ? clamp(25 * 2 ** (tone * 8.2), 20, 12000) : 10);
+      ch.set = (P, t, tc, first) => {
+        const vals = [[lp.frequency, lpF(P.tone)], [hp.frequency, hpF(P.tone)], [dryG.gain, 1 - P.drive], [wetG.gain, P.drive],
+          [vol.gain, dbg(P.vol) / (1 + P.drive * 1.5)], [sd.gain, P.dly], [sv.gain, P.verb]];
+        if (pan) vals.push([pan.pan, clamp(P.pan, -1, 1)]);
+        for (const [prm, v] of vals) { if (first) prm.value = v; else prm.setTargetAtTime(v, t, tc); }
       };
-      ch.reroute = (d, t) => {
-        if (d === ch.dest) return;
-        const r2 = c.createGain(); r2.gain.value = 0; vol.connect(r2); r2.connect(d); r2.gain.setTargetAtTime(1, t, 0.03);
-        const old = ch.route; old.gain.setTargetAtTime(0, t, 0.03);
-        if (!this.offline) setTimeout(() => { try { old.disconnect(); } catch (e) {} }, 400);
-        ch.route = r2; ch.dest = d; nodes.push(r2);
+      ch.route = (roomId, w, t, first) => {
+        const r = roomId && this.rooms.get(roomId), rin = r ? r.in : null;
+        if (!rin) w = 0;
+        if (rin !== ch.wetDest) {
+          if (ch.wet) { const old = ch.wet; old.gain.setTargetAtTime(0, t, 0.03); if (!this.offline) setTimeout(() => { try { old.disconnect(); } catch (e) {} }, 500); }
+          ch.wet = null; ch.wetDest = rin;
+          if (rin) { const g = c.createGain(); g.gain.value = first ? w : 0; vol.connect(g); g.connect(rin); nodes.push(g); ch.wet = g; }
+        }
+        if (first) { dryR.gain.value = 1 - w; if (ch.wet) ch.wet.gain.value = w; }
+        else { dryR.gain.setTargetAtTime(1 - w, t, 0.04); if (ch.wet) ch.wet.gain.setTargetAtTime(w, t, 0.04); }
       };
-      ch.dispose = () => { for (const x of nodes) { try { x.disconnect(); } catch (e) {} } for (const x of ch.extra) { try { x.disconnect(); } catch (e) {} } };
+      ch.dispose = () => { for (const x of nodes) { try { x.disconnect(); } catch (e) {} } };
+      ch.set(P, at, 0.03, true);
+      ch.route(P.room, P.roomW || 0, at, true);
       return ch;
     }
     // region in buffer seconds for parameters P
@@ -1504,6 +1693,11 @@ const SAWARI_AUDIO = (() => {
       s.start(t, off, gdur);
       if (!this.offline) s.onended = () => { try { g.disconnect(); } catch (e) {} };
     }
+    grainShape(v, P) {
+      const gr = P.grain;
+      v.readRate = 2 ** (P.rate / 12) / 2 ** P.stretch; v.pitchRate = 2 ** ((P.rate + P.pitch) / 12);
+      v.size = lerp(0.085, 0.04, gr); v.hop = v.size * lerp(0.5, 2.4, gr); v.spray = P.spray * (0.3 + gr);
+    }
 
     // ---- events ----
     handle(ev, at) {
@@ -1517,31 +1711,58 @@ const SAWARI_AUDIO = (() => {
       if (!this.offline && at < this.ctx.currentTime - 0.05) return; // stale after a stall
       at = Math.max(at, this.offline ? 0 : this.ctx.currentTime);
       if (ev.loop) { const lp = this.loops.get(f.id); if (lp) { lp.restart(at); return; } }
-      if (this.load() > MAX_VOICES) return;
+      if (this.load() >= MAX_VOICES) this.steal(at);
       const { a, len } = this.region(f, src, P);
-      const rev = P.rev > 0.5;
-      const rate = 2 ** (P.rate / 12);
+      const rev = P.rev > 0.5, rate = 2 ** (P.rate / 12);
       const grainy = P.grain > 0.03 || Math.abs(P.pitch) > 0.05 || Math.abs(P.stretch) > 0.03;
-      const dest = this.dest(ev.room);
-      const ch = this.chain(P, dest);
+      const ch = this.chain(P, at);
+      const v = { id: f.id, ch, at, mod: ev.mod, src: ev.src, energy: ev.energy, chance: ev.ch, kind: grainy ? 'grain' : 'plain', len, fin: clamp(P.fin / 1000, 0.002, 2), fout: clamp(P.fout / 1000, 0.003, 2) };
+      const g = ch.env.gain;
       if (!grainy) {
         const s = this.ctx.createBufferSource();
         s.buffer = rev ? src.rev : src.buf; s.playbackRate.value = rate;
         const off = rev ? Math.max(0, src.dur - (a + len)) : a, D = len / rate;
-        const fin = clamp(P.fin / 1000, 0.002, D * 0.5), fout = clamp(P.fout / 1000, 0.003, D * 0.5);
-        const g = ch.env.gain;
-        g.setValueAtTime(0, at); g.linearRampToValueAtTime(1, at + fin); g.setValueAtTime(1, at + D - fout); g.linearRampToValueAtTime(0, at + D);
-        s.connect(ch.env); s.start(at, off, len); s.stop(at + D + 0.02);
-        const rec = { s, ch, t: at, end: at + D };
-        if (!this.offline) { this.live.add(rec); s.onended = () => { this.live.delete(rec); ch.dispose(); }; }
+        v.fin = Math.min(v.fin, D * 0.5); v.fout = Math.min(v.fout, D * 0.5);
+        g.setValueAtTime(0, at); g.linearRampToValueAtTime(1, at + v.fin); g.setValueAtTime(1, at + D - v.fout); g.linearRampToValueAtTime(0, at + D);
+        s.connect(ch.env); s.start(at, off, len); s.stop(at + len / 0.05);
+        Object.assign(v, { s, rate, pos: 0, lastT: at, endT: at + D, fadeT: at + D - v.fout });
       } else {
-        const readRate = rate / 2 ** P.stretch, pitchRate = 2 ** ((P.rate + P.pitch) / 12);
-        const D = len / readRate, gr = P.grain;
-        const size = lerp(0.085, 0.04, gr), hop = size * lerp(0.5, 2.4, gr);
-        const fin = clamp(P.fin / 1000, 0.003, D * 0.5), fout = clamp(P.fout / 1000, 0.005, D * 0.5);
-        const g = ch.env.gain;
-        g.setValueAtTime(0, at); g.linearRampToValueAtTime(1, at + fin); g.setValueAtTime(1, at + D - fout + size); g.linearRampToValueAtTime(0, at + D + size);
-        this.streams.push({ t0: at, t1: at + D, next: at, src, a, len, readRate, pitchRate, rev, size, hop, spray: P.spray * (0.3 + gr), ch, kind: 'once' });
+        g.setValueAtTime(0, at); g.linearRampToValueAtTime(1, at + Math.max(0.003, v.fin));
+        Object.assign(v, { srcRec: src, a, rev, prog: 0, next: at, endT: Infinity });
+        this.grainShape(v, P);
+      }
+      this.voices.push(v);
+    }
+    steal(at) {
+      const v = this.voices.find(x => !x.dead);
+      if (!v) return;
+      this.kill(v, at, 0.02);
+    }
+    kill(v, at, tc = 0.015) {
+      v.dead = true; v.endT = Math.min(v.endT, at + 0.1);
+      try { v.ch.env.gain.cancelScheduledValues(at); v.ch.env.gain.setTargetAtTime(0, at, tc); if (v.s) v.s.stop(at + 0.1); } catch (e) {}
+    }
+    // every sounding voice follows its fragment as the world is now (~30 times a second)
+    controlVoices(at, getP) {
+      for (const v of this.voices) {
+        if (v.dead || at < v.at + 0.005) continue;
+        if (v.kind === 'grain' && v.prog >= v.len) continue;
+        const P = getP(v); if (!P) continue;
+        v.ch.set(P, at, 0.05); v.ch.route(P.room, P.roomW || 0, at);
+        if (v.kind === 'plain') {
+          v.pos += Math.max(0, at - v.lastT) * v.rate; v.lastT = at;
+          const r1 = 2 ** (P.rate / 12);
+          if (Math.abs(r1 / v.rate - 1) > 0.002 && v.pos < v.len) {
+            v.s.playbackRate.setTargetAtTime(r1, at, 0.03); v.rate = r1;
+            const end = at + Math.max(0, v.len - v.pos) / r1;
+            if (at >= v.at + v.fin + 0.004 && at < v.fadeT - 0.004) {
+              const g = v.ch.env.gain, fs = Math.max(at + 0.002, end - v.fout);
+              g.cancelScheduledValues(at); g.setValueAtTime(1, at); g.setValueAtTime(1, fs); g.linearRampToValueAtTime(0, Math.max(fs + 0.003, end));
+              v.fadeT = fs;
+            }
+            v.endT = end;
+          }
+        } else this.grainShape(v, P);
       }
     }
     // tape: a reader inside a fragment plays grains at its position
@@ -1550,16 +1771,14 @@ const SAWARI_AUDIO = (() => {
       const src = this.srcs.get(f.src); if (!src) return;
       at = Math.max(at, this.offline ? 0 : this.ctx.currentTime);
       let v = this.tapes.get(c.key);
-      const dest = this.dest(c.room);
       if (!v) {
-        if (this.load() > MAX_VOICES) return;
-        v = { ch: this.contChain(dest, at), next: at, last: at, f };
+        if (this.load() >= MAX_VOICES) this.steal(at);
+        v = { ch: this.chain(c.P, at), next: at, last: at, f, pos: c.pos };
         v.ch.env.gain.setTargetAtTime(1, at, 0.01);
         this.tapes.set(c.key, v);
       }
-      v.last = at;
-      v.ch.set(c.P, at);
-      v.ch.reroute(dest, at);
+      v.last = at; v.pos = c.pos;
+      v.ch.set(c.P, at, 0.03); v.ch.route(c.P.room, c.P.roomW || 0, at);
       if (at + 1e-4 >= v.next) {
         const P = c.P, A = clamp(f.a, 0, src.dur), B = clamp(f.b, A + 0.005, src.dur);
         const pitchRate = 2 ** ((P.rate + P.pitch) / 12), gr = P.grain;
@@ -1583,46 +1802,87 @@ const SAWARI_AUDIO = (() => {
       }
       for (const [id, lp] of this.loops) if (!seen.has(id)) { lp.stop(at); this.loops.delete(id); }
     }
+    // live input from an audio interface or microphone
+    attachInput(stream) {
+      this.detachInput();
+      const c = this.ctx, src = c.createMediaStreamSource(stream), sp = c.createChannelSplitter(2);
+      const L = c.createGain(), R = c.createGain(), M = c.createGain(), an = c.createAnalyser();
+      an.fftSize = 1024; an.smoothingTimeConstant = 0;
+      src.connect(sp); sp.connect(L, 0); sp.connect(R, 1); src.connect(M); M.connect(an);
+      this.inp = { stream, src, sp, L, R, M, an };
+      return this.inp;
+    }
+    detachInput() {
+      if (!this.inp) return;
+      for (const v of this.inputs.values()) v.stop(this.ctx.currentTime);
+      this.inputs.clear();
+      for (const k of ['src', 'sp', 'L', 'R', 'M', 'an']) try { this.inp[k].disconnect(); } catch (e) {}
+      this.inp = null;
+    }
+    controlInputs(states, at) {
+      if (!this.inp) return;
+      const seen = new Set();
+      for (const s of states) {
+        seen.add(s.id);
+        let v = this.inputs.get(s.id);
+        if (!v) { v = new InputVoice(this, s, at); this.inputs.set(s.id, v); }
+        v.update(s, at);
+      }
+      for (const [id, v] of this.inputs) if (!seen.has(id)) { v.stop(at); this.inputs.delete(id); }
+    }
     // schedule grains up to `until`; retire finished voices
     advance(until) {
-      const keep = [];
-      for (const st of this.streams) {
-        while (!st.dead && st.next < until && st.next < st.t1) {
-          const prog = (st.next - st.t0) * st.readRate, gdur = st.size * st.pitchRate;
-          let pos = st.rev ? st.a + st.len - prog - gdur : st.a + prog;
-          pos += (this.rng() - 0.5) * st.spray * (0.03 + st.len * 0.35);
-          this.grain(st.next, st.src, pos, gdur, st.pitchRate, st.rev, st.ch.env);
-          st.next += st.hop * (1 + (this.rng() - 0.5) * st.spray * 0.9);
+      const now = this.offline ? until : this.ctx.currentTime;
+      for (const v of this.voices) {
+        if (v.kind !== 'grain' || v.dead) continue;
+        while (v.next < until && v.prog < v.len) {
+          const gdur = v.size * v.pitchRate;
+          let pos = v.rev ? v.a + v.len - v.prog - gdur : v.a + v.prog;
+          pos += (this.rng() - 0.5) * v.spray * (0.03 + v.len * 0.35);
+          this.grain(v.next, v.srcRec, pos, gdur, v.pitchRate, v.rev, v.ch.env);
+          const h = v.hop * (1 + (this.rng() - 0.5) * v.spray * 0.9);
+          v.prog += h * v.readRate; v.next += h;
         }
-        if (st.next >= st.t1 || st.dead) {
-          if (!this.offline) { const ch = st.ch, ms = Math.max(0, (st.t1 - this.ctx.currentTime) * 1000) + 600; setTimeout(() => ch.dispose(), ms); }
-        } else keep.push(st);
+        if (v.prog >= v.len && v.endT === Infinity) {
+          const t = Math.max(v.at + v.fin, v.next);
+          v.ch.env.gain.setTargetAtTime(0, t, Math.max(0.005, v.fout / 3));
+          v.endT = t + v.size + v.fout * 2;
+        }
       }
-      this.streams = keep;
+      const keep = [];
+      for (const v of this.voices) {
+        if (v.endT < now - (this.offline ? 1 : 0.3)) { if (!this.offline) v.ch.dispose(); }
+        else keep.push(v);
+      }
+      this.voices = keep;
       for (const lp of this.loops.values()) lp.advance(until);
-      if (!this.offline) {
-        const now = this.ctx.currentTime;
-        for (const [k, v] of this.tapes) if (v.last < now - 0.25) {
-          v.ch.env.gain.setTargetAtTime(0, Math.max(now, v.last + 0.1), 0.03);
-          const ch = v.ch; setTimeout(() => ch.dispose(), 600);
-          this.tapes.delete(k);
-        }
-      } else {
-        for (const [k, v] of this.tapes) if (v.last < until - 0.35) { v.ch.env.gain.setTargetAtTime(0, v.last + 0.1, 0.03); this.tapes.delete(k); }
+      for (const [k, v] of this.tapes) if (v.last < (this.offline ? until - 0.35 : now - 0.25)) {
+        v.ch.env.gain.setTargetAtTime(0, Math.max(now, v.last + 0.1), 0.03);
+        if (!this.offline) { const ch = v.ch; setTimeout(() => ch.dispose(), 600); }
+        this.tapes.delete(k);
       }
     }
     // pause/stop: silence everything that is running or already scheduled
     hush(at) {
       at = at ?? this.ctx.currentTime;
-      for (const r of this.live) { try { r.ch.env.gain.cancelScheduledValues(at); r.ch.env.gain.setTargetAtTime(0, at, 0.015); r.s.stop(at + 0.08); } catch (e) {} }
-      for (const st of this.streams) { st.dead = true; try { st.ch.env.gain.cancelScheduledValues(at); st.ch.env.gain.setTargetAtTime(0, at, 0.015); } catch (e) {} }
-      this.advance(at);
+      for (const v of this.voices) this.kill(v, at);
       for (const lp of this.loops.values()) lp.stop(at);
       this.loops.clear();
       for (const v of this.tapes.values()) { v.ch.env.gain.setTargetAtTime(0, at, 0.02); const ch = v.ch; if (!this.offline) setTimeout(() => ch.dispose(), 500); }
       this.tapes.clear();
     }
-    load() { return this.live.size + this.streams.length + this.tapes.size; }
+    // what is sounding now, for drawing: progress through each fragment
+    sounding(now) {
+      const out = [];
+      for (const v of this.voices) {
+        if (v.at > now || v.dead || v.endT < now) continue;
+        const prog = v.kind === 'plain' ? (v.pos + Math.max(0, now - v.lastT) * v.rate) / v.len : v.prog / v.len;
+        out.push({ id: v.id, prog: clamp(prog, 0, 1), rate: v.kind === 'plain' ? v.rate : v.pitchRate });
+      }
+      for (const [id, lp] of this.loops) if (lp.region) out.push({ id, prog: lp.ph / Math.max(1e-3, lp.region.b - lp.region.a), rate: 2 ** (lp.P.rate / 12), loop: true });
+      for (const v of this.tapes.values()) out.push({ id: v.f.id, prog: v.pos, rate: 1, tape: true });
+      return out;
+    }
     // preview a stretch of a source directly (inspector, library)
     audition(src, a, b, rev) {
       const c = this.ctx, s = c.createBufferSource(), g = c.createGain(), t = c.currentTime + 0.01, len = Math.max(0.01, b - a);
@@ -1641,11 +1901,12 @@ const SAWARI_AUDIO = (() => {
   class Loop {
     constructor(eng, s, src, at) {
       this.e = eng; this.src = src; this.id = s.id;
-      this.ch = eng.contChain(eng.dest(s.room), at);
+      const P = { ...s.P, room: s.P.room, roomW: s.P.roomW };
+      this.ch = eng.chain(P, at);
       const c = eng.ctx;
       this.plain = c.createGain(); this.grains = c.createGain(); this.plain.gain.value = 1; this.grains.gain.value = 0;
       this.plain.connect(this.ch.env); this.grains.connect(this.ch.env);
-      this.ch.extra.push(this.plain, this.grains);
+      this.ch.nodes.push(this.plain, this.grains);
       this.ch.env.gain.setValueAtTime(0, at); this.ch.env.gain.setTargetAtTime(1, at, 0.06);
       this.rev = false; this.node = null; this.ph = 0; this.lastT = at; this.region = null; this.P = s.P;
       this.update(s, at, true);
@@ -1679,8 +1940,7 @@ const SAWARI_AUDIO = (() => {
         if (region !== this.region) { const d = this.src.dur; this.node.s.loopStart = rev ? d - region.b : region.a; this.node.s.loopEnd = rev ? d - region.a : region.b; }
       }
       this.region = region;
-      this.ch.set(P, at);
-      this.ch.reroute(this.e.dest(s.room), at);
+      if (!first) { this.ch.set(P, at, 0.04); this.ch.route(P.room, P.roomW || 0, at); }
       const gm = clamp(P.grain * 1.6 + (Math.abs(P.pitch) > 0.1 ? 1 : 0) + (Math.abs(P.stretch) > 0.05 ? 1 : 0), 0, 1);
       this.plain.gain.setTargetAtTime(1 - gm, at, 0.05); this.grains.gain.setTargetAtTime(gm, at, 0.05);
       this.gm = gm;
@@ -1689,7 +1949,7 @@ const SAWARI_AUDIO = (() => {
     advance(until) {
       const P = this.P, r = this.region; if (!r) return;
       const len = r.b - r.a, readRate = 2 ** (P.rate / 12) / 2 ** P.stretch;
-      if (this.gm < 0.01) { this.ph = (this.ph + (until - this.lastT) * readRate) % len; this.lastT = until; this.next = until; return; }
+      if (this.gm < 0.01) { this.ph = (this.ph + Math.max(0, until - this.lastT) * readRate) % len; this.lastT = until; this.next = until; return; }
       if (this.next === undefined || this.next < this.lastT) this.next = this.lastT;
       const gr = P.grain, size = lerp(0.085, 0.04, gr), hop = size * lerp(0.5, 2.4, gr), pitchRate = 2 ** ((P.rate + P.pitch) / 12);
       while (this.next < until) {
@@ -1708,6 +1968,24 @@ const SAWARI_AUDIO = (() => {
       if (this.node) try { this.node.s.stop(at + 0.4); } catch (e) {}
       if (!this.e.offline) { const ch = this.ch; setTimeout(() => ch.dispose(), Math.max(0, (at - this.e.ctx.currentTime) * 1000) + 700); }
     }
+  }
+
+  // the live input placed in the world: heard from where it stands, through its room
+  class InputVoice {
+    constructor(eng, s, at) {
+      this.e = eng;
+      this.ch = eng.chain(s.P, at);
+      this.mon = eng.ctx.createGain(); this.mon.gain.value = 0; this.mon.connect(this.ch.env); this.ch.nodes.push(this.mon);
+      this.ch.env.gain.setTargetAtTime(1, at, 0.05);
+      this.sel = null;
+    }
+    update(s, at) {
+      const inp = this.e.inp, want = s.o.ch === 'L' ? inp.L : s.o.ch === 'R' ? inp.R : inp.M;
+      if (want !== this.sel) { if (this.sel) try { this.sel.disconnect(this.mon); } catch (e) {} want.connect(this.mon); this.sel = want; }
+      this.mon.gain.setTargetAtTime(clamp(s.o.mon, 0, 1.5), at, 0.05);
+      this.ch.set(s.P, at, 0.05); this.ch.route(s.P.room, s.P.roomW || 0, at);
+    }
+    stop(at) { this.ch.env.gain.setTargetAtTime(0, at, 0.04); const ch = this.ch, sel = this.sel, mon = this.mon; setTimeout(() => { try { sel && sel.disconnect(mon); } catch (e) {} ch.dispose(); }, 400); }
   }
 
   // make the source record the engine needs from decoded channels
@@ -1856,6 +2134,7 @@ const SAWARI_DRAW = (() => {
       for (const sw of sim.sweeps) this.drawSweepBase(sw, S.sel.has(sw.id));
       for (const r of sim.rails) this.drawRail(r, S.sel.has(r.id));
       for (const rp of sim.ripples) this.drawRings(rp, Tv, S.sel.has(rp.id));
+      this.drawExtRings(sim, Tv);
       for (const th of sim.threads) this.drawThread(th, Tv, S.sel.has(th.id));
       // standing things, painter-sorted by ground y
       const items = [];
@@ -1863,17 +2142,21 @@ const SAWARI_DRAW = (() => {
       for (const t of sim.things) items.push({ y: t.y, k: 1, o: t, p: { x: t.x, y: t.y, ang: t.ang, r: t.r } });
       for (const tr of sim.trains) sim.trainCars(tr, Tv).forEach((c, j) => items.push({ y: c.y, k: 2, o: tr, c, j }));
       for (const fl of sim.flockObjs) { const ags = sim.flocks.get(fl.id) || []; ags.forEach((a, j) => { const q = sim.agentAt(a, Tv); items.push({ y: q.y, k: 3, o: fl, q, j, a }); }); }
+      for (const o of sim.inputs) items.push({ y: o.y, k: 4, o });
       items.sort((a, b) => a.y - b.y);
       for (const it of items) {
         if (it.k === 0) this.drawFrag(it.o, it.p, S);
         else if (it.k === 1) this.drawSkin(it.o, it.p, S, null, true);
         else if (it.k === 2) this.drawCar(it.o, it.c, it.j, S);
-        else this.drawBird(it.o, it.q, it.a, it.j, Tv);
+        else if (it.k === 3) this.drawBird(it.o, it.q, it.a, it.j, Tv);
+        else this.drawInput(it.o, S);
       }
       for (const m of sim.rooms) this.drawRoomWalls(m, S.sel.has(m.id));
       for (const rp of sim.ripples) this.drawEmblem(rp.x, rp.y, 'ripple', S.sel.has(rp.id));
       for (const sw of sim.sweeps) this.drawSweepArm(sw, Tv);
       for (const fl of sim.flockObjs) this.drawEmblem(fl.x, fl.y, 'flock', S.sel.has(fl.id));
+      this.drawSounding(S);
+      this.drawEar(S);
       this.drawSelection(S);
       if (S.overlay) S.overlay(g, V);
     }
@@ -1981,9 +2264,22 @@ const SAWARI_DRAW = (() => {
       }
     }
     drawSweepBase(sw, sel) {
-      const g = this.g;
+      const g = this.g, V = this.V;
       this.ellipse(sw.x, sw.y, sw.r); g.setLineDash([1, 5]); g.strokeStyle = sel ? PAL.accent : PAL.dim; g.lineWidth = 1.2; g.stroke(); g.setLineDash([]);
       this.ellipse(sw.x, sw.y, sw.r * 0.5); g.strokeStyle = PAL.grid; g.stroke();
+      // the dial: where each pitch of the scale sits
+      const range = sw.range || 0; if (!range) return;
+      const sc = W.SCALES[sw.scale], degs = [];
+      if (sc) for (let o = 0; o * 12 <= range; o++) for (const d of sc) { const st = o * 12 + d; if (st < range) degs.push(st); }
+      else for (let st = 0; st < range; st += 1) degs.push(st);
+      g.font = `9px ${PAL.mono}`; g.textAlign = 'center'; g.fillStyle = PAL.dim;
+      for (const st of degs) {
+        const a = sw.ang0 + (sw.dir || 1) * st / range * C.TAU, ca = Math.cos(a), sa = Math.sin(a), oct = st % 12 === 0;
+        g.beginPath(); g.moveTo(V.sx(sw.x + ca * (sw.r - (oct ? 16 : 9))), V.sy(sw.y + sa * (sw.r - (oct ? 16 : 9)))); g.lineTo(V.sx(sw.x + ca * sw.r), V.sy(sw.y + sa * sw.r));
+        g.strokeStyle = oct ? PAL.ink : PAL.dim; g.lineWidth = oct ? 2 : 1; g.stroke();
+        if (V.z > 0.3) g.fillText(oct ? `+${st}` : String(st), V.sx(sw.x + ca * (sw.r + 13)), V.sy(sw.y + sa * (sw.r + 13)) + 3);
+      }
+      g.textAlign = 'left';
     }
     drawSweepArm(sw, Tv) {
       const g = this.g, V = this.V, a = this.S.sim.sweepAngle(sw, Tv), dir = sw.dir || 1;
@@ -2004,6 +2300,18 @@ const SAWARI_DRAW = (() => {
       const hw = sc.w / 2, hh = sc.h / 2;
       this.path([loc(-hw, -hh), loc(hw, -hh), loc(hw, hh), loc(-hw, hh)]);
       g.setLineDash([6, 4]); g.strokeStyle = sel ? PAL.accent : PAL.dim; g.lineWidth = 1.2; g.stroke(); g.setLineDash([]);
+      // a staff: each pitch of the scale is a height in the frame
+      const range = sc.range || 0;
+      if (range) {
+        const scl = W.SCALES[sc.scale], half = range / 2;
+        for (let st = -Math.floor(half); st <= half; st++) {
+          if (scl && !scl.includes(((st % 12) + 12) % 12)) continue;
+          const ly = -st / half * hh, oct = st % 12 === 0;
+          this.path([loc(-hw, ly), loc(hw, ly)], 0, false);
+          g.strokeStyle = oct ? PAL.dim : PAL.grid; g.lineWidth = oct ? 1.2 : 1; g.stroke();
+          if (oct && this.V.z > 0.3) { const p = loc(-hw, ly); g.font = `9px ${PAL.mono}`; g.fillStyle = PAL.dim; g.textAlign = 'right'; g.fillText(st > 0 ? `+${st}` : String(st), this.V.sx(p[0]) - 4, this.V.sy(p[1]) + 3); g.textAlign = 'left'; }
+        }
+      }
       // measure ticks along the time axis
       g.strokeStyle = PAL.faint; g.lineWidth = 1;
       for (let i = 0; i <= 16; i++) { const lx = -hw + sc.w * i / 16; this.path([loc(lx, -hh), loc(lx, -hh + (i % 4 ? 8 : 16))], 0, false); g.stroke(); }
@@ -2023,6 +2331,7 @@ const SAWARI_DRAW = (() => {
       const X = V.sx(x2), Y = V.sy(y2);
       g.beginPath(); g.moveTo(X + Math.cos(ang) * 6, Y + Math.sin(ang) * 6); g.lineTo(X + Math.cos(ang + 2.5) * 6, Y + Math.sin(ang + 2.5) * 6); g.lineTo(X + Math.cos(ang - 2.5) * 6, Y + Math.sin(ang - 2.5) * 6); g.closePath();
       g.fillStyle = sel ? PAL.accent : PAL.dim; g.fill();
+      if (th.step && V.z > 0.3) { g.font = `10px ${PAL.mono}`; g.fillText(`${th.step > 0 ? '+' : ''}${th.step}`, X + 8, Y - 6); }
       for (const q of sim.queue) {
         if (q.th !== th.id || Tv < q.t0 || Tv > q.t) continue;
         const [x, y] = pt((Tv - q.t0) / Math.max(1e-3, q.t - q.t0));
@@ -2164,6 +2473,7 @@ const SAWARI_DRAW = (() => {
         }
       }
       if (j === 0) { const X = V.sx(c.x + ca * L), Y = V.sy(c.y + sa * L, 6); g.beginPath(); g.arc(X, Y, 2.4, 0, TAU); g.fillStyle = PAL.signal; g.fill(); }
+      if (V.z > 0.32 && tr.chord !== 'same') { const st = S.sim.carSt(tr, j); g.font = `600 10px ${PAL.mono}`; g.textAlign = 'center'; g.fillStyle = PAL.ink; g.fillText(st > 0 ? `+${st}` : String(st), V.sx(c.x), V.sy(c.y, h + 10)); g.textAlign = 'left'; }
     }
     drawBird(fl, q, a, j, Tv) {
       const g = this.g, V = this.V, sel = this.S.sel.has(fl.id), H = 26;
@@ -2182,6 +2492,48 @@ const SAWARI_DRAW = (() => {
       g.lineTo(X + Math.cos(ang + Math.PI) * 2, Y + Math.sin(ang + Math.PI) * 2);
       g.lineTo(X + Math.cos(ang - 2.4 - flap * 0.4) * 8, Y + Math.sin(ang - 2.4 - flap * 0.4) * 8);
       g.closePath(); g.fillStyle = sel ? PAL.accent : PAL.ink; g.fill();
+    }
+
+    drawExtRings(sim, Tv) {
+      const g = this.g;
+      for (const r of sim.extRings) {
+        const rr = (Tv - r.t0) * r.speed; if (rr < 0 || rr > r.reach) continue;
+        this.ellipse(r.x, r.y, rr); g.strokeStyle = PAL.rec; g.globalAlpha = 0.7 * (1 - rr / r.reach); g.lineWidth = 2; g.stroke(); g.globalAlpha = 1;
+      }
+    }
+    drawInput(o, S) {
+      const g = this.g, V = this.V, sel = S.sel.has(o.id), lv = S.inLevel ? S.inLevel(o) : { lv: 0, flash: 0, on: false };
+      for (let k = 3; k >= 1; k--) { this.ellipse(o.x, o.y, o.r * (0.5 + k * 0.28) + lv.lv * 60 * k / 3); g.strokeStyle = lv.on ? PAL.rec : PAL.faint; g.globalAlpha = (lv.on ? 0.25 + lv.lv * 0.6 : 0.4) / k; g.lineWidth = 1.5; g.stroke(); }
+      g.globalAlpha = 1;
+      this.cylinder(o.x, o.y, o.r * 0.55, 30, PAL.dark ? { side: '#3a2523', top: lv.flash > 0 ? PAL.rec : '#5b3632', line: '#0d1115' } : { side: '#b8a19c', top: lv.flash > 0 ? PAL.rec : '#efe3e0', line: '#1b1f22' });
+      g.font = `700 ${Math.max(9, 15 * Math.min(1.4, V.z * 2))}px ${PAL.disp}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillStyle = PAL.ink; g.fillText('入', V.sx(o.x), V.sy(o.y, 30)); g.textBaseline = 'alphabetic'; g.textAlign = 'left';
+      if (sel) { this.ellipse(o.x, o.y, o.r + 8); g.strokeStyle = PAL.accent; g.setLineDash([4, 3]); g.lineWidth = 1.5; g.stroke(); g.setLineDash([]); }
+    }
+    // a playhead around every fragment that is sounding: where in the sound, and how fast
+    drawSounding(S) {
+      if (!S.sounding) return;
+      const g = this.g, V = this.V, seen = new Set();
+      for (const s of S.sounding) {
+        const f = S.sim.byId.get(s.id); if (!f) continue;
+        const p = S.sim.pose(f, S.Tv, false), R = (p.r + 9) * V.z, X = V.sx(p.x), Y = V.sy(p.y);
+        g.beginPath(); g.ellipse(X, Y, R, R * V.ct, 0, -Math.PI / 2, -Math.PI / 2 + C.TAU * s.prog);
+        g.strokeStyle = PAL.signal; g.lineWidth = seen.has(s.id) ? 1.5 : 3; g.stroke();
+        const a = -Math.PI / 2 + C.TAU * s.prog;
+        g.beginPath(); g.arc(X + Math.cos(a) * R, Y + Math.sin(a) * R * V.ct, 3.2, 0, C.TAU); g.fillStyle = PAL.signal; g.fill();
+        if (!seen.has(s.id) && Math.abs(s.rate - 1) > 0.02 && V.z > 0.3) { g.font = `9px ${PAL.mono}`; g.fillStyle = PAL.dim; g.fillText(`×${s.rate.toFixed(2)}`, X + R + 4, Y - R * V.ct); }
+        seen.add(s.id);
+      }
+    }
+    // the ear: where the world is heard from, and how far it hears
+    drawEar(S) {
+      const E = S.world.ear; if (!E || E.mode === 'off') return;
+      const e = S.sim.earAt(S.Tv), g = this.g, V = this.V, X = V.sx(e.x), Y = V.sy(e.y);
+      this.ellipse(e.x, e.y, e.r); g.strokeStyle = PAL.accent; g.globalAlpha = 0.35; g.setLineDash([2, 7]); g.lineWidth = 1; g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
+      g.strokeStyle = PAL.accent; g.lineWidth = 1.5;
+      g.beginPath(); g.arc(X, Y, 9, 0, C.TAU); g.stroke();
+      g.beginPath(); g.moveTo(X - 15, Y); g.lineTo(X - 5, Y); g.moveTo(X + 5, Y); g.lineTo(X + 15, Y); g.moveTo(X, Y - 15); g.lineTo(X, Y - 5); g.moveTo(X, Y + 5); g.lineTo(X, Y + 15); g.stroke();
+      g.font = `700 11px ${PAL.disp}`; g.fillStyle = PAL.accent; g.fillText(E.mode === 'ride' ? '耳（乗車中）' : E.mode === 'wander' ? '耳（漂う）' : '耳', X + 12, Y - 10);
     }
 
     // ---- selection ----
@@ -2358,11 +2710,13 @@ function addSynth() {
   ensureCtx();
   const sr = ctx.sampleRate, list = synthSounds(sr), rng = C.makeRng(randSeed()), made = [];
   // spots near what is already in the world, so the first press already sounds
-  const rail = sim.rails[0], rip = sim.ripples[0], room = sim.rooms[0];
+  const rail = sim.rails[0], rip = sim.ripples[0], room = sim.rooms[0], sw = sim.sweeps[0], sc = sim.scans[0];
   const spots = [];
-  if (rail) for (let k = 0; k < 5; k++) { const L = C.railGeom(rail).L, p = C.railPoint(rail, (k + 0.3) / 5 * L); spots.push({ x: p.x + (rng() - 0.5) * 50, y: p.y + (rng() - 0.5) * 50 }); }
-  if (rip) for (let k = 0; k < 4; k++) { const a = rng() * C.TAU, d = 120 + rng() * 300; spots.push({ x: rip.x + Math.cos(a) * d, y: rip.y + Math.sin(a) * d }); }
-  if (room) for (let k = 0; k < 3; k++) spots.push({ x: room.x + (rng() - 0.5) * room.w * 0.7, y: room.y + (rng() - 0.5) * room.h * 0.6 });
+  if (sw) for (let k = 0; k < 4; k++) { const a = sw.ang0 + (k + 0.4) / 4 * C.TAU, d = sw.r * (0.35 + rng() * 0.5); spots.push({ x: sw.x + Math.cos(a) * d, y: sw.y + Math.sin(a) * d }); }
+  if (sc) for (let k = 0; k < 3; k++) spots.push({ x: sc.x + (k - 1) * sc.w * 0.3 + (rng() - 0.5) * 60, y: sc.y + (rng() - 0.5) * sc.h * 0.8 });
+  if (rail) for (let k = 0; k < 3; k++) { const L = C.railGeom(rail).L, p = C.railPoint(rail, (k + 0.3) / 5 * L); spots.push({ x: p.x + (rng() - 0.5) * 50, y: p.y + (rng() - 0.5) * 50 }); }
+  if (rip) for (let k = 0; k < 2; k++) { const a = rng() * C.TAU, d = 120 + rng() * 300; spots.push({ x: rip.x + Math.cos(a) * d, y: rip.y + Math.sin(a) * d }); }
+  if (room) for (let k = 0; k < 2; k++) spots.push({ x: room.x + (rng() - 0.5) * room.w * 0.7, y: room.y + (rng() - 0.5) * room.h * 0.6 });
   while (spots.length < 12) spots.push({ x: (rng() - 0.5) * 1400, y: (rng() - 0.5) * 900 });
   let j = 0;
   list.forEach((s, i) => {
@@ -2395,7 +2749,7 @@ function commit() {
   updateUndo(); scheduleAutosave();
 }
 function restore(json, keepSel = true) {
-  const w = JSON.parse(json);
+  const w = W.normalize(JSON.parse(json));
   world = w; sim.w = w; sim.index(); sim.refresh();
   if (eng) eng.setWorld(w);
   if (keepSel) S.sel = new Set([...S.sel].filter(id => sim.byId.has(id))); else S.sel.clear();
@@ -2591,17 +2945,34 @@ function pump() {
   }
   if (sim.mutated) { sim.mutated = 0; scheduleAutosave(); }
   eng.advance(horizon + S.t0);
-  if (now - S.lastCtl > 0.033) { eng.controlLoops(sim.loopStates(), now + 0.005); S.lastCtl = now; }
+  if (now - S.lastCtl > 0.033) { control(now + 0.005); S.lastCtl = now; }
+}
+// continuous control, ~30 times a second: loops, live input, and every voice already sounding
+function control(at) {
+  if (!eng) return;
+  if (S.playing) eng.controlLoops(sim.loopStates(), at);
+  eng.controlVoices(at, v => sim.liveP(v));
+  eng.controlInputs(sim.inputStates(), at);
 }
 setInterval(pump, 20);
+// when time is stopped, sounding voices (touch, MIDI, auditions) still follow the world
+setInterval(() => { if (!S.playing && ctx && eng && (eng.voices.length || eng.inputs.size || eng.inp)) { eng.advance(ctx.currentTime + LOOK); control(ctx.currentTime + 0.005); } }, 33);
 
+// output level for the meter in the top bar
+function outLevel() {
+  if (!ctx || !eng) return 0;
+  if (!S.outAn) { S.outAn = ctx.createAnalyser(); S.outAn.fftSize = 1024; eng.lim.connect(S.outAn); S.outBuf = new Float32Array(1024); }
+  S.outAn.getFloatTimeDomainData(S.outBuf);
+  let s = 0; for (let i = 0; i < S.outBuf.length; i++) s += S.outBuf[i] * S.outBuf[i];
+  return C.clamp(Math.sqrt(s / S.outBuf.length) * 3.2, 0, 1);
+}
 // a touch from the person
-function touchFrag(f, energy) {
+function touchFrag(f, energy, m) {
   ensureAudio();
   const T = S.playing ? ctx.currentTime - S.t0 : sim.T;
   const at = ctx.currentTime + 0.012;
-  if (f.mode === 'loop' && S.playing) { const e = sim.manual(f.id, energy, T); if (e) { eng.handle(e, at); noteFlash(f.id, at, e.silent); } return; }
-  const e = sim.manual(f.id, energy, T);
+  if (f.mode === 'loop' && S.playing) { const e = sim.manual(f.id, energy, T, m); if (e) { eng.handle(e, at); noteFlash(f.id, at, e.silent); } return; }
+  const e = sim.manual(f.id, energy, T, m);
   if (!e) return;
   e.loop = false;
   eng.handle(e, at); noteFlash(f.id, at, e.silent);
@@ -2726,7 +3097,7 @@ async function exportWav(seconds, asSource) {
         const evs = sim2.step(W.DT);
         for (const e of evs) if (e.t < stopAt) e2.handle(e, e.t);
         for (const c of sim2.contacts) e2.contact(c, c.t);
-        if (sim2.T - lastCtl >= 0.03) { e2.controlLoops(sim2.loopStates(), sim2.T); lastCtl = sim2.T; }
+        if (sim2.T - lastCtl >= 0.03) { e2.controlLoops(sim2.loopStates(), sim2.T); e2.controlVoices(sim2.T, v => sim2.liveP(v)); lastCtl = sim2.T; }
       }
       if (until >= stopAt && !ended) { ended = true; e2.controlLoops([], stopAt); }
       e2.advance(u + 0.02);
@@ -2860,10 +3231,11 @@ function renderInspector() {
   const box = $('insp'), objs = selObjs();
   ghosts.length = 0; box.replaceChildren();
   inspFor = objs.map(o => o.id).join(',');
+  box.hidden = window.innerWidth < 760 && !objs.length;   // small windows: keep the world visible
   if (!objs.length) return worldInspector(box);
   if (objs.length > 1) return multiInspector(box, objs);
   const o = objs[0];
-  ({ frag: fragInspector, thing: thingInspector, rail: railInspector, train: trainInspector, ripple: rippleInspector, sweep: sweepInspector, scan: scanInspector, flock: flockInspector, room: roomInspector, thread: threadInspector })[o.kind](box, o);
+  ({ frag: fragInspector, thing: thingInspector, rail: railInspector, train: trainInspector, ripple: rippleInspector, sweep: sweepInspector, scan: scanInspector, flock: flockInspector, room: roomInspector, thread: threadInspector, input: inputInspector })[o.kind](box, o);
 }
 function head(box, kind, title, sub) {
   box.append(el('header', { class: 'ihead' }, el('span', { class: 'kind' }, kind), el('h2', null, title), sub ? el('p', { class: 'sub' }, sub) : null));
@@ -2875,7 +3247,7 @@ const dupBtn = () => btn('複製', () => duplicateSel(), { tip: '⌘D、また�
 function worldInspector(box) {
   const w = world;
   head(box, '世界', '何も選んでいません', 'ここでは世界全体の決まりを変えます。ものを選ぶと、その性質が出ます。');
-  box.append(
+  box.append(earSection(),
     section('時間',
       slider('拍の速さ', () => w.bpm, v => { w.bpm = v; syncTopBar(); if (eng) { eng.syncMaster(); eng.syncRooms(); } }, { min: 30, max: 220, step: 1, fmt: v => `${v} BPM`, def: 92 }),
       slider('糸の伝わる速さ', () => w.threadSpeed, v => { w.threadSpeed = v; }, { min: 40, max: 1600, step: 10, fmt: v => `${v} /s`, def: 420, tip: '糸でつないだ断片は、糸の長さ ÷ この速さだけ遅れて鳴ります' }),
@@ -2890,8 +3262,9 @@ function worldInspector(box) {
       slider('響（残響）の長さ', () => w.master.vSize, v => { w.master.vSize = v; }, { min: 0.3, max: 8, step: 0.1, fmt: fmtS, def: 3.4, after: () => eng && eng.syncMaster() }),
       slider('響のこもり', () => w.master.vDamp, v => { w.master.vDamp = v; }, { min: 0, max: 1, fmt: fmtPct, def: 0.45, after: () => eng && eng.syncMaster() }),
     ),
-    section('見え方',
+    section('見え方と手ざわり',
       toggle('断片に名札を出す', () => S.labels, v => { S.labels = v; }),
+      toggle('動かすと鳴る', () => w.dragSound, v => { w.dragSound = v; }, { tip: '断片を掴んで動かすと、その場で鳴り、動かしている間ずっと音が変わります' }),
     ),
     section('始め方',
       note('音声ファイルをこの画面に落とすと、その場に「断片」が置かれます。断片はそれだけでは鳴りません。列車・波紋・掃引・群れが触れたとき、または「触」の道具で触れたときに鳴ります。'),
@@ -2934,6 +3307,10 @@ function fragInspector(box, f) {
   box.append(section('法則',
     seg('', [[0, '甲'], [1, '乙'], [2, '丙'], [-1, '無', '法則に従わない（設定した値のまま）']], () => f.law, v => { f.law = v; }),
     actions(btn('法則の表を開く', () => openLaws(f.law >= 0 ? f.law : 0))),
+  ));
+  box.append(section('鍵盤（MIDI）',
+    seg('', [[null, 'なし', '選んでいる間だけ鍵盤で弾ける'], ['all', '全鍵', 'いつでも、どの鍵でも、その高さで鳴る（C4 が元の高さ）']], () => (f.key === 'all' ? 'all' : f.key == null ? null : 'one'), v => { f.key = v; }, { after: renderInspector }),
+    actions(btn(CIR.learnKey === f.id ? '鍵を押して…' : typeof f.key === 'number' ? `鍵 ${noteName(f.key)} で鳴る（覚え直す）` : '鍵を覚える', () => { CIR.learnKey = CIR.learnKey === f.id ? null : f.id; if (!CIR.midi) enableMidi(); renderInspector(); }, { tip: '次に押した MIDI の鍵で、この断片が鳴るようにする' })),
   ));
   box.append(skinSection(f, true));
   const m = f.move;
@@ -3038,7 +3415,11 @@ function trainInspector(box, t) {
     slider('車両', () => t.cars, v => t.cars = v, { min: 1, max: 8, step: 1, fmt: v => `${v} 両`, def: 2 }),
     slider('届く距離', () => t.reach, v => t.reach = v, { min: 5, max: 260, step: 1, fmt: v => `${v}`, def: 60, tip: '線路からこの距離までの断片を鳴らす' }),
     rail && !rail.closed ? seg('端で', [['bounce', '折り返す'], ['wrap', '始点へ飛ぶ']], () => t.end, v => { t.end = v; }) : null,
-  ), actions(delBtn(t)));
+  ), section('列車が変える音',
+    seg('車両の音程', Object.keys(W.CHORDS).map(k => [k, W.CHORD_L[k]]), () => t.chord, v => { t.chord = v; }),
+    note('一両目から順に、この音程で鳴らします。車両を増やすと、通りがかりに分散和音になります。'),
+    slider('ドップラー', () => t.doppler, v => t.doppler = v, { min: 0, max: 1, fmt: fmtPct, def: 0.6, tip: '近づくと高く、離れると低く。鳴っている間ずっと曲がる' }),
+  ), actions(rideBtn(t), delBtn(t)));
 }
 function rippleInspector(box, r) {
   head(box, '波紋', '波紋の源', '一定の間隔で輪を放ち、輪が届いた断片を鳴らします。距離がそのまま時間になります');
@@ -3047,6 +3428,9 @@ function rippleInspector(box, r) {
     slider('広がる速さ', () => r.speed, v => r.speed = v, { min: 20, max: 1600, step: 5, fmt: v => `${v} /s`, def: 240 }),
     slider('届く範囲', () => r.reach, v => r.reach = v, { min: 40, max: 1600, step: 5, fmt: v => `${v}`, def: 520 }),
     slider('位相', () => r.phase, v => r.phase = v, { min: 0, max: 0.99, step: 0.01, fmt: fmtPct, def: 0, tip: '周期の中でいつ放つか' }),
+  ), section('波紋が変える音',
+    slider('遠いほど暗く', () => r.dark, v => r.dark = v, { min: 0, max: 1, fmt: fmtPct, def: 0.7, tip: '源から遠い断片ほど、こもって響きが増える' }),
+    slider('輪ごとに進む', () => r.adv, v => r.adv = v, { min: 0, max: 1, fmt: fmtPct, def: 0.3, tip: '輪が来るたびに、断片の別の場所から鳴る' }),
   ), actions(dupBtn(), delBtn(r)));
 }
 function sweepInspector(box, s) {
@@ -3056,7 +3440,7 @@ function sweepInspector(box, s) {
     slider('半径', () => s.r, v => s.r = v, { min: 40, max: 1400, step: 5, fmt: v => `${v}`, def: 320 }),
     seg('向き', [[1, '時計回り'], [-1, '反時計回り']], () => s.dir, v => { s.dir = v; }),
     slider('始まりの角', () => Math.round(s.ang0 * 180 / Math.PI), v => s.ang0 = v * Math.PI / 180, { min: -180, max: 180, step: 1, fmt: v => `${v}°` }),
-  ), actions(dupBtn(), delBtn(s)));
+  ), pitchSection(s, '針が変える音', '断片を置く角度が音の高さになります（文字盤のように）。一周で設定した幅だけ上がります。'), actions(dupBtn(), delBtn(s)));
 }
 function scanInspector(box, s) {
   head(box, '走査', '直線の時間', '左から右へ動く線が断片を鳴らします。いちばん普通の「タイムライン」も、世界の中のひとつの物です');
@@ -3066,7 +3450,7 @@ function scanInspector(box, s) {
     slider('高さ', () => s.h, v => s.h = v, { min: 30, max: 2000, step: 10, fmt: v => `${v}`, def: 300 }),
     slider('角度', () => Math.round(s.ang * 180 / Math.PI), v => s.ang = v * Math.PI / 180, { min: -180, max: 180, step: 1, fmt: v => `${v}°`, def: 0 }),
     slider('位相', () => s.phase, v => s.phase = v, { min: 0, max: 0.99, step: 0.01, fmt: fmtPct, def: 0 }),
-  ), actions(dupBtn(), delBtn(s)));
+  ), pitchSection(s, '走査が変える音', '枠の中の高さが音の高さになります（楽譜のように）。上ほど高く、下ほど低く。'), actions(dupBtn(), delBtn(s)));
 }
 function flockInspector(box, f) {
   head(box, '群れ', `${f.n} 羽`, '自分で飛び回り、入った断片を鳴らします。帯の断片の上では、通った場所を読みます');
@@ -3077,7 +3461,11 @@ function flockInspector(box, f) {
     seg('ふるまい', [['wander', '迷う'], ['swarm', '群がる'], ['seek', '訪ねる', '断片から断片へ渡り歩く']], () => f.mode, v => { f.mode = v; }),
     slider('縄張り', () => f.leash, v => f.leash = v, { min: 40, max: 2400, step: 10, fmt: v => `${v}`, def: 420, tip: '中心からこの距離を越えると戻ってくる' }),
     seg('拍に寄せる', [[0, '自由'], [0.25, '16分'], [0.5, '8分'], [1, '4分']], () => f.quant, v => { f.quant = v; }),
-  ), actions(dupBtn(), delBtn(f)));
+  ), section('群れが変える音',
+    seg('さえずり', [['off', 'なし'], ['penta', '五音'], ['wide', '広く']], () => f.song, v => { f.song = v; }, { tip: '一羽ごとに違う高さで鳴らす' }),
+    slider('粒にする', () => f.gran, v => f.gran = v, { min: 0, max: 1, fmt: fmtPct, def: 0.5, tip: '群れが触れた音を粒に砕く' }),
+    note('鳥の速さと向きで、鳴っている音の高さが曲がります（近づくと高く、離れると低く）。'),
+  ), actions(rideBtn(f), dupBtn(), delBtn(f)));
 }
 function roomInspector(box, m) {
   head(box, '部屋', m.name || '部屋', '中にある断片の音は、この部屋の加工を通ります。上から順に掛かります');
@@ -3118,8 +3506,50 @@ function threadInspector(box, t) {
     toggle('拍で数える', () => t.sync, v => { t.sync = v; }, { after: renderInspector, tip: '切ると、糸の長さが遅れの時間になる' }),
     t.sync ? slider('遅れ', () => t.beats, v => t.beats = v, { min: 0.125, max: 16, step: 0.125, fmt: v => `${v} 拍`, def: 1 })
       : slider('遅れの倍率', () => t.mul, v => t.mul = v, { min: 0.1, max: 8, step: 0.05, fmt: v => `×${(+v).toFixed(2)}`, def: 1 }),
+    slider('移調', () => t.step, v => t.step = v, { min: -12, max: 12, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v} 半音`, def: 7, tip: '糸を渡るたびに、この分だけ高さが変わる（連なると旋律になる）' }),
     note('糸がつながって輪になると、確率が 1 未満である限り、いつか途切れる反復になります。'),
   ), actions(btn('向きを逆に', () => { [t.a, t.b] = [t.b, t.a]; sim.index(); commit(); renderInspector(); }), delBtn(t)));
+}
+function pitchSection(o, title, text) {
+  return section(title,
+    slider('音程の幅', () => o.range, v => o.range = v, { min: 0, max: 36, step: 1, fmt: v => `${v} 半音`, def: o.kind === 'scan' ? 24 : 12 }),
+    seg('音階', Object.keys(W.SCALES).map(k => [k, W.SCALE_L[k]]), () => o.scale, v => { o.scale = v; }),
+    note(text));
+}
+function rideBtn(o) {
+  const riding = world.ear.mode === 'ride' && world.ear.target === o.id;
+  return btn(riding ? '降りる' : '耳を乗せる', () => { if (riding) world.ear.mode = 'view'; else { world.ear.mode = 'ride'; world.ear.target = o.id; } commit(); renderInspector(); toast(riding ? '耳を画面に戻しました。' : '耳がこれに乗りました。画面も一緒に動きます。手で動かすと降ります。'); }, { tip: '聴く位置をこれに乗せる（画面が追いかける）' });
+}
+function earSection() {
+  const E = world.ear;
+  return section('耳（聴く位置）',
+    seg('', [['view', '画面', '画面の中心で聴く。動かすと音が変わる'], ['wander', '漂う', '聴く位置がひとりでに世界をさまよう'], ['ride', '乗る', '列車や群れを選んで「耳を乗せる」'], ['off', 'なし', 'どこでも同じ大きさで聴く']], () => E.mode, v => { if (v === 'ride' && !sim.byId.get(E.target)) { const t = sim.trains[0] || sim.flockObjs[0]; if (!t) { toast('乗れる列車や群れがありません。'); return; } E.target = t.id; } E.mode = v; }, { after: renderInspector }),
+    slider('耳の効き', () => E.amt, v => E.amt = v, { min: 0, max: 1, fmt: fmtPct, def: 0.8, tip: '遠くのものが小さく暗くなる度合い。建物の陰の音はこもる' }),
+    note('画面の中心が耳です。画面を動かす・拡大縮小すると、近いものは大きく、遠いもの・建物の陰のものはこもって聞こえます。'));
+}
+function inputInspector(box, o) {
+  const on = !!(eng && eng.inp);
+  head(box, '入力', 'オーディオ入力', on ? `使用中：${CIR.label || '入力'}` : 'まだ入力を使っていません');
+  if (!on) box.append(actions(btn('入力を使う', () => enableInput(CIR.devId), { cls: 'primary' })));
+  box.append(section('聞こえ方',
+    slider('モニター', () => o.mon, v => o.mon = v, { min: 0, max: 1.5, fmt: fmtPct, def: 0.8, tip: '入力をこの場所から鳴らす量（0 で鳴らさず、きっかけだけに使う）' }),
+    seg('チャンネル', [['mix', '両方'], ['L', '左（1）'], ['R', '右（2）']], () => o.ch, v => { o.ch = v; }),
+    slider('音量', () => o.p.vol, v => o.p.vol = v, { min: -36, max: 12, step: 0.5, fmt: fmtDb, def: 0 }),
+    slider('音色', () => o.p.tone, v => o.p.tone = v, { min: -1, max: 1, fmt: fmtTone, def: 0 }),
+    slider('歪', () => o.p.drive, v => o.p.drive = v, { min: 0, max: 1, fmt: fmtPct, def: 0 }),
+    slider('遠', () => o.p.dly, v => o.p.dly = v, { min: 0, max: 1, fmt: fmtPct, def: 0 }),
+    slider('響', () => o.p.verb, v => o.p.verb = v, { min: 0, max: 1, fmt: fmtPct, def: 0.1 }),
+    seg('法則', [[0, '甲'], [1, '乙'], [2, '丙'], [-1, '無']], () => o.law, v => { o.law = v; }),
+    note('置いた場所で、耳との距離・部屋・法則（音量・定位・音色・歪・遠・響）が効きます。'),
+  ), section('立ち上がりで',
+    seg('', [['ripple', '波紋を出す', '再生中、音を出すたびにここから輪が広がり、断片を鳴らす'], ['hit', '近くを鳴らす', 'いちばん近い断片を鳴らす'], ['none', '何もしない']], () => o.trig, v => { o.trig = v; }),
+    slider('しきい', () => o.thr, v => o.thr = v, { min: 0.01, max: 0.8, fmt: fmtPct, def: 0.12, tip: 'これより大きな立ち上がりに反応する' }),
+  ), section('採る（入力を断片にする）',
+    toggle('立ち上がりごとに自動で採る', () => o.auto, v => { o.auto = v; }),
+    slider('長さ（いま採る）', () => o.capLen, v => o.capLen = v, { min: 0.5, max: 20, step: 0.5, fmt: fmtS, def: 4 }),
+    seg('採った断片', [['hit', '打'], ['loop', '環'], ['tape', '帯']], () => o.capMode, v => { o.capMode = v; }),
+    actions(btn('いま採る', () => captureNow(o), { cls: 'primary', tip: '直前の数秒を断片にする' }), btn('回路を開く', openCircuit)),
+  ), actions(dupBtn(), delBtn(o)));
 }
 function multiInspector(box, os) {
   const frags = os.filter(o => o.kind === 'frag');
@@ -3163,10 +3593,12 @@ function renderLaws() {
   const tabs = el('div', { class: 'seg' }, ...world.laws.map((l, i) => el('button', { type: 'button', 'aria-pressed': String(i === lawIdx), onclick: () => { lawIdx = i; renderLaws(); } }, l.name)));
   const read = el('p', { class: 'lawread mono', id: 'lawread' }, '升目を上下にドラッグすると強さが変わります。ダブルクリックで 0。');
   const grid = el('div', { class: 'grid', style: `grid-template-columns: 4.6em repeat(${W.TARGETS.length}, 1fr)` });
-  grid.append(el('span', { class: 'corner' }, '空間 ＼ 音'));
+  grid.append(el('span', { class: 'corner' }, '源 ＼ 音'));
   for (const t of W.TARGETS) grid.append(el('span', { class: 'th', title: t.d }, t.l));
+  let lastG = '';
   for (const s of W.SOURCES) {
-    grid.append(el('span', { class: 'rh', title: s.d }, s.l));
+    if (s.g !== lastG) { grid.append(el('span', { class: 'gh', style: 'grid-column:1/-1' }, s.g)); lastG = s.g; }
+    grid.append(el('span', { class: 'rh', title: s.d + (s.bi ? '（中央で 0、両側へ ±）' : '（0 のとき変化なし）') }, s.l, s.bi ? el('i', { class: 'bi' }, '±') : null));
     for (const t of W.TARGETS) {
       const key = s.k + '>' + t.k, v = law.m[key] || 0;
       const c = el('span', { class: 'cell', tabindex: '0', role: 'slider', 'aria-label': `${s.l} → ${t.l}`, 'aria-valuemin': '-1', 'aria-valuemax': '1', 'aria-valuenow': String(v), style: `background:${cellColor(v)}` });
@@ -3193,7 +3625,7 @@ function renderLaws() {
         btn('消す', () => { law.m = {}; commit(); renderLaws(); }),
         btn('最初の形', () => { law.m = W.defaultLaws()[lawIdx].m; commit(); renderLaws(); }),
         btn('閉じる', closeLaws, { cls: 'sm' }))),
-    el('p', { class: 'note' }, '行は空間が持つ性質、列は音の性質。升目の数字は「その性質が増えると、その音をどれだけ動かすか」。一つの行から何本でも引けます。橙は増やし、青は減らします。'),
+    el('p', { class: 'note' }, '行は空間・関係・動き・外から来るもの、列は音の性質。升目の数字は「その性質が増えると、その音をどれだけ動かすか」。一つの行から何本でも引けます。橙は増やし、青は減らします。± の行は中央が 0、ほかの行は 0 のとき何も変えません。鳴っている音にもすぐ効きます。'),
     el('div', { class: 'gridwrap' }, grid), read);
 }
 
@@ -3251,6 +3683,229 @@ function updateEmpty() {
   $('empty').hidden = world.objs.some(o => o.kind === 'frag');
 }
 
+// Sawari circuit: what comes in from outside the world — an audio interface or a
+// microphone, MIDI keyboards and controllers, four knobs — and where it goes.
+// Input objects placed in the world are heard from where they stand; their onsets
+// can send rings across the world, touch the nearest fragment, or become fragments.
+const CIR = {
+  stream: null, devices: [], devId: '', level: 0, peak: 0,
+  midi: null, midiIns: [], learn: null, learnKey: null, last: '', capCount: 0,
+  rt: new Map(),        // input object id -> {slow, last, cap}
+  ring: null,           // ~30 s of recent input for capturing
+  tap: null,
+};
+const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const noteName = n => `${NOTE_NAMES[n % 12]}${Math.floor(n / 12) - 1}`;
+
+// ---------- audio input ----------
+async function enableInput(devId) {
+  await ensureAudio();
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast('このブラウザ、またはこの表示では音声入力を使えません。sawari/index.html を Chrome か Safari で直接開いてください。', 6000); return false; }
+  try {
+    const audio = { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: { ideal: 2 } };
+    if (devId) audio.deviceId = { exact: devId };
+    const stream = await navigator.mediaDevices.getUserMedia({ audio });
+    if (CIR.stream) CIR.stream.getTracks().forEach(t => t.stop());
+    CIR.stream = stream;
+    const tr = stream.getAudioTracks()[0];
+    CIR.devId = (tr && tr.getSettings && tr.getSettings().deviceId) || devId || '';
+    CIR.label = (tr && tr.label) || '入力';
+    eng.attachInput(stream);
+    await startTap();
+    try { CIR.devices = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput'); } catch (e) { CIR.devices = []; }
+    if (!sim.inputs.length) { const o = W.newInput(view.x - 120, view.y); addObj(o, false); commit(); }
+    renderCircuit(); renderInspector();
+    toast(`「${CIR.label}」を使っています。スピーカーで鳴らすとハウリングするので、ヘッドホンを使ってください。`, 5000);
+    return true;
+  } catch (e) {
+    const why = e && e.name === 'NotAllowedError' ? '入力の使用が許可されませんでした（ブラウザのサイト設定でマイクを許可してください）。' : e && e.name === 'NotFoundError' ? '入力の機器が見つかりませんでした。' : 'この表示では音声入力を使えません。sawari/index.html を直接ブラウザで開いてください。';
+    toast(why, 6500);
+    return false;
+  }
+}
+function disableInput() {
+  stopTap();
+  if (eng) eng.detachInput();
+  if (CIR.stream) CIR.stream.getTracks().forEach(t => t.stop());
+  CIR.stream = null; CIR.level = 0; sim.ext.inLevel = 0;
+  renderCircuit();
+  toast('入力を止めました。');
+}
+const TAP_SRC = `class SawariTap extends AudioWorkletProcessor{constructor(){super();this.n=0;this.on=true;this.L=new Float32Array(2048);this.R=new Float32Array(2048);this.port.onmessage=e=>{if(e.data==='stop')this.on=false}}
+process(ins){const i=ins[0];if(i&&i.length){const l=i[0],r=i[1]||i[0];for(let k=0;k<l.length;k++){this.L[this.n]=l[k];this.R[this.n]=r[k];if(++this.n===2048){this.port.postMessage([this.L,this.R],[this.L.buffer,this.R.buffer]);this.L=new Float32Array(2048);this.R=new Float32Array(2048);this.n=0}}}return this.on}}
+registerProcessor('sawari-tap',SawariTap);`;
+async function startTap() {
+  stopTap();
+  const sr = ctx.sampleRate, size = Math.round(sr * 30);
+  CIR.ring = { L: new Float32Array(size), R: new Float32Array(size), n: 0, size, sr };
+  const sink = ctx.createGain(); sink.gain.value = 0; sink.connect(ctx.destination);
+  const write = (l, r) => { const g = CIR.ring; for (let k = 0; k < l.length; k++) { const i = (g.n + k) % g.size; g.L[i] = l[k]; g.R[i] = r[k]; } g.n += l.length; };
+  let node;
+  try {
+    if (!ctx.audioWorklet) throw new Error('no worklet');
+    if (!S.tapLoaded) { await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([TAP_SRC], { type: 'application/javascript' }))); S.tapLoaded = true; }
+    node = new AudioWorkletNode(ctx, 'sawari-tap', { numberOfInputs: 1, numberOfOutputs: 1, channelCount: 2, channelCountMode: 'explicit' });
+    node.port.onmessage = e => write(e.data[0], e.data[1]);
+  } catch (e) {
+    node = ctx.createScriptProcessor(2048, 2, 2);
+    node.onaudioprocess = ev => { const b = ev.inputBuffer; write(b.getChannelData(0), b.numberOfChannels > 1 ? b.getChannelData(1) : b.getChannelData(0)); };
+  }
+  eng.inp.src.connect(node); node.connect(sink);
+  CIR.tap = { node, sink };
+}
+function stopTap() {
+  if (!CIR.tap) return;
+  try { CIR.tap.node.port && CIR.tap.node.port.postMessage('stop'); CIR.tap.node.disconnect(); CIR.tap.sink.disconnect(); } catch (e) {}
+  CIR.tap = null;
+}
+// cut frames [a, b) of the ring into a new source and fragment next to the input object
+function makeCapture(o, a, b, quiet) {
+  const g = CIR.ring; if (!g) return null;
+  a = Math.max(a, g.n - g.size + 1, 0); b = Math.min(b, g.n);
+  const n = b - a; if (n < g.sr * 0.08) return null;
+  const L = new Float32Array(n), R = new Float32Array(n);
+  let pk = 0;
+  for (let k = 0; k < n; k++) { const i = (a + k) % g.size; L[k] = g.L[i]; R[k] = g.R[i]; pk = Math.max(pk, Math.abs(L[k]), Math.abs(R[k])); }
+  if (pk < 0.004) { if (!quiet) toast('入力が静かすぎて、採れませんでした。'); return null; }
+  const fade = Math.min(n >> 2, Math.round(g.sr * 0.006));
+  for (let k = 0; k < fade; k++) { const w = k / fade; L[k] *= w; R[k] *= w; L[n - 1 - k] *= w; R[n - 1 - k] *= w; }
+  const id = C.uid('a'), name = `入力 ${++CIR.capCount}`;
+  const rec = registerSource(id, name, { sr: g.sr, ch: [L, R] }, K.encodeWav([L, R], g.sr, 16), 'wav');
+  const rng = C.makeRng(randSeed()), ang = rng() * C.TAU, d = o.r + 50 + rng() * 140;
+  const f = W.newFrag(id, 0, rec.dur, o.x + Math.cos(ang) * d, o.y + Math.sin(ang) * d, rng);
+  f.mode = o.capMode || 'hit'; f.move.type = 'none';
+  world.objs.push(f); sim.index(); sim.refresh(); renderLibrary(); updateEmpty(); scheduleAutosave();
+  return f;
+}
+function captureNow(o) {
+  if (!CIR.ring) { toast('先に回路で「入力を使う」を押してください。'); return; }
+  const g = CIR.ring, f = makeCapture(o, g.n - Math.round(g.sr * (o.capLen || 4)), g.n);
+  if (f) { commit(); toast(`直前の ${o.capLen || 4} 秒を断片にしました。`); }
+}
+// per frame: level, onsets, auto capture
+function circuitTick() {
+  if (!eng || !eng.inp) { CIR.level = 0; if (sim.ext.inLevel) sim.ext.inLevel = 0; return; }
+  const an = eng.inp.an, buf = CIR.abuf || (CIR.abuf = new Float32Array(an.fftSize));
+  an.getFloatTimeDomainData(buf);
+  let s = 0, pk = 0; for (let i = 0; i < buf.length; i++) { const v = buf[i]; s += v * v; if (Math.abs(v) > pk) pk = Math.abs(v); }
+  const lv = C.clamp(Math.sqrt(s / buf.length) * 4, 0, 1);
+  CIR.level = lv; CIR.peak = Math.max(pk, CIR.peak * 0.9);
+  sim.ext.inLevel += (lv - sim.ext.inLevel) * 0.35;
+  const now = performance.now(), g = CIR.ring;
+  for (const o of sim.inputs) {
+    let rt = CIR.rt.get(o.id); if (!rt) { rt = { slow: 0, last: 0, cap: null, quiet: 0 }; CIR.rt.set(o.id, rt); }
+    const onset = lv > o.thr && lv > rt.slow * 1.6 + 0.02 && now - rt.last > 140;
+    rt.slow = rt.slow * 0.95 + lv * 0.05;
+    if (onset) {
+      rt.last = now; rt.flash = now;
+      if (o.trig === 'ripple') { if (S.playing) sim.addRing(o.x, o.y, sim.T, C.clamp(lv * 1.6, 0.3, 1)); }
+      else if (o.trig === 'hit') {
+        let best = null, bd = 520;
+        for (const f of sim.frags) { const d = Math.hypot(f.x - o.x, f.y - o.y); if (d < bd) { bd = d; best = f; } }
+        if (best) touchFrag(best, C.clamp(lv * 1.5, 0.3, 1));
+      }
+      if (o.auto && g && !rt.cap) rt.cap = { a: g.n - Math.round(g.sr * 0.1), t: now };
+    }
+    if (rt.cap) {
+      rt.quiet = lv < o.thr * 0.6 ? rt.quiet + 16 : 0;
+      if (rt.quiet > 380 || now - rt.cap.t > 8000) {
+        const f = makeCapture(o, rt.cap.a, g.n, true); rt.cap = null; rt.quiet = 0;
+        if (f) { rt.made = (rt.made || 0) + 1; if (rt.made >= 48) { o.auto = false; toast('自動で採った断片が 48 個になったので、自動で採るのを止めました。'); renderInspector(); } }
+      }
+    }
+  }
+  const m = $('cirMeter');
+  if (m) { m.style.setProperty('--lv', lv.toFixed(3)); m.style.setProperty('--pk', CIR.peak.toFixed(3)); }
+}
+
+// ---------- MIDI ----------
+async function enableMidi() {
+  if (!navigator.requestMIDIAccess) { toast('このブラウザは MIDI に対応していません。Chrome で開いてください（Safari は未対応です）。', 6000); return; }
+  try {
+    CIR.midi = await navigator.requestMIDIAccess({ sysex: false });
+    bindMidi(); CIR.midi.onstatechange = bindMidi;
+    toast(CIR.midiIns.length ? `MIDI：${CIR.midiIns.join('、')}` : 'MIDI を使えるようにしました。機器をつなぐと自動で認識します。');
+  } catch (e) { toast('MIDI を使えませんでした。この表示では許可されていない可能性があります。sawari/index.html を Chrome で直接開いてください。', 6500); }
+}
+function bindMidi() {
+  CIR.midiIns = [];
+  CIR.midi.inputs.forEach(inp => { inp.onmidimessage = e => onMidi(e.data); CIR.midiIns.push(inp.name || 'MIDI'); });
+  renderCircuit();
+}
+function onMidi(d) {
+  const st = d[0] & 0xF0, a = d[1], b = d[2];
+  if (st === 0x90 && b > 0) { CIR.last = `鍵 ${noteName(a)}（${a}） 強さ ${b}`; noteOn(a, b / 127); }
+  else if (st === 0xB0) { CIR.last = `つまみ CC ${a} = ${b}`; midiCC(a, b / 127); }
+  else if (st === 0xE0) { const v = (((b << 7) | a) - 8192) / 8192; CIR.last = `ベンド ${v.toFixed(2)}`; sim.ext.bend = v; }
+  else return;
+  const l = $('cirLast'); if (l) l.textContent = CIR.last;
+}
+function noteOn(note, vel) {
+  ensureAudio();
+  sim.ext.key = C.clamp((note - 36) / 60, 0, 1);
+  if (CIR.learnKey) {
+    const f = sim.byId.get(CIR.learnKey); CIR.learnKey = null;
+    if (f) { f.key = note; commit(); toast(`鍵 ${noteName(note)} でこの断片が鳴ります。`); renderInspector(); }
+    return;
+  }
+  let targets = sim.frags.filter(f => f.key === note || f.key === 'all'), chromatic = false;
+  if (!targets.length) { targets = selObjs().filter(o => o.kind === 'frag'); chromatic = true; }
+  if (!targets.length) { toast('鍵盤で鳴らすには、断片を選ぶか、断片の「鍵盤」を設定してください。', 3000); return; }
+  for (const f of targets) touchFrag(f, vel, { st: chromatic || f.key === 'all' ? note - 60 : 0, vol: (vel - 0.75) * 14 });
+}
+function midiCC(num, val) {
+  const kn = world.circuit.knobs;
+  if (CIR.learn != null) { kn[CIR.learn].cc = num; toast(`つまみ ${'ABCD'[CIR.learn]} を CC ${num} に割り当てました。`); CIR.learn = null; commit(); renderCircuit(); }
+  kn.forEach((k, i) => { if (k.cc === num) { k.v = val; const s = $('knob' + i); if (s) { s.value = val; const o = s.closest('.row').querySelector('.val'); if (o) o.textContent = fmtPct(val); } } });
+  clearTimeout(CIR.ccT); CIR.ccT = setTimeout(scheduleAutosave, 800);
+}
+
+// ---------- panel ----------
+function openCircuit() { $('circuit').hidden = false; $('cirBtn').setAttribute('aria-pressed', 'true'); renderCircuit(); }
+function closeCircuit() { $('circuit').hidden = true; $('cirBtn').setAttribute('aria-pressed', 'false'); }
+function renderCircuit() {
+  const box = $('circuit'); if (!box || box.hidden) return;
+  const on = !!(eng && eng.inp);
+  const dev = el('select', { id: 'cirDev', 'aria-label': '入力の機器' }, el('option', { value: '' }, '既定の入力'), ...CIR.devices.map(d => el('option', { value: d.deviceId, selected: d.deviceId === CIR.devId }, d.label || '入力')));
+  dev.addEventListener('change', () => enableInput(dev.value));
+  const knobs = world.circuit.knobs.map((k, i) => {
+    const row = slider(`つまみ ${'ABCD'[i]}`, () => k.v, v => { k.v = v; }, { min: 0, max: 1, step: 0.005, fmt: fmtPct, def: 0.5 });
+    row.querySelector('input').id = 'knob' + i;
+    const learn = btn(CIR.learn === i ? '動かして…' : k.cc != null ? `CC ${k.cc}` : '覚える', () => { CIR.learn = CIR.learn === i ? null : i; renderCircuit(); if (CIR.learn != null && !CIR.midi) enableMidi(); }, { cls: 'sm' + (CIR.learn === i ? ' learning' : ''), tip: 'MIDI のつまみを動かすと、このつまみに割り当てます' });
+    return el('div', { class: 'knobrow' }, row, learn);
+  });
+  // what the outside currently reaches, read from the laws
+  const links = [];
+  world.laws.forEach(l => { for (const [key, v] of Object.entries(l.m)) { const [s, t] = key.split('>'); const S0 = W.SMAP[s]; if (S0 && S0.g === '外から') links.push(`${S0.l} → ${W.TMAP[t].l} ${v > 0 ? '+' : ''}${v.toFixed(2)}（${l.name}）`); } });
+  box.replaceChildren(...[
+    el('header', { class: 'lawhead' }, el('h2', null, '回路'), el('span', { class: 'sub' }, '外から入るもの（オーディオインターフェース・マイク・MIDI・つまみ）と、その行き先'), el('span', { class: 'acts' }, btn('閉じる', closeCircuit, { cls: 'sm' }))),
+    inViewer ? el('p', { class: 'note warn' }, 'claude.ai の中の表示では、マイク・オーディオインターフェースと MIDI はブラウザに止められます。sawari/index.html を Chrome（MIDI は Chrome のみ）で直接開くと使えます。つまみ A〜D はここでも使えます。') : null,
+    el('div', { class: 'cirgrid' },
+      el('section', { class: 'sec' }, el('h3', null, '音声入力'),
+        el('p', { class: 'note' }, on ? `使用中：${CIR.label || '入力'}` : 'オーディオインターフェースやマイクの音を、世界の中に置いて鳴らします。'),
+        el('div', { class: 'acts' }, on ? btn('止める', disableInput) : btn('入力を使う', () => enableInput(CIR.devId), { cls: 'primary' }), on ? dev : null),
+        el('div', { class: 'meter', id: 'cirMeter', 'aria-label': '入力の大きさ' }, el('i'), el('b')),
+        el('div', { class: 'acts' }, btn('入力を世界に置く', () => { const o = W.newInput(view.x, view.y); addObj(o); commit(); if (!on) enableInput(CIR.devId); }, { tip: '道具 I でも置けます' })),
+        el('p', { class: 'note' }, '置いた「入」はその場所から聞こえ、耳・部屋・法則が効きます。音の立ち上がりで波紋を出す、近くの断片を鳴らす、自動で断片として採る、を選べます（「入」を選んで右の板で）。'),
+      ),
+      el('section', { class: 'sec' }, el('h3', null, 'MIDI'),
+        el('p', { class: 'note' }, CIR.midi ? (CIR.midiIns.length ? `受信中：${CIR.midiIns.join('、')}` : '機器が見つかりません。つなぐと自動で認識します。') : 'MIDI キーボードやコントローラーを使います（Chrome）。'),
+        el('div', { class: 'acts' }, CIR.midi ? null : btn('MIDI を使う', enableMidi, { cls: 'primary' })),
+        el('p', { class: 'note mono', id: 'cirLast' }, CIR.last || '—'),
+        slider('ベンド幅', () => world.circuit.pb, v => { world.circuit.pb = v; }, { min: 0, max: 12, step: 1, fmt: v => `±${v} 半音`, def: 2 }),
+        el('p', { class: 'note' }, '鍵盤：選んでいる断片がその高さで鳴ります（C4 が元の高さ）。断片の「鍵盤」で、特定の鍵に割り当てたり、常に鍵盤で弾けるようにできます。ピッチベンドはすべての音を曲げます。'),
+      ),
+      el('section', { class: 'sec' }, el('h3', null, 'つまみ'),
+        ...knobs,
+        el('p', { class: 'note' }, 'つまみは法則の表の「つまみA〜D」の行から、好きな音の性質へつながります。いま鳴っている音にもすぐ効きます。'),
+        el('h3', null, 'いまのつながり'),
+        links.length ? el('ul', { class: 'links' }, ...links.map(t => el('li', null, t))) : el('p', { class: 'note' }, 'まだありません。'),
+        el('div', { class: 'acts' }, btn('法則の表を開く', () => openLaws())),
+      ),
+    ),
+  ].filter(Boolean));
+}
+
 // Sawari input: tools, pointer and keyboard, hit testing, drop, the frame loop, boot.
 const canvas = $('world');
 const R = new D.Renderer(canvas);
@@ -3264,7 +3919,8 @@ const TOOLS = {
   flock: { k: 'd', l: '群', n: '群れを放つ', hint: 'クリックで群れを放つ。勝手に飛び回り、入った断片を鳴らします' },
   room: { k: 'b', l: '室', n: '部屋を建てる', hint: 'ドラッグで部屋を建てる。中にある断片の音は部屋の加工を通ります' },
   thread: { k: 'w', l: '糸', n: '糸を張る', hint: '断片から断片へドラッグ。前が鳴ると、糸の長さぶん遅れて後ろが鳴ります' },
-  thing: { k: 'o', l: '物', n: '物を置く', hint: 'クリックで音のない物を置く。まわりの断片の「近さ」「混み」を変えます' },
+  thing: { k: 'o', l: '物', n: '物を置く', hint: 'クリックで音のない物を置く。耳との間に建物があると、その音はこもります' },
+  input: { k: 'i', l: '入', n: '入力を置く', hint: 'クリックでオーディオ入力（インターフェース・マイク）を世界に置く。そこから聞こえ、立ち上がりで波紋を出します' },
   hand: { k: 'h', l: '手', n: '見る場所を動かす', hint: 'ドラッグで見る場所を動かす。二本指のスクロールでも、⌘ / ピンチで拡大縮小' },
 };
 let drag = null, draft = null, spaceDown = false, lastPtr = { x: 0, y: 0 };
@@ -3324,6 +3980,7 @@ function hitTest(p) {
       if (o.kind === 'rail') for (let i = 0; i < o.pts.length; i++) if (sdist(p, o.pts[i][0], o.pts[i][1]) < 8) return { o, part: 'vertex', i };
     }
   }
+  for (const o of sim.inputs) for (const hh of [0, 15, 30]) { const q = W2(p, hh); if (Math.hypot(q.x - o.x, q.y - o.y) < o.r) return { o }; }
   const stand = fragUnder(p, Tv, [...sim.frags, ...sim.things]);
   if (stand.length) return { o: stand[0] };
   for (const tr of sim.trains) for (const c of sim.trainCars(tr, Tv)) if (sdist(p, c.x, c.y, 6) < 16) return { o: tr };
@@ -3365,7 +4022,7 @@ function roomInside(p) { const w = W2(p); return sim.roomAt(w.x, w.y); }
 canvas.addEventListener('pointerdown', e => {
   canvas.setPointerCapture(e.pointerId);
   const p = ptr(e); lastPtr = p;
-  if (e.button === 1 || e.button === 2 || spaceDown || S.tool === 'hand') { drag = { kind: 'pan', p0: p, x: view.x, y: view.y }; canvas.classList.add('panning'); return; }
+  if (e.button === 1 || e.button === 2 || spaceDown || S.tool === 'hand') { earToView(); drag = { kind: 'pan', p0: p, x: view.x, y: view.y }; canvas.classList.add('panning'); return; }
   const w = W2(p), T = S.tool;
   if (T === 'select') {
     const hit = hitTest(p);
@@ -3374,7 +4031,8 @@ canvas.addEventListener('pointerdown', e => {
       if (e.shiftKey && S.sel.has(hit.o.id)) { S.sel.delete(hit.o.id); renderInspector(); return; }
       if (!S.sel.has(hit.o.id)) select([hit.o.id], e.shiftKey);
       if (e.altKey) duplicateSel();
-      drag = { kind: 'move', p0: p, w0: w, moved: false, items: selObjs().map(o => ({ o, x: o.x, y: o.y, pts: o.pts ? o.pts.map(q => q.slice()) : null })) };
+      drag = { kind: 'move', p0: p, w0: w, moved: false, items: selObjs().map(o => ({ o, x: o.x, y: o.y, pts: o.pts ? o.pts.map(q => q.slice()) : null })), hear: hit.o.kind === 'frag' ? hit.o : null, last: p, lastT: performance.now(), hp: p, ht: 0 };
+      if (drag.hear && world.dragSound) { touchFrag(drag.hear, 0.7); drag.ht = performance.now(); }
       return;
     }
     drag = { kind: 'marquee', p0: p, p1: p, add: e.shiftKey };
@@ -3400,6 +4058,7 @@ canvas.addEventListener('pointerdown', e => {
   if (T === 'ripple') { addObj(W.newRipple(w.x, w.y)); commit(); return; }
   if (T === 'flock') { addObj(W.newFlock(w.x, w.y)); commit(); return; }
   if (T === 'thing') { const types = ['tower', 'box', 'tree', 'house', 'pillar', 'glyph', 'cluster']; const rng = C.makeRng(randSeed()); addObj(W.newThing(w.x, w.y, rng, types[Math.floor(rng() * types.length)])); commit(); return; }
+  if (T === 'input') { addObj(W.newInput(w.x, w.y)); commit(); if (!(eng && eng.inp)) enableInput(CIR.devId); return; }
 });
 canvas.addEventListener('pointermove', e => {
   const p = ptr(e); lastPtr = p;
@@ -3410,6 +4069,12 @@ canvas.addEventListener('pointermove', e => {
   if (d.kind === 'move') {
     const dx = w.x - d.w0.x, dy = w.y - d.w0.y;
     if (Math.hypot(p.x - d.p0.x, p.y - d.p0.y) > 2) d.moved = true;
+    const nowMs = performance.now(), dtm = Math.max(8, nowMs - d.lastT) / 1000;
+    const spd = Math.hypot((p.x - d.last.x) / view.z, (p.y - d.last.y) / (view.z * view.ct)) / dtm;
+    d.last = p; d.lastT = nowMs;
+    if (!sim.dragMotion) sim.dragMotion = new Map();
+    for (const it of d.items) if (it.o.kind === 'frag') sim.dragMotion.set(it.o.id, Math.max(sim.dragMotion.get(it.o.id) || 0, C.clamp(spd / 900, 0, 1)));
+    if (d.hear && world.dragSound && nowMs - d.ht > 260 && Math.hypot(p.x - d.hp.x, p.y - d.hp.y) > 70 && !(eng && eng.voices.some(v => v.id === d.hear.id && !v.dead && v.endT > audioNow() + 0.05))) { touchFrag(d.hear, 0.6); d.ht = nowMs; d.hp = p; }
     for (const it of d.items) {
       const o = it.o;
       if (it.pts) o.pts = it.pts.map(([x, y]) => [x + dx, y + dy]);
@@ -3457,7 +4122,7 @@ canvas.addEventListener('pointerup', e => {
     const Tv = visT(), ids = [];
     const inBox = (x, y) => { const X = view.sx(x), Y = view.sy(y); return X >= x0 && X <= x1 && Y >= y0 && Y <= y1; };
     for (const f of sim.frags) { const q = sim.pose(f, Tv, false); if (inBox(q.x, q.y)) ids.push(f.id); }
-    for (const o of [...sim.things, ...sim.ripples, ...sim.sweeps, ...sim.flockObjs, ...sim.rooms, ...sim.scans]) if (inBox(o.x, o.y)) ids.push(o.id);
+    for (const o of [...sim.things, ...sim.ripples, ...sim.sweeps, ...sim.flockObjs, ...sim.rooms, ...sim.scans, ...sim.inputs]) if (inBox(o.x, o.y)) ids.push(o.id);
     select(ids, d.add);
     return;
   }
@@ -3520,6 +4185,7 @@ canvas.addEventListener('click', e => {
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 canvas.addEventListener('wheel', e => {
   e.preventDefault();
+  if (!(e.ctrlKey || e.metaKey)) earToView();
   const p = ptr(e);
   if (e.ctrlKey || e.metaKey) {
     const before = W2(p), k = Math.exp(-e.deltaY * (e.deltaMode ? 0.05 : 0.0105));
@@ -3601,6 +4267,7 @@ window.addEventListener('keydown', e => {
   if (k === '?' ) { $('help').hidden = !$('help').hidden; return; }
   if (k === 'l' || k === 'L') { $('laws').hidden ? openLaws() : closeLaws(); return; }
   if (k === 'm' || k === 'M') { toggleLibrary(); return; }
+  if (k === 'k' || k === 'K') { $('circuit').hidden ? openCircuit() : closeCircuit(); return; }
   const tool = Object.entries(TOOLS).find(([, t]) => t.k === k.toLowerCase());
   if (tool) { setTool(tool[0]); return; }
   const os = selObjs();
@@ -3668,12 +4335,29 @@ function flash(id) {
   return null;
 }
 const srcName = id => (srcs.get(id) || world.sources.find(s => s.id === id) || { name: '?' }).name;
+// the ear follows the view, or the view follows the ear (wandering, riding)
+function earToView() { if (world.ear.mode === 'wander' || world.ear.mode === 'ride') { world.ear.mode = 'view'; syncEarCtl(); toast('耳を画面に戻しました。', 1500); } }
+function syncEarCtl() { const s = $('earMode'); if (s && s.value !== world.ear.mode) s.value = world.ear.mode; }
+function updateEar(Tv) {
+  const E = world.ear;
+  E.r = Math.round(0.36 * Math.hypot(view.w, view.h) / view.z);
+  if (E.mode === 'wander' || E.mode === 'ride') {
+    const t = sim.earAt(Tv), k = E.mode === 'ride' ? 0.12 : 0.05;
+    view.x += (t.x - view.x) * k; view.y += (t.y - view.y) * k;
+  } else { E.x = view.x; E.y = view.y; }
+}
 function frame() {
   requestAnimationFrame(frame);
   if (S.playing) pump();
   view.tilt = world.tilt ?? 0.5;
   const Tv = visT();
-  R.draw({ world, sim, view, Tv, sel: S.sel, flash, labels: S.labels, srcName, handles, overlay });
+  updateEar(Tv);
+  circuitTick();
+  if (sim.dragMotion && sim.dragMotion.size) { for (const [id, v] of sim.dragMotion) { const n = v * 0.86; if (n < 0.01) sim.dragMotion.delete(id); else sim.dragMotion.set(id, n); } }
+  const sounding = eng ? eng.sounding(audioNow()) : null;
+  const inLevel = o => { const rt = CIR.rt.get(o.id); return { lv: CIR.level, on: !!(eng && eng.inp), flash: rt && performance.now() - rt.flash < 160 ? 1 : 0 }; };
+  R.draw({ world, sim, view, Tv, sel: S.sel, flash, labels: S.labels, srcName, handles, overlay, sounding, inLevel });
+  if (eng && ctx) { const m = $('outMeter'); if (m) { const lv = outLevel(); m.style.setProperty('--lv', lv.toFixed(3)); m.title = `出力 · 鳴っている声 ${eng.load()}`; } }
   const T = Math.max(0, S.playing && ctx ? ctx.currentTime - S.t0 : S.T), beat = 60 / world.bpm;
   const bar = Math.floor(T / (beat * 4)) + 1, bt = Math.floor(T / beat) % 4 + 1;
   $('clock').textContent = `${Math.floor(T / 60)}:${(T % 60).toFixed(1).padStart(4, '0')}  ${bar}.${bt}`;
@@ -3689,6 +4373,8 @@ function wire() {
   $('reseed').onclick = () => { world.seed = randSeed(); syncTopBar(); commit(); rewind(); toast(`種 ${world.seed}：同じ配置から別の偶然が生まれます。この種を残せば、同じ展開を何度でも書き出せます。`, 4200); };
   $('lawsBtn').onclick = () => ($('laws').hidden ? openLaws() : closeLaws());
   $('libBtn').onclick = () => toggleLibrary();
+  $('cirBtn').onclick = () => ($('circuit').hidden ? openCircuit() : closeCircuit());
+  $('earMode').addEventListener('change', () => { const v = $('earMode').value; if (v === 'ride' && !sim.byId.get(world.ear.target)) { const t = sim.trains[0] || sim.flockObjs[0]; if (!t) { toast('乗れる列車や群れがありません。'); syncEarCtl(); return; } world.ear.target = t.id; } world.ear.mode = v; commit(); if (!selObjs().length) renderInspector(); });
   $('undo').onclick = undo; $('redo').onclick = redo;
   $('rec').onclick = toggleRec;
   $('exportBtn').onclick = e => { e.stopPropagation(); const on = $('exportPop').hidden; closePops(); $('exportPop').hidden = !on; };
@@ -3711,7 +4397,7 @@ function wire() {
   $('fileProj').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; if (f) openProject(f); e.target.value = ''; });
   $('tilt').addEventListener('input', () => { world.tilt = +$('tilt').value; });
   $('tilt').addEventListener('change', () => commit());
-  $('fit').onclick = fitView;
+  $('fit').onclick = () => { earToView(); fitView(); };
   document.addEventListener('pointerdown', e => { if (!e.target.closest('.pop') && !e.target.closest('#exportBtn') && !e.target.closest('#menuBtn')) closePops(); });
   window.addEventListener('resize', resize);
   const re = () => { R.palette(); renderLibrary(); if (selObjs().length === 1 && selObjs()[0].kind === 'frag') renderInspector(); };

@@ -13,7 +13,7 @@ ${rd('src/style.css')}
 </style>
 ${rd('src/body.html')}
 <script>
-${['core', 'codec', 'world', 'audio', 'draw', 'app', 'panels', 'input'].map(n => rd(`src/${n}.js`)).join('\n')}
+${['core', 'codec', 'world', 'audio', 'draw', 'app', 'panels', 'circuit', 'input'].map(n => rd(`src/${n}.js`)).join('\n')}
 </script>
 `;
 writeFileSync(join(ROOT, 'app.html'), html);

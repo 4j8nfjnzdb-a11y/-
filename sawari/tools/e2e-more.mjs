@@ -26,15 +26,16 @@ await page.keyboard.press('w');
 await page.mouse.move(a.x, a.y); await page.mouse.down(); await page.mouse.move(b.x, b.y, { steps: 8 }); await page.mouse.up();
 test('thread tool ties two fragments', await page.evaluate(([a, b]) => sim.threads.some(t => t.a === a && t.b === b), [a.id, b.id]));
 // sweep: click = radar, drag = scan
+const base = await page.evaluate(() => ({ sw: sim.sweeps.length, sc: sim.scans.length, fl: sim.flockObjs.length, rp: sim.ripples.length, th: sim.things.length }));
 await page.keyboard.press('s');
 await page.mouse.click(980, 220);
 await page.mouse.move(150, 760); await page.mouse.down(); await page.mouse.move(600, 820, { steps: 5 }); await page.mouse.up();
-test('sweep tool: click makes a radar, drag makes a scan', await page.evaluate(() => sim.sweeps.length === 1 && sim.scans.length === 1));
+test('sweep tool: click makes a radar, drag makes a scan', await page.evaluate(b => sim.sweeps.length === b.sw + 1 && sim.scans.length === b.sc + 1, base));
 // flock + ripple + thing
 await page.keyboard.press('d'); await page.mouse.click(600, 300);
 await page.keyboard.press('p'); await page.mouse.click(300, 250);
 await page.keyboard.press('o'); await page.mouse.click(1000, 600);
-test('flock, ripple and thing tools place objects', await page.evaluate(() => sim.flockObjs.length === 2 && sim.ripples.length === 2 && sim.things.length === 3));
+test('flock, ripple and thing tools place objects', await page.evaluate(b => sim.flockObjs.length === b.fl + 1 && sim.ripples.length === b.rp + 1 && sim.things.length === b.th + 1, base));
 await page.keyboard.press('v');
 
 // room effect chain: add a unit, the engine builds it

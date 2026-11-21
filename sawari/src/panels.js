@@ -59,10 +59,11 @@ function renderInspector() {
   const box = $('insp'), objs = selObjs();
   ghosts.length = 0; box.replaceChildren();
   inspFor = objs.map(o => o.id).join(',');
+  box.hidden = window.innerWidth < 760 && !objs.length;   // small windows: keep the world visible
   if (!objs.length) return worldInspector(box);
   if (objs.length > 1) return multiInspector(box, objs);
   const o = objs[0];
-  ({ frag: fragInspector, thing: thingInspector, rail: railInspector, train: trainInspector, ripple: rippleInspector, sweep: sweepInspector, scan: scanInspector, flock: flockInspector, room: roomInspector, thread: threadInspector })[o.kind](box, o);
+  ({ frag: fragInspector, thing: thingInspector, rail: railInspector, train: trainInspector, ripple: rippleInspector, sweep: sweepInspector, scan: scanInspector, flock: flockInspector, room: roomInspector, thread: threadInspector, input: inputInspector })[o.kind](box, o);
 }
 function head(box, kind, title, sub) {
   box.append(el('header', { class: 'ihead' }, el('span', { class: 'kind' }, kind), el('h2', null, title), sub ? el('p', { class: 'sub' }, sub) : null));
@@ -74,7 +75,7 @@ const dupBtn = () => btn('複製', () => duplicateSel(), { tip: '⌘D、また�
 function worldInspector(box) {
   const w = world;
   head(box, '世界', '何も選んでいません', 'ここでは世界全体の決まりを変えます。ものを選ぶと、その性質が出ます。');
-  box.append(
+  box.append(earSection(),
     section('時間',
       slider('拍の速さ', () => w.bpm, v => { w.bpm = v; syncTopBar(); if (eng) { eng.syncMaster(); eng.syncRooms(); } }, { min: 30, max: 220, step: 1, fmt: v => `${v} BPM`, def: 92 }),
       slider('糸の伝わる速さ', () => w.threadSpeed, v => { w.threadSpeed = v; }, { min: 40, max: 1600, step: 10, fmt: v => `${v} /s`, def: 420, tip: '糸でつないだ断片は、糸の長さ ÷ この速さだけ遅れて鳴ります' }),
@@ -89,8 +90,9 @@ function worldInspector(box) {
       slider('響（残響）の長さ', () => w.master.vSize, v => { w.master.vSize = v; }, { min: 0.3, max: 8, step: 0.1, fmt: fmtS, def: 3.4, after: () => eng && eng.syncMaster() }),
       slider('響のこもり', () => w.master.vDamp, v => { w.master.vDamp = v; }, { min: 0, max: 1, fmt: fmtPct, def: 0.45, after: () => eng && eng.syncMaster() }),
     ),
-    section('見え方',
+    section('見え方と手ざわり',
       toggle('断片に名札を出す', () => S.labels, v => { S.labels = v; }),
+      toggle('動かすと鳴る', () => w.dragSound, v => { w.dragSound = v; }, { tip: '断片を掴んで動かすと、その場で鳴り、動かしている間ずっと音が変わります' }),
     ),
     section('始め方',
       note('音声ファイルをこの画面に落とすと、その場に「断片」が置かれます。断片はそれだけでは鳴りません。列車・波紋・掃引・群れが触れたとき、または「触」の道具で触れたときに鳴ります。'),
@@ -133,6 +135,10 @@ function fragInspector(box, f) {
   box.append(section('法則',
     seg('', [[0, '甲'], [1, '乙'], [2, '丙'], [-1, '無', '法則に従わない（設定した値のまま）']], () => f.law, v => { f.law = v; }),
     actions(btn('法則の表を開く', () => openLaws(f.law >= 0 ? f.law : 0))),
+  ));
+  box.append(section('鍵盤（MIDI）',
+    seg('', [[null, 'なし', '選んでいる間だけ鍵盤で弾ける'], ['all', '全鍵', 'いつでも、どの鍵でも、その高さで鳴る（C4 が元の高さ）']], () => (f.key === 'all' ? 'all' : f.key == null ? null : 'one'), v => { f.key = v; }, { after: renderInspector }),
+    actions(btn(CIR.learnKey === f.id ? '鍵を押して…' : typeof f.key === 'number' ? `鍵 ${noteName(f.key)} で鳴る（覚え直す）` : '鍵を覚える', () => { CIR.learnKey = CIR.learnKey === f.id ? null : f.id; if (!CIR.midi) enableMidi(); renderInspector(); }, { tip: '次に押した MIDI の鍵で、この断片が鳴るようにする' })),
   ));
   box.append(skinSection(f, true));
   const m = f.move;
@@ -237,7 +243,11 @@ function trainInspector(box, t) {
     slider('車両', () => t.cars, v => t.cars = v, { min: 1, max: 8, step: 1, fmt: v => `${v} 両`, def: 2 }),
     slider('届く距離', () => t.reach, v => t.reach = v, { min: 5, max: 260, step: 1, fmt: v => `${v}`, def: 60, tip: '線路からこの距離までの断片を鳴らす' }),
     rail && !rail.closed ? seg('端で', [['bounce', '折り返す'], ['wrap', '始点へ飛ぶ']], () => t.end, v => { t.end = v; }) : null,
-  ), actions(delBtn(t)));
+  ), section('列車が変える音',
+    seg('車両の音程', Object.keys(W.CHORDS).map(k => [k, W.CHORD_L[k]]), () => t.chord, v => { t.chord = v; }),
+    note('一両目から順に、この音程で鳴らします。車両を増やすと、通りがかりに分散和音になります。'),
+    slider('ドップラー', () => t.doppler, v => t.doppler = v, { min: 0, max: 1, fmt: fmtPct, def: 0.6, tip: '近づくと高く、離れると低く。鳴っている間ずっと曲がる' }),
+  ), actions(rideBtn(t), delBtn(t)));
 }
 function rippleInspector(box, r) {
   head(box, '波紋', '波紋の源', '一定の間隔で輪を放ち、輪が届いた断片を鳴らします。距離がそのまま時間になります');
@@ -246,6 +256,9 @@ function rippleInspector(box, r) {
     slider('広がる速さ', () => r.speed, v => r.speed = v, { min: 20, max: 1600, step: 5, fmt: v => `${v} /s`, def: 240 }),
     slider('届く範囲', () => r.reach, v => r.reach = v, { min: 40, max: 1600, step: 5, fmt: v => `${v}`, def: 520 }),
     slider('位相', () => r.phase, v => r.phase = v, { min: 0, max: 0.99, step: 0.01, fmt: fmtPct, def: 0, tip: '周期の中でいつ放つか' }),
+  ), section('波紋が変える音',
+    slider('遠いほど暗く', () => r.dark, v => r.dark = v, { min: 0, max: 1, fmt: fmtPct, def: 0.7, tip: '源から遠い断片ほど、こもって響きが増える' }),
+    slider('輪ごとに進む', () => r.adv, v => r.adv = v, { min: 0, max: 1, fmt: fmtPct, def: 0.3, tip: '輪が来るたびに、断片の別の場所から鳴る' }),
   ), actions(dupBtn(), delBtn(r)));
 }
 function sweepInspector(box, s) {
@@ -255,7 +268,7 @@ function sweepInspector(box, s) {
     slider('半径', () => s.r, v => s.r = v, { min: 40, max: 1400, step: 5, fmt: v => `${v}`, def: 320 }),
     seg('向き', [[1, '時計回り'], [-1, '反時計回り']], () => s.dir, v => { s.dir = v; }),
     slider('始まりの角', () => Math.round(s.ang0 * 180 / Math.PI), v => s.ang0 = v * Math.PI / 180, { min: -180, max: 180, step: 1, fmt: v => `${v}°` }),
-  ), actions(dupBtn(), delBtn(s)));
+  ), pitchSection(s, '針が変える音', '断片を置く角度が音の高さになります（文字盤のように）。一周で設定した幅だけ上がります。'), actions(dupBtn(), delBtn(s)));
 }
 function scanInspector(box, s) {
   head(box, '走査', '直線の時間', '左から右へ動く線が断片を鳴らします。いちばん普通の「タイムライン」も、世界の中のひとつの物です');
@@ -265,7 +278,7 @@ function scanInspector(box, s) {
     slider('高さ', () => s.h, v => s.h = v, { min: 30, max: 2000, step: 10, fmt: v => `${v}`, def: 300 }),
     slider('角度', () => Math.round(s.ang * 180 / Math.PI), v => s.ang = v * Math.PI / 180, { min: -180, max: 180, step: 1, fmt: v => `${v}°`, def: 0 }),
     slider('位相', () => s.phase, v => s.phase = v, { min: 0, max: 0.99, step: 0.01, fmt: fmtPct, def: 0 }),
-  ), actions(dupBtn(), delBtn(s)));
+  ), pitchSection(s, '走査が変える音', '枠の中の高さが音の高さになります（楽譜のように）。上ほど高く、下ほど低く。'), actions(dupBtn(), delBtn(s)));
 }
 function flockInspector(box, f) {
   head(box, '群れ', `${f.n} 羽`, '自分で飛び回り、入った断片を鳴らします。帯の断片の上では、通った場所を読みます');
@@ -276,7 +289,11 @@ function flockInspector(box, f) {
     seg('ふるまい', [['wander', '迷う'], ['swarm', '群がる'], ['seek', '訪ねる', '断片から断片へ渡り歩く']], () => f.mode, v => { f.mode = v; }),
     slider('縄張り', () => f.leash, v => f.leash = v, { min: 40, max: 2400, step: 10, fmt: v => `${v}`, def: 420, tip: '中心からこの距離を越えると戻ってくる' }),
     seg('拍に寄せる', [[0, '自由'], [0.25, '16分'], [0.5, '8分'], [1, '4分']], () => f.quant, v => { f.quant = v; }),
-  ), actions(dupBtn(), delBtn(f)));
+  ), section('群れが変える音',
+    seg('さえずり', [['off', 'なし'], ['penta', '五音'], ['wide', '広く']], () => f.song, v => { f.song = v; }, { tip: '一羽ごとに違う高さで鳴らす' }),
+    slider('粒にする', () => f.gran, v => f.gran = v, { min: 0, max: 1, fmt: fmtPct, def: 0.5, tip: '群れが触れた音を粒に砕く' }),
+    note('鳥の速さと向きで、鳴っている音の高さが曲がります（近づくと高く、離れると低く）。'),
+  ), actions(rideBtn(f), dupBtn(), delBtn(f)));
 }
 function roomInspector(box, m) {
   head(box, '部屋', m.name || '部屋', '中にある断片の音は、この部屋の加工を通ります。上から順に掛かります');
@@ -317,8 +334,50 @@ function threadInspector(box, t) {
     toggle('拍で数える', () => t.sync, v => { t.sync = v; }, { after: renderInspector, tip: '切ると、糸の長さが遅れの時間になる' }),
     t.sync ? slider('遅れ', () => t.beats, v => t.beats = v, { min: 0.125, max: 16, step: 0.125, fmt: v => `${v} 拍`, def: 1 })
       : slider('遅れの倍率', () => t.mul, v => t.mul = v, { min: 0.1, max: 8, step: 0.05, fmt: v => `×${(+v).toFixed(2)}`, def: 1 }),
+    slider('移調', () => t.step, v => t.step = v, { min: -12, max: 12, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v} 半音`, def: 7, tip: '糸を渡るたびに、この分だけ高さが変わる（連なると旋律になる）' }),
     note('糸がつながって輪になると、確率が 1 未満である限り、いつか途切れる反復になります。'),
   ), actions(btn('向きを逆に', () => { [t.a, t.b] = [t.b, t.a]; sim.index(); commit(); renderInspector(); }), delBtn(t)));
+}
+function pitchSection(o, title, text) {
+  return section(title,
+    slider('音程の幅', () => o.range, v => o.range = v, { min: 0, max: 36, step: 1, fmt: v => `${v} 半音`, def: o.kind === 'scan' ? 24 : 12 }),
+    seg('音階', Object.keys(W.SCALES).map(k => [k, W.SCALE_L[k]]), () => o.scale, v => { o.scale = v; }),
+    note(text));
+}
+function rideBtn(o) {
+  const riding = world.ear.mode === 'ride' && world.ear.target === o.id;
+  return btn(riding ? '降りる' : '耳を乗せる', () => { if (riding) world.ear.mode = 'view'; else { world.ear.mode = 'ride'; world.ear.target = o.id; } commit(); renderInspector(); toast(riding ? '耳を画面に戻しました。' : '耳がこれに乗りました。画面も一緒に動きます。手で動かすと降ります。'); }, { tip: '聴く位置をこれに乗せる（画面が追いかける）' });
+}
+function earSection() {
+  const E = world.ear;
+  return section('耳（聴く位置）',
+    seg('', [['view', '画面', '画面の中心で聴く。動かすと音が変わる'], ['wander', '漂う', '聴く位置がひとりでに世界をさまよう'], ['ride', '乗る', '列車や群れを選んで「耳を乗せる」'], ['off', 'なし', 'どこでも同じ大きさで聴く']], () => E.mode, v => { if (v === 'ride' && !sim.byId.get(E.target)) { const t = sim.trains[0] || sim.flockObjs[0]; if (!t) { toast('乗れる列車や群れがありません。'); return; } E.target = t.id; } E.mode = v; }, { after: renderInspector }),
+    slider('耳の効き', () => E.amt, v => E.amt = v, { min: 0, max: 1, fmt: fmtPct, def: 0.8, tip: '遠くのものが小さく暗くなる度合い。建物の陰の音はこもる' }),
+    note('画面の中心が耳です。画面を動かす・拡大縮小すると、近いものは大きく、遠いもの・建物の陰のものはこもって聞こえます。'));
+}
+function inputInspector(box, o) {
+  const on = !!(eng && eng.inp);
+  head(box, '入力', 'オーディオ入力', on ? `使用中：${CIR.label || '入力'}` : 'まだ入力を使っていません');
+  if (!on) box.append(actions(btn('入力を使う', () => enableInput(CIR.devId), { cls: 'primary' })));
+  box.append(section('聞こえ方',
+    slider('モニター', () => o.mon, v => o.mon = v, { min: 0, max: 1.5, fmt: fmtPct, def: 0.8, tip: '入力をこの場所から鳴らす量（0 で鳴らさず、きっかけだけに使う）' }),
+    seg('チャンネル', [['mix', '両方'], ['L', '左（1）'], ['R', '右（2）']], () => o.ch, v => { o.ch = v; }),
+    slider('音量', () => o.p.vol, v => o.p.vol = v, { min: -36, max: 12, step: 0.5, fmt: fmtDb, def: 0 }),
+    slider('音色', () => o.p.tone, v => o.p.tone = v, { min: -1, max: 1, fmt: fmtTone, def: 0 }),
+    slider('歪', () => o.p.drive, v => o.p.drive = v, { min: 0, max: 1, fmt: fmtPct, def: 0 }),
+    slider('遠', () => o.p.dly, v => o.p.dly = v, { min: 0, max: 1, fmt: fmtPct, def: 0 }),
+    slider('響', () => o.p.verb, v => o.p.verb = v, { min: 0, max: 1, fmt: fmtPct, def: 0.1 }),
+    seg('法則', [[0, '甲'], [1, '乙'], [2, '丙'], [-1, '無']], () => o.law, v => { o.law = v; }),
+    note('置いた場所で、耳との距離・部屋・法則（音量・定位・音色・歪・遠・響）が効きます。'),
+  ), section('立ち上がりで',
+    seg('', [['ripple', '波紋を出す', '再生中、音を出すたびにここから輪が広がり、断片を鳴らす'], ['hit', '近くを鳴らす', 'いちばん近い断片を鳴らす'], ['none', '何もしない']], () => o.trig, v => { o.trig = v; }),
+    slider('しきい', () => o.thr, v => o.thr = v, { min: 0.01, max: 0.8, fmt: fmtPct, def: 0.12, tip: 'これより大きな立ち上がりに反応する' }),
+  ), section('採る（入力を断片にする）',
+    toggle('立ち上がりごとに自動で採る', () => o.auto, v => { o.auto = v; }),
+    slider('長さ（いま採る）', () => o.capLen, v => o.capLen = v, { min: 0.5, max: 20, step: 0.5, fmt: fmtS, def: 4 }),
+    seg('採った断片', [['hit', '打'], ['loop', '環'], ['tape', '帯']], () => o.capMode, v => { o.capMode = v; }),
+    actions(btn('いま採る', () => captureNow(o), { cls: 'primary', tip: '直前の数秒を断片にする' }), btn('回路を開く', openCircuit)),
+  ), actions(dupBtn(), delBtn(o)));
 }
 function multiInspector(box, os) {
   const frags = os.filter(o => o.kind === 'frag');
@@ -362,10 +421,12 @@ function renderLaws() {
   const tabs = el('div', { class: 'seg' }, ...world.laws.map((l, i) => el('button', { type: 'button', 'aria-pressed': String(i === lawIdx), onclick: () => { lawIdx = i; renderLaws(); } }, l.name)));
   const read = el('p', { class: 'lawread mono', id: 'lawread' }, '升目を上下にドラッグすると強さが変わります。ダブルクリックで 0。');
   const grid = el('div', { class: 'grid', style: `grid-template-columns: 4.6em repeat(${W.TARGETS.length}, 1fr)` });
-  grid.append(el('span', { class: 'corner' }, '空間 ＼ 音'));
+  grid.append(el('span', { class: 'corner' }, '源 ＼ 音'));
   for (const t of W.TARGETS) grid.append(el('span', { class: 'th', title: t.d }, t.l));
+  let lastG = '';
   for (const s of W.SOURCES) {
-    grid.append(el('span', { class: 'rh', title: s.d }, s.l));
+    if (s.g !== lastG) { grid.append(el('span', { class: 'gh', style: 'grid-column:1/-1' }, s.g)); lastG = s.g; }
+    grid.append(el('span', { class: 'rh', title: s.d + (s.bi ? '（中央で 0、両側へ ±）' : '（0 のとき変化なし）') }, s.l, s.bi ? el('i', { class: 'bi' }, '±') : null));
     for (const t of W.TARGETS) {
       const key = s.k + '>' + t.k, v = law.m[key] || 0;
       const c = el('span', { class: 'cell', tabindex: '0', role: 'slider', 'aria-label': `${s.l} → ${t.l}`, 'aria-valuemin': '-1', 'aria-valuemax': '1', 'aria-valuenow': String(v), style: `background:${cellColor(v)}` });
@@ -392,7 +453,7 @@ function renderLaws() {
         btn('消す', () => { law.m = {}; commit(); renderLaws(); }),
         btn('最初の形', () => { law.m = W.defaultLaws()[lawIdx].m; commit(); renderLaws(); }),
         btn('閉じる', closeLaws, { cls: 'sm' }))),
-    el('p', { class: 'note' }, '行は空間が持つ性質、列は音の性質。升目の数字は「その性質が増えると、その音をどれだけ動かすか」。一つの行から何本でも引けます。橙は増やし、青は減らします。'),
+    el('p', { class: 'note' }, '行は空間・関係・動き・外から来るもの、列は音の性質。升目の数字は「その性質が増えると、その音をどれだけ動かすか」。一つの行から何本でも引けます。橙は増やし、青は減らします。± の行は中央が 0、ほかの行は 0 のとき何も変えません。鳴っている音にもすぐ効きます。'),
     el('div', { class: 'gridwrap' }, grid), read);
 }
 

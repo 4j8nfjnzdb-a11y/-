@@ -11,7 +11,8 @@ const TOOLS = {
   flock: { k: 'd', l: '群', n: '群れを放つ', hint: 'クリックで群れを放つ。勝手に飛び回り、入った断片を鳴らします' },
   room: { k: 'b', l: '室', n: '部屋を建てる', hint: 'ドラッグで部屋を建てる。中にある断片の音は部屋の加工を通ります' },
   thread: { k: 'w', l: '糸', n: '糸を張る', hint: '断片から断片へドラッグ。前が鳴ると、糸の長さぶん遅れて後ろが鳴ります' },
-  thing: { k: 'o', l: '物', n: '物を置く', hint: 'クリックで音のない物を置く。まわりの断片の「近さ」「混み」を変えます' },
+  thing: { k: 'o', l: '物', n: '物を置く', hint: 'クリックで音のない物を置く。耳との間に建物があると、その音はこもります' },
+  input: { k: 'i', l: '入', n: '入力を置く', hint: 'クリックでオーディオ入力（インターフェース・マイク）を世界に置く。そこから聞こえ、立ち上がりで波紋を出します' },
   hand: { k: 'h', l: '手', n: '見る場所を動かす', hint: 'ドラッグで見る場所を動かす。二本指のスクロールでも、⌘ / ピンチで拡大縮小' },
 };
 let drag = null, draft = null, spaceDown = false, lastPtr = { x: 0, y: 0 };
@@ -71,6 +72,7 @@ function hitTest(p) {
       if (o.kind === 'rail') for (let i = 0; i < o.pts.length; i++) if (sdist(p, o.pts[i][0], o.pts[i][1]) < 8) return { o, part: 'vertex', i };
     }
   }
+  for (const o of sim.inputs) for (const hh of [0, 15, 30]) { const q = W2(p, hh); if (Math.hypot(q.x - o.x, q.y - o.y) < o.r) return { o }; }
   const stand = fragUnder(p, Tv, [...sim.frags, ...sim.things]);
   if (stand.length) return { o: stand[0] };
   for (const tr of sim.trains) for (const c of sim.trainCars(tr, Tv)) if (sdist(p, c.x, c.y, 6) < 16) return { o: tr };
@@ -112,7 +114,7 @@ function roomInside(p) { const w = W2(p); return sim.roomAt(w.x, w.y); }
 canvas.addEventListener('pointerdown', e => {
   canvas.setPointerCapture(e.pointerId);
   const p = ptr(e); lastPtr = p;
-  if (e.button === 1 || e.button === 2 || spaceDown || S.tool === 'hand') { drag = { kind: 'pan', p0: p, x: view.x, y: view.y }; canvas.classList.add('panning'); return; }
+  if (e.button === 1 || e.button === 2 || spaceDown || S.tool === 'hand') { earToView(); drag = { kind: 'pan', p0: p, x: view.x, y: view.y }; canvas.classList.add('panning'); return; }
   const w = W2(p), T = S.tool;
   if (T === 'select') {
     const hit = hitTest(p);
@@ -121,7 +123,8 @@ canvas.addEventListener('pointerdown', e => {
       if (e.shiftKey && S.sel.has(hit.o.id)) { S.sel.delete(hit.o.id); renderInspector(); return; }
       if (!S.sel.has(hit.o.id)) select([hit.o.id], e.shiftKey);
       if (e.altKey) duplicateSel();
-      drag = { kind: 'move', p0: p, w0: w, moved: false, items: selObjs().map(o => ({ o, x: o.x, y: o.y, pts: o.pts ? o.pts.map(q => q.slice()) : null })) };
+      drag = { kind: 'move', p0: p, w0: w, moved: false, items: selObjs().map(o => ({ o, x: o.x, y: o.y, pts: o.pts ? o.pts.map(q => q.slice()) : null })), hear: hit.o.kind === 'frag' ? hit.o : null, last: p, lastT: performance.now(), hp: p, ht: 0 };
+      if (drag.hear && world.dragSound) { touchFrag(drag.hear, 0.7); drag.ht = performance.now(); }
       return;
     }
     drag = { kind: 'marquee', p0: p, p1: p, add: e.shiftKey };
@@ -147,6 +150,7 @@ canvas.addEventListener('pointerdown', e => {
   if (T === 'ripple') { addObj(W.newRipple(w.x, w.y)); commit(); return; }
   if (T === 'flock') { addObj(W.newFlock(w.x, w.y)); commit(); return; }
   if (T === 'thing') { const types = ['tower', 'box', 'tree', 'house', 'pillar', 'glyph', 'cluster']; const rng = C.makeRng(randSeed()); addObj(W.newThing(w.x, w.y, rng, types[Math.floor(rng() * types.length)])); commit(); return; }
+  if (T === 'input') { addObj(W.newInput(w.x, w.y)); commit(); if (!(eng && eng.inp)) enableInput(CIR.devId); return; }
 });
 canvas.addEventListener('pointermove', e => {
   const p = ptr(e); lastPtr = p;
@@ -157,6 +161,12 @@ canvas.addEventListener('pointermove', e => {
   if (d.kind === 'move') {
     const dx = w.x - d.w0.x, dy = w.y - d.w0.y;
     if (Math.hypot(p.x - d.p0.x, p.y - d.p0.y) > 2) d.moved = true;
+    const nowMs = performance.now(), dtm = Math.max(8, nowMs - d.lastT) / 1000;
+    const spd = Math.hypot((p.x - d.last.x) / view.z, (p.y - d.last.y) / (view.z * view.ct)) / dtm;
+    d.last = p; d.lastT = nowMs;
+    if (!sim.dragMotion) sim.dragMotion = new Map();
+    for (const it of d.items) if (it.o.kind === 'frag') sim.dragMotion.set(it.o.id, Math.max(sim.dragMotion.get(it.o.id) || 0, C.clamp(spd / 900, 0, 1)));
+    if (d.hear && world.dragSound && nowMs - d.ht > 260 && Math.hypot(p.x - d.hp.x, p.y - d.hp.y) > 70 && !(eng && eng.voices.some(v => v.id === d.hear.id && !v.dead && v.endT > audioNow() + 0.05))) { touchFrag(d.hear, 0.6); d.ht = nowMs; d.hp = p; }
     for (const it of d.items) {
       const o = it.o;
       if (it.pts) o.pts = it.pts.map(([x, y]) => [x + dx, y + dy]);
@@ -204,7 +214,7 @@ canvas.addEventListener('pointerup', e => {
     const Tv = visT(), ids = [];
     const inBox = (x, y) => { const X = view.sx(x), Y = view.sy(y); return X >= x0 && X <= x1 && Y >= y0 && Y <= y1; };
     for (const f of sim.frags) { const q = sim.pose(f, Tv, false); if (inBox(q.x, q.y)) ids.push(f.id); }
-    for (const o of [...sim.things, ...sim.ripples, ...sim.sweeps, ...sim.flockObjs, ...sim.rooms, ...sim.scans]) if (inBox(o.x, o.y)) ids.push(o.id);
+    for (const o of [...sim.things, ...sim.ripples, ...sim.sweeps, ...sim.flockObjs, ...sim.rooms, ...sim.scans, ...sim.inputs]) if (inBox(o.x, o.y)) ids.push(o.id);
     select(ids, d.add);
     return;
   }
@@ -267,6 +277,7 @@ canvas.addEventListener('click', e => {
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 canvas.addEventListener('wheel', e => {
   e.preventDefault();
+  if (!(e.ctrlKey || e.metaKey)) earToView();
   const p = ptr(e);
   if (e.ctrlKey || e.metaKey) {
     const before = W2(p), k = Math.exp(-e.deltaY * (e.deltaMode ? 0.05 : 0.0105));
@@ -348,6 +359,7 @@ window.addEventListener('keydown', e => {
   if (k === '?' ) { $('help').hidden = !$('help').hidden; return; }
   if (k === 'l' || k === 'L') { $('laws').hidden ? openLaws() : closeLaws(); return; }
   if (k === 'm' || k === 'M') { toggleLibrary(); return; }
+  if (k === 'k' || k === 'K') { $('circuit').hidden ? openCircuit() : closeCircuit(); return; }
   const tool = Object.entries(TOOLS).find(([, t]) => t.k === k.toLowerCase());
   if (tool) { setTool(tool[0]); return; }
   const os = selObjs();
@@ -415,12 +427,29 @@ function flash(id) {
   return null;
 }
 const srcName = id => (srcs.get(id) || world.sources.find(s => s.id === id) || { name: '?' }).name;
+// the ear follows the view, or the view follows the ear (wandering, riding)
+function earToView() { if (world.ear.mode === 'wander' || world.ear.mode === 'ride') { world.ear.mode = 'view'; syncEarCtl(); toast('耳を画面に戻しました。', 1500); } }
+function syncEarCtl() { const s = $('earMode'); if (s && s.value !== world.ear.mode) s.value = world.ear.mode; }
+function updateEar(Tv) {
+  const E = world.ear;
+  E.r = Math.round(0.36 * Math.hypot(view.w, view.h) / view.z);
+  if (E.mode === 'wander' || E.mode === 'ride') {
+    const t = sim.earAt(Tv), k = E.mode === 'ride' ? 0.12 : 0.05;
+    view.x += (t.x - view.x) * k; view.y += (t.y - view.y) * k;
+  } else { E.x = view.x; E.y = view.y; }
+}
 function frame() {
   requestAnimationFrame(frame);
   if (S.playing) pump();
   view.tilt = world.tilt ?? 0.5;
   const Tv = visT();
-  R.draw({ world, sim, view, Tv, sel: S.sel, flash, labels: S.labels, srcName, handles, overlay });
+  updateEar(Tv);
+  circuitTick();
+  if (sim.dragMotion && sim.dragMotion.size) { for (const [id, v] of sim.dragMotion) { const n = v * 0.86; if (n < 0.01) sim.dragMotion.delete(id); else sim.dragMotion.set(id, n); } }
+  const sounding = eng ? eng.sounding(audioNow()) : null;
+  const inLevel = o => { const rt = CIR.rt.get(o.id); return { lv: CIR.level, on: !!(eng && eng.inp), flash: rt && performance.now() - rt.flash < 160 ? 1 : 0 }; };
+  R.draw({ world, sim, view, Tv, sel: S.sel, flash, labels: S.labels, srcName, handles, overlay, sounding, inLevel });
+  if (eng && ctx) { const m = $('outMeter'); if (m) { const lv = outLevel(); m.style.setProperty('--lv', lv.toFixed(3)); m.title = `出力 · 鳴っている声 ${eng.load()}`; } }
   const T = Math.max(0, S.playing && ctx ? ctx.currentTime - S.t0 : S.T), beat = 60 / world.bpm;
   const bar = Math.floor(T / (beat * 4)) + 1, bt = Math.floor(T / beat) % 4 + 1;
   $('clock').textContent = `${Math.floor(T / 60)}:${(T % 60).toFixed(1).padStart(4, '0')}  ${bar}.${bt}`;
@@ -436,6 +465,8 @@ function wire() {
   $('reseed').onclick = () => { world.seed = randSeed(); syncTopBar(); commit(); rewind(); toast(`種 ${world.seed}：同じ配置から別の偶然が生まれます。この種を残せば、同じ展開を何度でも書き出せます。`, 4200); };
   $('lawsBtn').onclick = () => ($('laws').hidden ? openLaws() : closeLaws());
   $('libBtn').onclick = () => toggleLibrary();
+  $('cirBtn').onclick = () => ($('circuit').hidden ? openCircuit() : closeCircuit());
+  $('earMode').addEventListener('change', () => { const v = $('earMode').value; if (v === 'ride' && !sim.byId.get(world.ear.target)) { const t = sim.trains[0] || sim.flockObjs[0]; if (!t) { toast('乗れる列車や群れがありません。'); syncEarCtl(); return; } world.ear.target = t.id; } world.ear.mode = v; commit(); if (!selObjs().length) renderInspector(); });
   $('undo').onclick = undo; $('redo').onclick = redo;
   $('rec').onclick = toggleRec;
   $('exportBtn').onclick = e => { e.stopPropagation(); const on = $('exportPop').hidden; closePops(); $('exportPop').hidden = !on; };
@@ -458,7 +489,7 @@ function wire() {
   $('fileProj').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; if (f) openProject(f); e.target.value = ''; });
   $('tilt').addEventListener('input', () => { world.tilt = +$('tilt').value; });
   $('tilt').addEventListener('change', () => commit());
-  $('fit').onclick = fitView;
+  $('fit').onclick = () => { earToView(); fitView(); };
   document.addEventListener('pointerdown', e => { if (!e.target.closest('.pop') && !e.target.closest('#exportBtn') && !e.target.closest('#menuBtn')) closePops(); });
   window.addEventListener('resize', resize);
   const re = () => { R.palette(); renderLibrary(); if (selObjs().length === 1 && selObjs()[0].kind === 'frag') renderInspector(); };

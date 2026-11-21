@@ -7,6 +7,7 @@
       <button id="play" class="btn play" type="button" aria-pressed="false" title="再生（Space）"><span class="i-play" aria-hidden="true"></span><span class="sr">再生・一時停止</span></button>
       <button id="stop" class="btn" type="button" title="時間を最初に戻す"><span class="i-stop" aria-hidden="true"></span><span class="sr">最初に戻す</span></button>
       <output id="clock" class="clock mono">0:00.0  1.1</output>
+      <span id="outMeter" class="meter out" title="出力" aria-hidden="true"><i></i></span>
     </div>
     <div class="grp">
       <label class="num" title="拍の速さ（BPM）">拍<input id="bpm" type="number" min="20" max="300" step="1" inputmode="numeric"></label>
@@ -16,6 +17,7 @@
     <div class="grp">
       <button id="lawsBtn" class="btn tog" type="button" aria-pressed="false" title="法則（L）">法則</button>
       <button id="libBtn" class="btn tog" type="button" aria-pressed="false" title="素材（M）">素材</button>
+      <button id="cirBtn" class="btn tog" type="button" aria-pressed="false" title="回路：オーディオ入力・MIDI・つまみ（K）">回路</button>
     </div>
     <div class="grp">
       <button id="undo" class="btn sm" type="button" title="取り消す（⌘Z）">↶</button>
@@ -42,11 +44,13 @@
   </section>
 
   <section class="laws" id="laws" hidden aria-label="法則"></section>
+  <section class="laws circuit" id="circuit" hidden aria-label="回路"></section>
 
   <footer class="foot">
     <p class="hint" id="hint"></p>
     <div class="scenes" id="scenes"></div>
     <div class="viewctl">
+      <label title="聴く位置。画面＝画面の中心で聴く／漂う＝ひとりでにさまよう（画面も動く）／乗る＝列車や群れに乗る">耳<select id="earMode"><option value="view">画面</option><option value="wander">漂う</option><option value="ride">乗る</option><option value="off">なし</option></select></label>
       <label title="俯瞰の角度（見た目だけ。音は変わりません）">俯瞰<input id="tilt" type="range" min="0" max="1.05" step="0.01"></label>
       <button id="fit" class="btn sm" type="button" title="全体を見る（0）">全体</button>
     </div>
@@ -55,7 +59,8 @@
   <div class="empty" id="empty">
     <div class="emptybox">
       <h1>音を、ここに落とす。</h1>
-      <p>WAV・AIFF・MP3 を画面に落とすと、その場所に「断片」が置かれます。線路の列車、波紋、部屋、群れはもう動ける状態です。断片をそれらの近くへ動かすと、鳴り方が変わります。</p>
+      <p>WAV・AIFF・MP3 を画面に落とすと、その場所に「断片」が置かれます。▶ を押すと、回る針・列車・波紋・走査・群れが断片を鳴らし、それぞれのやり方で音を変えます（針は角度で、走査は高さで音程が変わり、列車は和音とドップラーで曲げます）。</p>
+      <p>鳴っている最中も音は世界に従います。断片を掴んで動かす、画面を動かす（画面の中心が耳）、回路のつまみを回すと、その場で音が変わります。</p>
       <p class="acts"><button id="eFiles" class="btn" type="button">音声ファイルを選ぶ</button><button id="eSynth" class="btn ghostbtn" type="button">合成音で試す</button></p>
     </div>
   </div>
@@ -89,6 +94,10 @@
           <p>断片の<b>姿</b>は音から決まりません。同じ音に違う姿、違う音に同じ姿を与えられます。見た目と音がずれていて構いません。</p>
           <h3>時間</h3>
           <p>波紋は<b>距離</b>を、掃引は<b>角度</b>を、列車は<b>線路の順序</b>を、走査は<b>横の位置</b>を時間にします。拍に合わせるもの（同期）と秒で動くもの（非同期）を混ぜられます。群れと「偶然」は、規則の中で予想外を起こします。種を残せば同じ展開を書き出せます。</p>
+          <h3>それぞれが変える音</h3>
+          <p><b>針</b>：置いた角度が音程（文字盤）。<b>走査</b>：枠の中の高さが音程（楽譜）。<b>列車</b>：車両ごとの和音と、通り過ぎるときのドップラー。<b>波紋</b>：遠いほど暗く響き、輪ごとに音の別の場所から。<b>群れ</b>：一羽ごとの高さと粒。<b>糸</b>：渡るたびに移調。<b>部屋</b>：奥に入るほど深く加工。<b>物</b>：耳との間にあると音がこもる。</p>
+          <h3>耳と回路</h3>
+          <p>画面の中心が<b>耳</b>です。画面を動かすと近いものが大きく、遠いものは小さく暗くなります。耳は漂わせたり、列車に乗せたりできます（画面も一緒に動きます）。<b>回路</b>（K）では、オーディオインターフェースやマイクの音を世界に置き、MIDI の鍵盤で断片を弾き、つまみ A〜D を法則につなげます。</p>
         </section>
         <section>
           <h3>道具</h3>
@@ -102,7 +111,8 @@
             <dt>D 群</dt><dd>群れを放つ</dd>
             <dt>B 室</dt><dd>部屋を建てる（中の音に加工が掛かる）</dd>
             <dt>W 糸</dt><dd>断片から断片へ糸を張る</dd>
-            <dt>O 物</dt><dd>音のない物を置く</dd>
+            <dt>O 物</dt><dd>音のない物を置く（耳との間にあると音がこもる）</dd>
+            <dt>I 入</dt><dd>オーディオ入力を置く（回路で入力を使う）</dd>
             <dt>H 手</dt><dd>見る場所を動かす（Space+ドラッグでも）</dd>
           </dl>
         </section>
@@ -119,7 +129,7 @@
             <dt>[ ]</dt><dd>回す</dd>
             <dt>- =</dt><dd>小さく・大きく（何も選んでいなければ拡大縮小）</dd>
             <dt>1–6</dt><dd>場面を呼び出す（Shift で残す）</dd>
-            <dt>L / M</dt><dd>法則 / 素材</dd>
+            <dt>L / M / K</dt><dd>法則 / 素材 / 回路</dd>
             <dt>Tab</dt><dd>画面の道具を隠す</dd>
             <dt>0</dt><dd>全体を見る</dd>
             <dt>⌘S / ⌘O</dt><dd>保存・開く（ZIP に音ごと入ります）</dd>

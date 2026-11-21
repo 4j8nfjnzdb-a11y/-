@@ -116,11 +116,13 @@ function addSynth() {
   ensureCtx();
   const sr = ctx.sampleRate, list = synthSounds(sr), rng = C.makeRng(randSeed()), made = [];
   // spots near what is already in the world, so the first press already sounds
-  const rail = sim.rails[0], rip = sim.ripples[0], room = sim.rooms[0];
+  const rail = sim.rails[0], rip = sim.ripples[0], room = sim.rooms[0], sw = sim.sweeps[0], sc = sim.scans[0];
   const spots = [];
-  if (rail) for (let k = 0; k < 5; k++) { const L = C.railGeom(rail).L, p = C.railPoint(rail, (k + 0.3) / 5 * L); spots.push({ x: p.x + (rng() - 0.5) * 50, y: p.y + (rng() - 0.5) * 50 }); }
-  if (rip) for (let k = 0; k < 4; k++) { const a = rng() * C.TAU, d = 120 + rng() * 300; spots.push({ x: rip.x + Math.cos(a) * d, y: rip.y + Math.sin(a) * d }); }
-  if (room) for (let k = 0; k < 3; k++) spots.push({ x: room.x + (rng() - 0.5) * room.w * 0.7, y: room.y + (rng() - 0.5) * room.h * 0.6 });
+  if (sw) for (let k = 0; k < 4; k++) { const a = sw.ang0 + (k + 0.4) / 4 * C.TAU, d = sw.r * (0.35 + rng() * 0.5); spots.push({ x: sw.x + Math.cos(a) * d, y: sw.y + Math.sin(a) * d }); }
+  if (sc) for (let k = 0; k < 3; k++) spots.push({ x: sc.x + (k - 1) * sc.w * 0.3 + (rng() - 0.5) * 60, y: sc.y + (rng() - 0.5) * sc.h * 0.8 });
+  if (rail) for (let k = 0; k < 3; k++) { const L = C.railGeom(rail).L, p = C.railPoint(rail, (k + 0.3) / 5 * L); spots.push({ x: p.x + (rng() - 0.5) * 50, y: p.y + (rng() - 0.5) * 50 }); }
+  if (rip) for (let k = 0; k < 2; k++) { const a = rng() * C.TAU, d = 120 + rng() * 300; spots.push({ x: rip.x + Math.cos(a) * d, y: rip.y + Math.sin(a) * d }); }
+  if (room) for (let k = 0; k < 2; k++) spots.push({ x: room.x + (rng() - 0.5) * room.w * 0.7, y: room.y + (rng() - 0.5) * room.h * 0.6 });
   while (spots.length < 12) spots.push({ x: (rng() - 0.5) * 1400, y: (rng() - 0.5) * 900 });
   let j = 0;
   list.forEach((s, i) => {
@@ -153,7 +155,7 @@ function commit() {
   updateUndo(); scheduleAutosave();
 }
 function restore(json, keepSel = true) {
-  const w = JSON.parse(json);
+  const w = W.normalize(JSON.parse(json));
   world = w; sim.w = w; sim.index(); sim.refresh();
   if (eng) eng.setWorld(w);
   if (keepSel) S.sel = new Set([...S.sel].filter(id => sim.byId.has(id))); else S.sel.clear();
@@ -349,17 +351,34 @@ function pump() {
   }
   if (sim.mutated) { sim.mutated = 0; scheduleAutosave(); }
   eng.advance(horizon + S.t0);
-  if (now - S.lastCtl > 0.033) { eng.controlLoops(sim.loopStates(), now + 0.005); S.lastCtl = now; }
+  if (now - S.lastCtl > 0.033) { control(now + 0.005); S.lastCtl = now; }
+}
+// continuous control, ~30 times a second: loops, live input, and every voice already sounding
+function control(at) {
+  if (!eng) return;
+  if (S.playing) eng.controlLoops(sim.loopStates(), at);
+  eng.controlVoices(at, v => sim.liveP(v));
+  eng.controlInputs(sim.inputStates(), at);
 }
 setInterval(pump, 20);
+// when time is stopped, sounding voices (touch, MIDI, auditions) still follow the world
+setInterval(() => { if (!S.playing && ctx && eng && (eng.voices.length || eng.inputs.size || eng.inp)) { eng.advance(ctx.currentTime + LOOK); control(ctx.currentTime + 0.005); } }, 33);
 
+// output level for the meter in the top bar
+function outLevel() {
+  if (!ctx || !eng) return 0;
+  if (!S.outAn) { S.outAn = ctx.createAnalyser(); S.outAn.fftSize = 1024; eng.lim.connect(S.outAn); S.outBuf = new Float32Array(1024); }
+  S.outAn.getFloatTimeDomainData(S.outBuf);
+  let s = 0; for (let i = 0; i < S.outBuf.length; i++) s += S.outBuf[i] * S.outBuf[i];
+  return C.clamp(Math.sqrt(s / S.outBuf.length) * 3.2, 0, 1);
+}
 // a touch from the person
-function touchFrag(f, energy) {
+function touchFrag(f, energy, m) {
   ensureAudio();
   const T = S.playing ? ctx.currentTime - S.t0 : sim.T;
   const at = ctx.currentTime + 0.012;
-  if (f.mode === 'loop' && S.playing) { const e = sim.manual(f.id, energy, T); if (e) { eng.handle(e, at); noteFlash(f.id, at, e.silent); } return; }
-  const e = sim.manual(f.id, energy, T);
+  if (f.mode === 'loop' && S.playing) { const e = sim.manual(f.id, energy, T, m); if (e) { eng.handle(e, at); noteFlash(f.id, at, e.silent); } return; }
+  const e = sim.manual(f.id, energy, T, m);
   if (!e) return;
   e.loop = false;
   eng.handle(e, at); noteFlash(f.id, at, e.silent);
@@ -484,7 +503,7 @@ async function exportWav(seconds, asSource) {
         const evs = sim2.step(W.DT);
         for (const e of evs) if (e.t < stopAt) e2.handle(e, e.t);
         for (const c of sim2.contacts) e2.contact(c, c.t);
-        if (sim2.T - lastCtl >= 0.03) { e2.controlLoops(sim2.loopStates(), sim2.T); lastCtl = sim2.T; }
+        if (sim2.T - lastCtl >= 0.03) { e2.controlLoops(sim2.loopStates(), sim2.T); e2.controlVoices(sim2.T, v => sim2.liveP(v)); lastCtl = sim2.T; }
       }
       if (until >= stopAt && !ended) { ended = true; e2.controlLoops([], stopAt); }
       e2.advance(u + 0.02);

@@ -127,6 +127,7 @@ const SAWARI_DRAW = (() => {
       for (const sw of sim.sweeps) this.drawSweepBase(sw, S.sel.has(sw.id));
       for (const r of sim.rails) this.drawRail(r, S.sel.has(r.id));
       for (const rp of sim.ripples) this.drawRings(rp, Tv, S.sel.has(rp.id));
+      this.drawExtRings(sim, Tv);
       for (const th of sim.threads) this.drawThread(th, Tv, S.sel.has(th.id));
       // standing things, painter-sorted by ground y
       const items = [];
@@ -134,17 +135,21 @@ const SAWARI_DRAW = (() => {
       for (const t of sim.things) items.push({ y: t.y, k: 1, o: t, p: { x: t.x, y: t.y, ang: t.ang, r: t.r } });
       for (const tr of sim.trains) sim.trainCars(tr, Tv).forEach((c, j) => items.push({ y: c.y, k: 2, o: tr, c, j }));
       for (const fl of sim.flockObjs) { const ags = sim.flocks.get(fl.id) || []; ags.forEach((a, j) => { const q = sim.agentAt(a, Tv); items.push({ y: q.y, k: 3, o: fl, q, j, a }); }); }
+      for (const o of sim.inputs) items.push({ y: o.y, k: 4, o });
       items.sort((a, b) => a.y - b.y);
       for (const it of items) {
         if (it.k === 0) this.drawFrag(it.o, it.p, S);
         else if (it.k === 1) this.drawSkin(it.o, it.p, S, null, true);
         else if (it.k === 2) this.drawCar(it.o, it.c, it.j, S);
-        else this.drawBird(it.o, it.q, it.a, it.j, Tv);
+        else if (it.k === 3) this.drawBird(it.o, it.q, it.a, it.j, Tv);
+        else this.drawInput(it.o, S);
       }
       for (const m of sim.rooms) this.drawRoomWalls(m, S.sel.has(m.id));
       for (const rp of sim.ripples) this.drawEmblem(rp.x, rp.y, 'ripple', S.sel.has(rp.id));
       for (const sw of sim.sweeps) this.drawSweepArm(sw, Tv);
       for (const fl of sim.flockObjs) this.drawEmblem(fl.x, fl.y, 'flock', S.sel.has(fl.id));
+      this.drawSounding(S);
+      this.drawEar(S);
       this.drawSelection(S);
       if (S.overlay) S.overlay(g, V);
     }
@@ -252,9 +257,22 @@ const SAWARI_DRAW = (() => {
       }
     }
     drawSweepBase(sw, sel) {
-      const g = this.g;
+      const g = this.g, V = this.V;
       this.ellipse(sw.x, sw.y, sw.r); g.setLineDash([1, 5]); g.strokeStyle = sel ? PAL.accent : PAL.dim; g.lineWidth = 1.2; g.stroke(); g.setLineDash([]);
       this.ellipse(sw.x, sw.y, sw.r * 0.5); g.strokeStyle = PAL.grid; g.stroke();
+      // the dial: where each pitch of the scale sits
+      const range = sw.range || 0; if (!range) return;
+      const sc = W.SCALES[sw.scale], degs = [];
+      if (sc) for (let o = 0; o * 12 <= range; o++) for (const d of sc) { const st = o * 12 + d; if (st < range) degs.push(st); }
+      else for (let st = 0; st < range; st += 1) degs.push(st);
+      g.font = `9px ${PAL.mono}`; g.textAlign = 'center'; g.fillStyle = PAL.dim;
+      for (const st of degs) {
+        const a = sw.ang0 + (sw.dir || 1) * st / range * C.TAU, ca = Math.cos(a), sa = Math.sin(a), oct = st % 12 === 0;
+        g.beginPath(); g.moveTo(V.sx(sw.x + ca * (sw.r - (oct ? 16 : 9))), V.sy(sw.y + sa * (sw.r - (oct ? 16 : 9)))); g.lineTo(V.sx(sw.x + ca * sw.r), V.sy(sw.y + sa * sw.r));
+        g.strokeStyle = oct ? PAL.ink : PAL.dim; g.lineWidth = oct ? 2 : 1; g.stroke();
+        if (V.z > 0.3) g.fillText(oct ? `+${st}` : String(st), V.sx(sw.x + ca * (sw.r + 13)), V.sy(sw.y + sa * (sw.r + 13)) + 3);
+      }
+      g.textAlign = 'left';
     }
     drawSweepArm(sw, Tv) {
       const g = this.g, V = this.V, a = this.S.sim.sweepAngle(sw, Tv), dir = sw.dir || 1;
@@ -275,6 +293,18 @@ const SAWARI_DRAW = (() => {
       const hw = sc.w / 2, hh = sc.h / 2;
       this.path([loc(-hw, -hh), loc(hw, -hh), loc(hw, hh), loc(-hw, hh)]);
       g.setLineDash([6, 4]); g.strokeStyle = sel ? PAL.accent : PAL.dim; g.lineWidth = 1.2; g.stroke(); g.setLineDash([]);
+      // a staff: each pitch of the scale is a height in the frame
+      const range = sc.range || 0;
+      if (range) {
+        const scl = W.SCALES[sc.scale], half = range / 2;
+        for (let st = -Math.floor(half); st <= half; st++) {
+          if (scl && !scl.includes(((st % 12) + 12) % 12)) continue;
+          const ly = -st / half * hh, oct = st % 12 === 0;
+          this.path([loc(-hw, ly), loc(hw, ly)], 0, false);
+          g.strokeStyle = oct ? PAL.dim : PAL.grid; g.lineWidth = oct ? 1.2 : 1; g.stroke();
+          if (oct && this.V.z > 0.3) { const p = loc(-hw, ly); g.font = `9px ${PAL.mono}`; g.fillStyle = PAL.dim; g.textAlign = 'right'; g.fillText(st > 0 ? `+${st}` : String(st), this.V.sx(p[0]) - 4, this.V.sy(p[1]) + 3); g.textAlign = 'left'; }
+        }
+      }
       // measure ticks along the time axis
       g.strokeStyle = PAL.faint; g.lineWidth = 1;
       for (let i = 0; i <= 16; i++) { const lx = -hw + sc.w * i / 16; this.path([loc(lx, -hh), loc(lx, -hh + (i % 4 ? 8 : 16))], 0, false); g.stroke(); }
@@ -294,6 +324,7 @@ const SAWARI_DRAW = (() => {
       const X = V.sx(x2), Y = V.sy(y2);
       g.beginPath(); g.moveTo(X + Math.cos(ang) * 6, Y + Math.sin(ang) * 6); g.lineTo(X + Math.cos(ang + 2.5) * 6, Y + Math.sin(ang + 2.5) * 6); g.lineTo(X + Math.cos(ang - 2.5) * 6, Y + Math.sin(ang - 2.5) * 6); g.closePath();
       g.fillStyle = sel ? PAL.accent : PAL.dim; g.fill();
+      if (th.step && V.z > 0.3) { g.font = `10px ${PAL.mono}`; g.fillText(`${th.step > 0 ? '+' : ''}${th.step}`, X + 8, Y - 6); }
       for (const q of sim.queue) {
         if (q.th !== th.id || Tv < q.t0 || Tv > q.t) continue;
         const [x, y] = pt((Tv - q.t0) / Math.max(1e-3, q.t - q.t0));
@@ -435,6 +466,7 @@ const SAWARI_DRAW = (() => {
         }
       }
       if (j === 0) { const X = V.sx(c.x + ca * L), Y = V.sy(c.y + sa * L, 6); g.beginPath(); g.arc(X, Y, 2.4, 0, TAU); g.fillStyle = PAL.signal; g.fill(); }
+      if (V.z > 0.32 && tr.chord !== 'same') { const st = S.sim.carSt(tr, j); g.font = `600 10px ${PAL.mono}`; g.textAlign = 'center'; g.fillStyle = PAL.ink; g.fillText(st > 0 ? `+${st}` : String(st), V.sx(c.x), V.sy(c.y, h + 10)); g.textAlign = 'left'; }
     }
     drawBird(fl, q, a, j, Tv) {
       const g = this.g, V = this.V, sel = this.S.sel.has(fl.id), H = 26;
@@ -453,6 +485,48 @@ const SAWARI_DRAW = (() => {
       g.lineTo(X + Math.cos(ang + Math.PI) * 2, Y + Math.sin(ang + Math.PI) * 2);
       g.lineTo(X + Math.cos(ang - 2.4 - flap * 0.4) * 8, Y + Math.sin(ang - 2.4 - flap * 0.4) * 8);
       g.closePath(); g.fillStyle = sel ? PAL.accent : PAL.ink; g.fill();
+    }
+
+    drawExtRings(sim, Tv) {
+      const g = this.g;
+      for (const r of sim.extRings) {
+        const rr = (Tv - r.t0) * r.speed; if (rr < 0 || rr > r.reach) continue;
+        this.ellipse(r.x, r.y, rr); g.strokeStyle = PAL.rec; g.globalAlpha = 0.7 * (1 - rr / r.reach); g.lineWidth = 2; g.stroke(); g.globalAlpha = 1;
+      }
+    }
+    drawInput(o, S) {
+      const g = this.g, V = this.V, sel = S.sel.has(o.id), lv = S.inLevel ? S.inLevel(o) : { lv: 0, flash: 0, on: false };
+      for (let k = 3; k >= 1; k--) { this.ellipse(o.x, o.y, o.r * (0.5 + k * 0.28) + lv.lv * 60 * k / 3); g.strokeStyle = lv.on ? PAL.rec : PAL.faint; g.globalAlpha = (lv.on ? 0.25 + lv.lv * 0.6 : 0.4) / k; g.lineWidth = 1.5; g.stroke(); }
+      g.globalAlpha = 1;
+      this.cylinder(o.x, o.y, o.r * 0.55, 30, PAL.dark ? { side: '#3a2523', top: lv.flash > 0 ? PAL.rec : '#5b3632', line: '#0d1115' } : { side: '#b8a19c', top: lv.flash > 0 ? PAL.rec : '#efe3e0', line: '#1b1f22' });
+      g.font = `700 ${Math.max(9, 15 * Math.min(1.4, V.z * 2))}px ${PAL.disp}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillStyle = PAL.ink; g.fillText('入', V.sx(o.x), V.sy(o.y, 30)); g.textBaseline = 'alphabetic'; g.textAlign = 'left';
+      if (sel) { this.ellipse(o.x, o.y, o.r + 8); g.strokeStyle = PAL.accent; g.setLineDash([4, 3]); g.lineWidth = 1.5; g.stroke(); g.setLineDash([]); }
+    }
+    // a playhead around every fragment that is sounding: where in the sound, and how fast
+    drawSounding(S) {
+      if (!S.sounding) return;
+      const g = this.g, V = this.V, seen = new Set();
+      for (const s of S.sounding) {
+        const f = S.sim.byId.get(s.id); if (!f) continue;
+        const p = S.sim.pose(f, S.Tv, false), R = (p.r + 9) * V.z, X = V.sx(p.x), Y = V.sy(p.y);
+        g.beginPath(); g.ellipse(X, Y, R, R * V.ct, 0, -Math.PI / 2, -Math.PI / 2 + C.TAU * s.prog);
+        g.strokeStyle = PAL.signal; g.lineWidth = seen.has(s.id) ? 1.5 : 3; g.stroke();
+        const a = -Math.PI / 2 + C.TAU * s.prog;
+        g.beginPath(); g.arc(X + Math.cos(a) * R, Y + Math.sin(a) * R * V.ct, 3.2, 0, C.TAU); g.fillStyle = PAL.signal; g.fill();
+        if (!seen.has(s.id) && Math.abs(s.rate - 1) > 0.02 && V.z > 0.3) { g.font = `9px ${PAL.mono}`; g.fillStyle = PAL.dim; g.fillText(`×${s.rate.toFixed(2)}`, X + R + 4, Y - R * V.ct); }
+        seen.add(s.id);
+      }
+    }
+    // the ear: where the world is heard from, and how far it hears
+    drawEar(S) {
+      const E = S.world.ear; if (!E || E.mode === 'off') return;
+      const e = S.sim.earAt(S.Tv), g = this.g, V = this.V, X = V.sx(e.x), Y = V.sy(e.y);
+      this.ellipse(e.x, e.y, e.r); g.strokeStyle = PAL.accent; g.globalAlpha = 0.35; g.setLineDash([2, 7]); g.lineWidth = 1; g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
+      g.strokeStyle = PAL.accent; g.lineWidth = 1.5;
+      g.beginPath(); g.arc(X, Y, 9, 0, C.TAU); g.stroke();
+      g.beginPath(); g.moveTo(X - 15, Y); g.lineTo(X - 5, Y); g.moveTo(X + 5, Y); g.lineTo(X + 15, Y); g.moveTo(X, Y - 15); g.lineTo(X, Y - 5); g.moveTo(X, Y + 5); g.lineTo(X, Y + 15); g.stroke();
+      g.font = `700 11px ${PAL.disp}`; g.fillStyle = PAL.accent; g.fillText(E.mode === 'ride' ? '耳（乗車中）' : E.mode === 'wander' ? '耳（漂う）' : '耳', X + 12, Y - 10);
     }
 
     // ---- selection ----

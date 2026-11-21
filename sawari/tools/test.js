@@ -122,7 +122,7 @@ const test = (label, ok, info = '') => results.push([ok ? 'ok  ' : 'FAIL', label
   }
   {
     // laws: size -> vol moves volume by span * 2 * (feature - 0.5) * amount
-    const w = mkWorld(); w.laws[0].m = { 'size>vol': 1 };
+    const w = mkWorld(); w.laws[0].m = { 'size>vol': 1 }; w.ear.mode = 'off';
     const small = frag(w, 0, 0, { r: 8 }), big = frag(w, 800, 0, { r: 240 });
     const sim = new W.Sim(w);
     const ps = sim.probe(small).P.vol, pb = sim.probe(big).P.vol;
@@ -157,6 +157,99 @@ const test = (label, ok, info = '') => results.push([ok ? 'ok  ' : 'FAIL', label
     const sim2 = new W.Sim(w); const pos2 = [], dir2 = [];
     while (sim2.T < 3) { sim2.step(); for (const c of sim2.contacts) if (c.id === f.id) { pos2.push(c.pos); dir2.push(c.dir); } }
     test('tape: turning the strip 180° reads it backwards', pos2[0] > 0.9 && dir2.every(d => d === -1), `${pos2[0]?.toFixed(2)} dir ${dir2[0]}`);
+  }
+
+  {
+    // unipolar sources: at rest they change nothing
+    const w = mkWorld(); w.ear.mode = 'off'; w.laws[0].m = { 'motion>pitch': 1, 'near>grain': 1, 'crowd>rate': 1, 'room>verb': 1 };
+    const f = frag(w, 0, 0); const sim = new W.Sim(w); const P = sim.probe(f).P;
+    test('resting fragment: motion/near/crowd/room laws add nothing', P.pitch === 0 && P.grain === 0 && P.rate === 0 && Math.abs(P.verb - 0.12) < 1e-9, `${P.pitch} ${P.grain} ${P.rate} ${P.verb}`);
+  }
+  {
+    // the ear: farther is quieter and darker, side gives pan, a building muffles
+    const w = mkWorld(); w.laws[0].m = {}; w.ear = { mode: 'view', x: 0, y: 0, r: 600, amt: 1 };
+    const near = frag(w, 50, 0), far = frag(w, 1200, 0), left = frag(w, -400, 0);
+    const sim = new W.Sim(w), pn = sim.probe(near).P, pf = sim.probe(far).P, pl = sim.probe(left).P;
+    test('ear: far is quieter and darker', pf.vol < pn.vol - 10 && pf.tone < pn.tone - 0.2, `${pn.vol.toFixed(1)}/${pf.vol.toFixed(1)} dB, tone ${pn.tone.toFixed(2)}/${pf.tone.toFixed(2)}`);
+    test('ear: left of the ear pans left', pl.pan < -0.5 && pn.pan > 0, `${pl.pan.toFixed(2)} ${pn.pan.toFixed(2)}`);
+    const wall = W.newThing(600, 0, C.makeRng(1), 'tower'); wall.r = 60; w.objs.push(wall); sim.index(); sim.refresh();
+    const po = sim.probe(far).P;
+    test('ear: a building between ear and fragment muffles it', po.tone < pf.tone - 0.2 && po.vol < pf.vol - 3, `tone ${pf.tone.toFixed(2)}→${po.tone.toFixed(2)}`);
+    w.ear.x = 1200; sim.refresh();
+    test('ear: moving the ear changes the mix', sim.probe(far).P.vol > pf.vol + 10);
+  }
+  {
+    // train: cars play the chord; the train bends the pitch as it leaves
+    const w = mkWorld(); w.ear.mode = 'off'; w.laws[0].m = {};
+    const rail = W.newRail([[-600, 0], [600, 0]], false); w.objs.push(rail);
+    const tr = W.newTrain(rail.id, 0); tr.speed = 300; tr.cars = 3; tr.chord = 'chord'; tr.doppler = 0.8; w.objs.push(tr);
+    const f = frag(w, 0, 20);
+    const sim = new W.Sim(w), ev = run(sim, 2.5).filter(e => e.via === 'train');
+    test('train: each car plays its own interval (0, 4, 7)', ev.length >= 3 && ev[0].mod.st === 0 && ev[1].mod.st === 4 && ev[2].mod.st === 7, ev.map(e => e.mod.st).join(','));
+    const s2 = new W.Sim(w); run(s2, 0.6); // head has passed x=0 at t=2s? speed 300, starts at -600 -> reaches 0 at 2s
+    const s3 = new W.Sim(w); run(s3, 1.0);
+    const before = s3.bend({ k: 'train', id: tr.id, car: 0 }, f.id, s3.T);
+    const s4 = new W.Sim(w); run(s4, 3.0);
+    const after = s4.bend({ k: 'train', id: tr.id, car: 0 }, f.id, s4.T);
+    test('train: doppler rises while approaching, falls while leaving', before > 1 && after < -1, `${before.toFixed(2)} / ${after.toFixed(2)} st`);
+  }
+  {
+    // radar: angle = scale degree; scan: height = pitch
+    const w = mkWorld(); w.ear.mode = 'off'; w.laws[0].m = {};
+    const sw = W.newSweep(0, 0); sw.sync = false; sw.period = 4; sw.ang0 = -Math.PI / 2; sw.range = 12; sw.scale = 'penta'; w.objs.push(sw);
+    frag(w, 0, -200); frag(w, 200, 0); frag(w, 0, 200);   // 0, quarter, half turn
+    const sim = new W.Sim(w), ev = run(sim, 4.2).sort((a, b) => a.t - b.t);
+    const sts = ev.map(e => e.mod.st);
+    test('sweep: angle snaps to the pentatonic scale (quarter→2, half→7, full turn→0)', sts.length === 3 && sts[0] === 2 && sts[1] === 7 && sts[2] === 0, sts.join(','));
+    const w2 = mkWorld(); w2.ear.mode = 'off'; w2.laws[0].m = {};
+    const sc = W.newScan(0, 0, 800, 400); sc.sync = false; sc.period = 4; sc.range = 24; sc.scale = 'chrom'; w2.objs.push(sc);
+    frag(w2, -100, -200 + 1); frag(w2, 100, 200 - 1);
+    const ev2 = run(new W.Sim(w2), 4.1).sort((a, b) => a.t - b.t);
+    test('scan: top is high, bottom is low', ev2.length === 2 && ev2[0].mod.st === 12 && ev2[1].mod.st === -12, ev2.map(e => e.mod.st).join(','));
+    test('scan: those pitches reach the sound (rate)', Math.abs(ev2[0].P.rate - 12) < 1e-9 && Math.abs(ev2[1].P.rate + 12) < 1e-9);
+  }
+  {
+    // ripple: farther fragments sound darker and wetter; successive rings read further in
+    const w = mkWorld(); w.ear.mode = 'off'; w.laws[0].m = {};
+    const rp = W.newRipple(0, 0); rp.sync = false; rp.period = 1; rp.speed = 500; rp.reach = 800; rp.dark = 1; rp.adv = 0.3; w.objs.push(rp);
+    const a = frag(w, 100, 0), b = frag(w, 700, 0);
+    const ev = run(new W.Sim(w), 2.95);
+    const ea = ev.filter(e => e.id === a.id), eb = ev.filter(e => e.id === b.id);
+    test('ripple: far is darker and wetter', eb[0].P.tone < ea[0].P.tone - 0.4 && eb[0].P.verb > ea[0].P.verb + 0.2, `tone ${ea[0].P.tone.toFixed(2)}/${eb[0].P.tone.toFixed(2)}`);
+    test('ripple: each ring starts the sound further in', ea.length >= 3 && new Set(ea.map(e => e.P.start.toFixed(3))).size === ea.length, ea.map(e => e.P.start.toFixed(2)).join(','));
+  }
+  {
+    // thread: each hop transposes by its step
+    const w = mkWorld(); w.ear.mode = 'off'; w.laws[0].m = {}; w.threadSpeed = 1000;
+    const rp = W.newRipple(0, 0); rp.sync = false; rp.period = 100; rp.speed = 1000; rp.reach = 100; w.objs.push(rp);
+    const a = frag(w, 30, 0), b = frag(w, 30, 300), c = frag(w, 30, 600);
+    const t1 = W.newThread(a.id, b.id), t2 = W.newThread(b.id, c.id); t1.prob = t2.prob = 1; t1.step = 7; t2.step = 5; w.objs.push(t1, t2);
+    const ev = run(new W.Sim(w), 2);
+    const r = id => ev.find(e => e.id === id).P.rate;
+    test('thread: hops climb by their steps (0, +7, +12)', r(a.id) === 0 && r(b.id) === 7 && r(c.id) === 12, `${r(a.id)} ${r(b.id)} ${r(c.id)}`);
+  }
+  {
+    // rooms: the deeper inside, the more of the sound goes through the room
+    const w = mkWorld(); w.ear.mode = 'off';
+    const m = W.newRoom(0, 0, 600, 600); w.objs.push(m);
+    const edge = frag(w, 290, 0), mid = frag(w, 200, 0), deep = frag(w, 0, 0), out = frag(w, 500, 0);
+    const sim = new W.Sim(w), wt = f => sim.probe(f).P.roomW;
+    test('room: weight grows with depth (0 outside, 1 deep inside)', wt(out) === 0 && wt(edge) < 0.2 && wt(mid) > wt(edge) && wt(deep) === 1, [out, edge, mid, deep].map(f => wt(f).toFixed(2)).join(' '));
+  }
+  {
+    // knobs reach every fragment that follows the law, live
+    const w = mkWorld(); w.ear.mode = 'off'; w.laws[0].m = { 'knobA>tone': 1 };
+    const f = frag(w, 0, 0); const sim = new W.Sim(w);
+    const t0 = sim.probe(f).P.tone; w.circuit.knobs[0].v = 0; const t1 = sim.probe(f).P.tone; w.circuit.knobs[0].v = 1; const t2 = sim.probe(f).P.tone;
+    test('knob A sweeps the tone through the law', t0 === 0 && t1 === -1 && t2 === 1, `${t1} ${t0} ${t2}`);
+    sim.ext.bend = 1; w.circuit.pb = 2;
+    test('pitch bend raises every rate', sim.probe(f).P.rate === 2);
+  }
+  {
+    // older saves gain the new fields
+    const old = JSON.parse(JSON.stringify(W.newWorld(5))); delete old.ear; delete old.circuit; old.objs.forEach(o => { delete o.chord; delete o.dark; delete o.range; delete o.song; delete o.step; });
+    const n = W.normalize(old);
+    test('normalize fills ear, circuit and activator characters', n.ear.mode === 'view' && n.circuit.knobs.length === 4 && n.objs.filter(o => o.kind === 'train').every(o => o.chord === 'chord'));
   }
   {
     // world survives JSON (undo / save)

@@ -7,7 +7,7 @@ const SAWARI_AUDIO = (() => {
   const { clamp, lerp } = C;
   const HANN = (() => { const n = 64, a = new Float32Array(n); for (let i = 0; i < n; i++) a[i] = Math.sin(Math.PI * i / (n - 1)) ** 2; return a; })();
   const dbg = db => Math.pow(10, db / 20);
-  const MAX_VOICES = 90;
+  const MAX_VOICES = 64;
 
   // decaying, darkening stereo noise; seeded so exports repeat exactly
   function makeIR(ctx, size, damp, seed) {
@@ -116,7 +116,7 @@ const SAWARI_AUDIO = (() => {
       this.ctx = ctx; this.w = world; this.offline = !!opts.offline;
       this.srcs = opts.srcs || new Map();
       this.rng = C.makeRng(((world.seed || 1) ^ 0x51ed27) >>> 0);
-      this.rooms = new Map(); this.loops = new Map(); this.tapes = new Map(); this.streams = []; this.live = new Set();
+      this.rooms = new Map(); this.loops = new Map(); this.tapes = new Map(); this.inputs = new Map(); this.voices = [];
       this.find = opts.find || (id => this.w.objs.find(o => o.id === id));
       const c = ctx;
       this.out = c.createGain(); this.out.gain.value = world.master.vol;
@@ -158,63 +158,49 @@ const SAWARI_AUDIO = (() => {
       }
       for (const [id, r] of this.rooms) if (!seen.has(id)) { r.dispose(); this.rooms.delete(id); }
     }
-    dest(roomId) { const r = roomId && this.rooms.get(roomId); return r ? r.in : this.dry; }
+    load() { let n = 0; for (const v of this.voices) if (!v.dead) n++; return n + this.loops.size + this.tapes.size; }
 
-    // ---- per-voice chains ----
-    // one-shots: only the nodes a voice needs
-    chain(P, dest) {
+    // ---- a voice chain: every stage present, so a sounding voice can glide anywhere ----
+    // env -> (dry | drive) -> lowpass -> highpass -> pan -> vol -> {world, room} + sends
+    chain(P, at) {
       const c = this.ctx, nodes = [];
-      const env = c.createGain(); env.gain.value = 0; nodes.push(env);
-      let n = env;
-      if (P.drive > 0.02) { const sh = c.createWaveShaper(); sh.curve = driveCurve(P.drive); sh.oversample = '2x'; n.connect(sh); n = sh; nodes.push(sh); }
-      if (Math.abs(P.tone) > 0.02) {
-        const bq = c.createBiquadFilter();
-        if (P.tone < 0) { bq.type = 'lowpass'; bq.frequency.value = clamp(18000 * 2 ** (P.tone * 7.2), 60, 20000); }
-        else { bq.type = 'highpass'; bq.frequency.value = clamp(25 * 2 ** (P.tone * 8.2), 20, 12000); }
-        bq.Q.value = 0.85; n.connect(bq); n = bq; nodes.push(bq);
-      }
-      if (c.createStereoPanner) { const p = c.createStereoPanner(); p.pan.value = clamp(P.pan, -1, 1); n.connect(p); n = p; nodes.push(p); }
-      const vol = c.createGain(); vol.gain.value = dbg(P.vol) / (1 + P.drive * 1.5); n.connect(vol); nodes.push(vol);
-      vol.connect(dest);
-      if (P.dly > 0.01) { const s = c.createGain(); s.gain.value = P.dly; vol.connect(s); s.connect(this.dIn); nodes.push(s); }
-      if (P.verb > 0.01) { const s = c.createGain(); s.gain.value = P.verb; vol.connect(s); s.connect(this.vIn); nodes.push(s); }
-      return { env, nodes, dispose() { for (const x of nodes) { try { x.disconnect(); } catch (e) {} } } };
-    }
-    // continuous voices (loops, tape readers): every stage present so it can glide
-    contChain(dest, at) {
-      const c = this.ctx, nodes = [];
-      const mk = (n) => { nodes.push(n); return n; };
+      const mk = n => { nodes.push(n); return n; };
       const env = mk(c.createGain()); env.gain.value = 0;
       const dryG = mk(c.createGain()), wetG = mk(c.createGain()), sh = mk(c.createWaveShaper()), sum = mk(c.createGain());
-      sh.curve = driveCurve(0.6); wetG.gain.value = 0;
+      sh.curve = driveCurve(0.6);
       env.connect(dryG); dryG.connect(sum); env.connect(sh); sh.connect(wetG); wetG.connect(sum);
       const lp = mk(c.createBiquadFilter()), hp = mk(c.createBiquadFilter());
-      lp.type = 'lowpass'; lp.frequency.value = 20000; hp.type = 'highpass'; hp.frequency.value = 10;
+      lp.type = 'lowpass'; hp.type = 'highpass'; lp.Q.value = 0.8; hp.Q.value = 0.7;
       sum.connect(lp); lp.connect(hp);
       let n = hp, pan = null;
       if (c.createStereoPanner) { pan = mk(c.createStereoPanner()); n.connect(pan); n = pan; }
       const vol = mk(c.createGain()); n.connect(vol);
-      const sd = mk(c.createGain()), sv = mk(c.createGain()); sd.gain.value = 0; sv.gain.value = 0;
+      const sd = mk(c.createGain()), sv = mk(c.createGain());
       vol.connect(sd); sd.connect(this.dIn); vol.connect(sv); sv.connect(this.vIn);
-      const route = mk(c.createGain()); vol.connect(route); route.connect(dest);
-      const ch = { env, vol, dryG, wetG, lp, hp, pan, sd, sv, route, dest, nodes, extra: [] };
-      ch.set = (P, t, tc = 0.04) => {
-        const tone = P.tone;
-        lp.frequency.setTargetAtTime(tone < 0 ? clamp(18000 * 2 ** (tone * 7.2), 60, 20000) : 20000, t, tc);
-        hp.frequency.setTargetAtTime(tone > 0 ? clamp(25 * 2 ** (tone * 8.2), 20, 12000) : 10, t, tc);
-        dryG.gain.setTargetAtTime(1 - P.drive, t, tc); wetG.gain.setTargetAtTime(P.drive, t, tc);
-        if (pan) pan.pan.setTargetAtTime(clamp(P.pan, -1, 1), t, tc);
-        vol.gain.setTargetAtTime(dbg(P.vol) / (1 + P.drive * 1.5), t, tc);
-        sd.gain.setTargetAtTime(P.dly, t, tc); sv.gain.setTargetAtTime(P.verb, t, tc);
+      const dryR = mk(c.createGain()); vol.connect(dryR); dryR.connect(this.dry);
+      const ch = { env, vol, lp, hp, pan, nodes, wet: null, wetDest: null };
+      const lpF = tone => (tone < 0 ? clamp(18000 * 2 ** (tone * 7.2), 60, 20000) : 20000);
+      const hpF = tone => (tone > 0 ? clamp(25 * 2 ** (tone * 8.2), 20, 12000) : 10);
+      ch.set = (P, t, tc, first) => {
+        const vals = [[lp.frequency, lpF(P.tone)], [hp.frequency, hpF(P.tone)], [dryG.gain, 1 - P.drive], [wetG.gain, P.drive],
+          [vol.gain, dbg(P.vol) / (1 + P.drive * 1.5)], [sd.gain, P.dly], [sv.gain, P.verb]];
+        if (pan) vals.push([pan.pan, clamp(P.pan, -1, 1)]);
+        for (const [prm, v] of vals) { if (first) prm.value = v; else prm.setTargetAtTime(v, t, tc); }
       };
-      ch.reroute = (d, t) => {
-        if (d === ch.dest) return;
-        const r2 = c.createGain(); r2.gain.value = 0; vol.connect(r2); r2.connect(d); r2.gain.setTargetAtTime(1, t, 0.03);
-        const old = ch.route; old.gain.setTargetAtTime(0, t, 0.03);
-        if (!this.offline) setTimeout(() => { try { old.disconnect(); } catch (e) {} }, 400);
-        ch.route = r2; ch.dest = d; nodes.push(r2);
+      ch.route = (roomId, w, t, first) => {
+        const r = roomId && this.rooms.get(roomId), rin = r ? r.in : null;
+        if (!rin) w = 0;
+        if (rin !== ch.wetDest) {
+          if (ch.wet) { const old = ch.wet; old.gain.setTargetAtTime(0, t, 0.03); if (!this.offline) setTimeout(() => { try { old.disconnect(); } catch (e) {} }, 500); }
+          ch.wet = null; ch.wetDest = rin;
+          if (rin) { const g = c.createGain(); g.gain.value = first ? w : 0; vol.connect(g); g.connect(rin); nodes.push(g); ch.wet = g; }
+        }
+        if (first) { dryR.gain.value = 1 - w; if (ch.wet) ch.wet.gain.value = w; }
+        else { dryR.gain.setTargetAtTime(1 - w, t, 0.04); if (ch.wet) ch.wet.gain.setTargetAtTime(w, t, 0.04); }
       };
-      ch.dispose = () => { for (const x of nodes) { try { x.disconnect(); } catch (e) {} } for (const x of ch.extra) { try { x.disconnect(); } catch (e) {} } };
+      ch.dispose = () => { for (const x of nodes) { try { x.disconnect(); } catch (e) {} } };
+      ch.set(P, at, 0.03, true);
+      ch.route(P.room, P.roomW || 0, at, true);
       return ch;
     }
     // region in buffer seconds for parameters P
@@ -238,6 +224,11 @@ const SAWARI_AUDIO = (() => {
       s.start(t, off, gdur);
       if (!this.offline) s.onended = () => { try { g.disconnect(); } catch (e) {} };
     }
+    grainShape(v, P) {
+      const gr = P.grain;
+      v.readRate = 2 ** (P.rate / 12) / 2 ** P.stretch; v.pitchRate = 2 ** ((P.rate + P.pitch) / 12);
+      v.size = lerp(0.085, 0.04, gr); v.hop = v.size * lerp(0.5, 2.4, gr); v.spray = P.spray * (0.3 + gr);
+    }
 
     // ---- events ----
     handle(ev, at) {
@@ -251,31 +242,58 @@ const SAWARI_AUDIO = (() => {
       if (!this.offline && at < this.ctx.currentTime - 0.05) return; // stale after a stall
       at = Math.max(at, this.offline ? 0 : this.ctx.currentTime);
       if (ev.loop) { const lp = this.loops.get(f.id); if (lp) { lp.restart(at); return; } }
-      if (this.load() > MAX_VOICES) return;
+      if (this.load() >= MAX_VOICES) this.steal(at);
       const { a, len } = this.region(f, src, P);
-      const rev = P.rev > 0.5;
-      const rate = 2 ** (P.rate / 12);
+      const rev = P.rev > 0.5, rate = 2 ** (P.rate / 12);
       const grainy = P.grain > 0.03 || Math.abs(P.pitch) > 0.05 || Math.abs(P.stretch) > 0.03;
-      const dest = this.dest(ev.room);
-      const ch = this.chain(P, dest);
+      const ch = this.chain(P, at);
+      const v = { id: f.id, ch, at, mod: ev.mod, src: ev.src, energy: ev.energy, chance: ev.ch, kind: grainy ? 'grain' : 'plain', len, fin: clamp(P.fin / 1000, 0.002, 2), fout: clamp(P.fout / 1000, 0.003, 2) };
+      const g = ch.env.gain;
       if (!grainy) {
         const s = this.ctx.createBufferSource();
         s.buffer = rev ? src.rev : src.buf; s.playbackRate.value = rate;
         const off = rev ? Math.max(0, src.dur - (a + len)) : a, D = len / rate;
-        const fin = clamp(P.fin / 1000, 0.002, D * 0.5), fout = clamp(P.fout / 1000, 0.003, D * 0.5);
-        const g = ch.env.gain;
-        g.setValueAtTime(0, at); g.linearRampToValueAtTime(1, at + fin); g.setValueAtTime(1, at + D - fout); g.linearRampToValueAtTime(0, at + D);
-        s.connect(ch.env); s.start(at, off, len); s.stop(at + D + 0.02);
-        const rec = { s, ch, t: at, end: at + D };
-        if (!this.offline) { this.live.add(rec); s.onended = () => { this.live.delete(rec); ch.dispose(); }; }
+        v.fin = Math.min(v.fin, D * 0.5); v.fout = Math.min(v.fout, D * 0.5);
+        g.setValueAtTime(0, at); g.linearRampToValueAtTime(1, at + v.fin); g.setValueAtTime(1, at + D - v.fout); g.linearRampToValueAtTime(0, at + D);
+        s.connect(ch.env); s.start(at, off, len); s.stop(at + len / 0.05);
+        Object.assign(v, { s, rate, pos: 0, lastT: at, endT: at + D, fadeT: at + D - v.fout });
       } else {
-        const readRate = rate / 2 ** P.stretch, pitchRate = 2 ** ((P.rate + P.pitch) / 12);
-        const D = len / readRate, gr = P.grain;
-        const size = lerp(0.085, 0.04, gr), hop = size * lerp(0.5, 2.4, gr);
-        const fin = clamp(P.fin / 1000, 0.003, D * 0.5), fout = clamp(P.fout / 1000, 0.005, D * 0.5);
-        const g = ch.env.gain;
-        g.setValueAtTime(0, at); g.linearRampToValueAtTime(1, at + fin); g.setValueAtTime(1, at + D - fout + size); g.linearRampToValueAtTime(0, at + D + size);
-        this.streams.push({ t0: at, t1: at + D, next: at, src, a, len, readRate, pitchRate, rev, size, hop, spray: P.spray * (0.3 + gr), ch, kind: 'once' });
+        g.setValueAtTime(0, at); g.linearRampToValueAtTime(1, at + Math.max(0.003, v.fin));
+        Object.assign(v, { srcRec: src, a, rev, prog: 0, next: at, endT: Infinity });
+        this.grainShape(v, P);
+      }
+      this.voices.push(v);
+    }
+    steal(at) {
+      const v = this.voices.find(x => !x.dead);
+      if (!v) return;
+      this.kill(v, at, 0.02);
+    }
+    kill(v, at, tc = 0.015) {
+      v.dead = true; v.endT = Math.min(v.endT, at + 0.1);
+      try { v.ch.env.gain.cancelScheduledValues(at); v.ch.env.gain.setTargetAtTime(0, at, tc); if (v.s) v.s.stop(at + 0.1); } catch (e) {}
+    }
+    // every sounding voice follows its fragment as the world is now (~30 times a second)
+    controlVoices(at, getP) {
+      for (const v of this.voices) {
+        if (v.dead || at < v.at + 0.005) continue;
+        if (v.kind === 'grain' && v.prog >= v.len) continue;
+        const P = getP(v); if (!P) continue;
+        v.ch.set(P, at, 0.05); v.ch.route(P.room, P.roomW || 0, at);
+        if (v.kind === 'plain') {
+          v.pos += Math.max(0, at - v.lastT) * v.rate; v.lastT = at;
+          const r1 = 2 ** (P.rate / 12);
+          if (Math.abs(r1 / v.rate - 1) > 0.002 && v.pos < v.len) {
+            v.s.playbackRate.setTargetAtTime(r1, at, 0.03); v.rate = r1;
+            const end = at + Math.max(0, v.len - v.pos) / r1;
+            if (at >= v.at + v.fin + 0.004 && at < v.fadeT - 0.004) {
+              const g = v.ch.env.gain, fs = Math.max(at + 0.002, end - v.fout);
+              g.cancelScheduledValues(at); g.setValueAtTime(1, at); g.setValueAtTime(1, fs); g.linearRampToValueAtTime(0, Math.max(fs + 0.003, end));
+              v.fadeT = fs;
+            }
+            v.endT = end;
+          }
+        } else this.grainShape(v, P);
       }
     }
     // tape: a reader inside a fragment plays grains at its position
@@ -284,16 +302,14 @@ const SAWARI_AUDIO = (() => {
       const src = this.srcs.get(f.src); if (!src) return;
       at = Math.max(at, this.offline ? 0 : this.ctx.currentTime);
       let v = this.tapes.get(c.key);
-      const dest = this.dest(c.room);
       if (!v) {
-        if (this.load() > MAX_VOICES) return;
-        v = { ch: this.contChain(dest, at), next: at, last: at, f };
+        if (this.load() >= MAX_VOICES) this.steal(at);
+        v = { ch: this.chain(c.P, at), next: at, last: at, f, pos: c.pos };
         v.ch.env.gain.setTargetAtTime(1, at, 0.01);
         this.tapes.set(c.key, v);
       }
-      v.last = at;
-      v.ch.set(c.P, at);
-      v.ch.reroute(dest, at);
+      v.last = at; v.pos = c.pos;
+      v.ch.set(c.P, at, 0.03); v.ch.route(c.P.room, c.P.roomW || 0, at);
       if (at + 1e-4 >= v.next) {
         const P = c.P, A = clamp(f.a, 0, src.dur), B = clamp(f.b, A + 0.005, src.dur);
         const pitchRate = 2 ** ((P.rate + P.pitch) / 12), gr = P.grain;
@@ -317,46 +333,87 @@ const SAWARI_AUDIO = (() => {
       }
       for (const [id, lp] of this.loops) if (!seen.has(id)) { lp.stop(at); this.loops.delete(id); }
     }
+    // live input from an audio interface or microphone
+    attachInput(stream) {
+      this.detachInput();
+      const c = this.ctx, src = c.createMediaStreamSource(stream), sp = c.createChannelSplitter(2);
+      const L = c.createGain(), R = c.createGain(), M = c.createGain(), an = c.createAnalyser();
+      an.fftSize = 1024; an.smoothingTimeConstant = 0;
+      src.connect(sp); sp.connect(L, 0); sp.connect(R, 1); src.connect(M); M.connect(an);
+      this.inp = { stream, src, sp, L, R, M, an };
+      return this.inp;
+    }
+    detachInput() {
+      if (!this.inp) return;
+      for (const v of this.inputs.values()) v.stop(this.ctx.currentTime);
+      this.inputs.clear();
+      for (const k of ['src', 'sp', 'L', 'R', 'M', 'an']) try { this.inp[k].disconnect(); } catch (e) {}
+      this.inp = null;
+    }
+    controlInputs(states, at) {
+      if (!this.inp) return;
+      const seen = new Set();
+      for (const s of states) {
+        seen.add(s.id);
+        let v = this.inputs.get(s.id);
+        if (!v) { v = new InputVoice(this, s, at); this.inputs.set(s.id, v); }
+        v.update(s, at);
+      }
+      for (const [id, v] of this.inputs) if (!seen.has(id)) { v.stop(at); this.inputs.delete(id); }
+    }
     // schedule grains up to `until`; retire finished voices
     advance(until) {
-      const keep = [];
-      for (const st of this.streams) {
-        while (!st.dead && st.next < until && st.next < st.t1) {
-          const prog = (st.next - st.t0) * st.readRate, gdur = st.size * st.pitchRate;
-          let pos = st.rev ? st.a + st.len - prog - gdur : st.a + prog;
-          pos += (this.rng() - 0.5) * st.spray * (0.03 + st.len * 0.35);
-          this.grain(st.next, st.src, pos, gdur, st.pitchRate, st.rev, st.ch.env);
-          st.next += st.hop * (1 + (this.rng() - 0.5) * st.spray * 0.9);
+      const now = this.offline ? until : this.ctx.currentTime;
+      for (const v of this.voices) {
+        if (v.kind !== 'grain' || v.dead) continue;
+        while (v.next < until && v.prog < v.len) {
+          const gdur = v.size * v.pitchRate;
+          let pos = v.rev ? v.a + v.len - v.prog - gdur : v.a + v.prog;
+          pos += (this.rng() - 0.5) * v.spray * (0.03 + v.len * 0.35);
+          this.grain(v.next, v.srcRec, pos, gdur, v.pitchRate, v.rev, v.ch.env);
+          const h = v.hop * (1 + (this.rng() - 0.5) * v.spray * 0.9);
+          v.prog += h * v.readRate; v.next += h;
         }
-        if (st.next >= st.t1 || st.dead) {
-          if (!this.offline) { const ch = st.ch, ms = Math.max(0, (st.t1 - this.ctx.currentTime) * 1000) + 600; setTimeout(() => ch.dispose(), ms); }
-        } else keep.push(st);
+        if (v.prog >= v.len && v.endT === Infinity) {
+          const t = Math.max(v.at + v.fin, v.next);
+          v.ch.env.gain.setTargetAtTime(0, t, Math.max(0.005, v.fout / 3));
+          v.endT = t + v.size + v.fout * 2;
+        }
       }
-      this.streams = keep;
+      const keep = [];
+      for (const v of this.voices) {
+        if (v.endT < now - (this.offline ? 1 : 0.3)) { if (!this.offline) v.ch.dispose(); }
+        else keep.push(v);
+      }
+      this.voices = keep;
       for (const lp of this.loops.values()) lp.advance(until);
-      if (!this.offline) {
-        const now = this.ctx.currentTime;
-        for (const [k, v] of this.tapes) if (v.last < now - 0.25) {
-          v.ch.env.gain.setTargetAtTime(0, Math.max(now, v.last + 0.1), 0.03);
-          const ch = v.ch; setTimeout(() => ch.dispose(), 600);
-          this.tapes.delete(k);
-        }
-      } else {
-        for (const [k, v] of this.tapes) if (v.last < until - 0.35) { v.ch.env.gain.setTargetAtTime(0, v.last + 0.1, 0.03); this.tapes.delete(k); }
+      for (const [k, v] of this.tapes) if (v.last < (this.offline ? until - 0.35 : now - 0.25)) {
+        v.ch.env.gain.setTargetAtTime(0, Math.max(now, v.last + 0.1), 0.03);
+        if (!this.offline) { const ch = v.ch; setTimeout(() => ch.dispose(), 600); }
+        this.tapes.delete(k);
       }
     }
     // pause/stop: silence everything that is running or already scheduled
     hush(at) {
       at = at ?? this.ctx.currentTime;
-      for (const r of this.live) { try { r.ch.env.gain.cancelScheduledValues(at); r.ch.env.gain.setTargetAtTime(0, at, 0.015); r.s.stop(at + 0.08); } catch (e) {} }
-      for (const st of this.streams) { st.dead = true; try { st.ch.env.gain.cancelScheduledValues(at); st.ch.env.gain.setTargetAtTime(0, at, 0.015); } catch (e) {} }
-      this.advance(at);
+      for (const v of this.voices) this.kill(v, at);
       for (const lp of this.loops.values()) lp.stop(at);
       this.loops.clear();
       for (const v of this.tapes.values()) { v.ch.env.gain.setTargetAtTime(0, at, 0.02); const ch = v.ch; if (!this.offline) setTimeout(() => ch.dispose(), 500); }
       this.tapes.clear();
     }
-    load() { return this.live.size + this.streams.length + this.tapes.size; }
+    // what is sounding now, for drawing: progress through each fragment
+    sounding(now) {
+      const out = [];
+      for (const v of this.voices) {
+        if (v.at > now || v.dead || v.endT < now) continue;
+        const prog = v.kind === 'plain' ? (v.pos + Math.max(0, now - v.lastT) * v.rate) / v.len : v.prog / v.len;
+        out.push({ id: v.id, prog: clamp(prog, 0, 1), rate: v.kind === 'plain' ? v.rate : v.pitchRate });
+      }
+      for (const [id, lp] of this.loops) if (lp.region) out.push({ id, prog: lp.ph / Math.max(1e-3, lp.region.b - lp.region.a), rate: 2 ** (lp.P.rate / 12), loop: true });
+      for (const v of this.tapes.values()) out.push({ id: v.f.id, prog: v.pos, rate: 1, tape: true });
+      return out;
+    }
     // preview a stretch of a source directly (inspector, library)
     audition(src, a, b, rev) {
       const c = this.ctx, s = c.createBufferSource(), g = c.createGain(), t = c.currentTime + 0.01, len = Math.max(0.01, b - a);
@@ -375,11 +432,12 @@ const SAWARI_AUDIO = (() => {
   class Loop {
     constructor(eng, s, src, at) {
       this.e = eng; this.src = src; this.id = s.id;
-      this.ch = eng.contChain(eng.dest(s.room), at);
+      const P = { ...s.P, room: s.P.room, roomW: s.P.roomW };
+      this.ch = eng.chain(P, at);
       const c = eng.ctx;
       this.plain = c.createGain(); this.grains = c.createGain(); this.plain.gain.value = 1; this.grains.gain.value = 0;
       this.plain.connect(this.ch.env); this.grains.connect(this.ch.env);
-      this.ch.extra.push(this.plain, this.grains);
+      this.ch.nodes.push(this.plain, this.grains);
       this.ch.env.gain.setValueAtTime(0, at); this.ch.env.gain.setTargetAtTime(1, at, 0.06);
       this.rev = false; this.node = null; this.ph = 0; this.lastT = at; this.region = null; this.P = s.P;
       this.update(s, at, true);
@@ -413,8 +471,7 @@ const SAWARI_AUDIO = (() => {
         if (region !== this.region) { const d = this.src.dur; this.node.s.loopStart = rev ? d - region.b : region.a; this.node.s.loopEnd = rev ? d - region.a : region.b; }
       }
       this.region = region;
-      this.ch.set(P, at);
-      this.ch.reroute(this.e.dest(s.room), at);
+      if (!first) { this.ch.set(P, at, 0.04); this.ch.route(P.room, P.roomW || 0, at); }
       const gm = clamp(P.grain * 1.6 + (Math.abs(P.pitch) > 0.1 ? 1 : 0) + (Math.abs(P.stretch) > 0.05 ? 1 : 0), 0, 1);
       this.plain.gain.setTargetAtTime(1 - gm, at, 0.05); this.grains.gain.setTargetAtTime(gm, at, 0.05);
       this.gm = gm;
@@ -423,7 +480,7 @@ const SAWARI_AUDIO = (() => {
     advance(until) {
       const P = this.P, r = this.region; if (!r) return;
       const len = r.b - r.a, readRate = 2 ** (P.rate / 12) / 2 ** P.stretch;
-      if (this.gm < 0.01) { this.ph = (this.ph + (until - this.lastT) * readRate) % len; this.lastT = until; this.next = until; return; }
+      if (this.gm < 0.01) { this.ph = (this.ph + Math.max(0, until - this.lastT) * readRate) % len; this.lastT = until; this.next = until; return; }
       if (this.next === undefined || this.next < this.lastT) this.next = this.lastT;
       const gr = P.grain, size = lerp(0.085, 0.04, gr), hop = size * lerp(0.5, 2.4, gr), pitchRate = 2 ** ((P.rate + P.pitch) / 12);
       while (this.next < until) {
@@ -442,6 +499,24 @@ const SAWARI_AUDIO = (() => {
       if (this.node) try { this.node.s.stop(at + 0.4); } catch (e) {}
       if (!this.e.offline) { const ch = this.ch; setTimeout(() => ch.dispose(), Math.max(0, (at - this.e.ctx.currentTime) * 1000) + 700); }
     }
+  }
+
+  // the live input placed in the world: heard from where it stands, through its room
+  class InputVoice {
+    constructor(eng, s, at) {
+      this.e = eng;
+      this.ch = eng.chain(s.P, at);
+      this.mon = eng.ctx.createGain(); this.mon.gain.value = 0; this.mon.connect(this.ch.env); this.ch.nodes.push(this.mon);
+      this.ch.env.gain.setTargetAtTime(1, at, 0.05);
+      this.sel = null;
+    }
+    update(s, at) {
+      const inp = this.e.inp, want = s.o.ch === 'L' ? inp.L : s.o.ch === 'R' ? inp.R : inp.M;
+      if (want !== this.sel) { if (this.sel) try { this.sel.disconnect(this.mon); } catch (e) {} want.connect(this.mon); this.sel = want; }
+      this.mon.gain.setTargetAtTime(clamp(s.o.mon, 0, 1.5), at, 0.05);
+      this.ch.set(s.P, at, 0.05); this.ch.route(s.P.room, s.P.roomW || 0, at);
+    }
+    stop(at) { this.ch.env.gain.setTargetAtTime(0, at, 0.04); const ch = this.ch, sel = this.sel, mon = this.mon; setTimeout(() => { try { sel && sel.disconnect(mon); } catch (e) {} ch.dispose(); }, 400); }
   }
 
   // make the source record the engine needs from decoded channels
