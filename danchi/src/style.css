@@ -55,6 +55,9 @@ button:focus-visible, canvas:focus-visible { outline: 2px solid var(--lamp); out
   background: var(--ink); color: var(--bg); font-weight: 700; letter-spacing: 0.08em;
 }
 .play[aria-pressed="true"] { background: var(--lamp); color: #1b1407; }
+.vol { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; }
+.vol input { width: 130px; accent-color: var(--lamp); }
+.vol span { min-width: 7ch; font-size: 12px; color: var(--dim); }
 .phase { display: flex; align-items: baseline; gap: 8px; padding: 6px 12px; border: 1px solid var(--line); background: var(--panel); border-radius: 3px; }
 .phase b { font-family: var(--f-disp); font-weight: 400; font-size: 16px; }
 .phase span { color: var(--dim); font-size: 12px; }

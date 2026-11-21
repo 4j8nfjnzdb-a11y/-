@@ -23,7 +23,10 @@ const KNOBS = [
   { k: 10, f: 3, name: '入力で動かす', sub: '弾く大きさで求める所が動く', fmt: pct },
   { k: 11, f: 4, name: '刻み', sub: '伸びた音を打ち直す細かさ', fmt: (v) => `${['1/2', '1/3', '1/4', '1/6'][Math.round(v * 3)]} マス` },
 ];
-const KV = (k) => (k < 7 ? V[DN.V_K0 + k] : V[DN.V_K7 + k - 7]);
+const KV = (k) => (k === 12 ? V[DN.V_VOL] : k < 7 ? V[DN.V_K0 + k] : V[DN.V_K7 + k - 7]);
+// the volume (knob 12 in the core): 0.85 is 0 dB, down to -60 dB, up to +3 dB, 0 is silent
+const volDb = (v) => (v < 0.005 ? -Infinity : v <= 0.85 ? 60 * (v - 0.85) / 0.85 : 3 * (v - 0.85) / 0.15);
+const volText = (v) => { const d = volDb(v); return d === -Infinity ? '消音' : `${d > 0.05 ? '+' : ''}${d.toFixed(1)} dB`; };
 // the effect layer: names, and what a value means for each
 const FX_JA = ['グリッチ', 'ディレイ', 'ピッチ', 'スタッター', '逆再生'];
 const FX_DELAY = [0.5, 0.75, 1, 1.5, 2, 3], FX_SEMI = [-12, -7, -5, -3, 3, 5, 7, 12], FX_STUT = [1, 0.5, 0.25, 0.125];
@@ -77,6 +80,7 @@ function send(m) {
     local.samp_commit(n);
   } else if (m.t === 'inch') inch = m.v;
   else if (m.t === 'fx') local.fx_set(m.f, m.k, m.v);
+  else if (m.t === 'knob') local.set_knob(m.k, m.v);
   else if (m.t === 'enc') local.enc(m.k, m.d);
   else if (m.t === 'key') local.key(m.u, m.d);
   else if (m.t === 'btn') local.btn(m.b, m.a);
@@ -88,7 +92,7 @@ async function startAudio() {
   const AC = window.AudioContext || window.webkitAudioContext;
   try { ctx = new AC({ sampleRate: 44100, latencyHint: 'playback' }); } catch (e) { ctx = new AC(); }
   const knobs = [];
-  for (let k = 0; k < 12; k++) if (k !== 6) knobs.push([k, KV(k)]);
+  for (let k = 0; k < 13; k++) if (k !== 6) knobs.push([k, KV(k)]);
   try {
     if (CORE !== 'wasm') throw new Error('core is JS');
     if (!ctx.audioWorklet || !window.AudioWorkletNode) throw new Error('no worklet');
@@ -144,6 +148,22 @@ async function setPlaying(on) {
 }
 async function ensurePlaying() { if (!playing) await setPlaying(true); }
 $('play').addEventListener('click', () => setPlaying(!playing));
+
+// overall volume: a slider beside the transport; the last setting is remembered in this browser
+let volTouched = 0;
+function setVol(v, save) {
+  v = Math.max(0, Math.min(1, v));
+  volTouched = performance.now();
+  $('vol').value = String(v);
+  $('volv').textContent = volText(v);
+  send({ t: 'knob', k: 12, v });
+  if (save) { try { localStorage.setItem('danchi.vol', String(v)); } catch (_) {} }
+}
+$('vol').addEventListener('input', (e) => setVol(+e.target.value, true));
+try {
+  const saved = parseFloat(localStorage.getItem('danchi.vol'));
+  if (Number.isFinite(saved)) setVol(saved, false);
+} catch (_) {}
 
 // ---------- facade (the keyboard: 16 windows) ----------
 const wins = [];
@@ -767,6 +787,11 @@ function updateDom() {
     }
   }
   if ($('hold').checked !== (((feat >> 5) & 1) === 1)) $('hold').checked = ((feat >> 5) & 1) === 1;
+  if (performance.now() - volTouched > 600) {          /* follows recorded hand motion too */
+    const vv = V[DN.V_VOL];
+    if (Math.abs(+$('vol').value - vv) > 0.004) $('vol').value = String(vv);
+    $('volv').textContent = volText(vv);
+  }
   paintFx();
   $('rec').setAttribute('aria-pressed', String(V[DN.V_MR_ARMED] > 0.5));
   $('rec').textContent = V[DN.V_MR_ARMED] > 0.5 ? '録っている' : '録る';

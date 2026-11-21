@@ -125,6 +125,15 @@ static void obj_make(dn_obj *o, uint32_t seed) {
 }
 
 float dn_tempo_bpm(const dn_state *s) { return 40.0f + 140.0f * s->keff[DN_K_TEMPO]; }
+/* volume knob -> dB: 0.85 is exactly 0 dB; below it down to -60 dB, above it up to +3 dB */
+float dn_vol_db(float v) {
+    if (v < 0.005f) return -99.0f;
+    return v <= 0.85f ? 60.0f * (v - 0.85f) / 0.85f : 3.0f * (v - 0.85f) / 0.15f;
+}
+static float vol_gain(float v) {
+    float db = dn_vol_db(v);
+    return db <= -99.0f ? 0.0f : dn_exp2(db * (1.0f / 6.0206f));
+}
 static float step_samples(const dn_state *s) { return s->sr * 15.0f / dn_tempo_bpm(s); }
 
 /* ------------------------------------------------------------------ log */
@@ -1092,7 +1101,7 @@ void dn_encoder(dn_state *s, int k, int det) {
     }
     if (k < 0 || k >= DN_KNOBS || det == 0) return;
     float acc = 1.0f + dn_min(3.0f, s->hand_speed * 0.12f);   /* fast turns go farther */
-    float st = k == DN_K_TEMPO ? 1.0f / 140.0f : 1.0f / 32.0f;
+    float st = k == DN_K_TEMPO ? 1.0f / 140.0f : (k == DN_K_VOL ? 1.0f / 64.0f : 1.0f / 32.0f);
     s->knob[k] = dn_clamp01(s->knob[k] + (float)det * st * acc);
     s->hand_speed += (float)(det < 0 ? -det : det);
     s->hand_idle = 0;
@@ -1369,6 +1378,8 @@ void dn_init(dn_state *s, dn_big *b, float sr, uint32_t seed) {
     s->cap_len = 0.6f;
     s->knob[DN_K_GEN] = 0.5f; s->knob[DN_K_POLY] = 0.5f; s->knob[DN_K_DUCK] = 0.5f;
     s->knob[DN_K_FOLLOW] = 0.5f; s->knob[DN_K_RATCHET] = 0.34f;
+    s->knob[DN_K_VOL] = 0.85f;                 /* 0 dB */
+    s->vol_g = 1.0f;
     for (int k = DN_K_GEN; k < DN_KNOBS; k++) s->keff[k] = s->knob[k];
     s->cur_step = step_samples(s);
     s->cur_start = 2048u;
@@ -1617,6 +1628,8 @@ static void process_block(dn_state *s, const float *in, float *L, float *R, int 
         float pk = 0.0f;
         float da = dn_tc(1.0f / (6.2831853f * 8800.0f), s->sr), o1 = s->out_lp[0], o2 = s->out_lp[1];
         uint32_t ow = s->out_w;
+        /* the volume, applied last and glided across the block */
+        float vg0 = s->vol_g, vg1 = vol_gain(s->keff[DN_K_VOL]), vgs = (vg1 - vg0) / (float)n;
         for (int i = 0; i < n; i++) {
             float dl = s->dryL[i], dr = s->dryR[i];
             s->a_LL += dl * dl; s->a_RR += dr * dr; s->a_LR += dl * dr;
@@ -1632,8 +1645,9 @@ static void process_block(dn_state *s, const float *in, float *L, float *R, int 
             float gt = s->lim_env > 0.7f ? 0.7f / s->lim_env : 1.0f;
             s->lim_g += (gt - s->lim_g) * (gt < s->lim_g ? 0.3f : 0.0005f);
             float ol = dn_soft(yl * s->lim_g), or_ = dn_soft(yr * s->lim_g);
-            L[i] = ol; R[i] = or_;
-            float ab = dn_max(dn_abs(ol), dn_abs(or_));
+            float vg = vg0 + vgs * (float)(i + 1);
+            L[i] = ol * vg; R[i] = or_ * vg;
+            float ab = dn_max(dn_abs(L[i]), dn_abs(R[i]));
             if (ab > pk) pk = ab;
             /* what it sounds like, kept at half rate for resampling */
             o1 += da * (0.5f * (ol + or_) - o1);
@@ -1645,6 +1659,7 @@ static void process_block(dn_state *s, const float *in, float *L, float *R, int 
             }
         }
         s->out_lp[0] = dn_flush(o1); s->out_lp[1] = dn_flush(o2); s->out_w = ow;
+        s->vol_g = vg1;
         s->peak = pk;
         s->peak_hold = pk > s->peak_hold ? pk : s->peak_hold * 0.995f;
     }
@@ -1679,7 +1694,8 @@ const float *dn_view(dn_state *s) {
     v[V_C_COMB] = s->f_comb; v[V_FLAMS] = (float)s->f_flams;
     for (int k = 0; k < DN_K_OBJECT; k++) v[V_K0 + k] = s->knob[k];
     v[V_K0 + DN_K_OBJECT] = (float)s->seed_cand / 9999.0f;
-    for (int k = DN_K_GEN; k < DN_KNOBS; k++) v[V_K7 + k - DN_K_GEN] = s->knob[k];
+    for (int k = DN_K_GEN; k <= DN_K_RATCHET; k++) v[V_K7 + k - DN_K_GEN] = s->knob[k];
+    v[V_VOL] = s->knob[DN_K_VOL]; v[V_VOL_DB] = dn_vol_db(s->knob[DN_K_VOL]);
     v[V_FEAT] = (float)s->feat; v[V_GENS] = (float)s->gens; v[V_CAP_LEN] = s->cap_len;
     v[V_OBJ_FROM] = (float)(s->src == DN_SRC_BUF ? s->obj_from : 0); v[V_IN_LVL] = s->in_lvl; v[V_DUCK] = s->duck;
     v[V_GEN_LEFT] = (float)(GEN_BARS[dn_roundi(s->keff[DN_K_GEN] * 4.0f)] - (s->bar - s->last_gen_bar));

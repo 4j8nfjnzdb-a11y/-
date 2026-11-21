@@ -109,8 +109,11 @@ void fm1_input_capture(void) { push(EV_BTN, DN_BTN_CAPTURE, 0); }
 /* 生成変化: what is sounding now becomes the object */
 void fm1_resample(void) { push(EV_BTN, DN_BTN_RESAMPLE, 0); }
 /* second page (shift held): encoders 1..5 are the added knobs, their pushes switch the features;
- * encoder 6 push = hold the arrangement, encoder 7 push = effect layer on/off, button = dice */
-void fm1_on_encoder_shift(int idx, int detents) { if (idx >= 0 && idx < 5) push(EV_ENC, (uint8_t)(DN_K_GEN + idx), (int8_t)detents); }
+ * encoder 6 = volume (push: hold the arrangement), encoder 7 push = effect layer on/off, button = dice */
+void fm1_on_encoder_shift(int idx, int detents) {
+    if (idx >= 0 && idx < 5) push(EV_ENC, (uint8_t)(DN_K_GEN + idx), (int8_t)detents);
+    else if (idx == 5) push(EV_ENC, DN_K_VOL, (int8_t)detents);
+}
 void fm1_on_encoder_push_shift(int idx) {
     if (idx >= 0 && idx < 5) push(EV_BTN, DN_BTN_FEATURE, (int8_t)idx);
     else if (idx == 5) push(EV_BTN, DN_BTN_FEATURE, DN_F_HOLD);

@@ -754,12 +754,40 @@ static void t_fx(void) {
           st.nan == 0 && st.peak < 1.0 && dn == 0, "peak %.2f, %.0fx real time", st.peak, 60000.0 / st.ms);
 }
 
+/* ---------------------------------------------------------------- volume */
+static void t_volume(void) {
+    long nn = (long)(10.0 * SR / 256) * 256;
+    float *a = malloc(sizeof(float) * nn), *b = malloc(sizeof(float) * nn), *c = malloc(sizeof(float) * nn), *d = malloc(sizeof(float) * nn);
+    float he[3][4];
+    for (int run_i = 0; run_i < 3; run_i++) {
+        dn_init(&S, &B, SR, 41);
+        if (run_i == 1) dn_set_knob(&S, DN_K_VOL, 0.765f);     /* -6 dB */
+        if (run_i == 2) dn_set_knob(&S, DN_K_VOL, 0.0f);       /* silent */
+        run(&S, 10.0, NULL, run_i == 0 ? a : (run_i == 1 ? c : d), b);
+        for (int j = 0; j < 4; j++) he[run_i][j] = S.h_e[j];
+    }
+    dn_init(&S, &B, SR, 41);
+    float L[256], R[256];
+    dn_process(&S, L, R, 256);
+    int unity = S.vol_g == 1.0f;
+    double g = 0, maxerr = 0, pk = 0, pk0 = 0;
+    for (long i = 0; i < nn; i++) { if (fabs(a[i]) > pk0) pk0 = fabs(a[i]); if (fabs(d[i]) > pk) pk = fabs(d[i]); }
+    g = exp2(-6.0 / 6.0206);
+    for (long i = 256; i < nn; i++) { double e = fabs(c[i] - a[i] * g); if (e > maxerr) maxerr = e; }
+    check("volume: the default is exactly 0 dB", unity, "gain %.7f", S.vol_g);
+    check("volume: -6 dB halves every sample", maxerr < 1e-5, "largest difference from half %.2g", maxerr);
+    int same = memcmp(he[0], he[2], sizeof he[0]) == 0;
+    check("volume 0: silent, and what the building hears is unchanged", pk == 0.0 && pk0 > 0.05 && same,
+          "peak %.2g (at 0 dB %.2f), listening %s", pk, pk0, same ? "identical" : "differs");
+    free(a); free(b); free(c); free(d);
+}
+
 /* ---------------------------------------------------------------- main */
 int main(int argc, char **argv) {
     if (argc >= 3 && !strcmp(argv[1], "test") && !strcmp(argv[2], "steer")) { t_steer(); return fails != 0; }
     if (argc >= 3 && !strcmp(argv[1], "test") && !strcmp(argv[2], "pushsteer")) { push_only = 1; t_steer(); return fails != 0; }
     if (argc >= 3 && !strcmp(argv[1], "test") && !strcmp(argv[2], "quick")) {
-        t_memory(); t_causality(); t_debt(); t_phases(); t_motion(); t_determinism(); t_no_trap(); t_denormal(); t_sources(); t_features(); t_fx();
+        t_memory(); t_causality(); t_debt(); t_phases(); t_motion(); t_determinism(); t_no_trap(); t_denormal(); t_sources(); t_features(); t_fx(); t_volume();
         printf("%s (%d failed)\n", fails ? "FAILED" : "all passed", fails); return fails != 0;
     }
     if (argc >= 2 && !strcmp(argv[1], "test")) {
@@ -772,6 +800,7 @@ int main(int argc, char **argv) {
         t_sources();
         t_features();
         t_fx();
+        t_volume();
         t_no_trap();
         t_denormal();
         t_headroom();

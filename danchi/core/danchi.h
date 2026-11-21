@@ -30,8 +30,8 @@
 #define DN_STEPS    16
 #define DN_EVQ      256
 #define DN_BAREV    128     /* max copies scheduled in one bar */
-#define DN_KNOBS    12
-#define DN_LANES    12      /* motion lanes, one per knob (the object knob's lane is never used) */
+#define DN_KNOBS    13
+#define DN_LANES    13      /* motion lanes, one per knob (the object knob's lane is never used) */
 #define DN_MR_SPB   64      /* motion slots per bar */
 #define DN_MR_BARS  8
 #define DN_ROOMBUF  1112      /* longest room delay (23 ms) at 48 kHz */
@@ -67,7 +67,9 @@ enum { DN_K_TEMPO, DN_K_ERASE, DN_K_PUSH, DN_K_META, DN_K_ROOM, DN_K_DIST, DN_K_
        DN_K_POLY,      /* how far each unit's cycle differs from 16 steps    */
        DN_K_DUCK,      /* how hard the caretaker's beat presses the others   */
        DN_K_FOLLOW,    /* how much the input's loudness moves the wanted state */
-       DN_K_RATCHET    /* how finely long notes are struck again             */
+       DN_K_RATCHET,   /* how finely long notes are struck again             */
+       DN_K_VOL        /* overall volume: -60 dB .. 0 dB at 0.85 .. +3 dB; 0 = silent.
+                          applied last: what the building hears and resamples is unaffected */
 };
 /* effects: a separate layer over every copy (each coloured bar), with a value per unit.
  * value 0 = not on that unit. With the layer off, nothing here is used. */
@@ -177,6 +179,8 @@ enum { DN_LG_NONE, DN_LG_ACT, DN_LG_BORN, DN_LG_DIED, DN_LG_PHASE, DN_LG_REWARD 
 #define V_FX_MASK    72   /* bit per checked effect */
 #define V_FX_AUTO    73   /* roll every N bars (0 = by hand) */
 #define V_FX_ROLLS   74   /* how many times the dice were rolled */
+#define V_VOL        75   /* the volume knob 0..1 */
+#define V_VOL_DB     76   /* the volume in dB (-99 = silent) */
 
 #define V_TRACK0     80
 #define V_TS         65   /* per-track stride */
@@ -330,6 +334,7 @@ typedef struct dn_state {
     uint32_t feat;
     int32_t last_gen_bar, sched_bar;
     float duck, duck_tg, duck_env[DN_BLOCK];
+    float vol_g;               /* the volume gain at the end of the last block */
     int pend_kind, pend_wait;
     /* effect layer */
     int fx_layer, fx_auto;
@@ -424,6 +429,7 @@ void dn_draw_rows(const dn_state *s, uint16_t *rgb565, int y0, int nrows);  /* r
 /* helpers shared with the display */
 float dn_tempo_bpm(const dn_state *s);
 int dn_gen_bars(const dn_state *s);
+float dn_vol_db(float v01);                                  /* -99 means silent */
 extern const char *const dn_op_code[DN_OP_KINDS];
 extern const char *const dn_room_code[DN_ROOMS];
 extern const char *const dn_phase_code[DN_PHASES];
