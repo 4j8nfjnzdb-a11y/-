@@ -162,9 +162,10 @@ void dn_draw_rows(const dn_state *s, uint16_t *buf, int y0, int nrows) {
             if (!snd) continue;
             for (int h = 0; h < T->nhit; h++) {
                 const dn_hit *H = &T->hit[h];
-                int nx = LX + (int)(((float)H->step + 0.5f) * SX);
+                if (H->bstep < 0) continue;                      /* not in this bar (own cycle) */
+                int nx = LX + (int)(((float)H->bstep + 0.5f) * SX);
                 float off = T->keeper ? 0.0f : H->off;
-                int rx = LX + (int)(((float)H->step + 0.5f + off) * SX);
+                int rx = LX + (int)(((float)H->bstep + 0.5f + off) * SX);
                 if (rx < LX) rx += LW;
                 if (rx >= LX + LW) rx -= LW;
                 uint16_t col = T->keeper ? KEEP : (off < -0.02f ? EARLY : (off > 0.02f ? LATE : INK));
@@ -217,7 +218,14 @@ void dn_draw_rows(const dn_state *s, uint16_t *buf, int y0, int nrows) {
             fx = text(&b, fx, 233, "B", DIM);
             for (int l = 0; l < DN_LANES; l++)
                 rect(&b, fx + 6 + l * 5, 234, 4, 4, (s->lane_has >> l) & 1 ? ((s->gest_lanes >> l) & 1 ? WARN : INK) : GRID);
-            if (s->vacant_room >= 0) { text(&b, 112, 233, "VACANT", LATE); text(&b, 154, 233, dn_room_code[s->vacant_room], LATE); }
+            /* features that are on: G resample, P own cycles, D press, F follow, R ratchet, H hold */
+            static const char FL[DN_FEATURES] = { 'G', 'P', 'D', 'F', 'R', 'H' };
+            for (int f = 0; f < DN_FEATURES; f++) {
+                char t2[2] = { FL[f], 0 };
+                text(&b, 104 + f * 7, 233, t2, (s->feat >> f) & 1u ? INK : GRID);
+            }
+            if (s->fx_layer) text(&b, 150, 233, "FX", s->fx_mask ? EARLY : DIM);
+            if (s->vacant_room >= 0) text(&b, 166, 233, dn_room_code[s->vacant_room], LATE);
             if (!s->keeper_on) text(&b, 200, 233, "NO KP", DIM);
         }
     }

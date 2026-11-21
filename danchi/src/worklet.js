@@ -21,6 +21,7 @@ class DanchiProc extends AudioWorkletProcessor {
       else if (m.t === 'btn') w.btn(m.b, m.a);
       else if (m.t === 'knob') w.set_knob(m.k, m.v);
       else if (m.t === 'inch') this.inch = m.v;
+      else if (m.t === 'fx') w.fx_set(m.f, m.k, m.v);
       else if (m.t === 'pcm') {
         // a sound for the object: 16-bit mono, written where the core keeps it, then committed
         const n = Math.min(m.data.length, w.samp_max());

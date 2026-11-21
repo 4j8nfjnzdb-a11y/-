@@ -12,8 +12,9 @@ EXPORT("process") void w_process(int n) { dn_process(&S, OL, OR_, n > DN_BLOCK ?
 EXPORT("process_in") void w_process_in(int n) { dn_process_in(&S, IN, OL, OR_, n > DN_BLOCK ? DN_BLOCK : n); }
 EXPORT("in_buf") float *w_in_buf(void) { return IN; }
 EXPORT("samp_area") int16_t *w_samp_area(void) { return dn_sample_area(&S); }
-EXPORT("samp_max") int w_samp_max(void) { return DN_SAMPBUF - 2 * DN_BLOCK; }
+EXPORT("samp_max") int w_samp_max(void) { return DN_OBJBUF; }
 EXPORT("samp_commit") void w_samp_commit(int n) { dn_sample_commit(&S, n); }
+EXPORT("fx_set") void w_fx_set(int f, int k, float v) { dn_fx_set(&S, f, k, v); }
 EXPORT("out_l") float *w_out_l(void) { return OL; }
 EXPORT("out_r") float *w_out_r(void) { return OR_; }
 EXPORT("view") const float *w_view(void) { return dn_view(&S); }

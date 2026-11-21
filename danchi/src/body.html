@@ -28,14 +28,17 @@
         <button type="button" class="tbtn seg" data-src="file" aria-pressed="false">ファイル</button>
         <button type="button" class="tbtn seg" data-src="in" aria-pressed="false">入力</button>
       </div>
+      <div class="group">
+        <button type="button" class="tbtn gen" id="regen">生成変化 ― いま鳴っている音を物に</button>
+      </div>
       <div class="srcpane" id="pane-file" hidden>
         <div class="group">
           <label class="tbtn" for="file" id="filelabel">WAV / MP3 を選ぶ</label>
           <input id="file" type="file" hidden>
           <span class="fname mono" id="fname">ここに落としても入ります</span>
         </div>
-        <canvas id="wave" aria-label="ファイルの波形。押した所から約 1.5 秒が物になる"></canvas>
-        <p class="hint">波形を押すと、その位置から約 1.5 秒が物になります。音の高さは変えません。</p>
+        <canvas id="wave" aria-label="ファイルの波形。押した所から約 0.75 秒が物になる"></canvas>
+        <p class="hint">波形を押すと、その位置から約 0.75 秒が物になります（つまみ「物」を回しても位置を動かせます。押すと決まる）。音の高さは変えません。</p>
       </div>
       <div class="srcpane" id="pane-in" hidden>
         <div class="group">
@@ -45,9 +48,9 @@
         <div class="inmeter" aria-label="入力の大きさ"><i id="inlvl"></i></div>
         <div class="group">
           <button type="button" class="tbtn" id="inlive">そのまま流す</button>
-          <button type="button" class="tbtn" id="incap">つかむ（いまの入力を物にする）</button>
+          <button type="button" class="tbtn" id="incap">つかむ（いまの入力を物に）</button>
         </div>
-        <p class="hint">「そのまま流す」では、どの部屋の写しも <b>1 拍前の入力</b>を鳴らします。拍より早く置かれた写しは、その分だけ遅れが短くなります。入力そのものはここでは鳴らしません（インターフェイス側でモニターしてください）。スピーカーとマイクだと回り込むので、ヘッドホンで。</p>
+        <p class="hint">「そのまま流す」では、どの部屋の写しも <b>1 拍前の入力</b>を鳴らします。拍より早く置かれた写しは、その分だけ遅れが短くなります。「つかむ」は、流していてもいなくても、直前の入力を同じ大きさのまま物にします（長さはつまみ「物」で）。入力そのものはここでは鳴らしません（インターフェイス側でモニターしてください）。スピーカーとマイクだと回り込むので、ヘッドホンで。</p>
       </div>
       <p class="srcnow" id="srcnow"></p>
     </section>
@@ -67,7 +70,13 @@
     </section>
 
     <section class="controls" aria-label="つまみとボタン">
-      <div class="knobs" id="knobs"></div>
+      <div class="knobsets">
+        <div class="knobs" id="knobs"></div>
+        <div class="knobs2-wrap">
+          <span class="glabel">足したつまみ（「使う」で on / off）</span>
+          <div class="knobs knobs2" id="knobs2"></div>
+        </div>
+      </div>
       <div class="buttons">
         <div class="group" role="group" aria-label="手の動き">
           <span class="glabel">手の動き</span>
@@ -86,7 +95,32 @@
           <button type="button" id="objapply" class="tbtn" disabled>この物にする</button>
           <button type="button" id="rebuild" class="tbtn">建て替え</button>
         </div>
+        <div class="group">
+          <label class="chk"><input type="checkbox" id="hold"> 配置を止める（オペレーターと局面を止めて、今の並びを保つ）</label>
+        </div>
       </div>
+    </section>
+
+    <section class="fx" id="fxsec" aria-label="エフェクト（別の層）">
+      <div class="sec-head">
+        <h2>エフェクト<small>別の層。部屋ごとの値が、その部屋の色の棒線（一つ一つの写し）にかかる</small></h2>
+        <label class="chk master"><input type="checkbox" id="fxlayer"> この層を使う</label>
+      </div>
+      <div class="group">
+        <button type="button" class="tbtn dice" id="fxdice"><svg class="die" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="1.5" width="13" height="13" rx="3" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="5" cy="5" r="1.3" fill="currentColor"/><circle cx="11" cy="5" r="1.3" fill="currentColor"/><circle cx="8" cy="8" r="1.3" fill="currentColor"/><circle cx="5" cy="11" r="1.3" fill="currentColor"/><circle cx="11" cy="11" r="1.3" fill="currentColor"/></svg> チェックしたものを振る</button>
+        <label class="sel">振り続ける <select id="fxauto">
+          <option value="0">手で振る</option><option value="1">毎小節</option><option value="2">2 小節ごと</option>
+          <option value="4">4 小節ごと</option><option value="8">8 小節ごと</option><option value="16">16 小節ごと</option>
+        </select></label>
+        <span class="hint mono" id="fxinfo"></span>
+      </div>
+      <div class="table-wrap">
+        <table class="fxtable">
+          <thead><tr id="fxhead"><th>部屋</th></tr></thead>
+          <tbody id="fxbody"></tbody>
+        </table>
+      </div>
+      <p class="hint">セルを左右にドラッグして値を決めます（矢印キーでも）。ダブルクリックで 0（その部屋には掛けない）。サイコロは、チェックしたエフェクトについて、どの部屋に掛けるかと値を振り直します。層を切ると、これまでどおりの音に戻ります。</p>
     </section>
 
     <section class="ops" aria-label="オペレーター">

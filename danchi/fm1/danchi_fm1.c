@@ -6,8 +6,8 @@
  * What has been checked on the danchi side (see ../README.md):
  *   - the core compiles for a single-precision-FPU Cortex-M4F with no double and no libm
  *     (tools/check_float.sh); the FM-1's real CPU is not known here
- *   - dn_state is ~43 KB (working RAM budget ~96 KB), dn_big is ~329 KB (large-buffer budget ~336 KB),
- *     including a 1.49 s 16-bit buffer for a sampled object or the live input
+ *   - dn_state is ~56 KB (working RAM budget ~96 KB), dn_big is ~335 KB (large-buffer budget ~336 KB):
+ *     a 1.11 s input ring, a 0.74 s half-rate output ring and a 0.75 s object, all 16-bit
  *   - whether the FM-1 has an audio input at all is not known here
  *   - the screen is drawn in horizontal bands, so no 115 KB framebuffer is needed
  *
@@ -93,12 +93,12 @@ void fm1_on_button(int idx, int shift_held, int unit_selected) {
 
 /* a sound for the object (e.g. read from storage by fm1-base): switch to the FM tone first so no
  * copy reads the buffer while it is written, write 16-bit mono at 44.1 kHz, then commit through
- * the queue so the commit happens in the audio context. At most DN_SAMPBUF - 512 samples (~1.47 s). */
+ * the queue so the commit happens in the audio context. At most DN_OBJBUF samples (~0.75 s). */
 void fm1_load_object(const int16_t *pcm, int n) {
     push(EV_BTN, DN_BTN_SOURCE, DN_SRC_FM);
     /* (wait one audio block here so the switch has happened; fm1-base's way of waiting is not known) */
     int16_t *dst = dn_sample_area(&S);
-    if (n > DN_SAMPBUF - 512) n = DN_SAMPBUF - 512;
+    if (n > DN_OBJBUF) n = DN_OBJBUF;
     for (int i = 0; i < n; i++) dst[i] = pcm[i];
     uint32_t w = qw;
     if (w - qr < QN) { q[w % QN].type = EV_COMMIT; q[w % QN].n = n; __atomic_store_n(&qw, w + 1, __ATOMIC_RELEASE); }
@@ -106,6 +106,17 @@ void fm1_load_object(const int16_t *pcm, int n) {
 /* the input: "as it is" (every copy plays the input one beat before its place) or "capture" */
 void fm1_input_live(void) { push(EV_BTN, DN_BTN_SOURCE, DN_SRC_LIVE); }
 void fm1_input_capture(void) { push(EV_BTN, DN_BTN_CAPTURE, 0); }
+/* 生成変化: what is sounding now becomes the object */
+void fm1_resample(void) { push(EV_BTN, DN_BTN_RESAMPLE, 0); }
+/* second page (shift held): encoders 1..5 are the added knobs, their pushes switch the features;
+ * encoder 6 push = hold the arrangement, encoder 7 push = effect layer on/off, button = dice */
+void fm1_on_encoder_shift(int idx, int detents) { if (idx >= 0 && idx < 5) push(EV_ENC, (uint8_t)(DN_K_GEN + idx), (int8_t)detents); }
+void fm1_on_encoder_push_shift(int idx) {
+    if (idx >= 0 && idx < 5) push(EV_BTN, DN_BTN_FEATURE, (int8_t)idx);
+    else if (idx == 5) push(EV_BTN, DN_BTN_FEATURE, DN_F_HOLD);
+    else if (idx == 6) push(EV_BTN, DN_BTN_FX_LAYER, 0);
+}
+void fm1_fx_dice(void) { push(EV_BTN, DN_BTN_FX_DICE, -1); }
 
 /* main loop: one 16-row band per tick; 15 ticks per frame */
 void fm1_main_loop_tick(void) {

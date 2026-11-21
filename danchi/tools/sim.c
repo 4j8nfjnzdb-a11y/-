@@ -99,10 +99,12 @@ static void add_hit(dn_state *s, int k, int step) {
 static int is_denormal(float x) { return x != 0.0f && fabsf(x) < 1.17549435e-38f; }
 static long count_denormals(const dn_state *s, const dn_big *b) {
     long c = 0;
-    const float *p = &b->room[0][0][0];
-    for (size_t i = 0; i < sizeof(dn_big) / sizeof(float); i++) c += is_denormal(p[i]);
+    const float *p = &b->room[0][0][0];                 /* only the float part: the rest is 16-bit audio */
+    for (size_t i = 0; i < sizeof(b->room) / sizeof(float); i++) c += is_denormal(p[i]);
     for (int k = 0; k < DN_TRACKS; k++) c += is_denormal(s->tr[k].lp1) + is_denormal(s->tr[k].lp2) + is_denormal(s->tr[k].flash);
-    for (int i = 0; i < DN_VOICES + DN_SPILL; i++) c += is_denormal(s->vo[i].amp);
+    for (int i = 0; i < DN_VOICES + DN_SPILL; i++) c += is_denormal(s->vo[i].amp) + is_denormal(s->vo[i].held) + is_denormal(s->vo[i].prev);
+    c += is_denormal(s->duck) + is_denormal(s->duck_tg) + is_denormal(s->out_lp[0]) + is_denormal(s->out_lp[1]);
+    for (int k = 0; k < DN_TRACKS; k++) c += is_denormal(s->tr[k].ds);
     for (int i = 0; i < 2; i++) for (int j = 0; j < DN_DIFBUF; j++) c += is_denormal(s->dif[i][j]);
     for (int r = 0; r < DN_ROOMS; r++) c += is_denormal(s->rlpA[r]) + is_denormal(s->rlpB[r]);
     c += is_denormal(s->lim_env) + is_denormal(s->env_f) + is_denormal(s->hand_speed) + is_denormal(s->dcy[0]) + is_denormal(s->dcy[1]);
@@ -415,9 +417,8 @@ static long live_delay_for(int micro, float *expect) {
     for (int i = 0; i < 256; i++) in[i] = 0.0f;
     while (S.bar < 2) dn_process_in(&S, in, L, R, 256);
     uint32_t t0 = S.cur_start + S.cur_len;               /* the next bar */
-    float D = (float)(int32_t)fminf(4.0f * S.cur_step, (float)(DN_SAMPBUF - DN_BLOCK - 512) - S.cur_step);
-    float dv = (float)micro / 64.0f;
-    int32_t devs = (int32_t)(dv * S.cur_step);
+    float D = S.live_delay;
+    int32_t devs = (int32_t)((float)micro / 64.0f * S.cur_step);
     *expect = D + (float)devs;
     uint32_t tau = t0 - (uint32_t)D + 3000u;
     long found = -1;
@@ -429,6 +430,25 @@ static long live_delay_for(int micro, float *expect) {
             if ((int32_t)(base + (uint32_t)i - tau) > 0 && fabsf(L[i]) > 0.02f) found = (long)(int32_t)(base + (uint32_t)i - tau);
     }
     return found;
+}
+
+/* a quiet scene: one unit with long notes at 0 and 8, no caretaker */
+static void scene_one(dn_state *s, unsigned seed) {
+    dn_init(s, &B, SR, seed);
+    scene_clear(s);
+    dn_button(s, DN_BTN_KEEPER, 2);
+    unit(s, 1, 0, 3.0f, 0.0f, 0.0f, 0.0f);
+    add_hit(s, 1, 8);
+}
+static void feed(dn_state *s, int blocks, float amp, double *ph, double *rms) {
+    float in[256], L[256], R[256];
+    double acc = 0;
+    for (int k = 0; k < blocks; k++) {
+        for (int i = 0; i < 256; i++) { in[i] = amp * (float)sin(*ph); *ph += 2 * 3.14159265358979 * 300 / SR; }
+        dn_process_in(s, in, L, R, 256);
+        for (int i = 0; i < 256; i++) acc += (double)L[i] * L[i];
+    }
+    if (rms) *rms = sqrt(acc / (blocks * 256.0));
 }
 
 static void t_sources(void) {
@@ -445,12 +465,12 @@ static void t_sources(void) {
     check("a loaded sound becomes the object and is placed like the FM one",
           v[V_SRC] == DN_SRC_BUF && fabsf(v[V_SAMP_LEN] - 0.4f) < 0.02f && st.peak > 0.05 && st.peak < 1.0 && st.nan == 0,
           "source %g, %.2f s, peak %.2f", v[V_SRC], v[V_SAMP_LEN], st.peak);
-    /* the input does not overwrite a fixed object */
+    /* the input has its own ring: it never touches the object */
     uint32_t sum0 = 0, sum1 = 0;
-    for (int i = 0; i < DN_SAMPBUF; i++) sum0 = sum0 * 31u + (uint16_t)a[i];
+    for (int i = 0; i < DN_OBJBUF; i++) sum0 = sum0 * 31u + (uint16_t)B.obj[i];
     for (int k = 0; k < 200; k++) { for (int i = 0; i < 256; i++) in[i] = (float)(lcg_next() >> 8) / 16777216.0f - 0.5f; dn_process_in(&S, in, L, R, 256); }
-    for (int i = 0; i < DN_SAMPBUF; i++) sum1 = sum1 * 31u + (uint16_t)a[i];
-    check("input is ignored while a fixed object plays", sum0 == sum1, "%s", sum0 == sum1 ? "buffer unchanged" : "buffer changed");
+    for (int i = 0; i < DN_OBJBUF; i++) sum1 = sum1 * 31u + (uint16_t)B.obj[i];
+    check("input is kept apart from a fixed object", sum0 == sum1, "%s", sum0 == sum1 ? "object unchanged" : "object changed");
 
     /* the input itself: a copy's offset from the grid is heard as a different delay */
     float e0, e1;
@@ -458,24 +478,280 @@ static void t_sources(void) {
     check("live: a copy on the grid plays the input one beat later", d0 >= 0 && labs(d0 - (long)e0) <= 3, "delay %ld samples (expect %.0f)", d0, e0);
     check("live: a copy placed 1/4 step early has 1/4 step less delay", d1 >= 0 && labs(d1 - (long)e1) <= 3, "delay %ld samples (expect %.0f)", d1, e1);
 
-    /* capture: what just came in becomes a fixed object, from where it starts to sound */
-    dn_init(&S, &B, SR, 9);
+    /* capture: silence is refused; a sound is kept from where it starts */
+    double ph = 0;
+    scene_one(&S, 9);
     dn_button(&S, DN_BTN_SOURCE, DN_SRC_LIVE);
-    for (int k = 0; k < (int)(1.0f * SR / 256); k++) { for (int i = 0; i < 256; i++) in[i] = 0.0f; dn_process_in(&S, in, L, R, 256); }
+    feed(&S, (int)(1.0f * SR / 256), 0.0f, &ph, NULL);
     dn_button(&S, DN_BTN_CAPTURE, 0);
+    feed(&S, 2, 0.0f, &ph, NULL);
     v = dn_view(&S);
     int quiet_ok = v[V_SRC] == DN_SRC_LIVE && v[V_SRC_NOTE] == 2;
-    double ph = 0;
-    for (int k = 0; k < (int)(0.6f * SR / 256); k++) { for (int i = 0; i < 256; i++) { in[i] = 0.5f * (float)sin(ph); ph += 2 * 3.14159265358979 * 300 / SR; } dn_process_in(&S, in, L, R, 256); }
-    for (int k = 0; k < (int)(0.2f * SR / 256); k++) { for (int i = 0; i < 256; i++) in[i] = 0.0f; dn_process_in(&S, in, L, R, 256); }
+    S.cap_len = 0.75f;
+    feed(&S, (int)(0.3f * SR / 256), 0.5f, &ph, NULL);
+    feed(&S, (int)(0.1f * SR / 256), 0.0f, &ph, NULL);
     dn_button(&S, DN_BTN_CAPTURE, 0);
+    feed(&S, 2, 0.0f, &ph, NULL);
     v = dn_view(&S);
     float src = v[V_SRC], len = v[V_SAMP_LEN];
-    stats_t s2 = { 0 };
-    run(&S, 8.0, &s2, NULL, NULL);
-    check("capturing silence is refused; capturing a sound keeps it from its start",
-          quiet_ok && src == DN_SRC_BUF && len > 0.75f && len < 0.85f && s2.peak > 0.05,
-          "silence refused: %s; sound -> %.2f s object, peak afterwards %.2f", quiet_ok ? "yes" : "no", len, s2.peak);
+    check("capturing silence is refused; a sound is kept from where it starts",
+          quiet_ok && src == DN_SRC_BUF && v[V_OBJ_FROM] == DN_FROM_INPUT && len > 0.38f && len < 0.43f,
+          "silence refused: %s; 0.3 s sound + 0.1 s silence -> %.3f s object", quiet_ok ? "yes" : "no", len);
+
+    /* no dip: the captured sound plays as loud as the live copies did */
+    double r_live, r_cap;
+    scene_one(&S, 10);
+    dn_button(&S, DN_BTN_SOURCE, DN_SRC_LIVE);
+    ph = 0;
+    feed(&S, (int)(4 * S.cur_len / 256), 0.3f, &ph, NULL);
+    feed(&S, (int)(4 * S.cur_len / 256), 0.3f, &ph, &r_live);
+    dn_button(&S, DN_BTN_CAPTURE, 0);
+    feed(&S, (int)(1 * S.cur_len / 256), 0.3f, &ph, NULL);
+    feed(&S, (int)(4 * S.cur_len / 256), 0.3f, &ph, &r_cap);
+    double ddb = 20 * log10(r_cap / r_live);
+    check("capturing keeps the level of the live copies (no dip)", fabs(ddb) < 1.5, "live %.1f dBFS -> captured %.1f dBFS (%+.1f dB)",
+          20 * log10(r_live), 20 * log10(r_cap), ddb);
+    /* and it can be taken again at any time, without going back to "as it is" */
+    feed(&S, (int)(1.0f * SR / 256), 0.6f, &ph, NULL);
+    float before = S.samp_gain;
+    dn_button(&S, DN_BTN_CAPTURE, 0);
+    feed(&S, 2, 0.6f, &ph, NULL);
+    check("capture works again while a captured sound plays", S.src == DN_SRC_BUF && S.obj_from == DN_FROM_INPUT && S.src_note == 1 && before == S.samp_gain,
+          "src %d, from %d, note %d", S.src, S.obj_from, S.src_note);
+}
+
+static void t_features(void) {
+    float L[256], R[256];
+    /* resample: what is sounding becomes the object, at once */
+    dn_init(&S, &B, SR, 21);
+    run_bars(&S, 6);
+    dn_button(&S, DN_BTN_RESAMPLE, 0);
+    dn_process(&S, L, R, 256); dn_process(&S, L, R, 256); dn_process(&S, L, R, 256); dn_process(&S, L, R, 256);
+    const float *v = dn_view(&S);
+    float len = v[V_SAMP_LEN];
+    stats_t st = { 0 };
+    run(&S, 10.0, &st, NULL, NULL);
+    check("resample: the sound right now becomes the object", v[V_SRC] == DN_SRC_BUF && v[V_OBJ_FROM] == DN_FROM_OUTPUT && v[V_GENS] == 1 && len > 0.2f && st.peak > 0.05 && st.peak < 1.0,
+          "from %g, generation %g, %.2f s, peak afterwards %.2f", v[V_OBJ_FROM], v[V_GENS], len, st.peak);
+    /* automatically, every bar */
+    dn_set_knob(&S, DN_K_GEN, 0.0f);
+    dn_button(&S, DN_BTN_FEATURE, DN_F_GEN);
+    int g0 = S.gens;
+    run_bars(&S, 6);
+    check("automatic resample every bar", S.gens - g0 >= 5, "%d generations in 6 bars", S.gens - g0);
+
+    /* own cycles: a unit with a cycle of 18 drifts against the bar */
+    dn_init(&S, &B, SR, 22);
+    scene_clear(&S);
+    unit(&S, 2, 0, 1.0f, 0.0f, 0.0f, 0.0f);
+    dn_set_knob(&S, DN_K_POLY, 1.0f);
+    dn_button(&S, DN_BTN_FEATURE, DN_F_POLY);
+    char seq[64] = ""; int moves = 0, last = -2;
+    for (int b = 0; b < 8; b++) {
+        run_bars(&S, 1);
+        int bs = S.tr[2].hit[0].bstep;
+        char t[8]; snprintf(t, sizeof t, "%d ", bs); strcat(seq, t);
+        if (bs >= 0 && last >= 0 && bs != last) moves++;
+        if (bs >= 0) last = bs;
+    }
+    check("own cycles: unit 102 (18 steps) drifts against the bar", S.tr[2].cycle == 18 && moves >= 3, "cycle %d, where it sounded per bar: %s", S.tr[2].cycle, seq);
+
+    /* the caretaker's press makes the others quieter */
+    double rms[2];
+    for (int on = 0; on < 2; on++) {
+        dn_init(&S, &B, SR, 23);
+        dn_button(&S, DN_BTN_KEEPER, 1);
+        S.quiet = -1000000; S.ph_left = 1000000;
+        if (on) { dn_set_knob(&S, DN_K_DUCK, 1.0f); dn_button(&S, DN_BTN_FEATURE, DN_F_DUCK); }
+        run_bars(&S, 2);
+        stats_t s2 = { 0 };
+        run(&S, 20.0, &s2, NULL, NULL);
+        rms[on] = sqrt(s2.sumsq / s2.n);
+    }
+    check("caretaker's press lowers the others", 20 * log10(rms[1] / rms[0]) < -1.0, "%+.1f dB with full press", 20 * log10(rms[1] / rms[0]));
+
+    /* ratchet: a long note is struck again */
+    unsigned on2[2];
+    for (int on = 0; on < 2; on++) {
+        dn_init(&S, &B, SR, 24);
+        scene_clear(&S);
+        dn_button(&S, DN_BTN_KEEPER, 2);
+        unit(&S, 1, 0, 4.0f, 0.0f, 0.0f, 0.0f);
+        if (on) { dn_set_knob(&S, DN_K_RATCHET, 0.67f); dn_button(&S, DN_BTN_FEATURE, DN_F_RATCHET); }
+        run_bars(&S, 4);
+        on2[on] = S.f_onsets;
+    }
+    check("ratchet: one long note becomes 8 strikes (1/4 step apart)", on2[0] == 1 && on2[1] == 8, "onsets per bar %u -> %u", on2[0], on2[1]);
+
+    /* follow: playing louder moves the wanted state toward the mass */
+    float te[2];
+    for (int loud = 0; loud < 2; loud++) {
+        dn_init(&S, &B, SR, 25);
+        dn_set_knob(&S, DN_K_FOLLOW, 1.0f);
+        dn_button(&S, DN_BTN_FEATURE, DN_F_FOLLOW);
+        double ph = 0;
+        feed(&S, (int)(4 * S.cur_len / 256), loud ? 0.5f : 0.001f, &ph, NULL);
+        te[loud] = S.t_e;
+    }
+    check("follow: a loud input wants more mass than a quiet one", te[1] - te[0] > 0.2f, "wanted erase %.2f (quiet) -> %.2f (loud)", te[0], te[1]);
+
+    /* hold: nobody acts, is born or dies, and the phase stays */
+    dn_init(&S, &B, SR, 26);
+    dn_button(&S, DN_BTN_FEATURE, DN_F_HOLD);
+    int ln = S.log_n, ph0 = S.ph_left;
+    run_bars(&S, 100);
+    check("hold: 100 bars without any change of arrangement", S.log_n == ln && S.ph_left == ph0, "log entries %d, phase bars left %d -> %d", S.log_n - ln, ph0, S.ph_left);
+}
+
+/* ---------------------------------------------------------------- the effect layer */
+/* one unit, a long note at the start of each bar, the object a given sound; room and distance dry */
+static void fx_scene(unsigned seed, int kind) {
+    dn_init(&S, &B, SR, seed);
+    scene_clear(&S);
+    dn_button(&S, DN_BTN_KEEPER, 2);
+    unit(&S, 1, 0, 3.0f, 0.0f, 0.0f, 0.0f);
+    S.tr[1].dist = 0.0f; S.tr[1].pan = 0.0f;
+    dn_set_knob(&S, DN_K_ROOM, 0.0f); dn_set_knob(&S, DN_K_DIST, 0.0f);
+    int16_t *a = dn_sample_area(&S);
+    int n = (int)(0.7f * SR);
+    for (int i = 0; i < n; i++) {
+        float t = (float)i / SR, x;
+        if (kind == 0) x = 0.5f * sinf(2.0f * 3.14159265f * 300.0f * t);                          /* steady */
+        else if (kind == 1) x = 0.8f * expf(-8.0f * t) * sinf(2.0f * 3.14159265f * 300.0f * t);     /* struck */
+        else x = 0.5f * sinf(2.0f * 3.14159265f * (200.0f * t + 600.0f * t * t));                   /* rising */
+        a[i] = (int16_t)(x * 32767.0f);
+    }
+    dn_sample_commit(&S, n);
+}
+/* render the next bar; returns where its first note starts inside buf */
+static long fx_bar(float *buf, long cap) {
+    float L[256], R[256];
+    run_bars(&S, 2);
+    uint32_t t1 = S.cur_start + S.cur_len, base = S.now;
+    long k = 0;
+    while (k + 256 <= cap) { dn_process(&S, L, R, 256); memcpy(buf + k, L, sizeof L); k += 256; }
+    return (long)(int32_t)(t1 - base);
+}
+static void fx_on(int f, float v) {
+    if (!S.fx_layer) dn_button(&S, DN_BTN_FX_LAYER, 0);
+    dn_fx_set(&S, f, 1, v);
+    if (!((S.fx_mask >> f) & 1u)) dn_button(&S, DN_BTN_FX_TOGGLE, f);
+    dn_fx_set(&S, f, 1, v);
+}
+static double seg_rms(const float *x, long a, long b) { double e = 0; for (long i = a; i < b; i++) e += (double)x[i] * x[i]; return sqrt(e / (double)(b - a)); }
+static long zero_x(const float *x, long a, long b) { long z = 0; for (long i = a + 1; i < b; i++) z += (x[i - 1] < 0) != (x[i] < 0); return z; }
+static double corr(const float *x, const float *y, long n) {
+    double xy = 0, xx = 0, yy = 0;
+    for (long i = 0; i < n; i++) { xy += (double)x[i] * y[i]; xx += (double)x[i] * x[i]; yy += (double)y[i] * y[i]; }
+    return xy / sqrt(xx * yy + 1e-20);
+}
+
+static void t_fx(void) {
+    static float a[44100 * 4], b[44100 * 4];
+    long cap = 44100 * 4;
+    /* the layer off: exactly what it was before, even with effects checked and set */
+    {
+        long nn = (long)(20.0 * SR / 256) * 256;
+        float *a1 = malloc(sizeof(float) * nn), *b1 = malloc(sizeof(float) * nn), *a2 = malloc(sizeof(float) * nn), *b2 = malloc(sizeof(float) * nn);
+        dn_init(&S, &B, SR, 31); run(&S, 20.0, NULL, a1, b1);
+        dn_init(&S, &B, SR, 31);
+        for (int f = 0; f < DN_FX; f++) { dn_button(&S, DN_BTN_FX_TOGGLE, f); for (int k = 1; k < DN_TRACKS; k++) dn_fx_set(&S, f, k, 0.7f); }
+        dn_button(&S, DN_BTN_FX_DICE, -1);
+        dn_button(&S, DN_BTN_FX_AUTO, 1);
+        run(&S, 20.0, NULL, a2, b2);
+        int same = memcmp(a1, a2, sizeof(float) * nn) == 0 && memcmp(b1, b2, sizeof(float) * nn) == 0;
+        check("effect layer off: the sound is bit-identical to before", same, "%s", same ? "identical over 20 s, with every effect checked, set and rolling" : "differs");
+        free(a1); free(b1); free(a2); free(b2);
+    }
+
+    float gate = 0;
+    /* pitch +12: twice as many zero crossings */
+    long z[2];
+    for (int on = 0; on < 2; on++) {
+        fx_scene(32, 0);
+        if (on) fx_on(DN_FX_PITCH, 1.0f);
+        long t1 = fx_bar(a, cap);
+        gate = 2.7f * S.cur_step;
+        z[on] = zero_x(a, t1 + (long)(0.1f * gate), t1 + (long)(0.5f * gate));
+    }
+    check("pitch: +12 doubles the frequency of the copies", fabs((double)z[1] / z[0] - 2.0) < 0.1, "zero crossings %ld -> %ld (x%.2f)", z[0], z[1], (double)z[1] / z[0]);
+
+    /* reverse: a struck sound swells instead of dying away */
+    double r[2][2];
+    for (int on = 0; on < 2; on++) {
+        fx_scene(33, 1);
+        if (on) fx_on(DN_FX_REVERSE, 1.0f);
+        long t1 = fx_bar(a, cap);
+        long w = (long)(0.3f * S.cur_step * 2.7f);
+        r[on][0] = seg_rms(a, t1, t1 + w);
+        r[on][1] = seg_rms(a, t1 + 2 * w, t1 + 3 * w);
+    }
+    check("reverse: a struck sound rises instead of falling", r[0][0] > 2 * r[0][1] && r[1][1] > 2 * r[1][0],
+          "first/last third: plain %.3f/%.3f, reversed %.3f/%.3f", r[0][0], r[0][1], r[1][0], r[1][1]);
+
+    /* stutter: the first slice of a rising sound repeats */
+    double cc[2];
+    for (int on = 0; on < 2; on++) {
+        fx_scene(34, 2);
+        if (on) fx_on(DN_FX_STUTTER, 0.6f);               /* 1/4 step */
+        long t1 = fx_bar(a, cap);
+        long L = (long)(0.25f * S.cur_step);
+        cc[on] = corr(a + t1 + 2 * L, a + t1 + 3 * L, L);
+    }
+    check("stutter: one slice of the copy repeats", cc[1] > 0.9 && cc[0] < 0.6, "next-slice correlation %.2f -> %.2f", cc[0], cc[1]);
+
+    /* delay: the copy is placed again three times, later and softer */
+    unsigned on3[2];
+    for (int on = 0; on < 2; on++) {
+        fx_scene(35, 1);
+        if (on) fx_on(DN_FX_DELAY, 0.5f);
+        run_bars(&S, 4);
+        on3[on] = S.f_onsets;
+    }
+    check("delay: one copy becomes four", on3[0] == 1 && on3[1] == 4, "onsets per bar %u -> %u", on3[0], on3[1]);
+
+    /* glitch: different, finite */
+    fx_scene(36, 2);
+    long t1 = fx_bar(b, cap);
+    fx_scene(36, 2);
+    fx_on(DN_FX_GLITCH, 1.0f);
+    fx_bar(a, cap);
+    double gd = 0; for (long i = t1; i < t1 + (long)gate; i++) gd += fabs((double)a[i] - b[i]);
+    check("glitch: the copy is held and jumps (changed, still finite)", gd > 10.0 && isfinite(gd), "summed difference %.1f", gd);
+
+    /* the dice: only checked effects change, values 0 or 0.1..1, the caretaker never */
+    dn_init(&S, &B, SR, 37);
+    dn_button(&S, DN_BTN_FX_LAYER, 0);
+    dn_button(&S, DN_BTN_FX_TOGGLE, DN_FX_PITCH);
+    dn_button(&S, DN_BTN_FX_TOGGLE, DN_FX_GLITCH);
+    float before[DN_FX][DN_TRACKS];
+    memcpy(before, S.fxv, sizeof before);
+    dn_button(&S, DN_BTN_FX_DICE, -1);
+    int changed_checked = 0, changed_other = 0, bad = 0, on_units = 0;
+    for (int f = 0; f < DN_FX; f++) for (int k = 0; k < DN_TRACKS; k++) {
+        float v = S.fxv[f][k];
+        if (v != before[f][k]) { if (f == DN_FX_PITCH || f == DN_FX_GLITCH) changed_checked++; else changed_other++; }
+        if (v != 0.0f && (v < 0.1f || v > 1.0f)) bad++;
+        if (k == 0 && v != 0.0f) bad++;
+        if (v > 0.0f && f == DN_FX_PITCH) on_units++;
+    }
+    check("dice: only checked effects change, per unit 0 or 0.1..1", changed_checked > 0 && changed_other == 0 && bad == 0,
+          "%d values changed in checked effects, %d elsewhere; pitch on %d of 15 units", changed_checked, changed_other, on_units);
+    dn_button(&S, DN_BTN_FX_AUTO, 2);
+    uint32_t r0 = S.fx_rolls;
+    run_bars(&S, 10);
+    check("dice keep rolling every 2 bars", S.fx_rolls - r0 == 5, "%u rolls in 10 bars", S.fx_rolls - r0);
+
+    /* everything at once, on the FM object, a crowded building, 60 s */
+    dn_init(&S, &B, SR, 38);
+    dn_button(&S, DN_BTN_FX_LAYER, 0);
+    for (int f = 0; f < DN_FX; f++) dn_button(&S, DN_BTN_FX_TOGGLE, f);
+    dn_button(&S, DN_BTN_FX_AUTO, 1);
+    stats_t st = { 0 };
+    run(&S, 60.0, &st, NULL, NULL);
+    long dn = count_denormals(&S, &B);
+    check("all five effects on, rolled every bar, 60 s: finite, no clipping, no denormals",
+          st.nan == 0 && st.peak < 1.0 && dn == 0, "peak %.2f, %.0fx real time", st.peak, 60000.0 / st.ms);
 }
 
 /* ---------------------------------------------------------------- main */
@@ -483,7 +759,7 @@ int main(int argc, char **argv) {
     if (argc >= 3 && !strcmp(argv[1], "test") && !strcmp(argv[2], "steer")) { t_steer(); return fails != 0; }
     if (argc >= 3 && !strcmp(argv[1], "test") && !strcmp(argv[2], "pushsteer")) { push_only = 1; t_steer(); return fails != 0; }
     if (argc >= 3 && !strcmp(argv[1], "test") && !strcmp(argv[2], "quick")) {
-        t_memory(); t_causality(); t_debt(); t_phases(); t_motion(); t_determinism(); t_no_trap(); t_denormal(); t_sources();
+        t_memory(); t_causality(); t_debt(); t_phases(); t_motion(); t_determinism(); t_no_trap(); t_denormal(); t_sources(); t_features(); t_fx();
         printf("%s (%d failed)\n", fails ? "FAILED" : "all passed", fails); return fails != 0;
     }
     if (argc >= 2 && !strcmp(argv[1], "test")) {
@@ -494,6 +770,8 @@ int main(int argc, char **argv) {
         t_motion();
         t_determinism();
         t_sources();
+        t_features();
+        t_fx();
         t_no_trap();
         t_denormal();
         t_headroom();
@@ -672,6 +950,12 @@ int main(int argc, char **argv) {
                 for (int i = 0; i < 20000; i++) { r = r * 1664525u + 1013904223u; sa[i] = (int16_t)((int32_t)(r >> 16) - 32768); }
                 dn_sample_commit(&S, 20000);
             }
+            if (b == 13000) dn_button(&S, DN_BTN_FEATURE, DN_F_POLY);
+            if (b == 13500) dn_button(&S, DN_BTN_RESAMPLE, 0);
+            if (b == 14000) dn_button(&S, DN_BTN_FEATURE, DN_F_RATCHET);
+            if (b == 14500) dn_button(&S, DN_BTN_FEATURE, DN_F_DUCK);
+            if (b == 15000) { dn_button(&S, DN_BTN_FX_LAYER, 0); for (int f = 0; f < DN_FX; f++) dn_button(&S, DN_BTN_FX_TOGGLE, f); dn_button(&S, DN_BTN_FX_AUTO, 1); }
+            if (b == 17000) dn_fx_set(&S, DN_FX_PITCH, 3, 0.9f);
         }
         fclose(f);
         return 0;

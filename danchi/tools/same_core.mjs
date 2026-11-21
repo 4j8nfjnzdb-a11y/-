@@ -26,8 +26,14 @@ for (let b = 0, o = 0; o < out.length; b++, o += 128) {
     for (let i = 0; i < 20000; i++) a[i] = (next() >>> 16) - 32768;
     w.samp_commit(20000);
   }
+  if (b === 13000) w.btn(12, 1);
+  if (b === 13500) w.btn(11, 0);
+  if (b === 14000) w.btn(12, 4);
+  if (b === 14500) w.btn(12, 2);
+  if (b === 15000) { w.btn(13, 0); for (let f = 0; f < 5; f++) w.btn(14, f); w.btn(16, 1); }
+  if (b === 17000) w.fx_set(2, 3, 0.9);
 }
 let diff = 0, maxd = 0;
 for (let i = 0; i < out.length; i++) { const d = Math.abs(out[i] - nat[i]); if (d > 0) diff++; if (d > maxd) maxd = d; }
-console.log(`native vs WebAssembly, 60 s (FM, then live input, a capture, a loaded sound): ${diff} of ${out.length} samples differ, max difference ${maxd}`);
+console.log(`native vs WebAssembly, 60 s (FM, live input, capture, a loaded sound, own cycles, resample, ratchet, press, all effects): ${diff} of ${out.length} samples differ, max difference ${maxd}`);
 process.exit(diff ? 1 : 0);

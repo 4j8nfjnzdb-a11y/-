@@ -53,6 +53,15 @@ static const float PTRANS[DN_PHASES][DN_PHASES] = {
     { 0.60f, 0.30f, 0.10f, 0.00f } };
 static const float KEEP_P[DN_PHASES] = { 0.95f, 0.90f, 0.50f, 0.60f };
 static const uint8_t PERIODS[6] = { 2, 3, 4, 6, 8, 12 };
+/* each unit's own cycle when units have their own cycles: 16 + this x the knob (12..20 steps) */
+static const int8_t POLYOFF[DN_TRACKS] = { 0, -1, 2, -3, 1, -2, 3, -4, 4, -1, 2, -3, 1, -2, 3, -4 };
+static const float RATCHET_STEP[4] = { 0.5f, 0.33333334f, 0.25f, 0.16666667f };
+static const int GEN_BARS[5] = { 1, 2, 4, 8, 16 };
+/* effect values -> settings */
+static const float FX_DELAY_STEPS[6] = { 0.5f, 0.75f, 1.0f, 1.5f, 2.0f, 3.0f };
+static const float FX_SEMI[8] = { -12.0f, -7.0f, -5.0f, -3.0f, 3.0f, 5.0f, 7.0f, 12.0f };
+static const float FX_STUT[4] = { 1.0f, 0.5f, 0.25f, 0.125f };
+static int fx_idx(float v, int n) { int i = (int)(v * (float)n); return i >= n ? n - 1 : (i < 0 ? 0 : i); }
 static const float RATIOS[12] = { 0.5f, 1.0f, 1.0f, 1.4142136f, 1.5f, 2.0f, 2.4142137f,
                                   2.7182818f, 3.0f, 3.5f, 4.0f, 5.1961524f };
 
@@ -68,6 +77,28 @@ static int rndi(dn_state *s, int n) { return (int)(rnd_u(&s->rng) % (uint32_t)n)
 static float gauss(dn_state *s) { return (rnd(s) + rnd(s) + rnd(s) + rnd(s) - 2.0f) * 1.7320508f; }
 
 static void zero_bytes(void *p, size_t n) { uint8_t *b = (uint8_t *)p; while (n--) *b++ = 0; }
+
+/* an effect's value on a unit, if the layer is on and the effect is checked (never on the caretaker) */
+static float fxval(const dn_state *s, int f, int k) {
+    if (!s->fx_layer || !((s->fx_mask >> f) & 1u) || s->tr[k].keeper) return 0.0f;
+    return s->fxv[f][k];
+}
+/* the dice: for each checked effect (or the one given), every unit gets it or not, and a value */
+static void fx_roll(dn_state *s, int only) {
+    for (int f = 0; f < DN_FX; f++) {
+        if (only >= 0 ? f != only : !((s->fx_mask >> f) & 1u)) continue;
+        for (int k = 0; k < DN_TRACKS; k++) {
+            float u = (float)(rnd_u(&s->fx_rng) >> 8) * (1.0f / 16777216.0f);
+            float w = (float)(rnd_u(&s->fx_rng) >> 8) * (1.0f / 16777216.0f);
+            s->fxv[f][k] = (s->tr[k].keeper || u < 0.45f) ? 0.0f : 0.1f + 0.9f * w;
+        }
+    }
+    s->fx_rolls++;
+}
+void dn_fx_set(dn_state *s, int f, int k, float v) {
+    if (f < 0 || f >= DN_FX || k < 0 || k >= DN_TRACKS) return;
+    s->fxv[f][k] = dn_clamp01(v);
+}
 
 /* ------------------------------------------------------------------ object */
 static void obj_make(dn_obj *o, uint32_t seed) {
@@ -372,32 +403,43 @@ static void phase_next(dn_state *s) {
 /* ------------------------------------------------------------------ planning a bar */
 static float swing_off(float sw, int step) { return (step & 1) ? 0.44f * sw : 0.0f; }
 
-static void ev_push(dn_state *s, uint32_t t, uint32_t gate, float dev, int32_t devs, int track, int cause, int keeper) {
+static void ev_push(dn_state *s, uint32_t t, uint32_t gate, float dev, int32_t devs, int track, int cause, int keeper, float gain) {
     for (int i = 0; i < DN_EVQ; i++) {
         dn_event *e = &s->ev[i];
         if (e->used) continue;
-        e->t = t; e->gate = gate; e->dev = dev; e->devs = devs; e->track = (uint8_t)track;
+        e->t = t; e->gate = gate; e->dev = dev; e->devs = devs; e->gain = gain; e->track = (uint8_t)track;
         e->cause = (int8_t)cause; e->keeper = (uint8_t)keeper; e->used = 1;
         return;
     }
 }
 
 static void schedule_bar(dn_state *s, uint32_t start, float stepl) {
-    struct { float tn; uint8_t k, h, c; } cs[DN_BAREV], tmp;
+    struct { float tn; uint8_t k, h, c, g; } cs[DN_BAREV], tmp;
     float poff[DN_TRACKS][DN_HITS];
     int nc = 0;
     for (int k = 0; k < DN_TRACKS; k++) for (int h = 0; h < DN_HITS; h++) poff[k][h] = 0.0f;
     float ms2step = s->sr * 0.001f / stepl;
+    int poly = (int)((s->feat >> DN_F_POLY) & 1u);
+    int32_t bar0 = s->sched_bar * 16;              /* the absolute step where this bar starts */
     for (int k = 0; k < DN_TRACKS; k++) {
-        if (!sounding(s, k)) continue;
         dn_track *T = &s->tr[k];
-        for (int h = 0; h < T->nhit; h++) {
+        for (int h = 0; h < DN_HITS; h++) T->hit[h].bstep = -1;
+        int cyc = 16;
+        if (poly && !T->keeper) cyc = 16 + dn_roundi(s->keff[DN_K_POLY] * (float)POLYOFF[k]);
+        T->cycle = (uint8_t)cyc;
+        if (!sounding(s, k)) continue;
+        for (int g = 0; g < 16; g++) {
+            /* with its own cycle, a unit's pattern runs on its own count and drifts against the bar */
+            int p = cyc == 16 ? g : (int)((uint32_t)(bar0 + g) % (uint32_t)cyc);
+            int h = hit_find(T, p);
+            if (h < 0) continue;
             dn_hit *H = &T->hit[h];
-            float base = (float)H->step;
-            if (!T->keeper) base += swing_off(T->swing, H->step) + (float)H->micro * (1.0f / 64.0f);
+            H->bstep = (int8_t)g;
+            float base = (float)g;
+            if (!T->keeper) base += swing_off(T->swing, g) + (float)H->micro * (1.0f / 64.0f);
             for (int c = 0; c < H->copies && nc < DN_BAREV; c++) {
                 cs[nc].tn = base + (float)c * H->spread * ms2step;
-                cs[nc].k = (uint8_t)k; cs[nc].h = (uint8_t)h; cs[nc].c = (uint8_t)c;
+                cs[nc].k = (uint8_t)k; cs[nc].h = (uint8_t)h; cs[nc].c = (uint8_t)c; cs[nc].g = (uint8_t)g;
                 nc++;
             }
         }
@@ -414,6 +456,7 @@ static void schedule_bar(dn_state *s, uint32_t start, float stepl) {
         if (sounding(s, k)) { pos[k] = nr; ring[nr++] = k; }
         s->tr[k].pushed = 0.0f;
     }
+    int emitted = 0;
     for (int i = 0; i < nc; i++) {
         int k = cs[i].k, h = cs[i].h;
         dn_track *T = &s->tr[k];
@@ -461,8 +504,8 @@ static void schedule_bar(dn_state *s, uint32_t start, float stepl) {
                 T->pushed += push;
             }
             T->debt = dn_clamp(T->debt, -1.0f, 1.0f);
-            float dev = dn_clamp(t - (float)H->step, -1.2f, 0.9f);
-            t = (float)H->step + dev;
+            float dev = dn_clamp(t - (float)cs[i].g, -1.2f, 0.9f);
+            t = (float)cs[i].g + dev;
             poff[k][h] = t - cs[i].tn;
             /* an early entry keeps its end: the note is tied over (ragtime) */
             gate = 0.9f * T->stretch + dn_max(push, 0.0f);
@@ -475,25 +518,55 @@ static void schedule_bar(dn_state *s, uint32_t start, float stepl) {
             t = cs[i].tn + poff[k][h];
             gate = 0.9f * T->stretch;
         }
-        int32_t off = (int32_t)(t * stepl);
-        uint32_t at = start + (uint32_t)off;
-        uint32_t gs = (uint32_t)dn_max(gate * stepl, 64.0f);
-        float dv = T->keeper ? 0.0f : t - (float)H->step;
-        ev_push(s, at, gs, dv, (int32_t)(dv * stepl), k, cause, T->keeper);
+        float dv = T->keeper ? 0.0f : t - (float)cs[i].g;
+        int32_t devs = (int32_t)(dv * stepl);
+        float r = RATCHET_STEP[dn_roundi(s->keff[DN_K_RATCHET] * 3.0f)];
+        if (((s->feat >> DN_F_RATCHET) & 1u) && !T->keeper && gate > 1.5f * r && emitted < 200) {
+            /* a long note is struck again and again instead of held */
+            int ns = (int)(gate / r);
+            if (ns > 8) ns = 8;
+            for (int j = 0; j < ns && emitted < 200; j++, emitted++) {
+                float tj = t + (float)j * r;
+                ev_push(s, start + (uint32_t)(int32_t)(tj * stepl), (uint32_t)dn_max(0.8f * r * stepl, 64.0f), dv, devs, k, cause, 0, 1.0f);
+            }
+        } else {
+            ev_push(s, start + (uint32_t)(int32_t)(t * stepl), (uint32_t)dn_max(gate * stepl, 64.0f), dv, devs, k, cause, T->keeper, 1.0f);
+            emitted++;
+        }
+        /* effect layer, delay: the same copy again, later and softer (placed, not a delay line) */
+        float fd = fxval(s, DN_FX_DELAY, k);
+        if (fd > 0.0f) {
+            float d = FX_DELAY_STEPS[fx_idx(fd, 6)];
+            float gn = 1.0f;
+            for (int j = 1; j <= 3 && emitted < 200; j++, emitted++) {
+                gn *= 0.55f;
+                float tj = t + (float)j * d;
+                ev_push(s, start + (uint32_t)(int32_t)(tj * stepl), (uint32_t)dn_max(gate * stepl, 64.0f), dv,
+                        devs + (int32_t)((float)j * d * stepl), k, -1, 0, gn);
+            }
+        }
     }
     for (int k = 0; k < DN_TRACKS; k++) { s->tr[k].n_start -= 16.0f; s->tr[k].n_end -= 16.0f; s->tr[k].debt *= DN_SETTLE; }
+    s->sched_bar++;
 }
 
 /* ------------------------------------------------------------------ voices */
-static void voice_init(dn_state *s, dn_voice *v, int track, uint32_t gate, int keeper, uint32_t t_on, int32_t devs) {
+static void fx_setup(dn_state *s, dn_voice *v, int k, uint32_t gate);
+static void voice_init(dn_state *s, dn_voice *v, int track, uint32_t gate, int keeper, uint32_t t_on, int32_t devs, float egain) {
     const dn_obj *o = &s->obj;
     v->active = 1; v->track = (uint8_t)track; v->stage = 1; v->keeper = (uint8_t)keeper;
     v->src = (uint8_t)s->src;
     if (s->src == DN_SRC_BUF) {
-        v->pos = s->seg_start; v->left = (int32_t)s->seg_len;
+        v->pos = 0u; v->left = (int32_t)s->seg_len;
     } else if (s->src == DN_SRC_LIVE) {
-        /* the input as it was one beat before this copy's place on the grid */
-        v->pos = t_on - (uint32_t)devs - (uint32_t)s->live_delay; v->left = 0x7fffffff;
+        /* the input as it was one beat before this copy's place on the grid
+         * (in_w is where the sample at `now` sits in the input ring) */
+        int32_t rel = (int32_t)(t_on - s->now) - devs - (int32_t)s->live_delay;
+        if (rel < -(DN_INBUF - 2 * DN_BLOCK)) rel = -(DN_INBUF - 2 * DN_BLOCK);
+        int32_t idx = (int32_t)s->in_w + rel;
+        while (idx < 0) idx += DN_INBUF;
+        while (idx >= DN_INBUF) idx -= DN_INBUF;
+        v->pos = (uint32_t)idx; v->left = 0x7fffffff;
     }
     v->phc = 0.0f; v->phm = 0.0f; v->prev = 0.0f;
     v->incc = o->f0 * s->isr;
@@ -511,8 +584,49 @@ static void voice_init(dn_state *s, dn_voice *v, int track, uint32_t gate, int k
         v->rel_c = dn_tc(s->src == DN_SRC_LIVE ? 0.05f : 0.07f, s->sr);
         v->gain = s->src == DN_SRC_BUF ? s->samp_gain : 0.8f;
     }
+    v->gain *= egain;
     v->born = ++s->voice_born;
+    v->fx = 0; v->rev = 0;
+    if (s->fx_layer && !keeper) fx_setup(s, v, track, gate);
     s->tr[track].flash = 1.0f;
+}
+
+/* effect layer: what this copy does, from its unit's values */
+static void fx_setup(dn_state *s, dn_voice *v, int k, uint32_t gate) {
+    float g = fxval(s, DN_FX_GLITCH, k), p = fxval(s, DN_FX_PITCH, k);
+    float st = fxval(s, DN_FX_STUTTER, k), r = fxval(s, DN_FX_REVERSE, k);
+    if (g <= 0.0f && p <= 0.0f && st <= 0.0f && r <= 0.0f) return;
+    v->fx = 1;
+    v->vr = v->born * 2654435761u + 0x9E3779B9u;
+    if (!v->vr) v->vr = 1u;
+    v->rate = p > 0.0f ? dn_exp2(FX_SEMI[fx_idx(p, 8)] * (1.0f / 12.0f)) : 1.0f;
+    if (v->src == DN_SRC_FM) { v->incc *= v->rate; v->incm *= v->rate; }
+    v->hold = g > 0.0f ? 1 + (int32_t)(g * 12.0f) : 1;
+    v->hcnt = 0; v->held = 0.0f;
+    v->pj = g; v->glen = (int32_t)(0.03f * s->sr); v->gcnt = v->glen;
+    v->slice = st > 0.0f ? (int32_t)(FX_STUT[fx_idx(st, 4)] * s->cur_step) : 0;
+    if (v->slice > 0 && v->slice < 64) v->slice = 64;
+    v->slc = v->slice; v->sfade = 0;
+    v->i0 = v->idx; v->is = v->idx_t;
+    float gl = (float)gate;
+    if (gl > s->sr) gl = s->sr;
+    int32_t W = (int32_t)(gl * (0.3f + 0.7f * r));
+    if (W < 64) W = 64;
+    if (r > 0.0f) { v->rev = 1; v->swell = 0.0f; v->swinc = 1.0f / (float)W; v->gate = W; }
+    if (v->src == DN_SRC_BUF) {
+        v->fend = (int32_t)s->seg_len;
+        v->fstart = v->rev ? dn_min((float)W * v->rate, (float)s->seg_len - 2.0f) : 0.0f;
+    } else if (v->src == DN_SRC_LIVE) {
+        float a = (float)v->pos;
+        if (v->rev) {                       /* backwards, from a little later, never past what has come in */
+            float span = dn_min((float)W * v->rate, s->live_delay - 512.0f);
+            if (span < 0.0f) span = 0.0f;
+            a += span;
+            if (a >= (float)DN_INBUF) a -= (float)DN_INBUF;
+        }
+        v->fstart = a;
+    }
+    v->fpos = v->fstart;
 }
 
 static dn_voice *voice_alloc(dn_state *s) {
@@ -538,8 +652,8 @@ static dn_voice *voice_alloc(dn_state *s) {
 
 /* a copy of a recorded sound (BUF) or of the input (LIVE): no pitch change, only where and how long */
 static void voice_render_pcm(dn_state *s, dn_voice *v, float *out, int n, float *esum, int i) {
-    const int16_t *buf = s->big->samp;
-    const uint32_t M = DN_SAMPBUF - 1u;
+    const int16_t *buf = v->src == DN_SRC_LIVE ? s->big->inr : s->big->obj;
+    const uint32_t N = v->src == DN_SRC_LIVE ? (uint32_t)DN_INBUF : 0xffffffffu;
     float amp = v->amp, att = v->att_inc, rc = v->rel_c, g = v->gain * (1.0f / 32768.0f);
     uint32_t pos = v->pos;
     int32_t left = v->left, gate = v->gate;
@@ -550,11 +664,94 @@ static void voice_render_pcm(dn_state *s, dn_voice *v, float *out, int n, float 
         if (stage == 1) { amp += att; if (amp >= 1.0f) { amp = 1.0f; stage = 2; } }
         else if (stage == 3) amp -= amp * rc;
         if (gate > 0 && --gate == 0) stage = 3;
-        float x = amp * g * (float)buf[pos & M];
-        pos++; left--;
+        float x = amp * g * (float)buf[pos];
+        if (++pos >= N) pos = 0;
+        left--;
         out[i] += x; os[i] += x; es += x * x;
     }
     v->amp = dn_flush(amp); v->pos = pos; v->left = left; v->gate = gate; v->stage = (uint8_t)stage;
+    if (stage == 3 && v->amp < 1e-5f) { v->active = 0; v->amp = 0.0f; }
+    *esum += es;
+}
+
+static uint32_t vrand(uint32_t *r) { uint32_t x = *r; x ^= x << 13; x ^= x >> 17; x ^= x << 5; *r = x ? x : 1u; return *r; }
+
+/* a copy with effects: glitch (sample-and-hold + jumps), pitch, stutter, reverse (FM: a swell) */
+static void voice_render_fx(dn_state *s, dn_voice *v, float *out, int n, float *esum, int i) {
+    const int pcm = v->src != DN_SRC_FM, ring = v->src == DN_SRC_LIVE;
+    const int16_t *buf = ring ? s->big->inr : s->big->obj;
+    const float N = ring ? (float)DN_INBUF : (float)v->fend;
+    const float inc = v->rev ? -v->rate : v->rate, gpcm = v->gain * (1.0f / 32768.0f);
+    const float *tab = s->sintab;
+    float amp = v->amp, amp_t = v->amp_t, amp_c = v->amp_c, idx = v->idx, prev = v->prev;
+    float phc = v->phc, phm = v->phm, fpos = v->fpos, held = v->held, swell = v->swell;
+    int32_t gate = v->gate, slc = v->slc, hcnt = v->hcnt, gcnt = v->gcnt, sfade = v->sfade;
+    int stage = v->stage;
+    uint32_t vr = v->vr;
+    float es = 0.0f, *os = s->osum;
+    for (; i < n; i++) {
+        /* envelope (a reversed copy swells instead, and stops at the end of its window) */
+        if (stage == 1) { amp += v->att_inc; if (amp >= 1.0f) { amp = 1.0f; stage = 2; } }
+        else if (stage == 2) { if (!pcm && !v->rev) amp += (amp_t - amp) * amp_c; }   /* FM decays to its sustain */
+        else amp -= amp * (v->rev ? 0.02f : (pcm ? v->rel_c : amp_c));                  /* release */
+        if (gate > 0 && --gate == 0) { stage = 3; amp_t = 0.0f; amp_c = v->rel_c; }
+        float e = amp;
+        if (v->rev) { swell += v->swinc; if (swell > 1.0f) swell = 1.0f; e *= swell * swell; }
+        /* stutter: back to the start of the slice */
+        if (v->slice && --slc <= 0) {
+            slc = v->slice; fpos = v->fstart; sfade = 48;
+            if (!pcm) { phc = 0.0f; phm = 0.0f; idx = v->i0; }
+        }
+        /* glitch: now and then jump somewhere else */
+        if (v->pj > 0.0f && --gcnt <= 0) {
+            gcnt = v->glen;
+            float u = (float)(vrand(&vr) >> 8) * (1.0f / 16777216.0f);
+            if (u < v->pj) {
+                float u2 = (float)(vrand(&vr) >> 8) * (1.0f / 16777216.0f);
+                if (pcm) {
+                    if (ring) { fpos -= u2 * 0.25f * s->sr; if (fpos < 0.0f) fpos += N; }
+                    else fpos = u2 * (N - 2.0f);
+                } else { phc = u2; phm = 1.0f - u2; }
+                sfade = 48;
+            }
+        }
+        float x;
+        if (pcm) {
+            if (!ring && (fpos < 0.0f || fpos >= N - 1.0f)) { x = 0.0f; amp = 0.0f; stage = 3; }
+            else {
+                int a = (int)fpos;
+                float fr = fpos - (float)a;
+                int b = a + 1;
+                if (ring && b >= DN_INBUF) b = 0;
+                x = ((float)buf[a] + fr * (float)(buf[b] - buf[a])) * gpcm;
+                fpos += inc;
+                if (ring) { if (fpos >= N) fpos -= N; else if (fpos < 0.0f) fpos += N; }
+            }
+        } else {
+            float ix = v->rev ? v->is + (v->i0 - v->is) * swell : idx;
+            if (!v->rev) idx += (v->idx_t - idx) * v->idx_c;
+            float pm = phm + v->fb * prev;
+            pm -= (float)dn_floori(pm);
+            float fi = pm * (float)DN_TAB;
+            int ii = (int)fi;
+            float m = tab[ii] + (fi - (float)ii) * (tab[ii + 1] - tab[ii]);
+            prev = m;
+            float pc = phc + ix * m;
+            pc -= (float)dn_floori(pc);
+            fi = pc * (float)DN_TAB;
+            ii = (int)fi;
+            x = (tab[ii] + (fi - (float)ii) * (tab[ii + 1] - tab[ii])) * v->gain;
+            phm += v->incm; if (phm >= 1.0f) phm -= 1.0f;
+            phc += v->incc; if (phc >= 1.0f) phc -= 1.0f;
+        }
+        if (sfade > 0) { e *= (float)(48 - sfade) * (1.0f / 48.0f); sfade--; }
+        float y = x * e;
+        if (v->hold > 1) { if (--hcnt <= 0) { hcnt = v->hold; held = y; } y = held; }
+        out[i] += y; os[i] += y; es += y * y;
+    }
+    v->amp = dn_flush(amp); v->amp_t = amp_t; v->amp_c = amp_c; v->idx = idx; v->prev = prev;
+    v->phc = phc; v->phm = phm; v->fpos = fpos; v->held = dn_flush(held); v->swell = swell;
+    v->gate = gate; v->slc = slc; v->hcnt = hcnt; v->gcnt = gcnt; v->sfade = sfade; v->stage = (uint8_t)stage; v->vr = vr;
     if (stage == 3 && v->amp < 1e-5f) { v->active = 0; v->amp = 0.0f; }
     *esum += es;
 }
@@ -565,6 +762,7 @@ static void voice_render(dn_state *s, dn_voice *v, float *out, int n, float *esu
         if (v->delay >= n) { v->delay -= n; return; }
         i = v->delay; v->delay = 0;
     }
+    if (v->fx) { voice_render_fx(s, v, out, n, esum, i); return; }
     if (v->src != DN_SRC_FM) { voice_render_pcm(s, v, out, n, esum, i); return; }
     const float *tab = s->sintab;
     float phc = v->phc, phm = v->phm, amp = v->amp, idx = v->idx, prev = v->prev;
@@ -697,6 +895,18 @@ static float recent(const float *h, int n) {
     return n == 1 ? h[0] : 0.5f * (h[0] + h[1]);
 }
 
+/* the wanted state: the knobs, tilted by the phase, and (if on) by how loud the input is */
+static void targets(const dn_state *s, float *te, float *tp) {
+    float e = s->keff[DN_K_ERASE] + 0.8f * TILT[s->phase][0];
+    float p = s->keff[DN_K_PUSH] + 0.8f * TILT[s->phase][1];
+    if ((s->feat >> DN_F_FOLLOW) & 1u) {
+        float a = s->keff[DN_K_FOLLOW], d = s->in_lvl - 0.35f;
+        e += a * 0.7f * d;
+        p += a * 0.4f * d;
+    }
+    *te = dn_clamp01(e); *tp = dn_clamp01(p);
+}
+
 /* how far the measured state is from the wanted one; per-axis (L1) so that
  * an improvement on one axis is not diluted by a large gap on the other */
 static float gap(float te, float tp, float e, float p) { return dn_abs(te - e) + dn_abs(tp - p); }
@@ -704,10 +914,10 @@ static float gap(float te, float tp, float e, float p) { return dn_abs(te - e) +
 static void ops_bar(dn_state *s) {
     int b = s->bar;
     float cost = 0.0025f * dn_pow(40.0f, s->keff[DN_K_META]);
-    s->t_e = dn_clamp01(s->keff[DN_K_ERASE] + 0.8f * TILT[s->phase][0]);
-    s->t_p = dn_clamp01(s->keff[DN_K_PUSH] + 0.8f * TILT[s->phase][1]);
+    targets(s, &s->t_e, &s->t_p);
     float re = recent(s->h_e, s->h_n), rp = recent(s->h_p, s->h_n);
     s->urgency = gap(s->t_e, s->t_p, re, rp);
+    if ((s->feat >> DN_F_HOLD) & 1u) return;     /* the arrangement is held: nobody lives, dies or acts */
 
     for (int i = 0; i < DN_OPS; i++) {
         dn_op *o = &s->op[i];
@@ -777,11 +987,31 @@ static void ops_bar(dn_state *s) {
     }
 }
 
+static void request(dn_state *s, int kind);
+
 /* ------------------------------------------------------------------ bar end */
 static void bar_end(dn_state *s) {
     bar_listen(s);
+    {   /* how loud the input was over the bar, 0 (-50 dBFS or nothing) .. 1 (-10 dBFS) */
+        float lvl = 0.0f;
+        if (s->in_sq_n > 0.0f && s->in_sq > 1e-12f) {
+            float db = 3.0103f * dn_log2(s->in_sq / s->in_sq_n);
+            lvl = dn_clamp01((db + 50.0f) / 40.0f);
+        }
+        s->in_lvl += 0.5f * (lvl - s->in_lvl);
+        s->in_sq = 0.0f; s->in_sq_n = 0.0f;
+    }
     ops_bar(s);
-    if (--s->ph_left <= 0) phase_next(s);
+    int hold = (int)((s->feat >> DN_F_HOLD) & 1u);
+    if (!hold && --s->ph_left <= 0) phase_next(s);
+    if (s->fx_layer && s->fx_auto > 0 && s->bar + 1 - s->fx_last_roll >= s->fx_auto) {
+        fx_roll(s, -1);
+        s->fx_last_roll = s->bar + 1;
+    }
+    if ((s->feat >> DN_F_GEN) & 1u) {
+        int every = GEN_BARS[dn_roundi(s->keff[DN_K_GEN] * 4.0f)];
+        if (s->bar + 1 - s->last_gen_bar >= every) { request(s, 2); s->last_gen_bar = s->bar + 1; }
+    }
     /* nobody left, and not by the hand: someone moves in */
     if (count_sounding(s, 0) == 0 && !s->hand_stop) {
         int handout = 0;
@@ -817,7 +1047,8 @@ static void control_update(dn_state *s, int n) {
     int LS = s->mr_loop * DN_MR_SPB;
     int slot = (int)((uint32_t)s->bar % (uint32_t)s->mr_loop) * DN_MR_SPB + (int)(pos * (float)DN_MR_SPB);
     for (int l = 0; l < DN_LANES; l++) {
-        uint8_t bit = (uint8_t)(1u << l);
+        if (l == DN_K_OBJECT) continue;
+        uint16_t bit = (uint16_t)(1u << l);
         if (g && (s->gest_lanes & bit)) {
             if (s->mr_armed) {
                 uint16_t val = (uint16_t)(s->knob[l] * 65535.0f);
@@ -840,13 +1071,18 @@ static void control_update(dn_state *s, int n) {
 }
 
 void dn_set_knob(dn_state *s, int k, float v) {
-    if (k < 0 || k >= DN_K_OBJECT) return;
+    if (k < 0 || k >= DN_KNOBS || k == DN_K_OBJECT) return;
     s->knob[k] = dn_clamp01(v);
     s->keff[k] = s->knob[k];
 }
 
 void dn_encoder(dn_state *s, int k, int det) {
     if (k == DN_K_OBJECT) {
+        if (s->src == DN_SRC_LIVE || (s->src == DN_SRC_BUF && (s->obj_from == DN_FROM_INPUT || s->obj_from == DN_FROM_OUTPUT))) {
+            /* taking from the input or the output: how long a piece to take */
+            s->cap_len = dn_clamp(s->cap_len + (float)det * 0.025f, 0.1f, 0.75f);
+            return;
+        }
         int c = (int)s->seed_cand + det;
         while (c < 1) c += 9999;
         while (c > 9999) c -= 9999;
@@ -860,52 +1096,115 @@ void dn_encoder(dn_state *s, int k, int det) {
     s->knob[k] = dn_clamp01(s->knob[k] + (float)det * st * acc);
     s->hand_speed += (float)(det < 0 ? -det : det);
     s->hand_idle = 0;
-    if (k < DN_LANES) {
-        uint8_t bit = (uint8_t)(1u << k);
+    if (k < DN_LANES && k != DN_K_OBJECT) {
+        uint16_t bit = (uint16_t)(1u << k);
         if (!(s->gest_lanes & bit)) { s->gest_lanes |= bit; s->last_slot[k] = -1; }
     }
 }
 
 /* ------------------------------------------------------------------ the object from a file or the input */
-/* make samp[start .. start+len) of the ring the object: soften its edges, note its level */
-static void seg_set(dn_state *s, uint32_t start, uint32_t len) {
-    int16_t *b = s->big->samp;
-    const uint32_t M = DN_SAMPBUF - 1u;
-    if (len > DN_SAMPBUF - 2u * DN_BLOCK) len = DN_SAMPBUF - 2u * DN_BLOCK;
+/* obj[0 .. len) becomes the object: soften its edges; either keep its level (captured input: as
+ * loud as the live copies were, so nothing dips) or bring every object to about the same peak */
+static void obj_set(dn_state *s, uint32_t len, int from, int normalize) {
+    int16_t *b = s->big->obj;
+    if (len > DN_OBJBUF) len = DN_OBJBUF;
     if (len < 64u) return;
-    int32_t peak = 1;
-    for (uint32_t i = 0; i < len; i++) { int32_t a = b[(start + i) & M]; if (a < 0) a = -a; if (a > peak) peak = a; }
     uint32_t fi = (uint32_t)(0.002f * s->sr), fo = (uint32_t)(0.012f * s->sr);
-    for (uint32_t i = 0; i < fi && i < len; i++) { uint32_t j = (start + i) & M; b[j] = (int16_t)((float)b[j] * (float)i / (float)fi); }
-    for (uint32_t i = 0; i < fo && i < len; i++) { uint32_t j = (start + len - 1u - i) & M; b[j] = (int16_t)((float)b[j] * (float)i / (float)fo); }
-    s->seg_start = start & M; s->seg_len = len; s->seg_valid = 1;
-    s->samp_gain = 0.42f * 32768.0f / (float)peak;      /* every object peaks about the same */
+    for (uint32_t i = 0; i < fi && i < len; i++) b[i] = (int16_t)((float)b[i] * (float)i / (float)fi);
+    for (uint32_t i = 0; i < fo && i < len; i++) { uint32_t j = len - 1u - i; b[j] = (int16_t)((float)b[j] * (float)i / (float)fo); }
+    int32_t peak = 1;
+    for (uint32_t i = 0; i < len; i++) { int32_t a = b[i]; if (a < 0) a = -a; if (a > peak) peak = a; }
+    s->samp_gain = normalize ? 0.42f * 32768.0f / (float)peak : 0.8f;
+    s->seg_len = len; s->seg_valid = 1; s->obj_from = from;
     s->src = DN_SRC_BUF;
 }
-int16_t *dn_sample_area(dn_state *s) { return s->big->samp; }
+/* copies still playing the old object fade within a few ms before it is overwritten */
+static int fade_obj_voices(dn_state *s) {
+    int busy = 0;
+    for (int i = 0; i < DN_VOICES + DN_SPILL; i++) {
+        dn_voice *v = &s->vo[i];
+        if (!v->active || v->src != DN_SRC_BUF) continue;
+        if (v->stage != 3) { v->stage = 3; v->gate = 0; v->rel_c = dn_tc(0.004f, s->sr); }
+        if (v->amp > 1e-3f) busy = 1;
+    }
+    return busy;
+}
+int16_t *dn_sample_area(dn_state *s) { fade_obj_voices(s); return s->big->obj; }
 void dn_sample_commit(dn_state *s, int n) {
     if (n <= 0) return;
-    seg_set(s, 0u, (uint32_t)n);
+    obj_set(s, (uint32_t)n, DN_FROM_FILE, 1);
     s->src_note = 3;
 }
-/* freeze what just came in: the last ~1.4 s, from where it starts to sound */
-static void capture(dn_state *s) {
-    if (s->src != DN_SRC_LIVE) return;
-    const int16_t *b = s->big->samp;
-    const uint32_t M = DN_SAMPBUF - 1u;
-    uint32_t len = (uint32_t)(1.4f * s->sr);
-    if (len > DN_SAMPBUF - 2u * DN_BLOCK) len = DN_SAMPBUF - 2u * DN_BLOCK;
-    if (len > s->live_since) len = s->live_since;
-    uint32_t start = s->now - len;
+/* first index of x[0..len) above pct % of the peak, a little early: where the sound starts */
+static uint32_t onset_in(const int16_t *x, uint32_t len, int32_t peak, uint32_t back, int32_t pct) {
+    for (uint32_t i = 0; i < len; i++) {
+        int32_t a = x[i]; if (a < 0) a = -a;
+        if (a * 100 > peak * pct) return i > back ? i - back : 0u;
+    }
+    return 0u;
+}
+/* the input that just came in becomes the object, at the level it had */
+static void do_capture(dn_state *s) {
+    int16_t *o = s->big->obj;
+    const int16_t *r = s->big->inr;
+    uint32_t len = (uint32_t)(s->cap_len * s->sr);
+    if (len > DN_OBJBUF) len = DN_OBJBUF;
+    if (len > s->in_have) len = s->in_have;
+    int32_t at = (int32_t)s->in_w - (int32_t)len;
+    while (at < 0) at += DN_INBUF;
     int32_t peak = 0;
-    for (uint32_t i = 0; i < len; i++) { int32_t a = b[(start + i) & M]; if (a < 0) a = -a; if (a > peak) peak = a; }
-    if (peak < 330) { s->src_note = 2; return; }          /* below about -40 dBFS: nothing to hold */
-    uint32_t st = 0;
-    for (uint32_t i = 0; i < len; i++) { int32_t a = b[(start + i) & M]; if (a < 0) a = -a; if (a * 100 > peak * 15) { st = i; break; } }
-    uint32_t back = (uint32_t)(0.002f * s->sr);
-    st = st > back ? st - back : 0u;
-    seg_set(s, start + st, len - st);
+    for (uint32_t i = 0, j = (uint32_t)at; i < len; i++) {
+        int16_t x = r[j]; if (++j >= DN_INBUF) j = 0;
+        o[i] = x;
+        int32_t a = x < 0 ? -x : x; if (a > peak) peak = a;
+    }
+    if (len < 64u || peak < 330) { s->src_note = 2; return; }      /* below about -40 dBFS: nothing to hold */
+    uint32_t st = onset_in(o, len, peak, (uint32_t)(0.002f * s->sr), 15);
+    for (uint32_t i = st; i < len; i++) o[i - st] = o[i];
+    obj_set(s, len - st, DN_FROM_INPUT, 0);
     s->src_note = 1;
+}
+/* what the building sounds like right now becomes the object (the output ring is at half rate:
+ * each generation loses a little of the top) */
+static void do_resample(dn_state *s) {
+    int16_t *o = s->big->obj;
+    const int16_t *r = s->big->outr;
+    uint32_t half = (uint32_t)(s->cap_len * s->sr * 0.5f);
+    if (half > DN_OUTBUF - 2u) half = DN_OUTBUF - 2u;
+    if (half > DN_OBJBUF / 2u - 1u) half = DN_OBJBUF / 2u - 1u;
+    if (half > s->out_have) half = s->out_have;
+    int32_t at = (int32_t)s->out_w - (int32_t)half;
+    while (at < 0) at += DN_OUTBUF;
+    int32_t peak = 0;
+    for (uint32_t i = 0, j = (uint32_t)at; i < half; i++) {      /* gather into the upper half first */
+        int16_t x = r[j]; if (++j >= DN_OUTBUF) j = 0;
+        o[DN_OBJBUF / 2u + i] = x;
+        int32_t a = x < 0 ? -x : x; if (a > peak) peak = a;
+    }
+    if (half < 64u || peak < 100) { s->src_note = 2; return; }
+    uint32_t st = onset_in(o + DN_OBJBUF / 2u, half, peak, (uint32_t)(0.001f * s->sr), 5);
+    uint32_t n = half - st;
+    const int16_t *x = o + DN_OBJBUF / 2u + st;
+    for (uint32_t i = 0; i < n; i++) {                                   /* back to full rate */
+        int32_t a = x[i], c = i + 1u < n ? x[i + 1u] : x[i];
+        o[2u * i] = (int16_t)a;
+        o[2u * i + 1u] = (int16_t)((a + c) / 2);
+    }
+    obj_set(s, 2u * n, DN_FROM_OUTPUT, 1);
+    s->gens++;
+    s->src_note = 4;
+}
+/* capture and resample wait (at most ~3 blocks) for copies of the old object to fade */
+static void request(dn_state *s, int kind) {
+    s->pend_kind = kind;
+    s->pend_wait = 3;
+    fade_obj_voices(s);
+}
+static void pending_commit(dn_state *s) {
+    if (!s->pend_kind) return;
+    if (fade_obj_voices(s) && s->pend_wait-- > 0) return;
+    if (s->pend_kind == 1) do_capture(s); else do_resample(s);
+    s->pend_kind = 0;
 }
 
 /* ------------------------------------------------------------------ keyboard / buttons */
@@ -931,7 +1230,7 @@ void dn_key(dn_state *s, int unit, int down) {
         T->on = 1; T->hand = 1; T->dormant = 0;
         s->hand_stop = 0;
         dn_voice *v = voice_alloc(s);
-        voice_init(s, v, unit, 0x7ffffff0u, 0, s->now, 0);
+        voice_init(s, v, unit, 0x7ffffff0u, 0, s->now, 0, 1.0f);
         s->key_voice[unit] = (int8_t)(v - s->vo);
         s->key_born[unit] = v->born;
         s->key_t0[unit] = s->now;
@@ -976,16 +1275,47 @@ void dn_button(dn_state *s, int btn, int arg) {
     case DN_BTN_CLEAR: s->lane_has = 0; break;
     case DN_BTN_LOOP: s->mr_loop = s->mr_loop >= DN_MR_BARS ? 1 : s->mr_loop * 2; break;
     case DN_BTN_OBJECT:                 /* encoder 7 pressed: choose the object again */
-        if (s->src == DN_SRC_LIVE) capture(s);
+        if (s->src == DN_SRC_LIVE || (s->src == DN_SRC_BUF && s->obj_from == DN_FROM_INPUT)) request(s, 1);
+        else if (s->src == DN_SRC_BUF && s->obj_from == DN_FROM_OUTPUT) request(s, 2);
         else { s->obj = s->cand; s->src = DN_SRC_FM; }
         break;
     case DN_BTN_SOURCE:
-        if (arg == DN_SRC_LIVE) { if (s->src != DN_SRC_LIVE) { s->src = DN_SRC_LIVE; s->live_since = 0; s->seg_valid = 0; s->src_note = 0; } }
+        if (arg == DN_SRC_LIVE) { s->src = DN_SRC_LIVE; s->src_note = 0; }
         else if (arg == DN_SRC_BUF) { if (s->seg_valid) s->src = DN_SRC_BUF; }
         else s->src = DN_SRC_FM;
         break;
     case DN_BTN_CAPTURE:
-        capture(s);
+        request(s, 1);
+        break;
+    case DN_BTN_RESAMPLE:
+        request(s, 2);
+        break;
+    case DN_BTN_FX_LAYER:
+        s->fx_layer = !s->fx_layer;
+        s->fx_last_roll = s->bar;
+        break;
+    case DN_BTN_FX_TOGGLE:
+        if (arg >= 0 && arg < DN_FX) {
+            s->fx_mask ^= 1u << arg;
+            if ((s->fx_mask >> arg) & 1u) {          /* checked with nothing set yet: roll it once */
+                int any = 0;
+                for (int k = 0; k < DN_TRACKS; k++) if (s->fxv[arg][k] > 0.0f) any = 1;
+                if (!any) fx_roll(s, arg);
+            }
+        }
+        break;
+    case DN_BTN_FX_DICE:
+        fx_roll(s, arg >= 0 && arg < DN_FX ? arg : -1);
+        break;
+    case DN_BTN_FX_AUTO:
+        s->fx_auto = arg < 0 ? 0 : (arg > 64 ? 64 : arg);
+        s->fx_last_roll = s->bar;
+        break;
+    case DN_BTN_FEATURE:
+        if (arg >= 0 && arg < DN_FEATURES) {
+            s->feat ^= 1u << arg;
+            if (arg == DN_F_GEN) s->last_gen_bar = s->bar;
+        }
         break;
     case DN_BTN_UNIT_CLEAR:
         if (arg > 0 && arg < DN_TRACKS) { s->tr[arg].nhit = 0; s->tr[arg].on = 0; s->tr[arg].hand = 0; }
@@ -1008,6 +1338,8 @@ void dn_init(dn_state *s, dn_big *b, float sr, uint32_t seed) {
     s->isr = 1.0f / sr;
     s->rng = seed * 747796405u + 2891336453u;
     if (!s->rng) s->rng = 1;
+    s->fx_rng = seed * 2246822519u + 3266489917u;
+    if (!s->fx_rng) s->fx_rng = 1;
     for (int i = 0; i < DN_TAB + 2; i++) {
         float x = 6.2831853f * (float)i / (float)DN_TAB;
         if (x > 3.14159265f) x -= 6.2831853f;
@@ -1034,6 +1366,10 @@ void dn_init(dn_state *s, dn_big *b, float sr, uint32_t seed) {
     s->density_g = 1.0f;
     s->src = DN_SRC_FM;
     s->samp_gain = 1.0f;
+    s->cap_len = 0.6f;
+    s->knob[DN_K_GEN] = 0.5f; s->knob[DN_K_POLY] = 0.5f; s->knob[DN_K_DUCK] = 0.5f;
+    s->knob[DN_K_FOLLOW] = 0.5f; s->knob[DN_K_RATCHET] = 0.34f;
+    for (int k = DN_K_GEN; k < DN_KNOBS; k++) s->keff[k] = s->knob[k];
     s->cur_step = step_samples(s);
     s->cur_start = 2048u;
     s->cur_len = (uint32_t)(16.0f * s->cur_step);
@@ -1047,21 +1383,29 @@ static void process_block(dn_state *s, const float *in, float *L, float *R, int 
     dn_big *B = s->big;
     control_update(s, n);
 
-    /* input: level, and (when the input itself is the source) into the ring */
+    pending_commit(s);
+
+    /* the input: its level, and always into its ring (so it can be taken at any moment) */
     {
         float pk = s->in_peak * dn_exp(-(float)n / (0.3f * s->sr));
-        if (in) for (int i = 0; i < n; i++) { float a = dn_abs(in[i]); if (a > pk) pk = a; }
-        s->in_peak = pk < 1e-5f ? 0.0f : pk;
-        float d = 4.0f * s->cur_step, dmax = (float)(DN_SAMPBUF - DN_BLOCK - 512) - 1.0f * s->cur_step;
-        s->live_delay = (float)(int32_t)dn_min(d, dmax);
-        if (s->src == DN_SRC_LIVE) {
-            const uint32_t M = DN_SAMPBUF - 1u;
-            for (int i = 0; i < n; i++) {
-                float x = in ? dn_clamp(in[i], -1.0f, 1.0f) * 32767.0f : 0.0f;
-                B->samp[(s->now + (uint32_t)i) & M] = (int16_t)x;
-            }
-            if (s->live_since < 0x7fff0000u) s->live_since += (uint32_t)n;
+        int16_t *r = B->inr;
+        uint32_t w = s->in_w;
+        for (int i = 0; i < n; i++) {
+            float x = in ? dn_clamp(in[i], -1.0f, 1.0f) : 0.0f;
+            float a = dn_abs(x); if (a > pk) pk = a;
+            s->in_sq += x * x;
+            r[w] = (int16_t)(x * 32767.0f);
+            if (++w >= DN_INBUF) w = 0;
         }
+        if (in) { s->in_sq_n += (float)n; s->in_have = s->in_have + (uint32_t)n > DN_INBUF ? DN_INBUF : s->in_have + (uint32_t)n; }
+        else s->in_have = 0;
+        s->in_peak = pk < 1e-5f ? 0.0f : pk;
+        /* one beat, if it fits in the ring together with a late copy; else an eighth, else a step */
+        float st = s->cur_step, lim = (float)(DN_INBUF - 2 * DN_BLOCK) - 0.9f * st, d = 4.0f * st;
+        if (d > lim) d = 2.0f * st;
+        if (d > lim) d = st;
+        if (d > lim) d = lim;
+        s->live_delay = (float)(int32_t)d;
     }
 
     /* plan the next bar ~2 steps before it starts */
@@ -1087,7 +1431,7 @@ static void process_block(dn_state *s, const float *in, float *L, float *R, int 
 
     /* events due in this block */
     struct { uint32_t t; float dev; uint8_t keeper; } on[32];
-    int non = 0;
+    int non = 0, kon = -1;
     uint32_t end = s->now + (uint32_t)n;
     for (int i = 0; i < DN_EVQ; i++) {
         dn_event *e = &s->ev[i];
@@ -1095,9 +1439,10 @@ static void process_block(dn_state *s, const float *in, float *L, float *R, int 
         int32_t off = (int32_t)(e->t - s->now);
         if (off < 0) off = 0;
         dn_voice *v = voice_alloc(s);
-        voice_init(s, v, e->track, e->gate, e->keeper, s->now + (uint32_t)off, e->devs);
+        voice_init(s, v, e->track, e->gate, e->keeper, s->now + (uint32_t)off, e->devs, e->gain);
         v->delay = off;
         e->used = 0;
+        if (e->keeper && (kon < 0 || off < kon)) kon = off;
         if (non < 32) {
             on[non].t = s->now + (uint32_t)off; on[non].dev = e->dev; on[non].keeper = e->keeper;
             non++;
@@ -1115,6 +1460,20 @@ static void process_block(dn_state *s, const float *in, float *L, float *R, int 
         s->osum[i] = 0.0f; s->dryL[i] = 0.0f; s->dryR[i] = 0.0f; s->echL[i] = 0.0f; s->echR[i] = 0.0f;
     }
     for (int r = 0; r < DN_ROOMS; r++) for (int i = 0; i < n; i++) s->rin[r][i] = 0.0f;
+
+    /* the caretaker's press: each of its beats pushes the other units down, then lets go */
+    {
+        float depth = ((s->feat >> DN_F_DUCK) & 1u) ? s->keff[DN_K_DUCK] : 0.0f;
+        float rel = dn_exp(-1.0f / (2.0f * s->cur_step)), att = dn_tc(0.002f, s->sr);
+        float d = s->duck, tg = s->duck_tg;
+        for (int i = 0; i < n; i++) {
+            if (i == kon) tg = 1.0f;
+            tg = dn_flush(tg * rel);
+            d += (tg - d) * att;
+            s->duck_env[i] = 1.0f - 0.85f * depth * d;
+        }
+        s->duck = dn_flush(d); s->duck_tg = tg;
+    }
 
     /* voices -> tracks -> distance, pan, sends */
     float esum = 0.0f;
@@ -1147,12 +1506,15 @@ static void process_block(dn_state *s, const float *in, float *L, float *R, int 
         float se = 0.05f + 0.75f * ds * ds, sr_ = 0.55f;
         float lp1 = T->lp1, lp2 = T->lp2;
         float *ri = s->rin[T->room];
+        const float *dk = s->duck_env;
+        int ducked = !T->keeper;
         for (int j = 0; j < n; j++) {
             lp1 += a * (s->tbuf[j] - lp1);
             lp2 += a * (lp1 - lp2);
-            float yl = lp2 * gL, yr = lp2 * gR;
+            float y = ducked ? lp2 * dk[j] : lp2;
+            float yl = y * gL, yr = y * gR;
             s->dryL[j] += yl; s->dryR[j] += yr;
-            ri[j] += lp2 * g * sr_;
+            ri[j] += y * g * sr_;
             s->echL[j] += yl * se; s->echR[j] += yr * se;
         }
         T->lp1 = dn_flush(lp1); T->lp2 = dn_flush(lp2);
@@ -1253,6 +1615,8 @@ static void process_block(dn_state *s, const float *in, float *L, float *R, int 
         float rel = 1.0f - dn_tc(0.12f, s->sr);
         float rel64 = dn_exp(-64.0f / (0.03f * s->sr));
         float pk = 0.0f;
+        float da = dn_tc(1.0f / (6.2831853f * 8800.0f), s->sr), o1 = s->out_lp[0], o2 = s->out_lp[1];
+        uint32_t ow = s->out_w;
         for (int i = 0; i < n; i++) {
             float dl = s->dryL[i], dr = s->dryR[i];
             s->a_LL += dl * dl; s->a_RR += dr * dr; s->a_LR += dl * dr;
@@ -1271,10 +1635,20 @@ static void process_block(dn_state *s, const float *in, float *L, float *R, int 
             L[i] = ol; R[i] = or_;
             float ab = dn_max(dn_abs(ol), dn_abs(or_));
             if (ab > pk) pk = ab;
+            /* what it sounds like, kept at half rate for resampling */
+            o1 += da * (0.5f * (ol + or_) - o1);
+            o2 += da * (o1 - o2);
+            if (((s->now + (uint32_t)i) & 1u) == 0u) {
+                B->outr[ow] = (int16_t)(dn_clamp(o2, -1.0f, 1.0f) * 32767.0f);
+                if (++ow >= DN_OUTBUF) ow = 0;
+                if (s->out_have < DN_OUTBUF) s->out_have++;
+            }
         }
+        s->out_lp[0] = dn_flush(o1); s->out_lp[1] = dn_flush(o2); s->out_w = ow;
         s->peak = pk;
         s->peak_hold = pk > s->peak_hold ? pk : s->peak_hold * 0.995f;
     }
+    s->in_w = (s->in_w + (uint32_t)n) % DN_INBUF;
     s->now += (uint32_t)n;
 }
 
@@ -1298,14 +1672,19 @@ const float *dn_view(dn_state *s) {
     v[V_PHASE] = (float)s->phase; v[V_PH_LEFT] = (float)s->ph_left; v[V_PH_LEN] = (float)s->ph_len;
     v[V_KEEPER] = (float)s->keeper_on; v[V_VACANT] = (float)s->vacant_room;
     v[V_M_ERASE] = s->m_e; v[V_M_PUSH] = s->m_p;
-    v[V_T_ERASE] = dn_clamp01(s->keff[DN_K_ERASE] + 0.8f * TILT[s->phase][0]);
-    v[V_T_PUSH] = dn_clamp01(s->keff[DN_K_PUSH] + 0.8f * TILT[s->phase][1]);
+    { float te, tp; targets(s, &te, &tp); v[V_T_ERASE] = te; v[V_T_PUSH] = tp; }
     v[V_PH_TILT_E] = TILT[s->phase][0]; v[V_PH_TILT_P] = TILT[s->phase][1];
     v[V_C_CONTOUR] = s->f_contour; v[V_C_DENS] = s->f_dens; v[V_C_FLAM] = s->f_flam; v[V_C_INTERF] = s->f_if;
     v[V_C_MONO] = s->f_mono; v[V_C_EARLY] = s->f_early; v[V_C_LATE] = s->f_late; v[V_C_ONSETS] = (float)s->f_onsets;
     v[V_C_COMB] = s->f_comb; v[V_FLAMS] = (float)s->f_flams;
-    for (int k = 0; k < DN_KNOBS; k++) v[V_K0 + k] = s->knob[k];
+    for (int k = 0; k < DN_K_OBJECT; k++) v[V_K0 + k] = s->knob[k];
     v[V_K0 + DN_K_OBJECT] = (float)s->seed_cand / 9999.0f;
+    for (int k = DN_K_GEN; k < DN_KNOBS; k++) v[V_K7 + k - DN_K_GEN] = s->knob[k];
+    v[V_FEAT] = (float)s->feat; v[V_GENS] = (float)s->gens; v[V_CAP_LEN] = s->cap_len;
+    v[V_OBJ_FROM] = (float)(s->src == DN_SRC_BUF ? s->obj_from : 0); v[V_IN_LVL] = s->in_lvl; v[V_DUCK] = s->duck;
+    v[V_GEN_LEFT] = (float)(GEN_BARS[dn_roundi(s->keff[DN_K_GEN] * 4.0f)] - (s->bar - s->last_gen_bar));
+    v[V_FX_LAYER] = (float)s->fx_layer; v[V_FX_MASK] = (float)s->fx_mask; v[V_FX_AUTO] = (float)s->fx_auto;
+    v[V_FX_ROLLS] = (float)s->fx_rolls;
     v[V_SEED] = (float)s->obj.seed; v[V_SEED_CAND] = (float)s->seed_cand;
     v[V_MR_ARMED] = (float)s->mr_armed; v[V_MR_LOOP] = (float)s->mr_loop; v[V_MR_LANES] = (float)s->lane_has;
     v[V_MR_POS] = ((float)((uint32_t)s->bar % (uint32_t)s->mr_loop) + pos) / (float)s->mr_loop;
@@ -1332,13 +1711,14 @@ const float *dn_view(dn_state *s) {
         t[T_ROOM] = (float)T->room; t[T_PAN] = T->pan; t[T_DIST] = T->dist; t[T_SWING] = T->swing;
         t[T_STRETCH] = T->stretch; t[T_LEAN] = T->lean; t[T_REPAY] = T->repay; t[T_DEBT] = T->debt;
         t[T_NHIT] = (float)T->nhit; t[T_FLASH] = T->flash; t[T_DORMANT] = (float)T->dormant;
-        t[T_PUSHED] = T->pushed; t[T_LASTOP] = (float)(s->bar - T->last_op_bar);
+        t[T_PUSHED] = T->pushed; t[T_LASTOP] = (float)(s->bar - T->last_op_bar); t[T_CYCLE] = (float)(T->cycle ? T->cycle : 16);
+        for (int f = 0; f < DN_FX; f++) t[T_FX0 + f] = s->fxv[f][k];
         for (int h = 0; h < DN_HITS; h++) {
             float *hh = t + T_HIT0 + h * T_HS;
             if (h < T->nhit) {
                 hh[0] = (float)T->hit[h].step; hh[1] = (float)T->hit[h].copies;
-                hh[2] = T->hit[h].off; hh[3] = (float)T->hit[h].cause;
-            } else { hh[0] = -1.0f; hh[1] = 0.0f; hh[2] = 0.0f; hh[3] = -1.0f; }
+                hh[2] = T->hit[h].off; hh[3] = (float)T->hit[h].cause; hh[4] = (float)T->hit[h].bstep;
+            } else { hh[0] = -1.0f; hh[1] = 0.0f; hh[2] = 0.0f; hh[3] = -1.0f; hh[4] = -1.0f; }
         }
     }
     for (int i = 0; i < DN_OPS; i++) {
@@ -1369,3 +1749,4 @@ const float *dn_view(dn_state *s) {
 
 /* test hook: the same phase transition the core makes at a bar end */
 void dn_test_phase_next(dn_state *s) { phase_next(s); }
+int dn_gen_bars(const dn_state *s) { return GEN_BARS[dn_roundi(s->keff[DN_K_GEN] * 4.0f)]; }

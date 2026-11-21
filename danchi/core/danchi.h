@@ -30,13 +30,15 @@
 #define DN_STEPS    16
 #define DN_EVQ      256
 #define DN_BAREV    128     /* max copies scheduled in one bar */
-#define DN_KNOBS    7
-#define DN_LANES    6       /* motion-recorded knobs: tempo..dist */
+#define DN_KNOBS    12
+#define DN_LANES    12      /* motion lanes, one per knob (the object knob's lane is never used) */
 #define DN_MR_SPB   64      /* motion slots per bar */
 #define DN_MR_BARS  8
-#define DN_ROOMBUF  1152
-#define DN_ECHOBUF  30720     /* echo stored as 16-bit */
-#define DN_SAMPBUF  65536     /* 16-bit: the object from a file / the input, ~1.49 s at 44.1 kHz */
+#define DN_ROOMBUF  1112      /* longest room delay (23 ms) at 48 kHz */
+#define DN_ECHOBUF  16384     /* echo stored as 16-bit, ~0.37 s */
+#define DN_INBUF    49152     /* the input, always recorded while it comes in, ~1.11 s (16-bit ring) */
+#define DN_OUTBUF   16384     /* the building's own output at half rate, ~0.74 s (16-bit ring) */
+#define DN_OBJBUF   33280     /* a sound that is the object (file / captured / resampled), ~0.75 s */
 #define DN_DIFBUF   512
 #define DN_HIST     16
 #define DN_LOG      8
@@ -59,7 +61,20 @@
 #endif
 
 /* knobs (infinite encoders) */
-enum { DN_K_TEMPO, DN_K_ERASE, DN_K_PUSH, DN_K_META, DN_K_ROOM, DN_K_DIST, DN_K_OBJECT };
+enum { DN_K_TEMPO, DN_K_ERASE, DN_K_PUSH, DN_K_META, DN_K_ROOM, DN_K_DIST, DN_K_OBJECT,
+       /* second page: each belongs to a feature that is switched on and off */
+       DN_K_GEN,       /* resample every 1/2/4/8/16 bars                     */
+       DN_K_POLY,      /* how far each unit's cycle differs from 16 steps    */
+       DN_K_DUCK,      /* how hard the caretaker's beat presses the others   */
+       DN_K_FOLLOW,    /* how much the input's loudness moves the wanted state */
+       DN_K_RATCHET    /* how finely long notes are struck again             */
+};
+/* effects: a separate layer over every copy (each coloured bar), with a value per unit.
+ * value 0 = not on that unit. With the layer off, nothing here is used. */
+#define DN_FX 5
+enum { DN_FX_GLITCH, DN_FX_DELAY, DN_FX_PITCH, DN_FX_STUTTER, DN_FX_REVERSE };
+/* features (on / off) */
+enum { DN_F_GEN, DN_F_POLY, DN_F_DUCK, DN_F_FOLLOW, DN_F_RATCHET, DN_F_HOLD, DN_FEATURES };
 /* operator kinds */
 enum { DN_OP_SWING, DN_OP_STRETCH, DN_OP_ANTIC, DN_OP_YIELD, DN_OP_REPAY,
        DN_OP_ROOM, DN_OP_DIST, DN_OP_STACK, DN_OP_THIN, DN_OP_PAN, DN_OP_KINDS };
@@ -76,8 +91,16 @@ enum { DN_BTN_TRACK,      /* arg: track 1..15 -> toggle in/out (held by hand)   
        DN_BTN_REBUILD,    /* new placements and operators (object unchanged)            */
        DN_BTN_TRACK_AUTO, /* arg: track -> release the hand's hold (auto again)        */
        DN_BTN_SOURCE,     /* arg: DN_SRC_FM or DN_SRC_LIVE (BUF comes from a load or a capture) */
-       DN_BTN_CAPTURE     /* freeze the last ~1.4 s of live input as the object          */
+       DN_BTN_CAPTURE,    /* the last moments of the input become the object (same level)  */
+       DN_BTN_RESAMPLE,   /* what the building sounds like right now becomes the object     */
+       DN_BTN_FEATURE,    /* arg: DN_F_* -> switch that feature on / off                  */
+       DN_BTN_FX_LAYER,   /* the whole effect layer on / off                                 */
+       DN_BTN_FX_TOGGLE,  /* arg: DN_FX_* -> check / uncheck that effect                     */
+       DN_BTN_FX_DICE,    /* arg: DN_FX_*, or -1 for every checked effect: new values per unit */
+       DN_BTN_FX_AUTO     /* arg: roll the dice every N bars (0 = only by hand)              */
 };
+/* where a fixed sound came from */
+enum { DN_FROM_NONE, DN_FROM_FILE, DN_FROM_INPUT, DN_FROM_OUTPUT };
 /* where the object comes from */
 enum { DN_SRC_FM,       /* the FM tone                                                     */
        DN_SRC_BUF,      /* a fixed sound: part of a file, or input that was captured         */
@@ -141,10 +164,22 @@ enum { DN_LG_NONE, DN_LG_ACT, DN_LG_BORN, DN_LG_DIED, DN_LG_PHASE, DN_LG_REWARD 
 #define V_SAMP_LEN   55   /* seconds */
 #define V_IN_PEAK    56
 #define V_LIVE_DELAY 57   /* ms */
-#define V_SRC_NOTE   58   /* 0, 1 captured, 2 input too quiet to capture, 3 loaded */
+#define V_SRC_NOTE   58   /* 0, 1 captured, 2 too quiet to capture, 3 loaded, 4 resampled */
+#define V_K7         59   /* knobs 7..11 (second page), normalized 0..1 */
+#define V_FEAT       64   /* bit mask of features that are on */
+#define V_GENS       65   /* how many times the object was resampled */
+#define V_CAP_LEN    66   /* seconds taken by capture / resample */
+#define V_OBJ_FROM   67
+#define V_IN_LVL     68   /* input loudness 0..1 (what "follow" uses) */
+#define V_DUCK       69   /* the caretaker's press right now 0..1 */
+#define V_GEN_LEFT   70   /* bars until the next automatic resample */
+#define V_FX_LAYER   71
+#define V_FX_MASK    72   /* bit per checked effect */
+#define V_FX_AUTO    73   /* roll every N bars (0 = by hand) */
+#define V_FX_ROLLS   74   /* how many times the dice were rolled */
 
-#define V_TRACK0     64
-#define V_TS         48   /* per-track stride */
+#define V_TRACK0     80
+#define V_TS         65   /* per-track stride */
 #define T_ON         0
 #define T_HAND       1    /* 0 auto, 1 held in by hand, 2 held out by hand */
 #define T_KEEP       2
@@ -161,10 +196,13 @@ enum { DN_LG_NONE, DN_LG_ACT, DN_LG_BORN, DN_LG_DIED, DN_LG_PHASE, DN_LG_REWARD 
 #define T_DORMANT    13
 #define T_PUSHED     14   /* how much it was pushed in the last bar (steps, signed) */
 #define T_LASTOP     15   /* bars since an operator last touched this track */
-#define T_HIT0       16   /* per hit 4 floats: step, copies, offset(steps from grid), cause track (-1) */
-#define T_HS         4
+#define T_CYCLE      16   /* its cycle in steps (16 unless units have their own cycles) */
+#define T_HIT0       20   /* per hit 5 floats: step, copies, offset(steps from grid), cause track (-1),
+                             step in the bar where it last sounded (-1 if not this bar) */
+#define T_HS         5
+#define T_FX0        60   /* 5 effect values for this unit (0 = off) */
 
-#define V_OPS0       (V_TRACK0 + DN_TRACKS * V_TS)   /* 832 */
+#define V_OPS0       (V_TRACK0 + DN_TRACKS * V_TS)
 #define V_OS         12
 #define O_KIND       0
 #define O_TRACK      1
@@ -179,7 +217,7 @@ enum { DN_LG_NONE, DN_LG_ACT, DN_LG_BORN, DN_LG_DIED, DN_LG_PHASE, DN_LG_REWARD 
 #define O_PENDING    10
 #define O_WAIT       11
 
-#define V_LOG0       (V_OPS0 + DN_OPS * V_OS)        /* 928 */
+#define V_LOG0       (V_OPS0 + DN_OPS * V_OS)
 #define V_LS         6
 #define L_TYPE       0
 #define L_KIND       1
@@ -188,8 +226,8 @@ enum { DN_LG_NONE, DN_LG_ACT, DN_LG_BORN, DN_LG_DIED, DN_LG_PHASE, DN_LG_REWARD 
 #define L_BAR        4
 #define L_ID         5
 
-#define V_TRAIL0     (V_LOG0 + DN_LOG * V_LS)        /* 976 */
-#define V_N          (V_TRAIL0 + DN_TRAIL * 2)       /* 1104 */
+#define V_TRAIL0     (V_LOG0 + DN_LOG * V_LS)
+#define V_N          (V_TRAIL0 + DN_TRAIL * 2)
 
 /* ------------------------------------------------------------------ */
 typedef struct {
@@ -203,6 +241,7 @@ typedef struct {
     int8_t  cause;        /* track whose stretched note pushed it (-1 none) */
     float   spread;       /* ms between stacked copies */
     float   off;          /* last realized offset from the grid step (steps) */
+    int8_t  bstep;        /* where in the bar it last sounded (-1: not in the last planned bar) */
 } dn_hit;
 
 typedef struct {
@@ -213,14 +252,20 @@ typedef struct {
     uint8_t n_cross;       /* that note crosses a beat line */
     float cur_off, pushed;
     int32_t last_op_bar;
+    uint8_t cycle;         /* steps in its own cycle (16 = the bar) */
     /* dsp */
     float lp1, lp2, ds, ps, flash;
 } dn_track;
 
 typedef struct {
     uint8_t active, track, stage, keeper, src, pad[3];
-    uint32_t pos;          /* read position in the sample ring (BUF / LIVE) */
+    uint32_t pos;          /* read index: in the object (BUF) or the input ring (LIVE) */
     int32_t left;          /* samples left in the sound (BUF) */
+    /* effect layer (fx = 0: the plain paths above are used, unchanged) */
+    uint8_t fx, rev;
+    float rate, fpos, fstart, held, pj, swell, swinc, i0, is;
+    int32_t slice, slc, hold, hcnt, glen, gcnt, sfade, fend;
+    uint32_t vr;
     float phc, phm, incc, incm, amp, idx, prev;
     float amp_t, amp_c, att_inc, idx_t, idx_c, rel_c, fb, gain;
     int32_t delay, gate;
@@ -232,6 +277,7 @@ typedef struct {
     uint32_t t, gate;
     int32_t devs;         /* realized - grid, in samples */
     float dev;            /* realized - grid (steps) */
+    float gain;           /* 1, or less for an echo of the delay effect */
     uint8_t track, used, keeper;
     int8_t cause;
 } dn_event;
@@ -253,7 +299,9 @@ typedef struct {
 typedef struct dn_big {
     float room[DN_ROOMS][3][DN_ROOMBUF];
     int16_t echo[2][DN_ECHOBUF];
-    int16_t samp[DN_SAMPBUF];
+    int16_t inr[DN_INBUF];     /* the input, a ring */
+    int16_t outr[DN_OUTBUF];   /* the output at half rate, a ring */
+    int16_t obj[DN_OBJBUF];    /* the fixed sound that is the object */
 } dn_big;
 
 typedef struct dn_state {
@@ -274,9 +322,21 @@ typedef struct dn_state {
     int keeper_mode;           /* 0 auto (phase decides), 1 in, 2 out */
     int hand_stop;             /* the hand turned the last unit off: stay quiet until it turns one on */
     /* source of the object */
-    int src, src_note, seg_valid;
-    uint32_t seg_start, seg_len, live_since;
-    float samp_gain, in_peak, live_delay;
+    int src, src_note, seg_valid, obj_from, gens;
+    uint32_t seg_len, in_have, in_w, out_w, out_have;
+    float samp_gain, in_peak, live_delay, cap_len;
+    float out_lp[2];          /* decimation filter for the output ring */
+    /* features */
+    uint32_t feat;
+    int32_t last_gen_bar, sched_bar;
+    float duck, duck_tg, duck_env[DN_BLOCK];
+    int pend_kind, pend_wait;
+    /* effect layer */
+    int fx_layer, fx_auto;
+    uint32_t fx_mask, fx_rolls, fx_rng;   /* the dice have their own stream: the layer off changes nothing */
+    int32_t fx_last_roll;
+    float fxv[DN_FX][DN_TRACKS];
+    float in_sq, in_sq_n, in_lvl;
     int keeper_on;
 
     /* clock */
@@ -318,7 +378,7 @@ typedef struct dn_state {
 
     /* motion recorder */
     uint16_t lane[DN_LANES][DN_MR_SPB * DN_MR_BARS];
-    uint8_t lane_has, gest_lanes;
+    uint16_t lane_has, gest_lanes;
     int mr_armed, mr_loop, gesture;
     int32_t last_slot[DN_LANES];
     uint32_t hand_idle;
@@ -357,11 +417,13 @@ void dn_encoder(dn_state *s, int knob, int detents);
 void dn_key(dn_state *s, int unit, int down);               /* unit 0..15 (0 = caretaker) */
 void dn_button(dn_state *s, int btn, int arg);
 void dn_set_knob(dn_state *s, int knob, float v01);          /* for tests / presets */
+void dn_fx_set(dn_state *s, int fx, int unit, float v01);    /* one effect value of one unit (0 = off there) */
 const float *dn_view(dn_state *s);
 void dn_draw_rows(const dn_state *s, uint16_t *rgb565, int y0, int nrows);  /* rows y0..y0+nrows-1, 240 px wide */
 
 /* helpers shared with the display */
 float dn_tempo_bpm(const dn_state *s);
+int dn_gen_bars(const dn_state *s);
 extern const char *const dn_op_code[DN_OP_KINDS];
 extern const char *const dn_room_code[DN_ROOMS];
 extern const char *const dn_phase_code[DN_PHASES];
