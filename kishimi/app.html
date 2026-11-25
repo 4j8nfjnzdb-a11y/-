@@ -555,7 +555,7 @@ void main(){ o = vec4(texture(uTex,vUv).rgb,1.); }`;
   }
 
   // ---------- frame buffers ----------
-  let W = 0, H = 0, ST = [null, null], FIN = [null, null], cf = 0, frame = 0;
+  let W = 0, H = 0, ST = [null, null], FIN = [null, null], cf = 0, frame = 0, seedFb = true;
   const FLOW = [null, null], HIST = [null, null];
   const HN = 60;
   function resize(w, h) {
@@ -565,6 +565,7 @@ void main(){ o = vec4(texture(uTex,vUv).rgb,1.); }`;
     ST = [target(W, H, { half: true, mip: true }), target(W, H, { half: true, mip: true })];
     FIN = [target(W, H, { half: true, mip: true }), target(W, H, { half: true, mip: true })];
     for (let i = 0; i < 2; i++) { freeFlow(i); freeHist(i); }
+    seedFb = true;
   }
   function freeFlow(i) { const f = FLOW[i]; if (!f) return; free(f.raw); free(f.tmp); free(f.s[0]); free(f.s[1]); FLOW[i] = null; }
   function freeHist(i) { const h = HIST[i]; if (!h) return; gl.deleteTexture(h.t); gl.deleteFramebuffer(h.fb); HIST[i] = null; }
@@ -655,7 +656,16 @@ void main(){ o = vec4(texture(uTex,vUv).rgb,1.); }`;
     const any = slots.some((s) => s.ready && s.el);
     if (!any || !W) {
       gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, W || 1, H || 1);
-      gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT); return;
+      gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT); seedFb = true; return;
+    }
+    // A loop that sees only 前 (the previous frame) gets no new material, so a
+    // blank feedback buffer would stay black for good. Start it from a picture.
+    if (seedFb) {
+      const s = slots.find((x) => x.ready && x.el);
+      use(PR.copy);
+      f2('uRes', W, H); bind(0, 'uP', s.tex); f4('uXP', cover(s.w, s.h)); i1('uKP', 0);
+      for (const r of FIN) { draw(r.fb, W, H); mipmap(r); }
+      seedFb = false;
     }
     let last = null;
     S.stages.forEach((st, si) => {
@@ -691,10 +701,9 @@ void main(){ o = vec4(texture(uTex,vUv).rgb,1.); }`;
     cf = 1 - cf;
   }
 
-  function clearFeedback() { for (const r of FIN) { gl.bindFramebuffer(gl.FRAMEBUFFER, r.fb); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT); } }
 
   return {
-    gl, slots, resize, setSource, render, clearFeedback,
+    gl, slots, resize, setSource, render,
     markFresh(i) { if (slots[i].el) slots[i].fresh = true; },
     get size() { return [W, H]; },
     get half() { return HALF; },

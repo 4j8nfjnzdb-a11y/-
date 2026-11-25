@@ -145,11 +145,18 @@ const mean = (x) => x.reduce((s, v) => s + v, 0) / x.length;
   const s916 = await page.evaluate(() => window.__kishimi.E.size);
   test('9:16 at 720 gives 406×720', s916[0] === 406 && s916[1] === 720, s916.join('×'));
   await page.click('#out button[data-v="a"]');
+  // a loop that only sees 前 must not go black when the frame is rebuilt
+  await page.evaluate(() => { const K = window.__kishimi, s = K.S.stages[0]; K.applyMode(s, 'disp'); Object.assign(s, { P: 'fb', F: 'noise' }); K.buildStage(0); });
+  await page.click('#out button[data-v="1:1"]'); await page.waitForTimeout(300);
+  const lum = await page.evaluate(() => { const cv = document.getElementById('cv'), c = document.createElement('canvas'); c.width = c.height = 32; const g = c.getContext('2d'); g.drawImage(cv, 0, 0, 32, 32); const d = g.getImageData(0, 0, 32, 32).data; let s = 0; for (let i = 0; i < d.length; i += 4) s += d[i] + d[i + 1] + d[i + 2]; return s / (32 * 32 * 3); });
+  test('a loop on 前 alone survives a resize (not black)', lum > 20, `mean ${lum.toFixed(1)}`);
+  await page.click('#out button[data-v="a"]');
+  await page.evaluate(() => { const K = window.__kishimi, s = K.S.stages[0]; K.applyMode(s, 'cells'); Object.assign(s, { P: 'a', Q: 'b', F: 'noise' }); K.buildStage(0); });
 
   // saving
   const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#still')]);
   const stillPath = path.join(OUT, dl.suggestedFilename()); await dl.saveAs(stillPath);
-  test('静止画 saves a PNG', /\.png$/.test(dl.suggestedFilename()) && fs.statSync(stillPath).size > 5000, `${dl.suggestedFilename()} ${fs.statSync(stillPath).size} bytes`);
+  test('静止画 saves a PNG with a picture in it', /\.png$/.test(dl.suggestedFilename()) && fs.statSync(stillPath).size > 40000, `${dl.suggestedFilename()} ${fs.statSync(stillPath).size} bytes`);
   await page.click('#rec'); await page.waitForTimeout(1600);
   const [dl2] = await Promise.all([page.waitForEvent('download'), page.click('#rec')]);
   const recPath = path.join(OUT, dl2.suggestedFilename()); await dl2.saveAs(recPath);
