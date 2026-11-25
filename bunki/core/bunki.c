@@ -217,7 +217,9 @@ static int64_t fixed_point(int64_t R)                             /* 1 - 1/R (0 
     return BK_ONE - ((int64_t)inv << 45);
 }
 
-static void start(bk_engine_t *e, bk_voice_t *v, uint32_t inc, int64_t x0, uint32_t vel, uint32_t note)
+static void part_start(bk_engine_t *e, bk_voice_t *v, int64_t x0);
+
+static void start(bk_engine_t *e, bk_voice_t *v, uint32_t inc, int64_t x0, int64_t xg, uint32_t vel, uint32_t note)
 {
     int32_t amp = v->amp;
     zero(v, sizeof *v);
@@ -229,15 +231,17 @@ static void start(bk_engine_t *e, bk_voice_t *v, uint32_t inc, int64_t x0, uint3
     v->age = ++e->ages;
     v->note = (uint8_t)note;
     v->active = 1;
+    v->held = 1;
     if (x0 < 0) x0 = 0;
     if (x0 > BK_ONE) x0 = BK_ONE;
     v->x = v->xp = v->F = x0;
+    part_start(e, v, xg < 0 ? 0 : xg > BK_ONE ? BK_ONE : xg);
 }
 
 void bk_voice_force(bk_engine_t *e, uint32_t vi, uint32_t inc, int64_t x0, uint32_t vel)
 {
     if (vi < BK_NV)
-        start(e, &e->v[vi], inc, x0, vel, 255u);
+        start(e, &e->v[vi], inc, x0, x0, vel, 255u);
 }
 
 void bk_note(bk_engine_t *e, uint32_t note, uint32_t vel)
@@ -248,8 +252,11 @@ void bk_note(bk_engine_t *e, uint32_t note, uint32_t vel)
         return;
     if (!vel) {
         for (i = 0; i < BK_NV; i++)
-            if (e->v[i].note == note && e->v[i].gate)
-                e->v[i].gate = 0;
+            if (e->v[i].note == note && e->v[i].gate) {
+                e->v[i].held = 0;
+                if (!e->par[BK_P_HOLD])                           /* HOLD: it keeps sounding */
+                    e->v[i].gate = 0;
+            }
         return;
     }
     for (i = 0; i < BK_NV; i++) {                                 /* the same note, else a free voice, else the oldest */
@@ -264,8 +271,10 @@ void bk_note(bk_engine_t *e, uint32_t note, uint32_t vel)
      * from the seed by the map itself. Above R = 3 the orbit leaves the unstable fixed point: the
      * subharmonic grows in after the attack. */
     xs = seed_state(e->seed, note);
+    /* (the gesture layer starts nearer: 1/1024 off, not 1/64, so that below R = 3 it is on the key's pitch at
+     * once, not gliding into it; above, the pattern grows out of the fixed point in ~11 steps) */
     start(e, &e->v[pick], INC_C9[note % 12u] >> (10u - note / 12u),
-          fixed_point(e->R) + ((xs - BK_ONE / 2) >> 5), vel, note);
+          fixed_point(e->R) + ((xs - BK_ONE / 2) >> 5), fixed_point(e->R) + ((xs - BK_ONE / 2) >> 9), vel, note);
 }
 
 void bk_all_off(bk_engine_t *e)
@@ -357,6 +366,8 @@ static void period(bk_engine_t *e, bk_voice_t *v, int32_t gain, int32_t beta0, i
 
     v->I0 = v->I1;
     v->I1 = path == BK_PATH_MAP || path == BK_PATH_BOTH ? index_of(d, gain, e->par[BK_P_LIFT], v->imax) : 0;
+    if (e->par[BK_P_FORCE])
+        v->I1 = v->imax;                                          /* (a test: the sound must change) */
     b = beta0;
     if (path == BK_PATH_BOTH && nu) {                             /* the map pushes the feedback */
         int64_t d31 = d >> 31;
@@ -370,41 +381,228 @@ static void period(bk_engine_t *e, bk_voice_t *v, int32_t gain, int32_t beta0, i
     v->nper++;
 }
 
-#ifndef BK_WALK_W
-/* Tried in tests/bunki_test (7.) and build/walk.c: with a spring of 1.0 and a push of 0.25 R stood still
- * (pinned where push and spring balance) or shook a little; with these it walks, from the cascade into
- * chaos and back, but it gathers around the edge of chaos (u ~ 4-6) wherever the hand is */
-#define BK_WALK_W 98304                  /* Q16: the fastest pace, 1.5 rad/s (at D = 1) */
-#define BK_WALK_A 65536                  /* Q16: how hard lambda pushes, 1.0 (R per unit of lambda) */
-#define BK_WALK_K 6554                   /* Q16: the spring to the hand, 0.1 */
-#define BK_WALK_Z 13107                  /* Q16: damping, 0.2 */
-#endif
-
-/* R moving by itself (D > 0): pushed toward chaos where the voices are periodic (lambda < 0),
- * pushed back where they are chaotic, pulled to the hand's R by a spring, with inertia. Where it
- * stands on the diagram decides how it moves. */
-static void walk(bk_engine_t *e, uint32_t n)
+/* EVOLVE (D > 0): R climbs the cascade by itself, from the knob's R up: period 1, 2, 4, 8, chaos. Where the
+ * voices find a window in the chaos (their Lyapunov exponent below 0) it lingers, as a system that has found
+ * something stable holds on to it for a while; at R = 4 it turns and collapses back down to the knob, and
+ * climbs again. A walk with a direction, not a wander: the diagram is crossed in the order it was drawn. */
+static void evolve(bk_engine_t *e, uint32_t n)
 {
-    const int64_t W_MAX = BK_WALK_W, A = BK_WALK_A, K = BK_WALK_K, Z = BK_WALK_Z;
-    int64_t D = e->par[BK_P_D], dt = (int64_t)((n * 65536u) / BK_FS), R;
+    const int32_t D = e->par[BK_P_D], uk = e->par[BK_P_U];
+    const int32_t dt = (int32_t)((n * 65536u) / BK_FS);           /* Q16 seconds */
+    int32_t u;
     if (D <= 0) {
-        e->rho -= e->rho >> 6;                                    /* back to the hand, ~0.4 s */
-        e->rhov = 0;
+        e->ev -= e->ev >> 6;                                      /* back to the knob, ~0.4 s */
+        if (e->ev < 64 && e->ev > -64) e->ev = 0;
+        e->evdir = 1;
     } else {
-        int64_t w = (((D * D) >> 16) * W_MAX) >> 16, w2 = (w * w) >> 16;
-        int64_t L = e->lyap < -(2 << 16) ? -(2 << 16) : e->lyap > (1 << 16) ? (1 << 16) : e->lyap;
-        int64_t pull = -A * L - ((K * e->rho) >> 16);             /* Q32 */
-        int64_t acc = ((w2 * pull) >> 16) - ((((2 * Z * w) >> 16) * e->rhov) >> 16);
-        e->rhov += (acc * dt) >> 16;
-        e->rho += (e->rhov * dt) >> 16;
+        int32_t v = D >> 1;                                       /* units per second, Q16 */
+        if (uk + e->ev > (6 << 16) && e->lyap < 0)
+            v = (v * 5) >> 5;                                     /* a window: linger (1/6.4 of the pace) */
+        if (e->evdir == 0) e->evdir = 1;
+        e->ev += e->evdir * (int32_t)(((int64_t)v * dt) >> 16);
+        if (uk + e->ev >= BK_U_MAX) { e->ev = BK_U_MAX - uk; e->evdir = -1; }
+        if (e->ev <= 0) { e->ev = 0; e->evdir = 1; }
     }
-    R = e->R_hand + e->rho * ((int64_t)1 << 28);
-    if (R < KR[0] || R > KR[7]) {                                 /* the walls: stop there, bounce back softly */
-        R = R < KR[0] ? KR[0] : KR[7];
-        e->rho = (R - e->R_hand) >> 28;
-        e->rhov = -(e->rhov >> 1);
+    u = uk + e->ev;
+    e->R = bk_R_of_u(u > BK_U_MAX ? BK_U_MAX : u);
+}
+
+/* ---- the gesture layer --------------------------------------------------------------------- */
+
+static uint32_t cents_inc(uint32_t key, int32_t c_q4)            /* key's phase step moved by c cents (Q4) */
+{
+    int32_t e2 = (c_q4 * 3495) >> 10;                             /* octaves, Q16 (1 / (1200 * 16) = 3.413 / 65536) */
+    int32_t ip = e2 >> 16;
+    uint32_t f = (uint32_t)e2 & 0xFFFFu, i = f >> 8, fr = f & 0xFFu;
+    uint64_t m = BK_EXP2[i] + (((BK_EXP2[i + 1] - BK_EXP2[i]) * fr) >> 8), r = ((uint64_t)key * m) >> 16;
+    if (ip >= 0) r <<= ip;
+    else r >>= -ip;
+    return r > 0x70000000u ? 0x70000000u : (uint32_t)r;           /* under ~19 kHz */
+}
+
+static int32_t cents_of(const bk_engine_t *e, int64_t x, int64_t xs)   /* the map's distance from the fixed point */
+{
+    int64_t c = ((x - xs) >> 32) * (int64_t)e->par[BK_P_CENTS] * 32;   /* Q30 * cents * 2 * 16 -> Q30 */
+    int32_t q = (int32_t)(c >> 30);
+    return q < -3600 * 16 ? -3600 * 16 : q > 2400 * 16 ? 2400 * 16 : q;
+}
+
+static void part_start(bk_engine_t *e, bk_voice_t *v, int64_t x0)
+{
+    const int64_t xs = fixed_point(e->R);
+    uint32_t j;
+    for (j = 0; j < BK_NPART; j++) {
+        bk_part_t *p = &v->part[j];
+        /* the partials start a hair apart (2^-20 a step): in the periodic region they fall together, in the
+         * chaotic one the difference grows (x e^lambda a step) until one sine has split into many */
+        p->x = x0 + (int64_t)j * ((int64_t)1 << 42);
+        if (p->x > BK_ONE - XEDGE) p->x = BK_ONE - XEDGE;
+        p->F = p->x;
+        p->ca = p->cb = cents_of(e, p->x, xs);
+        p->inc = p->inc_a = p->inc_b = cents_inc(v->inc, p->cb);
+        p->ph = j << 29;                                          /* (not all in phase: no click) */
+        p->amp = p->damp = 0;
+        p->gate = 1;
     }
-    e->R = R;
+}
+
+/* one step of the step clock: every partial of every sounding voice takes one step of its map, together
+ * (Kaneko's coupled maps, synchronous: one clock, so no pattern comes from clocks' ratios), then its pitch */
+static void gesture_step(bk_engine_t *e)
+{
+    const int32_t np = e->par[BK_P_NPART], eps = e->par[BK_P_EPS], topo = e->par[BK_P_TOPO], chop = e->par[BK_P_CHOP];
+    const int64_t R = e->R, xs = fixed_point(R);
+    bk_part_t *all[BK_NV * BK_NPART];
+    uint8_t vof[BK_NV * BK_NPART];
+    int32_t n = 0, a, b, l2sum = 0;
+    uint32_t k, j;
+    for (k = 0; k < BK_NV; k++)
+        if (e->v[k].active)
+            for (j = 0; j < (uint32_t)np; j++) {
+                bk_part_t *p = &e->v[k].part[j];
+                /* each partial's R a hair apart (2^-30 R a partial): in fixed point, maps that fall together in
+                 * the periodic region become the same bits, and the same bits never part again, not even in
+                 * chaos; apart by a hair, they stay one pitch where it is periodic and split where it is not */
+                p->F = bk_logistic(R + (int64_t)(j + 1u) * (R >> 30), p->x);
+                l2sum += log2_slope(R, p->x) >> 4;
+                vof[n] = (uint8_t)k;
+                all[n++] = p;
+            }
+    if (!n)
+        return;
+    /* each group's sum of (F - its first F) / 64, once: a member's difference from the mean is then
+     * (sum - cnt (F - F_first) / 64) * 64 / cnt, n steps instead of n^2 (one alone: exactly 0) */
+    {
+        int64_t gsum[BK_NV + 1];
+        int32_t gcnt[BK_NV + 1], gfirst[BK_NV + 1];
+        for (b = 0; b <= (int32_t)BK_NV; b++) { gsum[b] = 0; gcnt[b] = 0; gfirst[b] = -1; }
+        for (b = 0; b < n; b++) {
+            const int32_t g = topo == BK_TOPO_GLOBAL ? (int32_t)BK_NV : vof[b];
+            if (gfirst[g] < 0) gfirst[g] = b;
+            gsum[g] += (all[b]->F - all[gfirst[g]]->F) >> 6;
+            gcnt[g]++;
+        }
+        for (a = 0; a < n; a++) {
+            bk_part_t *p = all[a];
+            int64_t acc = 0, x;
+            if (topo == BK_TOPO_RING) {                           /* the two neighbours, round the ring */
+                const bk_part_t *l = all[(a + n - 1) % n], *r = all[(a + 1) % n];
+                acc = ((l->F - p->F) >> 1) + ((r->F - p->F) >> 1);
+            } else {                                              /* the mean of its group (its voice, or all) */
+                const int32_t g = topo == BK_TOPO_GLOBAL ? (int32_t)BK_NV : vof[a];
+                acc = smulshr(gsum[g] - gcnt[g] * ((p->F - all[gfirst[g]]->F) >> 6), BK_R64[gcnt[g]], 16);
+            }
+            x = p->F + smulshr(acc, eps, 16);
+            if (x < XEDGE) x = XEDGE;
+            if (x > BK_ONE - XEDGE) x = BK_ONE - XEDGE;
+            p->x = x;
+        }
+    }
+    {   /* the layer's Lyapunov exponent, smoothed over steps */
+        int32_t l = ln_q16((l2sum / n) * 16);
+        e->glyap += (l - e->glyap) >> 3;
+    }
+    for (k = 0; k < BK_NV; k++) {
+        bk_voice_t *v = &e->v[k];
+        int32_t top = -1;
+        int64_t xm = -1;
+        if (!v->active)
+            continue;
+        for (j = 0; j < (uint32_t)np; j++) {
+            bk_part_t *p = &v->part[j];
+            p->ca = p->cb;
+            p->cb = cents_of(e, p->x, xs);
+            p->inc_a = p->inc_b;
+            p->inc_b = cents_inc(v->inc, p->cb);
+            p->gate = chop == BK_CHOP_GATE ? p->x > xs : 1;
+            if (p->x > xm) { xm = p->x; top = (int32_t)j; }
+        }
+        if (chop == BK_CHOP_ARP)                                  /* one sounds: the highest of the voice */
+            for (j = 0; j < (uint32_t)np; j++)
+                v->part[j].gate = (int32_t)j == top;
+        v->phist[v->nstep & (BK_HIST - 1u)] = (int32_t)(v->part[0].x >> 32);
+        v->nstep++;
+    }
+    e->nsteps++;
+}
+
+/* every 16 frames: the step clock, the glide's shape, the step's envelope, each partial's pitch and level */
+static void gesture_control(bk_engine_t *e)
+{
+    const int32_t np = e->par[BK_P_NPART], glide = e->par[BK_P_GLIDE] >> 1, chop = e->par[BK_P_CHOP];
+    const uint32_t sinc = e->par[BK_P_FREEZE] ? 0u : (uint32_t)(((uint64_t)(uint32_t)e->par[BK_P_RATE] * 97391u) >> 8);
+    int32_t t, base, k, j;
+    if (e->step_ph + 16u * sinc < e->step_ph)
+        gesture_step(e);
+    e->step_ph += 16u * sinc;
+    t = (int32_t)(e->step_ph >> 17);                              /* where in the step, Q15 */
+    if (glide < 64) e->gs = 32767;
+    else {                                                        /* sin^2: an arc from the old pitch to the new */
+        int32_t tt = t >= glide ? 32767 : (t << 15) / glide, sq = sn((uint32_t)tt << 15);
+        e->gs = (sq * sq) >> 15;
+    }
+    if (chop == BK_CHOP_OFF) e->genv = 32767;
+    else {                                                        /* a pluck: 8 % of the step up, then (1 - t)^2 */
+        int32_t d = 32767 - t, at = t < 2621 ? (t * 25) >> 1 : 32767;
+        e->genv = (((d * d) >> 15) * at) >> 15;
+    }
+    if (np <= 0)
+        return;
+    base = np > 1 ? 32767 * 3 / (2 * np) : 32767;                 /* 1.5 / N: they are rarely all in phase */
+    for (k = 0; k < (int32_t)BK_NV; k++) {
+        bk_voice_t *v = &e->v[k];
+        if (!v->active)
+            continue;
+        for (j = 0; j < np; j++) {
+            bk_part_t *p = &v->part[j];
+            int32_t target = p->gate ? (base * e->genv) >> 15 : 0;
+            p->inc = p->inc_a + (uint32_t)(int32_t)((((int64_t)p->inc_b - (int64_t)p->inc_a) * e->gs) >> 15);
+            p->damp = (target - p->amp) / 16;                     /* (not >> 4: -1 for any small fall, a ripple) */
+        }
+    }
+}
+
+void bk_mutate(bk_engine_t *e)                                    /* MUTATE: a nudge to every partial (2^-16 or so) */
+{
+    uint32_t k, j;
+    e->mut++;
+    for (k = 0; k < BK_NV; k++)
+        for (j = 0; j < BK_NPART; j++) {
+            bk_part_t *p = &e->v[k].part[j];
+            int64_t d = (int64_t)((e->mut * 7u + j * 3u + k) % 11u) - 5;
+            p->x += d * ((int64_t)1 << 46);
+            if (p->x < XEDGE) p->x = XEDGE;
+            if (p->x > BK_ONE - XEDGE) p->x = BK_ONE - XEDGE;
+        }
+}
+
+int bk_voice_pattern(const bk_engine_t *e, uint32_t vi, int32_t tol)   /* over 3 repeats and 8 steps more */
+{
+    const bk_voice_t *v;
+    uint32_t p, i, w;
+    if (vi >= BK_NV || !e->v[vi].active || e->v[vi].nstep < 16u)
+        return -1;
+    v = &e->v[vi];
+    for (p = 1; p <= 16u; p++) {
+        w = 3u * p + 8u;
+        if (w > BK_HIST - p) w = BK_HIST - p;
+        if (v->nstep < w + p)
+            return -1;
+        for (i = 0; i < w; i++) {
+            int32_t a = v->phist[(v->nstep - 1u - i) & (BK_HIST - 1u)], b = v->phist[(v->nstep - 1u - i - p) & (BK_HIST - 1u)];
+            if (a - b > tol || b - a > tol)
+                break;
+        }
+        if (i == w)
+            return (int)p;
+    }
+    return 0;
+}
+
+int32_t bk_part_cents(const bk_engine_t *e, uint32_t vi, uint32_t j)
+{
+    const bk_part_t *p = &e->v[vi].part[j];
+    return p->ca + (int32_t)(((int64_t)(p->cb - p->ca) * e->gs) >> 15);
 }
 
 void bk_render(bk_engine_t *e, int32_t *out, uint32_t n)
@@ -412,6 +610,7 @@ void bk_render(bk_engine_t *e, int32_t *out, uint32_t n)
     const int32_t path = e->par[BK_P_PATH], C = e->par[BK_P_C];
     const uint32_t ratio = (uint32_t)e->par[BK_P_RATIO], solo = (uint32_t)e->par[BK_P_SOLO];
     const int fbt = path == BK_PATH_FBT || path == BK_PATH_BOTH, fb1 = path == BK_PATH_FB1;
+    const int timbre = e->par[BK_P_TIMBRE] != 0, np = e->par[BK_P_NPART];
     int32_t gain, beta0, mu, nu, mixt;
     uint32_t i, k, na = 0, sounding = 0;
     int32_t lsum = 0;
@@ -427,8 +626,8 @@ void bk_render(bk_engine_t *e, int32_t *out, uint32_t n)
         lsum += l;
         na++;
     }
-    e->lyap = na ? lsum / (int32_t)na : 0;                       /* 32-bit */
-    walk(e, n);
+    e->lyap = e->par[BK_P_NPART] > 0 ? e->glyap : na ? lsum / (int32_t)na : 0;   /* 32-bit */
+    evolve(e, n);
     beta0 = beta_of(e, bk_u_of_R(e->R));
     gain = (e->par[BK_P_GAIN] * RAD_Q15) >> 8;
     mu = (int32_t)(((int64_t)(C < 0 ? -C : C) * MU0) >> 16);      /* mu nu > 0: cooperate, < 0: compete */
@@ -445,11 +644,14 @@ void bk_render(bk_engine_t *e, int32_t *out, uint32_t n)
     for (i = 0; i < n; i++) {
         uint32_t wrapped = 0;
         int32_t mix = 0;
+        if (!e->sub)
+            gesture_control(e);                                   /* the step clock, every 16 frames */
+        e->sub = (e->sub + 1u) & 15u;
         /* 1. phases; a voice whose period ends publishes f_R(x) first, so that the voices whose
          * periods end in the same frame take one synchronous step together */
         for (k = 0; k < BK_NV; k++) {
             bk_voice_t *v = &e->v[k];
-            if (!v->active)
+            if (!v->active || !timbre)
                 continue;
             v->ph += v->inc;
             if (v->ph < v->inc) {
@@ -469,9 +671,18 @@ void bk_render(bk_engine_t *e, int32_t *out, uint32_t n)
         for (k = 0; k < BK_NV; k++) {
             bk_voice_t *v = &e->v[k];
             uint32_t ph = v->ph, off;
-            int32_t I, y, s;
+            int32_t I, y = 0, s, g = 0, q;
             if (!v->active)
                 continue;
+            for (q = 0; q < np; q++) {                            /* the gesture layer: its sines */
+                bk_part_t *p = &v->part[q];
+                g += (sn(p->ph) * p->amp) >> 15;
+                p->ph += p->inc;
+                p->amp += p->damp;
+                if (p->amp < 0) p->amp = 0;
+            }
+            if (!timbre)
+                goto level;
             I = v->I0 + (((v->I1 - v->I0) * (int32_t)(ph >> 17)) >> 15);
             off = (uint32_t)(I * sn(ph * ratio)) << 2;
             if (fbt) {
@@ -487,6 +698,7 @@ void bk_render(bk_engine_t *e, int32_t *out, uint32_t n)
                 v->y2 = v->y1;
                 v->y1 = y;
             }
+        level:
             if (v->amp < v->gate) {
                 v->amp += v->att;
                 if (v->amp > v->gate) v->amp = v->gate;
@@ -494,7 +706,7 @@ void bk_render(bk_engine_t *e, int32_t *out, uint32_t n)
                 v->amp -= v->rel;
                 if (v->amp < v->gate) v->amp = v->gate;
             }
-            s = (y * v->amp) >> 15;
+            s = ((timbre && np ? (y + g) >> 1 : timbre ? y : g) * v->amp) >> 15;
             if (solo & (1u << k))
                 mix += s;
             if (!v->amp && !v->gate)
@@ -529,6 +741,22 @@ void bk_set(bk_engine_t *e, uint32_t p, int32_t val)
     case BK_P_SEED: e->seed = (uint32_t)val; break;
     case BK_P_BETA: val = val < 0 ? -1 : val > 1024 ? 1024 : val; break;
     case BK_P_SOLO: break;
+    case BK_P_FORCE: val = val ? 1 : 0; break;
+    case BK_P_NPART: val = val < 0 ? 0 : val > (int32_t)BK_NPART ? (int32_t)BK_NPART : val; break;
+    case BK_P_RATE: val = val < 64 ? 64 : val > 16384 ? 16384 : val; break;
+    case BK_P_CENTS: val = val < 0 ? 0 : val > 2400 ? 2400 : val; break;
+    case BK_P_GLIDE: val = val < 0 ? 0 : val > 65536 ? 65536 : val; break;
+    case BK_P_CHOP: if (val < 0 || val >= BK_NCHOPS) return; break;
+    case BK_P_TOPO: if (val < 0 || val >= BK_NTOPOS) return; break;
+    case BK_P_TIMBRE: case BK_P_FREEZE: val = val ? 1 : 0; break;
+    case BK_P_HOLD: {
+        uint32_t k;
+        val = val ? 1 : 0;
+        if (!val)                                                 /* let go: what is not held any more ends */
+            for (k = 0; k < BK_NV; k++)
+                if (!e->v[k].held) e->v[k].gate = 0;
+        break;
+    }
     default: return;
     }
     e->par[p] = val;
@@ -546,6 +774,12 @@ void bk_init(bk_engine_t *e, uint32_t seed)
     e->par[BK_P_SOLO] = 0xFF;
     e->R_hand = e->R = KR[0];
     e->mixg = 32768;
+    e->par[BK_P_RATE] = 4 << 8;                                   /* the gesture layer: off (NPART 0) until asked */
+    e->par[BK_P_CENTS] = 700;
+    e->par[BK_P_GLIDE] = 49152;
+    e->par[BK_P_TIMBRE] = 1;
+    e->evdir = 1;
+    e->gs = e->genv = 32767;
 }
 
 int32_t bk_voice_x(const bk_engine_t *e, uint32_t vi, uint32_t age)

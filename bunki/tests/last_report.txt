@@ -85,8 +85,8 @@ bunki tests
   [ok] the window clears: aperiodic part -81.8 dB against -4.0 / -3.9 around it
 
 == 3. reproducible: the same seed and events, the same bits
-  [ok] seed 1 twice: 4e10450aeb7f56fd 4e10450aeb7f56fd
-  [ok] seed 2 differs: 5741851d4036a883
+  [ok] seed 1 twice: 6def1dea2bff8841 6def1dea2bff8841
+  [ok] seed 2 differs: e4bcefcdb9476b95
   (make cross: the same script through gcc -O0, gcc -O2 and clang -O2)
 
 == 4. finite precision: the length of the cycle the chaotic orbit ends in (Brent)
@@ -170,21 +170,57 @@ bunki tests
   FB-1 (DX7)     p2 at u 12.25  p4 at 12.00  p8 at 11.75  aperiodic from 12.50  windows: none
   (knob nodes: u 1 = r1 3.0, u 2 = r2, u 3 = r3, u 6 = R_inf; the map's period-3 window at u ~15.7)
 
-== 7. D: R walks by itself (10 minutes each, C4, MAP)
-  hand u  3.0, D 0.5: where it was (u 0-2, 2-4, ... 20-22, %):  0 50  6 44  0  0  0  0  0  0  0
-      lambda < 0  46 % of the time; last minute: mean u 5.21, spread 1.477, autocorrelation peak 0.79 at 0.5 s -> walking
-  hand u  3.0, D 1.0: where it was (u 0-2, 2-4, ... 20-22, %): 20 42  1 14 15  8  0  0  0  0  0
-      lambda < 0  53 % of the time; last minute: mean u 4.86, spread 3.107, autocorrelation peak 0.41 at 0.5 s -> walking
-  hand u 14.0, D 0.5: where it was (u 0-2, 2-4, ... 20-22, %):  1 36  6 56  1  0  0  0  0  0  0
-      lambda < 0  40 % of the time; last minute: mean u 5.50, spread 1.508, autocorrelation peak 0.89 at 5.8 s -> walking
-  hand u 14.0, D 1.0: where it was (u 0-2, 2-4, ... 20-22, %): 15 41  1 13 16 14  0  0  0  0  0
-      lambda < 0  49 % of the time; last minute: mean u 5.13, spread 3.474, autocorrelation peak 0.84 at 28.4 s -> walking
-  [ok] D back to 0: R returns to the hand's (off by 2.03e-07)
+== 7. EVOLVE: R climbs from the knob (u 0.5), lingers where the voices find a window, collapses back
+  reached the top (R 4) after 48.8 s, back at the knob after 101.9 s (max u 22.00)
+  time in the period-3 window 22.5 s, in as wide a band of chaos beside it 3.8 s
+  [ok] it climbs to R = 4 and collapses back to the knob
+  [ok] it lingers in the window (22.5 s against 3.8 s)
+  [ok] EVOLVE off: R back to the knob's
+
+== 9. the gesture layer: the map's period as the length of a pitch pattern
+  [ok] one key, four partials, R 2.75: one pure sine (-65.1 dB off its lines)
+  one partial, 8 steps a second, no glide: the pitch of each step, then the pattern's period
+  period 1        heard pattern  1 steps (map  1):    -0    -0    -0    -0    -0    -0    -0    -0    -0 cents
+  [ok] period 1: a pattern of 1 steps heard
+  period 2        heard pattern  2 steps (map  2):  +163  -260  +163  -260  +163  -260  +163  -260  +163 cents
+  [ok] period 2: a pattern of 2 steps heard
+  period 4        heard pattern  4 steps (map  4):  +159  -301  +224  -461  +159  -301  +224  -461  +159 cents
+  [ok] period 4: a pattern of 4 steps heard
+  period 8        heard pattern  8 steps (map  8):  +238  -513  +129  -242  +227  -485  +156  -305  +238 cents
+  [ok] period 8: a pattern of 8 steps heard
+  window R 3.835  heard pattern  3 steps (map  3):  -822  -343  +307  -822  -343  +307  -822  -343  +307 cents
+  [ok] window R 3.835: a pattern of 3 steps heard
+  chaos R 3.90    heard pattern  0 steps (map  0):  +306  -843  -377  +320  -895  -529  +225  -569  +179 cents
+  [ok] chaos R 3.90: a pattern of 0 steps heard
+
+== 10. the network of partials (8 partials, R 4, 16 steps a second)
+            eps   clusters  changes/s
+  LOCAL    0.00       7.29        8.6
+  [ok] eps 0: the partials go their own ways (7.3 clusters of 8)
+           0.10       7.10        8.5
+           0.20       6.13        8.5
+           0.30       2.00        0.1
+           0.40       3.57        7.4
+           0.50       1.00        0.0
+           0.60       1.00        0.0
+  [ok] eps 0.6: they move as one (1.00), past the theory's 0.5
+  RING     0.00       7.29        8.6
+           0.10       7.17        9.4
+           0.20       7.03       11.3
+           0.30       2.79        1.9
+           0.40       6.57       11.4
+           0.50       5.03        8.7
+           0.60       4.79        6.4
+  R 3.9, 6 partials from one pitch: split after 16 steps (2.0 s at 8 steps a second)
+  period 2, 6 partials: 1 pitch group(s) before chaos, 2 after passing through it
+  [ok] through chaos and back, one trill has become two in opposition (a chord the network remembers)
+  [ok] HOLD: a released key sounds on; HOLD off ends it
+  CHOP GATE, period 4, 16 steps: x.x.x.x.x.x.x.x.   CHOP ARP, chaos, 4 partials, who sounds: 1334441413242342
 
 == 8. time on this computer (reference only)
-  path 0, 8 voices: 4.2 ns per voice-frame (670x real time)
-  path 1, 8 voices: 7.0 ns per voice-frame (407x real time)
-  path 2, 8 voices: 7.0 ns per voice-frame (405x real time)
-  path 3, 8 voices: 4.7 ns per voice-frame (604x real time)
+  path 0, 8 voices: 8.1 ns per voice-frame (349x real time)
+  path 1, 8 voices: 9.3 ns per voice-frame (303x real time)
+  path 2, 8 voices: 8.7 ns per voice-frame (327x real time)
+  path 3, 8 voices: 6.6 ns per voice-frame (427x real time)
 
-58 checks, 0 failed
+71 checks, 0 failed

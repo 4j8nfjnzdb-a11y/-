@@ -514,53 +514,217 @@ static void calibrate(void)
     }
 }
 
-/* ---- R walking by itself ---- */
+/* ---- EVOLVE: R climbs the cascade by itself, lingers in windows, collapses back ---- */
 
 static void t7_walk(void)
 {
-    static const double uh[2] = {3.0, 14.0}, Ds[2] = {0.5, 1.0};
-    int a, d, i;
-    printf("\n== 7. D: R walks by itself (10 minutes each, C4, MAP)\n");
-    for (a = 0; a < 2; a++)
-        for (d = 0; d < 2; d++) {
-            static double us[110000];
-            uint32_t nb = 10 * 60 * 44100 / 256, b, hist[12] = {0}, neg = 0;
-            double m = 0, v = 0, acmax = 0, aclag = 0;
-            int last = 60 * 44100 / 256;
-            setup(&E, 1, BK_PATH_MAP, uh[a]);
-            bk_note(&E, 60, 100);
-            bk_set(&E, BK_P_D, q16(Ds[d]));
-            for (b = 0; b < nb; b++) {
-                render(&E, 256, NULL);
-                us[b] = bk_u_of_R(E.R) / 65536.0;
-                hist[(int)(us[b] / 2) > 10 ? 10 : (int)(us[b] / 2)]++;
-                if (E.lyap < 0) neg++;
-            }
-            for (b = nb - (uint32_t)last; b < nb; b++) m += us[b];
-            m /= last;
-            for (b = nb - (uint32_t)last; b < nb; b++) v += (us[b] - m) * (us[b] - m);
-            v = sqrt(v / last);
-            for (i = 86; i < last / 2; i += 2) {   /* autocorrelation, lags 0.5 s .. 30 s, of the last minute */
-                double s = 0, s0 = 0;
-                for (b = nb - (uint32_t)last; b + (uint32_t)i < nb; b++) {
-                    s += (us[b] - m) * (us[b + i] - m);
-                    s0 += (us[b] - m) * (us[b] - m);
-                }
-                if (s0 > 0 && s / s0 > acmax) { acmax = s / s0; aclag = i * 256.0 / FS; }
-            }
-            printf("  hand u %4.1f, D %.1f: where it was (u 0-2, 2-4, ... 20-22, %%):", uh[a], Ds[d]);
-            for (i = 0; i < 11; i++) printf(" %2.0f", 100.0 * hist[i] / nb);
-            printf("\n      lambda < 0 %3.0f %% of the time; last minute: mean u %.2f, spread %.3f, autocorrelation peak %.2f at %.1f s -> %s\n",
-                   100.0 * neg / nb, m, v, acmax, aclag,
-                   v < 0.01 ? "PINNED" : acmax > 0.95 ? "a fixed cycle" : "walking");
-        }
-    setup(&E, 1, BK_PATH_MAP, 3.0);
+    static double us[110000];
+    const uint32_t nb = 3 * 60 * 44100 / 256;
+    uint32_t b, top_at = 0, back_at = 0, in_win = 0, in_band = 0;
+    double umax = 0;
+    printf("\n== 7. EVOLVE: R climbs from the knob (u 0.5), lingers where the voices find a window, collapses back\n");
+    setup(&E, 1, BK_PATH_MAP, 0.5);
     bk_note(&E, 60, 100);
     bk_set(&E, BK_P_D, q16(1.0));
-    render(&E, 10 * 44100, NULL);
+    for (b = 0; b < nb; b++) {
+        render(&E, 256, NULL);
+        us[b] = bk_u_of_R(E.R) / 65536.0;
+        if (us[b] > umax) umax = us[b];
+        if (!top_at && us[b] > 21.99) top_at = b;
+        if (top_at && !back_at && us[b] < 0.6) back_at = b;
+        if (us[b] > 15.62 && us[b] < 16.10) in_win++;          /* the period-3 window */
+        if (us[b] > 15.0 && us[b] < 15.48) in_band++;          /* a band of chaos of the same width, beside it */
+    }
+    printf("  reached the top (R 4) after %.1f s, back at the knob after %.1f s (max u %.2f)\n",
+           top_at * 256.0 / FS, back_at * 256.0 / FS, umax);
+    printf("  time in the period-3 window %.1f s, in as wide a band of chaos beside it %.1f s\n",
+           in_win * 256.0 / FS, in_band * 256.0 / FS);
+    check(top_at && back_at, "it climbs to R = 4 and collapses back to the knob");
+    check(in_win > 2 * in_band, "it lingers in the window (%.1f s against %.1f s)", in_win * 256.0 / FS, in_band * 256.0 / FS);
     bk_set(&E, BK_P_D, 0);
     render(&E, 5 * 44100, NULL);
-    check(llabs(E.R - E.R_hand) < (1LL << 40), "D back to 0: R returns to the hand's (off by %.2e)", (double)(E.R - E.R_hand) / Q60);
+    check(E.R == bk_R_of_u(q16(0.5)), "EVOLVE off: R back to the knob's");
+}
+
+/* ---- the gesture layer: the map's numbers as pitch and rhythm ---- */
+
+static int clusters_now(const bk_engine_t *e, int np)
+{
+    double xs[64];
+    int n = 0, k, j, c = 1, i;
+    for (k = 0; k < (int)BK_NV; k++)
+        if (e->v[k].active)
+            for (j = 0; j < np; j++) xs[n++] = (double)e->v[k].part[j].x / Q62;
+    for (i = 1; i < n; i++)
+        for (j = i; j > 0 && xs[j] < xs[j - 1]; j--) { double t = xs[j]; xs[j] = xs[j - 1]; xs[j - 1] = t; }
+    for (i = 1; i < n; i++) if (xs[i] - xs[i - 1] > 0.01) c++;
+    return n ? c : 0;
+}
+
+static void gesture_setup(double u, int np, double rate, double glide, int chop)
+{
+    setup(&E, 1, BK_PATH_MAP, u);
+    bk_set(&E, BK_P_TIMBRE, 0);
+    bk_set(&E, BK_P_NPART, np);
+    bk_set(&E, BK_P_RATE, (int32_t)(rate * 256));
+    bk_set(&E, BK_P_GLIDE, q16(glide));
+    bk_set(&E, BK_P_CHOP, chop);
+}
+
+static double step_pitch(const double *y, int n, double f0)      /* Hz, from the zero crossings (a pure sine) */
+{
+    double first = -1, last = -1;
+    int i, cnt = 0;
+    (void)f0;
+    for (i = 1; i < n; i++)
+        if (y[i - 1] < 0 && y[i] >= 0) {
+            double t = i - 1 + y[i - 1] / (y[i - 1] - y[i]);
+            if (first < 0) first = t;
+            last = t;
+            cnt++;
+        }
+    return cnt > 1 ? (cnt - 1) * FS / (last - first) : 0;
+}
+
+static void t9_gesture(void)
+{
+    static double buf[44100 * 8];
+    pos_t P[] = {{"period 1", 0.5, 1}, {"period 2", 1.5, 2}, {"period 4", 2.5, 4}, {"period 8", 3.5, 8},
+                 {"window R 3.835", 0, 3}, {"chaos R 3.90", 0, 0}};
+    int i, s, k;
+    P[4].u = u_of(3.835); P[5].u = u_of(3.90);
+    printf("\n== 9. the gesture layer: the map's period as the length of a pitch pattern\n");
+    {   /* a pure start: four partials in step, the key's pitch */
+        double f0;
+        gesture_setup(0.5, 4, 4, 0.75, BK_CHOP_OFF);
+        bk_note(&E, 60, 100);
+        render(&E, 44100, NULL);
+        render(&E, NA, sig);
+        spectrum(sig);
+        f0 = f0_of(&E, 0);
+        check(impurity_db(f0, 1) < -60 && clusters_now(&E, 4) == 1, "one key, four partials, R 2.75: one pure sine (%.1f dB off its lines)",
+              impurity_db(f0, 1));
+    }
+    printf("  one partial, 8 steps a second, no glide: the pitch of each step, then the pattern's period\n");
+    for (i = 0; i < 6; i++) {
+        const int steps = 48, len = (int)(FS / 8);
+        double f0, pc[48];
+        int per = 0, p;
+        gesture_setup(P[i].u, 1, 8, 0, BK_CHOP_OFF);
+        bk_note(&E, 60, 100);
+        render(&E, 20 * 44100, NULL);                            /* (the pattern grows, then settles) */
+        while (E.sub) render(&E, 1, NULL);                       /* (frames, not blocks: start at a control period) */
+        {   /* wait for a step to begin */
+            uint32_t n0 = E.nsteps;
+            while (E.nsteps == n0) render(&E, 16, NULL);
+        }
+        f0 = f0_of(&E, 0);
+        render(&E, (uint32_t)(steps * len + 256), buf);
+        for (s = 0; s < steps; s++) {
+            double hz = step_pitch(buf + s * len + len / 5, len * 3 / 5, f0);
+            pc[s] = 1200 * log2(hz / f0);
+        }
+        for (p = 1; p <= 16 && !per; p++) {
+            for (k = p; k < steps; k++) if (fabs(pc[k] - pc[k - p]) > 1) break;
+            if (k == steps) per = p;
+        }
+        printf("  %-15s heard pattern %2d steps (map %2d):", P[i].what, per, bk_voice_pattern(&E, 0, 1 << 10));
+        for (s = 0; s < 9; s++) printf(" %+5.0f", pc[s]);
+        printf(" cents\n");
+        check(per == P[i].expect, "%s: a pattern of %d steps heard", P[i].what, per);
+    }
+}
+
+/* ---- the network: clusters, splitting, memory; HOLD and CHOP ---- */
+
+static void t10_network(void)
+{
+    static const double eps[] = {0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6};
+    static const char *TN[] = {"LOCAL", "GLOBAL", "RING"};
+    int i, t, k;
+    printf("\n== 10. the network of partials (8 partials, R 4, 16 steps a second)\n");
+    printf("  %-7s %5s  %9s %10s\n", "", "eps", "clusters", "changes/s");
+    for (t = 0; t < 3; t += 2)
+        for (i = 0; i < 7; i++) {
+            double mc = 0;
+            int n = 0, ch = 0, last = -1, c;
+            uint32_t s0;
+            gesture_setup(22, 8, 16, 0.75, BK_CHOP_OFF);
+            bk_set(&E, BK_P_TOPO, t);
+            bk_set(&E, BK_P_EPS, q16(eps[i]));
+            bk_note(&E, 60, 100);
+            render(&E, 5 * 44100, NULL);
+            s0 = E.nsteps;
+            while (E.nsteps < s0 + 320) {
+                uint32_t sn0 = E.nsteps;
+                while (E.nsteps == sn0) render(&E, 256, NULL);
+                c = clusters_now(&E, 8);
+                mc += c; n++;
+                if (last >= 0 && c != last) ch++;
+                last = c;
+            }
+            printf("  %-7s %5.2f  %9.2f %10.1f\n", i ? "" : TN[t], eps[i], mc / n, ch / 20.0);
+            if (t == 0 && i == 0) check(mc / n >= 5, "eps 0: the partials go their own ways (%.1f clusters of 8)", mc / n);
+            if (t == 0 && i == 6) check(mc / n < 1.05, "eps 0.6: they move as one (%.2f), past the theory's 0.5", mc / n);
+        }
+    {   /* one sine splitting */
+        uint32_t s0;
+        gesture_setup(u_of(3.9), 6, 8, 0.75, BK_CHOP_OFF);
+        bk_note(&E, 60, 100);
+        s0 = E.nsteps;
+        while (clusters_now(&E, 6) <= 1 && E.nsteps < s0 + 400) render(&E, 256, NULL);
+        printf("  R 3.9, 6 partials from one pitch: split after %u steps (%.1f s at 8 steps a second)\n",
+               E.nsteps - s0, (E.nsteps - s0) / 8.0);
+    }
+    {   /* memory: through chaos and back to period 2 */
+        int before, after;
+        gesture_setup(1.5, 6, 8, 0.75, BK_CHOP_OFF);
+        bk_note(&E, 60, 100);
+        render(&E, 8 * 44100, NULL);
+        before = clusters_now(&E, 6);
+        bk_set(&E, BK_P_U, q16(18));
+        render(&E, 6 * 44100, NULL);
+        bk_set(&E, BK_P_U, q16(1.5));
+        render(&E, 8 * 44100, NULL);
+        after = clusters_now(&E, 6);
+        printf("  period 2, 6 partials: %d pitch group(s) before chaos, %d after passing through it\n", before, after);
+        check(before == 1 && after == 2, "through chaos and back, one trill has become two in opposition (a chord the network remembers)");
+    }
+    {   /* HOLD */
+        int a1, a2;
+        gesture_setup(1.5, 4, 4, 0.75, BK_CHOP_OFF);
+        bk_set(&E, BK_P_HOLD, 1);
+        bk_note(&E, 60, 100);
+        render(&E, 44100, NULL);
+        bk_note(&E, 60, 0);
+        render(&E, 44100, NULL);
+        a1 = E.v[0].active;
+        bk_set(&E, BK_P_HOLD, 0);
+        render(&E, 22050, NULL);
+        a2 = E.v[0].active;
+        check(a1 && !a2, "HOLD: a released key sounds on; HOLD off ends it");
+    }
+    {   /* CHOP: the gate pattern of period 4; ARP: which partial sounds, in chaos */
+        char g[40] = "", w[40] = "";
+        gesture_setup(2.5, 1, 8, 0, BK_CHOP_GATE);
+        bk_note(&E, 60, 100);
+        render(&E, 20 * 44100, NULL);
+        for (k = 0; k < 16; k++) {
+            uint32_t sn0 = E.nsteps;
+            while (E.nsteps == sn0) render(&E, 256, NULL);
+            g[k] = E.v[0].part[0].gate ? 'x' : '.';
+        }
+        gesture_setup(22, 4, 8, 0, BK_CHOP_ARP);
+        bk_note(&E, 60, 100);
+        render(&E, 5 * 44100, NULL);
+        for (k = 0; k < 16; k++) {
+            uint32_t sn0 = E.nsteps;
+            int j;
+            while (E.nsteps == sn0) render(&E, 256, NULL);
+            for (j = 0; j < 4; j++) if (E.v[0].part[j].gate) w[k] = (char)('1' + j);
+        }
+        printf("  CHOP GATE, period 4, 16 steps: %s   CHOP ARP, chaos, 4 partials, who sounds: %s\n", g, w);
+    }
 }
 
 /* ---- time, for reference only (the FM-1's own cycles are measured in fm1-emu) ---- */
@@ -594,6 +758,8 @@ int main(int argc, char **argv)
     t5_coupling();
     t6_paths();
     t7_walk();
+    t9_gesture();
+    t10_network();
     t8_time();
     printf("\n%d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;

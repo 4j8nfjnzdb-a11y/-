@@ -20,6 +20,7 @@
 #define BK_HIST   64u                    /* map values kept per voice (period detection, screen) */
 #define BK_ONE    ((int64_t)1 << 62)     /* the map's state x is Q62: 1.0 = 2^62 */
 #define BK_U_MAX  (22 << 16)             /* the R knob's position u is Q16, 0 .. 22 */
+#define BK_NPART  8u                     /* sine partials a voice can have (the gesture layer) */
 
 /* where the sound's complexity comes from */
 enum {
@@ -31,10 +32,16 @@ enum {
 };
 /* how the map's step d = x_k - x_(k-1) becomes the index */
 enum { BK_LIFT_LINEAR = 0, BK_LIFT_SQRT };
+/* the gesture layer: how a step sounds, and how the partials are coupled */
+enum { BK_CHOP_OFF = 0, BK_CHOP_GATE, BK_CHOP_ARP, BK_NCHOPS };   /* GATE: a partial sounds where its map is above the
+                                                                  * fixed point; ARP: only the highest of each voice */
+enum { BK_TOPO_LOCAL = 0, BK_TOPO_GLOBAL, BK_TOPO_RING, BK_NTOPOS }; /* LOCAL: within each voice; GLOBAL: all the
+                                                                  * partials of all voices; RING: each with its two
+                                                                  * neighbours (a coupled map lattice) */
 
 enum {
     BK_P_U = 0,        /* R knob position, Q16, 0 .. BK_U_MAX (warped: one unit per doubling) */
-    BK_P_D,            /* how fast R moves by itself, Q16, 0 .. 65536 (0: R is the hand's) */
+    BK_P_D,            /* EVOLVE: R climbs the cascade by itself, Q16 speed (1: 0.5 unit/s), 0: R is the hand's */
     BK_P_EPS,          /* global coupling between the voices, Q16, 0 .. 65536 */
     BK_P_C,            /* the two paths' coupling, Q16, -65536 .. 65536 */
     BK_P_PATH,         /* BK_PATH_... */
@@ -44,14 +51,35 @@ enum {
     BK_P_SEED,         /* initial conditions; takes effect at the next note on */
     BK_P_BETA,         /* tests: the feedback amount in radians Q8, -1 = from R (default) */
     BK_P_SOLO,         /* tests: a bit mask of the voices heard (all keep running) */
+    BK_P_FORCE,        /* tests: 1 = the map taken out, the index held at its ceiling */
+    BK_P_NPART,        /* the gesture layer's sine partials per voice, 0 (off) .. BK_NPART */
+    BK_P_RATE,         /* its step clock, Hz Q8 (0.25 .. 64 Hz) */
+    BK_P_CENTS,        /* how far the map moves a partial's pitch, cents (0 .. 2400) */
+    BK_P_GLIDE,        /* the part of a step a partial glides to its new pitch, Q16 (0: jumps) */
+    BK_P_CHOP,         /* BK_CHOP_... */
+    BK_P_HOLD,         /* 1: a released key keeps sounding */
+    BK_P_TOPO,         /* BK_TOPO_... */
+    BK_P_TIMBRE,       /* 1: the timbre layer (the map at the period, as FM) sounds */
+    BK_P_FREEZE,       /* 1: the step clock stands still */
     BK_NPARAMS
 };
+
+/* one sine of the gesture layer: its own map, stepped by the step clock, and the pitch the map gives it */
+typedef struct {
+    uint32_t ph, inc;                    /* phase, and its step now */
+    uint32_t inc_a, inc_b;               /* the step at this step's start and the one it glides to */
+    int64_t x, F;                        /* the map, Q62 */
+    int32_t ca, cb;                      /* the pitch at the start and the target, cents Q4, from the key */
+    int32_t amp, damp;                   /* level, Q15, and its change per frame */
+    uint8_t gate;                        /* sounding in this step (CHOP) */
+} bk_part_t;
 
 typedef struct {
     uint32_t inc, ph;                    /* carrier phase step and phase (a cycle = 2^32) */
     int32_t amp, gate, att, rel;         /* level now and target, Q15; envelope steps per frame */
     uint32_t age;
     uint8_t note, active, wrap, rd;      /* active: sounding and coupled; rd: the table read now */
+    uint8_t held;                        /* the key is down (HOLD keeps the rest sounding) */
     int32_t imax;                        /* the index's ceiling for this pitch, cycles Q15 */
     int64_t x, xp;                       /* the map, Q62: x_k and x_(k-1) */
     int64_t F;                           /* f_R(x) as last published to the mean field, Q62 */
@@ -65,6 +93,9 @@ typedef struct {
     int32_t lyap_map, lyap_fb;           /* local Lyapunov exponents, natural log, Q16, smoothed */
     int64_t lsum_map, lsum_fb;           /* their sums since bk_lyap_reset(), for tests */
     uint32_t lcount;
+    bk_part_t part[BK_NPART];            /* the gesture layer */
+    int32_t phist[BK_HIST];              /* partial 0's map, Q30, a ring by step */
+    uint32_t nstep;                      /* steps since the note began */
 } bk_voice_t;
 
 typedef struct {
@@ -72,8 +103,11 @@ typedef struct {
     int32_t par[BK_NPARAMS];
     uint32_t seed, ages;
     int64_t R_hand, R;                   /* Q60: the knob's R and the R that plays */
-    int64_t rho, rhov;                   /* the self-moving offset (Q32, R units) and its speed (Q32 / s) */
-    int32_t lyap;                        /* the voices' mean Lyapunov exponent, Q16 (drives D) */
+    int32_t ev, evdir;                   /* EVOLVE: how far above the knob R stands (u, Q16), and which way */
+    int32_t lyap;                        /* the voices' mean Lyapunov exponent, Q16 (EVOLVE lingers where < 0) */
+    int32_t glyap;                       /* the gesture layer's, Q16, smoothed by step */
+    uint32_t step_ph, sub, nsteps, mut;  /* the step clock's phase; frames into the 16-frame control period */
+    int32_t gs, genv;                    /* this control period's glide (0 .. 1) and step envelope, Q15 */
     int32_t dcx, dcy;                    /* the output's DC blocker */
     int32_t mixg;                        /* the mix's level, Q15: 1 / sqrt(voices sounding) */
     uint64_t frames;
@@ -101,5 +135,10 @@ void    bk_diagram_column(int64_t R, uint16_t *bins, uint32_t nbins, uint32_t tr
 
 /* tests: start voice v on a given phase step and state */
 void    bk_voice_force(bk_engine_t *e, uint32_t v, uint32_t inc, int64_t x0, uint32_t vel);
+
+/* the gesture layer */
+void    bk_mutate(bk_engine_t *e);                                    /* nudge every partial's map a little */
+int     bk_voice_pattern(const bk_engine_t *e, uint32_t v, int32_t tol_q30);   /* the step pattern's period */
+int32_t bk_part_cents(const bk_engine_t *e, uint32_t v, uint32_t j);  /* a partial's pitch now, cents Q4 */
 
 #endif

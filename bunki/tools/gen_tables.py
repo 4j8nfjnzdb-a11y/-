@@ -31,4 +31,18 @@ for i in range(0, len(lv), 10):
     print("    " + ", ".join("%du" % v for v in lv[i:i + 10]) + ",")
 print("};")
 print()
+print("/* 2^(i / 256), Q16, i = 0..256: pitch from cents */")
+ev = [int(round(65536 * 2 ** (i / 256))) for i in range(257)]
+print("static const uint32_t BK_EXP2[257] = {")
+for i in range(0, len(ev), 10):
+    print("    " + ", ".join("%du" % v for v in ev[i:i + 10]) + ",")
+print("};")
+print()
+print("/* 64 / n, Q16, n = 0..64 (0 for n = 0): a mean over n without a division */")
+rv = [0] + [int(round(64 * 65536 / n)) for n in range(1, 65)]
+print("static const int32_t BK_R64[65] = {")
+for i in range(0, len(rv), 8):
+    print("    " + ", ".join("%d" % v for v in rv[i:i + 8]) + ",")
+print("};")
+print()
 print("#endif")

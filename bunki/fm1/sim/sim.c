@@ -78,25 +78,34 @@ static void shot(const char *path)
     fclose(f);
 }
 
-/* what the module's controls are now, as script lines (Q16 values printed exactly) */
-static int32_t last[16];
+/* what the module's controls are now, as script lines (Q16 / Q8 values printed exactly) */
+static int32_t last[20];
 static long ms_of(uint32_t b) { return (long)(((uint64_t)b * 256000u + 44099u) / 44100u); }
 static void log_state(uint32_t b)
 {
-    static const char *P[BK_NPATHS] = {"map", "fbt", "both", "fb1"};
+    static const char *CH[BK_NCHOPS] = {"off", "gate", "arp"}, *TP[BK_NTOPOS] = {"local", "global", "ring"};
+    const int32_t now[15] = {st.seed, st.u, EVO[st.evo], st.eps, st.lift, st.gain, st.npart, rate_q8(st.rate),
+                             st.cents, st.glide, st.chop, st.hold, st.topo, st.timbre, freeze};
     long ms = ms_of(b);
-    if (st.seed != last[0]) fprintf(script, "%ld seed %d\n", ms, st.seed);
-    if (st.u != last[1]) fprintf(script, "%ld u %.16f\n", ms, st.u / 65536.0);
-    if (st.D != last[2]) fprintf(script, "%ld D %.16f\n", ms, st.D / 65536.0);
-    if (st.eps != last[3]) fprintf(script, "%ld eps %.16f\n", ms, st.eps / 65536.0);
-    if (st.C != last[4]) fprintf(script, "%ld C %.16f\n", ms, st.C / 65536.0);
-    if (st.path != last[5]) fprintf(script, "%ld path %s\n", ms, P[st.path]);
-    if (st.lift != last[6]) fprintf(script, "%ld lift %s\n", ms, st.lift ? "sqrt" : "lin");
-    if (st.ratio != last[7]) fprintf(script, "%ld ratio %d\n", ms, st.ratio);
-    if (st.gain != last[8]) fprintf(script, "%ld gain %.16f\n", ms, st.gain / 256.0);
-    last[0] = st.seed; last[1] = st.u; last[2] = st.D; last[3] = st.eps; last[4] = st.C;
-    last[5] = st.path; last[6] = st.lift; last[7] = st.ratio; last[8] = st.gain;
+    if (now[0] != last[0]) fprintf(script, "%ld seed %d\n", ms, now[0]);
+    if (now[1] != last[1]) fprintf(script, "%ld u %.16f\n", ms, now[1] / 65536.0);
+    if (now[2] != last[2]) fprintf(script, "%ld D %.16f\n", ms, now[2] / 65536.0);
+    if (now[3] != last[3]) fprintf(script, "%ld eps %.16f\n", ms, now[3] / 65536.0);
+    if (now[4] != last[4]) fprintf(script, "%ld lift %s\n", ms, now[4] ? "sqrt" : "lin");
+    if (now[5] != last[5]) fprintf(script, "%ld gain %.16f\n", ms, now[5] / 256.0);
+    if (now[6] != last[6]) fprintf(script, "%ld npart %d\n", ms, now[6]);
+    if (now[7] != last[7]) fprintf(script, "%ld rate %.16f\n", ms, now[7] / 256.0);
+    if (now[8] != last[8]) fprintf(script, "%ld cents %d\n", ms, now[8]);
+    if (now[9] != last[9]) fprintf(script, "%ld glide %.16f\n", ms, now[9] / 65536.0);
+    if (now[10] != last[10]) fprintf(script, "%ld chop %s\n", ms, CH[now[10]]);
+    if (now[11] != last[11]) fprintf(script, "%ld hold %d\n", ms, now[11]);
+    if (now[12] != last[12]) fprintf(script, "%ld topo %s\n", ms, TP[now[12]]);
+    if (now[13] != last[13]) fprintf(script, "%ld timbre %d\n", ms, now[13]);
+    if (now[14] != last[14]) fprintf(script, "%ld freeze %d\n", ms, now[14]);
+    memcpy(last, now, sizeof now);
 }
+
+static void press(uint32_t btn) { hb_module.ui(HB_EV_BTN_DOWN | btn, 0); hb_module.ui(HB_EV_BTN_UP | btn, 0); }
 
 static void turn(uint32_t enc, int32_t clicks, int32_t per_event)
 {
@@ -124,15 +133,22 @@ int main(int argc, char **argv)
     for (b = 0; b < N; b++) {
         long ms = ms_of(b);
         notes[0] = 0;
-        if (b == 20) { hb_module.note(0, 60, 100); note_line(ms, "on", 60, 100); }
-        if (b == 400 || b == 800 || b == 1200 || b == 1600) turn(HB_ENC_KNOB1, 16, 1);   /* +1 unit: the next stage */
-        if (b == 2000) turn(HB_ENC_KNOB1, 182, 1);    /* u 4.5 -> 15.875: the period-3 window */
-        if (b == 2600) turn(HB_ENC_SELECT, -40, 1);   /* fine, down 40/512 */
-        if (b == 3000) { hb_module.note(0, 67, 90); note_line(ms, "on", 67, 90); turn(HB_ENC_KNOB3, 20, 4); }
-        if (b == 3400) turn(HB_ENC_KNOB2, 32, 4);     /* D 0.5 */
-        if (b == 3900) { turn(HB_ENC_ALGORITHM, 2, 1); turn(HB_ENC_KNOB4, 40, 4); }
-        if (b == 4100) { hb_module.ui(HB_EV_BTN_DOWN | HB_BTN_SEL, 0); hb_module.ui(HB_EV_BTN_DOWN | HB_BTN_FX, 0); }
-        if (b == 4400) { hb_module.note(0, 60, 0); hb_module.note(0, 67, 0); note_line(ms, "off", 60, 0); note_line(ms, "off", 67, 0); }
+        if (b == 20) { hb_module.note(0, 60, 100); note_line(ms, "on", 60, 100); }       /* a pure sine */
+        if (b == 400 || b == 800 || b == 1200) turn(HB_ENC_KNOB1, 16, 1);              /* 2, 4, 8 */
+        if (b == 1400) turn(HB_ENC_KNOB2, 12, 1);                                     /* twice the steps */
+        if (b == 1600) turn(HB_ENC_KNOB1, 182, 1);                                    /* the window */
+        if (b == 1900) turn(HB_ENC_SELECT, -40, 1);                                   /* out of it, finely */
+        if (b == 2100) { press(HB_BTN_ARP); turn(HB_ENC_ALGORITHM, 2, 1); }           /* CHOP GATE, 6 sines */
+        if (b == 2400) { hb_module.note(0, 67, 90); note_line(ms, "on", 67, 90); turn(HB_ENC_KNOB3, 30, 5); }
+        if (b == 2600) { press(HB_BTN_PLAY); hb_module.note(0, 60, 0); hb_module.note(0, 67, 0);
+                         note_line(ms, "off", 60, 0); note_line(ms, "off", 67, 0); }  /* HOLD, keys let go */
+        if (b == 2800) { press(HB_BTN_GLO); press(HB_BTN_ARP); turn(HB_ENC_KNOB4, -8, 4); }   /* ALL, ARP */
+        if (b == 3000) { press(HB_BTN_REC); size_t l = strlen(notes);                 /* MUTATE */
+                         snprintf(notes + l, sizeof notes - l, "%ld mutate\n", ms); }
+        if (b == 3200) { press(HB_BTN_SEQ); press(HB_BTN_SEQ); turn(HB_ENC_PRESETS, -6, 2); }   /* EVOLVE fast */
+        if (b == 3700) { press(HB_BTN_EDIT); press(HB_BTN_FX); }                      /* FREEZE, TIMBRE */
+        if (b == 4000) { press(HB_BTN_EDIT); press(HB_BTN_SEQ); press(HB_BTN_GLO); }  /* on, EVOLVE off, RING */
+        if (b == 4400) press(HB_BTN_PLAY);                                            /* HOLD off: they end */
         log_state(b);                                 /* init's settings at 0, then each block's changes */
         fputs(notes, script);
         memset(buf, 0, sizeof buf);

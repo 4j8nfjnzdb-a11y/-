@@ -1,15 +1,17 @@
 /* bunki on the computer: an event script in, a WAV, the telemetry and the screens out.
  *
  *   bunki run SCRIPT OUT.wav [--csv FILE] [--screens DIR]
- *   bunki sweep NOTE SECONDS OUT.wav [map|fbt|both|fb1] [SEED]   one note, the knob from 0 to 22
+ *   bunki sweep NOTE SECONDS OUT.wav [map|fbt|both|fb1|gesture] [SEED]   one note, the knob from 0 to 22
  *   bunki blind SEED OUT.wav KEY.txt                              a listening test, the order from SEED
  *
  * A script line is "<ms> <command> [args]" ('#' starts a comment). The time is turned into a block
  * of 256 frames (as the FM-1 renders them), and every command takes effect at the start of its block,
  * in the order of the file: the same script gives the same bits.
  *   seed N | on NOTE [VEL] | off NOTE | alloff
- *   u UNITS (0..22) | D 0..1 | eps 0..1 | C -1..1 | gain RAD | beta RAD (-1: from R)
+ *   u UNITS (0..22) | D 0..1 (EVOLVE) | eps 0..1 | C -1..1 | gain RAD | beta RAD (-1: from R)
  *   path map|fbt|both|fb1 | lift lin|sqrt | ratio 1..3
+ *   the gesture layer: npart 0..8 | rate HZ | cents 0..2400 | glide 0..1 | chop off|gate|arp | hold 0|1
+ *                      topo local|global|ring | timbre 0|1 | freeze 0|1 | mutate
  *   ramp u|D|eps|C FROM TO MS          a straight line, set at every block
  *   screen NAME                        the screen after this block, as NAME.ppm (with --screens)
  *   end                                the last block */
@@ -48,6 +50,13 @@ static int param_of(const char *name)
     if (!strcmp(name, "C")) return BK_P_C;
     if (!strcmp(name, "gain")) return BK_P_GAIN;
     if (!strcmp(name, "beta")) return BK_P_BETA;
+    if (!strcmp(name, "npart")) return BK_P_NPART;
+    if (!strcmp(name, "rate")) return BK_P_RATE;
+    if (!strcmp(name, "cents")) return BK_P_CENTS;
+    if (!strcmp(name, "glide")) return BK_P_GLIDE;
+    if (!strcmp(name, "hold")) return BK_P_HOLD;
+    if (!strcmp(name, "timbre")) return BK_P_TIMBRE;
+    if (!strcmp(name, "freeze")) return BK_P_FREEZE;
     return -1;
 }
 
@@ -56,6 +65,8 @@ static int32_t scaled(int param, double v)        /* a value as the engine takes
     switch (param) {
     case BK_P_GAIN: return (int32_t)(v * 256.0 + 0.5);
     case BK_P_BETA: return v < 0 ? -1 : (int32_t)(v * 256.0 + 0.5);
+    case BK_P_RATE: return (int32_t)(v * 256.0 + 0.5);
+    case BK_P_NPART: case BK_P_CENTS: case BK_P_HOLD: case BK_P_TIMBRE: case BK_P_FREEZE: return (int32_t)(v + 0.5);
     default: return (int32_t)(v * 65536.0 + (v < 0 ? -0.5 : 0.5));
     }
 }
@@ -84,7 +95,7 @@ static int load(const char *path)
         if (n < 2) continue;
         e->nv = n - 3;
         if (n >= 3 && strcmp(e->cmd, "ramp") && strcmp(e->cmd, "path") && strcmp(e->cmd, "lift")
-            && strcmp(e->cmd, "screen")) {
+            && strcmp(e->cmd, "screen") && strcmp(e->cmd, "chop") && strcmp(e->cmd, "topo")) {
             if (n >= 4) e->v[1] = e->v[0];         /* "on 60 100": 60 in a, 100 in v[0] */
             e->v[0] = atof(e->a);
         }
@@ -145,6 +156,9 @@ static void apply(run_t *r, const ev_t *ev, uint32_t b)
     else if (!strcmp(ev->cmd, "path")) bk_set(e, BK_P_PATH, path_of(ev->a));
     else if (!strcmp(ev->cmd, "lift")) bk_set(e, BK_P_LIFT, !strcmp(ev->a, "sqrt"));
     else if (!strcmp(ev->cmd, "ratio")) bk_set(e, BK_P_RATIO, (int32_t)ev->v[0]);
+    else if (!strcmp(ev->cmd, "chop")) bk_set(e, BK_P_CHOP, !strcmp(ev->a, "gate") ? BK_CHOP_GATE : !strcmp(ev->a, "arp") ? BK_CHOP_ARP : BK_CHOP_OFF);
+    else if (!strcmp(ev->cmd, "topo")) bk_set(e, BK_P_TOPO, !strcmp(ev->a, "global") ? BK_TOPO_GLOBAL : !strcmp(ev->a, "ring") ? BK_TOPO_RING : BK_TOPO_LOCAL);
+    else if (!strcmp(ev->cmd, "mutate")) bk_mutate(e);
     else if (!strcmp(ev->cmd, "ramp")) {
         int i;
         p = param_of(ev->a);
@@ -267,7 +281,11 @@ int main(int argc, char **argv)
         int note = atoi(argv[2]);
         double secs = atof(argv[3]);
         uint32_t seed = argc >= 7 ? (uint32_t)strtoul(argv[6], 0, 0) : 1u;
-        add(0, "path", argc >= 6 ? argv[5] : "map", 0, 0, 0, 0);
+        if (argc >= 6 && !strcmp(argv[5], "gesture")) {      /* the gesture layer alone: 4 partials, 4 Hz */
+            add(0, "npart", "", 4, 0, 0, 0);
+            add(0, "timbre", "", 0, 0, 0, 0);
+        } else
+            add(0, "path", argc >= 6 ? argv[5] : "map", 0, 0, 0, 0);
         add(0, "u", "0", 0, 0, 0, 0);
         add(block_of_ms(200), "on", "", note, 100, 0, 1);
         add(block_of_ms(1200), "ramp", "u", 0, 22, secs * 1000.0, 3);
@@ -316,7 +334,7 @@ int main(int argc, char **argv)
         return finish(&R);
     }
     fprintf(stderr, "bunki run SCRIPT OUT.wav [--csv FILE] [--screens DIR]\n"
-                    "bunki sweep NOTE SECONDS OUT.wav [map|fbt|both|fb1] [SEED]\n"
+                    "bunki sweep NOTE SECONDS OUT.wav [map|fbt|both|fb1|gesture] [SEED]\n"
                     "bunki blind SEED OUT.wav KEY.txt\n");
     return 2;
 }

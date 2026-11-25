@@ -1,0 +1,33 @@
+# the gesture layer: one key from a pure sine through the cascade, chaos and a window; then a chord whose sines
+# pull on each other (two groups, groups that change, one line); then HOLD, and R climbing by itself
+0      npart 4
+0      timbre 0
+0      rate 2
+0      glide 0.85
+0      cents 700
+0      u 0.5
+200    on 60 100                  # a pure sine
+3000   ramp u 0.5 1.5 6000        # the trill: period 2
+11000  ramp u 1.5 3.5 6000        # 4, then 8 notes
+18000  rate 6
+19000  ramp u 3.5 13 8000         # chaos: the line wanders, then the sine splits into four
+29000  ramp u 13 15.9 2500        # the period-3 window: three notes again, suddenly
+34000  chop arp                   # one sine a step: an arpeggio the network plays
+38000  ramp u 15.9 20 3000
+42000  topo global
+42000  eps 0.3                    # a chord, all its sines pulling on each other: two groups
+42000  on 67 90
+42000  on 64 80
+52000  eps 0.4                    # groups that keep changing
+60000  eps 0.6                    # one line
+66000  eps 0.1
+66000  chop gate
+66000  hold 1                     # keys let go: they sound on
+66500  off 60
+66500  off 67
+66500  off 64
+67000  u 0.5
+67000  D 1                        # EVOLVE: R climbs by itself, lingers in windows, collapses back
+120000 D 0
+120000 hold 0
+123000 end
