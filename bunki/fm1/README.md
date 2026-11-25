@@ -13,8 +13,33 @@ M-VAVE のファームウェアを置き換えるのではなく、fm1-dock の�
    (元に戻す方法は下)。ファームウェアの書き換えは自己責任。
 2. 同じページの **console**(<https://joakimeriksson.github.io/fm1-dock/#console>)の **Deploy a module** で
    `bunki.dock` を選ぶ。数秒で入り、そのまま BUNKI が立ち上がる。
-   コマンドなら fm1-dock のリポジトリで `tools/dock.py deploy bunki.dock`(python-rtmidi が要る)。
+   ターミナルからなら下の `deploy.sh`。
 3. 次からは **HOME を押して BUNKI を選ぶ**。
+
+### ターミナルから(FM-1 を USB でつないで)
+
+```sh
+# 一度だけ:このリポジトリと、USB-MIDI を話すための python-rtmidi(uv があれば pip は不要)
+git clone -b claude/adoring-pascal-lwrjgv https://github.com/4j8nfjnzdb-a11y/-.git bunki-repo
+cd bunki-repo
+pip3 install mido python-rtmidi
+
+# FM-1 に fm1-dock がまだなければ(本体のファームウェアが置き換わる。書き込む前に確認が出る)
+#   https://github.com/joakimeriksson/fm1-dock/releases/latest から fm1-dock-1.0.0.fwsc(Standard)を落として
+git clone https://github.com/joakimeriksson/fm1-dock
+python3 fm1-dock/tools/fm1_install.py ~/Downloads/fm1-dock-1.0.0.fwsc
+
+# BUNKI を入れる
+bunki/fm1/deploy.sh check      # FM-1 が答えるか:ビルド、空き、入っているモジュール
+bunki/fm1/deploy.sh            # 入れる。数秒で BUNKI が立ち上がる
+bunki/fm1/deploy.sh delete     # 外す
+bunki/fm1/deploy.sh logs       # 落ちたときの記録
+```
+
+`deploy.sh` は fm1-dock(固定したリビジョン)を `bunki/fm1/build/` に取ってきて、その `tools/dock.py deploy` を呼ぶだけ。
+FM-1 の MIDI ポートは名前(Felucca / FM1-DOCK / FM-1)で自動で見つかる。見つからないときは
+`--port 名前` を足す(`deploy.sh check --port "..."`)。Windows では `deploy.sh` の代わりに
+`py fm1-dock\tools\dock.py deploy bunki\fm1\bunki.dock`。
 
 ## 操作
 
