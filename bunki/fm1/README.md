@@ -18,28 +18,37 @@ M-VAVE のファームウェアを置き換えるのではなく、fm1-dock の�
 
 ### ターミナルから(FM-1 を USB でつないで)
 
+git も Xcode も要らない手順(Mac の zsh にそのまま貼れるよう、コメント行なし)。
+python-rtmidi と mido は先に `pip3 install mido python-rtmidi`。
+
 ```sh
-# 一度だけ:このリポジトリと、USB-MIDI を話すための python-rtmidi(uv があれば pip は不要)
-git clone -b claude/adoring-pascal-lwrjgv https://github.com/4j8nfjnzdb-a11y/-.git bunki-repo
-cd bunki-repo
-pip3 install mido python-rtmidi
-
-# FM-1 に fm1-dock がまだなければ(本体のファームウェアが置き換わる。書き込む前に確認が出る)
-#   https://github.com/joakimeriksson/fm1-dock/releases/latest から fm1-dock-1.0.0.fwsc(Standard)を落として
-git clone https://github.com/joakimeriksson/fm1-dock
-python3 fm1-dock/tools/fm1_install.py ~/Downloads/fm1-dock-1.0.0.fwsc
-
-# BUNKI を入れる
-bunki/fm1/deploy.sh check      # FM-1 が答えるか:ビルド、空き、入っているモジュール
-bunki/fm1/deploy.sh            # 入れる。数秒で BUNKI が立ち上がる
-bunki/fm1/deploy.sh delete     # 外す
-bunki/fm1/deploy.sh logs       # 落ちたときの記録
+cd ~/Downloads
+curl -L -o fm1-dock.zip https://github.com/joakimeriksson/fm1-dock/archive/60a89df6554f6df3823f03a4c893b6715bfef9b5.zip
+unzip -q -o fm1-dock.zip
+curl -L -o bunki.dock https://raw.githubusercontent.com/4j8nfjnzdb-a11y/-/1a6e57411503df3cf9b624414299fc0bf5f4c5b7/bunki/fm1/bunki.dock
+cd fm1-dock-60a89df6554f6df3823f03a4c893b6715bfef9b5
+python3 tools/dock.py info
 ```
 
-`deploy.sh` は fm1-dock(固定したリビジョン)を `bunki/fm1/build/` に取ってきて、その `tools/dock.py deploy` を呼ぶだけ。
-FM-1 の MIDI ポートは名前(Felucca / FM1-DOCK / FM-1)で自動で見つかる。見つからないときは
-`--port 名前` を足す(`deploy.sh check --port "..."`)。Windows では `deploy.sh` の代わりに
-`py fm1-dock\tools\dock.py deploy bunki\fm1\bunki.dock`。
+`info` に FM-1 のビルドや空きが出れば fm1-dock が入っている。そのまま:
+
+```sh
+python3 tools/dock.py deploy ~/Downloads/bunki.dock
+```
+
+`info` が答えない(純正のファームウェアのまま)なら、先に fm1-dock を入れる(本体のファームウェアが置き換わる。
+書き込む前に確認が出る。いまの最新リリースは v0.9.0):
+
+```sh
+curl -L -o ~/Downloads/fm1-dock-0.9.0.fwsc https://github.com/joakimeriksson/fm1-dock/releases/download/v0.9.0/fm1-dock-0.9.0.fwsc
+python3 tools/fm1_install.py ~/Downloads/fm1-dock-0.9.0.fwsc
+python3 tools/dock.py info
+python3 tools/dock.py deploy ~/Downloads/bunki.dock
+```
+
+外す:`python3 tools/dock.py delete BUNKI`。落ちたときの記録:`python3 tools/dock.py logs`。
+FM-1 の MIDI ポートは名前(Felucca / FM1-DOCK / FM-1)で自動で見つかる。見つからないときは `--port 名前` を足す。
+git がある環境なら `bunki/fm1/deploy.sh`(`check` / 引数なしで deploy / `delete` / `logs`)が同じことをする。
 
 ## 操作
 
@@ -84,8 +93,8 @@ FM-1 の MIDI ポートは名前(Felucca / FM1-DOCK / FM-1)で自動で見つか
 - モジュールの経路(キューとスロット)がエンジンと同じビットを出すこと:`sim/` の偽ホストで同じ操作をデスクトップの台本に
   変換し、ハッシュが一致。
 
-**まだ確かめていないこと**:実機の FM-1、fm1-dock 1.0(この環境ではビルドに要る JieLi AC79 SDK を取れなかったので、
-リポジトリにある 0.7 のパッケージで試した。モジュールの ABI は同じ 2)、SMK-37。
+**まだ確かめていないこと**:実機の FM-1、fm1-dock 0.9 / 1.0 の上での動作(この環境ではビルドに要る JieLi AC79 SDK を
+取れなかったので、リポジトリにある 0.7 のパッケージで試した。モジュールの ABI は同じ 2)、SMK-37。
 エミュレータは 1 命令 = 1 サイクルで数えるので、実機ではフラッシュから実行するコードのキャッシュミスの分、負荷が上がりうる。
 
 ## ビルドし直す
