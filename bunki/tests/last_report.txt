@@ -85,8 +85,8 @@ bunki tests
   [ok] the window clears: aperiodic part -81.8 dB against -4.0 / -3.9 around it
 
 == 3. reproducible: the same seed and events, the same bits
-  [ok] seed 1 twice: e70303d3cf73d433 e70303d3cf73d433
-  [ok] seed 2 differs: 49e4ab3c28d83a61
+  [ok] seed 1 twice: 4e10450aeb7f56fd 4e10450aeb7f56fd
+  [ok] seed 2 differs: 5741851d4036a883
   (make cross: the same script through gcc -O0, gcc -O2 and clang -O2)
 
 == 4. finite precision: the length of the cycle the chaotic orbit ends in (Brent)
@@ -155,11 +155,11 @@ bunki tests
               4.0  0.5      0.3810      5.29      102.7        0%
               4.0  0.7      0.0000      1.00        0.0      100%
   c. the steps' schedule as a source of its own: R = 3.2 (period 2), a fifth; voice C4 alone
-  eps 0.00: map period  2, |x_k - x_(k-2)| up to 0.00e+00, off the lines of f0/2:  -78.7 dB
-  [ok] uncoupled: period 2 exactly (-78.7 dB off its lines)
+  eps 0.00: map period  2, |x_k - x_(k-2)| up to 0.00e+00, off the lines of f0/2:  -75.1 dB
+  [ok] uncoupled: period 2 exactly (-75.1 dB off its lines)
   eps 0.05: map period  0, |x_k - x_(k-2)| up to 1.50e-02, off the lines of f0/2:  -35.2 dB
   eps 0.20: map period  0, |x_k - x_(k-2)| up to 3.24e-02, off the lines of f0/2:  -30.1 dB
-  eps 0.50: map period  2, |x_k - x_(k-2)| up to 4.30e-07, off the lines of f0/2:  -79.7 dB
+  eps 0.50: map period  2, |x_k - x_(k-2)| up to 4.30e-07, off the lines of f0/2:  -76.0 dB
 
 == 6. the paths: where each stage appears as the knob turns (C4; a stage counts from -40 dB)
   MAP            p2 at u  1.00  p4 at  2.00  p8 at  3.25  aperiodic from  6.25  windows: u8.25:p6 u15.75:p3 u16.00:p3 u16.25:p6 u18.50:p5
@@ -182,9 +182,9 @@ bunki tests
   [ok] D back to 0: R returns to the hand's (off by 2.03e-07)
 
 == 8. time on this computer (reference only)
-  path 0, 8 voices: 4.2 ns per voice-frame (671x real time)
-  path 1, 8 voices: 6.7 ns per voice-frame (424x real time)
-  path 2, 8 voices: 6.9 ns per voice-frame (409x real time)
-  path 3, 8 voices: 5.0 ns per voice-frame (571x real time)
+  path 0, 8 voices: 4.2 ns per voice-frame (670x real time)
+  path 1, 8 voices: 7.0 ns per voice-frame (407x real time)
+  path 2, 8 voices: 7.0 ns per voice-frame (405x real time)
+  path 3, 8 voices: 4.7 ns per voice-frame (604x real time)
 
 58 checks, 0 failed

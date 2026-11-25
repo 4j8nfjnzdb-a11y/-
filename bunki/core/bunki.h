@@ -75,6 +75,7 @@ typedef struct {
     int64_t rho, rhov;                   /* the self-moving offset (Q32, R units) and its speed (Q32 / s) */
     int32_t lyap;                        /* the voices' mean Lyapunov exponent, Q16 (drives D) */
     int32_t dcx, dcy;                    /* the output's DC blocker */
+    int32_t mixg;                        /* the mix's level, Q15: 1 / sqrt(voices sounding) */
     uint64_t frames;
 } bk_engine_t;
 

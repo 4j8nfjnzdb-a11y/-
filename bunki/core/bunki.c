@@ -19,8 +19,10 @@
 #define L2_FLOOR  (-40 * 65536)          /* log2 of a derivative that is 0 (a superstable point) */
 #define MU0       3277                   /* C = 1: the feedback loop's step moves x by 0.05 per unit, Q16 */
 #define NU0       2608                   /* C = 1: the map's step moves beta by 0.5 rad per unit, cycles Q15 */
-#define XEDGE     ((int64_t)1 << 22)     /* x stays 2^-40 off 0 and 1: 0 is a fixed point for every R, and
-                                          * a voice pushed onto it (by C, or 1 -> 0) would be a sine for good */
+#define XEDGE     ((int64_t)1 << 24)     /* x stays 2^-38 off 0 and 1: 0 is a fixed point for every R, and
+                                          * a voice pushed onto it (by C, or 1 -> 0) would be a sine for good.
+                                          * (Not 2^22: ONE - 2^22 ends in the word 0xFFC00000, which fm1-dock's
+                                          * build refuses as a reference into the chip's ROM) */
 #define DC_A      32744                  /* the output's DC blocker: a pole at ~5 Hz, Q15 */
 
 /* the knob: u = 0 .. 22 (Q16); one unit per period doubling, then the chaotic band over 16 units.
@@ -49,6 +51,10 @@ static const int32_t BB[6] = {128, 256, 445, 486, 494, 768};
 static const uint32_t INC_C9[12] = {
     815363807u, 863847862u, 915214929u, 969636441u, 1027294024u, 1088380105u,
     1153098554u, 1221665363u, 1294309365u, 1371273005u, 1452813141u, 1539201906u};
+
+/* 1 / sqrt(N), Q15: the mix of N voices stays under full scale even when their peaks meet
+ * (N sqrt(N)^-1 x 8890 <= 25145 for N = 8); one voice is as loud as before */
+static const int32_t MIXG[BK_NV + 1] = {32768, 32768, 23170, 18919, 16384, 14654, 13377, 12385, 11585};
 
 /* 8 / N, Q16: the mean field's 1/N without a division */
 static const int32_t R8[BK_NV + 1] = {0, 524288, 262144, 174763, 131072, 104858, 87381, 74898, 65536};
@@ -406,8 +412,8 @@ void bk_render(bk_engine_t *e, int32_t *out, uint32_t n)
     const int32_t path = e->par[BK_P_PATH], C = e->par[BK_P_C];
     const uint32_t ratio = (uint32_t)e->par[BK_P_RATIO], solo = (uint32_t)e->par[BK_P_SOLO];
     const int fbt = path == BK_PATH_FBT || path == BK_PATH_BOTH, fb1 = path == BK_PATH_FB1;
-    int32_t gain, beta0, mu, nu;
-    uint32_t i, k, na = 0;
+    int32_t gain, beta0, mu, nu, mixt;
+    uint32_t i, k, na = 0, sounding = 0;
     int32_t lsum = 0;
 
     /* once a block: the voices' mean Lyapunov exponent, R, the feedback amount, the ceilings */
@@ -430,9 +436,11 @@ void bk_render(bk_engine_t *e, int32_t *out, uint32_t n)
     for (k = 0; k < BK_NV; k++) {
         bk_voice_t *v = &e->v[k];
         uint32_t nf = (uint32_t)(((uint64_t)v->inc * BK_FS) >> 32) * ratio;   /* the modulator, Hz */
+        sounding += v->active;
         int32_t q = (int32_t)(18000u * RAD_Q15 / (nf ? nf : 1u)) - RAD_Q15;   /* (dev + 1) f_m <= 18 kHz */
         v->imax = q < 0 ? 0 : q > ICAP ? ICAP : q;
     }
+    mixt = MIXG[sounding];                                        /* the mix's level glides there in ~60 ms */
 
     for (i = 0; i < n; i++) {
         uint32_t wrapped = 0;
@@ -492,6 +500,10 @@ void bk_render(bk_engine_t *e, int32_t *out, uint32_t n)
             if (!v->amp && !v->gate)
                 v->active = 0;                                    /* silent: leaves the mean field */
         }
+        /* the mix's level: a slow gain, changed only when voices come or go */
+        if (e->mixg < mixt) { e->mixg += 8; if (e->mixg > mixt) e->mixg = mixt; }
+        else if (e->mixg > mixt) { e->mixg -= 8; if (e->mixg < mixt) e->mixg = mixt; }
+        mix = (int32_t)(((int64_t)mix * e->mixg) >> 15);
         /* the DC blocker: an asymmetric index puts DC in the sound (a linear filter: it adds no
          * frequency, and a periodic sound stays as periodic) */
         e->dcy = (mix - e->dcx) * 256 + (int32_t)(((int64_t)e->dcy * DC_A) >> 15);   /* 8 more bits inside */
@@ -533,6 +545,7 @@ void bk_init(bk_engine_t *e, uint32_t seed)
     e->par[BK_P_BETA] = -1;
     e->par[BK_P_SOLO] = 0xFF;
     e->R_hand = e->R = KR[0];
+    e->mixg = 32768;
 }
 
 int32_t bk_voice_x(const bk_engine_t *e, uint32_t vi, uint32_t age)

@@ -4,8 +4,8 @@
 純音 → 周期 2(1 オクターブ下)→ 周期 4 → 周期 8 → … → カオス(倍音のまわりのノイズの帯)→
 周期 3 の窓で突然澄む → 再びカオス、と変わっていく。
 
-M-VAVE FM-1(JieLi AC791N)の fm1-dock モジュールにするためのエンジンで、いまはその前段:
-**デスクトップ C のコア・ホスト・テスト**まで(フェーズ 2)。FM-1 への移植はフェーズ 3。
+M-VAVE FM-1(JieLi AC791N)の fm1-dock モジュール。**FM-1 に入れるファイルは [`fm1/bunki.dock`](fm1/bunki.dock)**、
+入れ方・操作・元に戻す手順は [fm1/README.md](fm1/README.md)。エンジンはデスクトップでも動き、テストはそちらで回す。
 
 ## しくみ(詳しくは [DESIGN.md](DESIGN.md))
 
@@ -52,6 +52,9 @@ host/bunki_cli.c        台本 → WAV / テレメトリ CSV / 画面
 host/bk_screen.c        FM-1 の画面(240×240)をデスクトップで描く
 tests/bunki_test.c      判定基準の数値(58 チェック)
 tests/scripts/          perform.txt(全機能)、stages.txt(段ごとに止まる)
+fm1/bunki/              fm1-dock のモジュール(bunki_module.c, module.cfg)
+fm1/bunki.dock          ビルド済み(fm1/build.sh で作り直せる)
+fm1/sim/sim.c           fm1-dock のふりをする偽ホスト(make fm1sim)
 ```
 
 ## いまの結果(`make test`、全 58 チェック通過)
@@ -92,7 +95,6 @@ tests/scripts/          perform.txt(全機能)、stages.txt(段ごとに止ま�
 
 ## まだのこと
 
-- FM-1 への移植(fm1-dock モジュール、fm1-emu でのビット一致とサイクル数)。JieLi のツールチェーンの
-  取得元にこの環境からは届かない(ネットワーク設定で 403)。
+- 実機の FM-1 での確認(fm1-emu では fm1-dock 0.7 の上で動作・負荷・軌道の一致まで確認:[fm1/README.md](fm1/README.md))。
 - サイン写像など、ロジスティック以外の写像(ノブの節点を写像ごとに求める必要がある)。
 - ブラインド聴取は音源と答え(`blind_key.txt`)を作るところまで。聴いて数えるのは人。
