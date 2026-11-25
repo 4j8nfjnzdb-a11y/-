@@ -1,0 +1,18 @@
+# one note, the knob stopping on each stage for four seconds: count the subharmonics
+0     u 0.5
+100   on 67 100
+4000  u 1.5
+7500  screen p2
+8000  u 2.5
+11500 screen p4
+12000 u 3.5
+15500 screen p8
+16000 u 4.5
+19500 screen p16
+20000 u 14.56                  # chaos (R 3.80)
+23500 screen chaos
+24000 u 15.86                  # the period-3 window (R 3.835)
+27500 screen window
+28000 u 18.28                  # chaos (R 3.90)
+32000 off 67
+33000 end

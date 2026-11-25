@@ -1,0 +1,21 @@
+# a performance that touches everything; `make cross` renders it with three compilers
+0     seed 1
+0     path map
+0     u 0
+200   on 60 100
+1000  ramp u 0 5 8000          # through the cascade: 1, 2, 4, 8, 16
+9000  ramp u 5 16 6000         # into chaos, and into the period-3 window (u 15.6 .. 16.1)
+15000 screen window_perform
+15500 on 67 90
+15500 on 64 90
+16000 eps 0.15                 # three voices coupled
+19000 ramp eps 0.15 0.6 4000
+23000 screen coupled
+23500 D 0.6                    # R walks by itself
+30000 screen walking
+30500 path both                # the map and the period-delayed feedback, cooperating
+30500 C 0.8
+34000 C -0.8                   # then competing
+37000 D 0
+37000 alloff
+39000 end

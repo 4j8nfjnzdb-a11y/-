@@ -1,0 +1,190 @@
+bunki tests
+
+== 1. the map: its doubling points, windows, Lyapunov exponent (integer Q62 map)
+  [ok] period  1 ->  2 at R = 2.999922 (known 3.000000, knob node u = 1 at 3.000000)
+  [ok] period  2 ->  4 at R = 3.449459 (known 3.449490, knob node u = 2 at 3.449490)
+  [ok] period  4 ->  8 at R = 3.544078 (known 3.544090, knob node u = 3 at 3.544090)
+  [ok] period  8 -> 16 at R = 3.564402 (known 3.564407, knob node u = 4 at 3.564407)
+  window: period 3 widest at R 3.82845 .. 3.84145 (width 0.01300, knob u 15.62 .. 16.10)
+  [ok] period-3 window opens at 3.82845 (1 + sqrt 8 = 3.82843)
+  window: period 5 widest at R 3.73820 .. 3.74110 (width 0.00290, knob u 12.27 .. 12.37)
+  window: period 6 widest at R 3.84155 .. 3.84760 (width 0.00605, knob u 16.11 .. 16.33)
+  window: period 7 widest at R 3.70165 .. 3.70215 (width 0.00050, knob u 10.91 .. 10.93)
+  [ok] Lyapunov at R 3.20000: engine -0.9169, double reference -0.9163
+  [ok] Lyapunov at R 3.50000: engine -0.8743, double reference -0.8727
+  [ok] Lyapunov at R 3.82999: engine -0.3677, double reference -0.3683
+  [ok] Lyapunov at R 3.89999: engine +0.4908, double reference +0.4958
+  [ok] Lyapunov at R 4.00000: engine +0.6929, double reference +0.6931
+
+== 2. one note: the period heard = the map's period (MAP path)
+  note 60, lift linear.   new lines at each stage (dB of all), flatness, impurity on the map's period
+                      u  map heard      p2      p4      p8     p16    flat  aperiod   impure
+  period 1         0.50    1     1   -97.2   -91.6   -90.1   -85.9   -85.2    -85.2    -81.3
+  [ok] period 1: map 1, heard 1
+  [ok] period 1: all but -81.3 dB on the lines of f0/1
+  period 2         1.50    2     2    -9.0   -90.9   -87.3   -85.2   -83.1    -83.6    -80.0
+  [ok] period 2: map 2, heard 2
+  [ok] period 2: all but -80.0 dB on the lines of f0/2
+  period 4         2.50    4     4    -6.4   -15.2   -88.2   -84.1   -81.8    -82.5    -79.6
+  [ok] period 4: map 4, heard 4
+  [ok] period 4: all but -79.6 dB on the lines of f0/4
+  period 8         3.50    8     8    -6.4   -12.4   -26.9   -83.9   -81.1    -82.7    -80.3
+  [ok] period 8: map 8, heard 8
+  [ok] period 8: all but -80.3 dB on the lines of f0/8
+  period 16        4.50   16    16    -6.4   -12.3   -23.9   -36.5   -80.3    -82.7    -82.7
+  chaos R 3.80    14.56    0     0   -18.8   -14.5   -10.7   -10.9   -71.0     -6.1      0.0
+  window R 3.835  15.86    3     3   -96.2   -91.5   -89.9   -41.0   -82.5    -81.8    -79.9
+  [ok] window R 3.835: map 3, heard 3
+  [ok] window R 3.835: all but -79.9 dB on the lines of f0/3
+  chaos R 3.90    18.28    0     0   -18.1   -18.8   -11.0    -7.6   -70.2     -5.0      0.0
+  chaos R 4.0     22.00    0     0   -16.4   -10.8   -11.5    -6.8   -69.6     -5.3      0.0
+  [ok] the window clears: aperiodic part -81.8 dB against -6.1 / -5.0 around it
+  note 79, lift linear.   new lines at each stage (dB of all), flatness, impurity on the map's period
+                      u  map heard      p2      p4      p8     p16    flat  aperiod   impure
+  period 1         0.50    1     1   -93.4   -87.9   -99.0   -95.8   -86.1    -83.9    -81.8
+  [ok] period 1: map 1, heard 1
+  [ok] period 1: all but -81.8 dB on the lines of f0/1
+  period 2         1.50    2     2    -9.0   -83.2   -98.1   -93.4   -84.2    -81.4    -79.0
+  [ok] period 2: map 2, heard 2
+  [ok] period 2: all but -79.0 dB on the lines of f0/2
+  period 4         2.50    4     4    -6.4   -15.2   -96.8   -92.2   -82.8    -80.0    -79.7
+  [ok] period 4: map 4, heard 4
+  [ok] period 4: all but -79.7 dB on the lines of f0/4
+  period 8         3.50    8     8    -6.4   -12.4   -26.9   -91.9   -81.9    -80.2    -79.9
+  [ok] period 8: map 8, heard 8
+  [ok] period 8: all but -79.9 dB on the lines of f0/8
+  period 16        4.50   16    16    -6.4   -12.3   -23.9   -36.5   -80.8    -80.3    -80.3
+  chaos R 3.80    14.56    0     0   -24.4   -20.5   -15.6   -15.0   -54.0     -3.9      0.0
+  window R 3.835  15.86    3     3   -97.4   -91.9   -96.9   -92.7   -83.0    -80.1    -77.4
+  [ok] window R 3.835: map 3, heard 3
+  [ok] window R 3.835: all but -77.4 dB on the lines of f0/3
+  chaos R 3.90    18.28    0     0   -26.3   -20.3   -12.3   -14.5   -52.3     -2.6      0.0
+  chaos R 4.0     22.00    0     0   -25.3   -18.7   -17.7   -13.6   -51.0     -2.5      0.0
+  [ok] the window clears: aperiodic part -80.1 dB against -3.9 / -2.6 around it
+  note 60, lift sqrt.   new lines at each stage (dB of all), flatness, impurity on the map's period
+                      u  map heard      p2      p4      p8     p16    flat  aperiod   impure
+  period 1         0.50    1     1   -97.2   -91.6   -90.1   -85.9   -85.2    -85.2    -81.3
+  [ok] period 1: map 1, heard 1
+  [ok] period 1: all but -81.3 dB on the lines of f0/1
+  period 2         1.50    2     2    -3.7   -90.1   -85.8   -81.8   -81.6    -82.4    -78.0
+  [ok] period 2: map 2, heard 2
+  [ok] period 2: all but -78.0 dB on the lines of f0/2
+  period 4         2.50    4     4    -2.7   -15.6   -85.9   -81.8   -80.5    -81.0    -77.7
+  [ok] period 4: map 4, heard 4
+  [ok] period 4: all but -77.7 dB on the lines of f0/4
+  period 8         3.50    8     8    -2.9   -12.6   -25.6   -81.9   -79.7    -81.1    -78.5
+  [ok] period 8: map 8, heard 8
+  [ok] period 8: all but -78.5 dB on the lines of f0/8
+  period 16        4.50   16    16    -2.9   -12.6   -22.6   -36.0   -78.9    -81.2    -81.2
+  chaos R 3.80    14.56    0     0   -14.9   -13.4    -8.9    -8.4   -68.9     -4.0      0.0
+  window R 3.835  15.86    3     3   -95.4   -91.9   -90.2   -40.0   -82.4    -81.8    -79.7
+  [ok] window R 3.835: map 3, heard 3
+  [ok] window R 3.835: all but -79.7 dB on the lines of f0/3
+  chaos R 3.90    18.28    0     0   -16.7   -17.7   -10.1    -6.8   -68.8     -3.9      0.0
+  chaos R 4.0     22.00    0     0   -15.2   -10.2    -9.7    -6.0   -68.3     -4.0      0.0
+  [ok] the window clears: aperiodic part -81.8 dB against -4.0 / -3.9 around it
+
+== 3. reproducible: the same seed and events, the same bits
+  [ok] seed 1 twice: e70303d3cf73d433 e70303d3cf73d433
+  [ok] seed 2 differs: 49e4ab3c28d83a61
+  (make cross: the same script through gcc -O0, gcc -O2 and clang -O2)
+
+== 4. finite precision: the length of the cycle the chaotic orbit ends in (Brent)
+       R  Q30 (30 bits)           Q62 (the engine)          
+    3.60      2322     2322       > 2^25 > 2^25
+  [ok] R 3.60: no cycle in the engine's map within 2^25 periods (36 h at 262 Hz)
+    3.70       275      275       > 2^25 > 2^25
+  [ok] R 3.70: no cycle in the engine's map within 2^25 periods (36 h at 262 Hz)
+    3.80       274     3361       > 2^25 > 2^25
+  [ok] R 3.80: no cycle in the engine's map within 2^25 periods (36 h at 262 Hz)
+    3.90      3124     3124       > 2^25 > 2^25
+  [ok] R 3.90: no cycle in the engine's map within 2^25 periods (36 h at 262 Hz)
+    3.95        89       89       > 2^25 > 2^25
+  [ok] R 3.95: no cycle in the engine's map within 2^25 periods (36 h at 262 Hz)
+    3.99      5319     5319       > 2^25 > 2^25
+  [ok] R 3.99: no cycle in the engine's map within 2^25 periods (36 h at 262 Hz)
+    4.00     13404      463       > 2^25 > 2^25
+  [ok] R 4.00: no cycle in the engine's map within 2^25 periods (36 h at 262 Hz)
+
+== 5. coupled voices (x' = F + eps (mean F - F), every F the latest)
+  a. four voices at the same pitch, R = 4: the theory's threshold is eps > 1 - e^-ln2 = 0.5
+  [ok] eps 0.30: transverse exponent +0.336, in step   0 % of the time
+  [ok] eps 0.45: transverse exponent +0.095, in step   0 % of the time
+  [ok] eps 0.55: transverse exponent -0.105, in step 100 % of the time
+  [ok] eps 0.70: transverse exponent -0.511, in step 100 % of the time
+  b. chords: each voice steps at its own pitch, so the steps are not simultaneous (not Kaneko's model)
+                R  eps  max spread  clusters   switch/s   in step
+  fifth       3.9  0.0      0.3500      1.97       10.0        0%
+              3.9  0.1      0.2863      1.98        7.8        0%
+              3.9  0.3      0.2516      1.97       11.0        0%
+              3.9  0.5      0.2162      1.98        7.0        0%
+              3.9  0.7      0.1883      1.97       10.0        0%
+  fifth       4.0  0.0      0.4066      1.98        7.4        0%
+              4.0  0.1      0.3293      1.97        8.8        0%
+              4.0  0.3      0.2800      1.98        8.2        0%
+              4.0  0.5      0.2393      1.98        6.2        0%
+              4.0  0.7      0.2017      1.97        9.0        0%
+  octave      3.9  0.0      0.3505      1.97       10.2        0%
+              3.9  0.1      0.2804      1.97       11.0        0%
+              3.9  0.3      0.2587      1.96       12.6        0%
+              3.9  0.5      0.2336      1.94       20.8        1%
+              3.9  0.7      0.1876      1.85       49.8        0%
+  octave      4.0  0.0      0.4144      1.97       11.0        0%
+              4.0  0.1      0.3078      1.98        8.2        0%
+              4.0  0.3      0.2761      1.96       14.8        1%
+              4.0  0.5      0.2460      1.94       20.2        1%
+              4.0  0.7      0.2038      1.91       30.4        0%
+  triad       3.9  0.0      0.5165      2.90       26.1        0%
+              3.9  0.1      0.4121      2.92       23.7        0%
+              3.9  0.3      0.3575      2.92       24.2        0%
+              3.9  0.5      0.2787      2.91       27.5        0%
+              3.9  0.7      0.2435      2.88       35.6        0%
+  triad       4.0  0.0      0.6040      2.91       24.6        0%
+              4.0  0.1      0.4815      2.93       22.8        0%
+              4.0  0.3      0.3908      2.92       24.4        0%
+              4.0  0.5      0.3004      2.92       26.6        0%
+              4.0  0.7      0.2574      2.88       34.3        0%
+  six notes   3.9  0.0      0.7215      5.48       89.3        0%
+              3.9  0.1      0.5591      5.53       86.5        0%
+              3.9  0.3      0.4828      5.30      105.6        0%
+              3.9  0.5      0.3215      5.30      105.8        0%
+              3.9  0.7      0.0000      1.00        0.0      100%
+  six notes   4.0  0.0      0.8408      5.57       82.7        0%
+              4.0  0.1      0.6469      5.56       86.1        0%
+              4.0  0.3      0.5150      5.46       93.2        0%
+              4.0  0.5      0.3810      5.29      102.7        0%
+              4.0  0.7      0.0000      1.00        0.0      100%
+  c. the steps' schedule as a source of its own: R = 3.2 (period 2), a fifth; voice C4 alone
+  eps 0.00: map period  2, |x_k - x_(k-2)| up to 0.00e+00, off the lines of f0/2:  -78.7 dB
+  [ok] uncoupled: period 2 exactly (-78.7 dB off its lines)
+  eps 0.05: map period  0, |x_k - x_(k-2)| up to 1.50e-02, off the lines of f0/2:  -35.2 dB
+  eps 0.20: map period  0, |x_k - x_(k-2)| up to 3.24e-02, off the lines of f0/2:  -30.1 dB
+  eps 0.50: map period  2, |x_k - x_(k-2)| up to 4.30e-07, off the lines of f0/2:  -79.7 dB
+
+== 6. the paths: where each stage appears as the knob turns (C4; a stage counts from -40 dB)
+  MAP            p2 at u  1.00  p4 at  2.00  p8 at  3.25  aperiodic from  6.25  windows: u8.25:p6 u15.75:p3 u16.00:p3 u16.25:p6 u18.50:p5
+  FB-T           p2 at u  1.25  p4 at  2.25  p8 at  3.00  aperiodic from  6.25  windows: none
+  BOTH C=0       p2 at u  1.00  p4 at  1.50  p8 at  1.75  aperiodic from  2.00  windows: none
+  BOTH C=+1      p2 at u  0.75  p4 at  1.50  p8 at  1.75  aperiodic from  1.75  windows: none
+  BOTH C=-1      p2 at u  1.25  p4 at  1.50  p8 at  1.75  aperiodic from  1.00  windows: u1.25:p14 u1.50:p16
+  FB-1 (DX7)     p2 at u 12.25  p4 at 12.00  p8 at 11.75  aperiodic from 12.50  windows: none
+  (knob nodes: u 1 = r1 3.0, u 2 = r2, u 3 = r3, u 6 = R_inf; the map's period-3 window at u ~15.7)
+
+== 7. D: R walks by itself (10 minutes each, C4, MAP)
+  hand u  3.0, D 0.5: where it was (u 0-2, 2-4, ... 20-22, %):  0 50  6 44  0  0  0  0  0  0  0
+      lambda < 0  46 % of the time; last minute: mean u 5.21, spread 1.477, autocorrelation peak 0.79 at 0.5 s -> walking
+  hand u  3.0, D 1.0: where it was (u 0-2, 2-4, ... 20-22, %): 20 42  1 14 15  8  0  0  0  0  0
+      lambda < 0  53 % of the time; last minute: mean u 4.86, spread 3.107, autocorrelation peak 0.41 at 0.5 s -> walking
+  hand u 14.0, D 0.5: where it was (u 0-2, 2-4, ... 20-22, %):  1 36  6 56  1  0  0  0  0  0  0
+      lambda < 0  40 % of the time; last minute: mean u 5.50, spread 1.508, autocorrelation peak 0.89 at 5.8 s -> walking
+  hand u 14.0, D 1.0: where it was (u 0-2, 2-4, ... 20-22, %): 15 41  1 13 16 14  0  0  0  0  0
+      lambda < 0  49 % of the time; last minute: mean u 5.13, spread 3.474, autocorrelation peak 0.84 at 28.4 s -> walking
+  [ok] D back to 0: R returns to the hand's (off by 2.03e-07)
+
+== 8. time on this computer (reference only)
+  path 0, 8 voices: 4.2 ns per voice-frame (671x real time)
+  path 1, 8 voices: 6.7 ns per voice-frame (424x real time)
+  path 2, 8 voices: 6.9 ns per voice-frame (409x real time)
+  path 3, 8 voices: 5.0 ns per voice-frame (571x real time)
+
+58 checks, 0 failed
