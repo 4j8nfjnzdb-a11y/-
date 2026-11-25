@@ -1,0 +1,48 @@
+<div class="app">
+  <header class="top">
+    <h1><span class="glyph" aria-hidden="true">軋</span><span class="nm">Kishimi<small>軋み</small></span></h1>
+    <p>写真や動画を二つか三つ入れて、混ぜ方を選びます。片方がもう片方を押し、切り、遅らせ、網目から覗かせます。混ぜ方は十通り。二段まで重ねられ、一段目の結果や直前のこまも次の素材になります。</p>
+  </header>
+
+  <main class="main">
+    <section class="stageCol" aria-label="画面">
+      <div class="stage" id="stage">
+        <canvas id="cv" width="1080" height="1080"></canvas>
+        <div class="empty" id="empty">
+          <b>A と B に素材を</b>
+          <p>写真か動画を二つ入れると、ここで混ざりはじめます。三つ目は C へ。ここへ直接ドロップしても、空いている枠に入ります。</p>
+          <div class="row"><button class="btn primary" type="button" data-pick="0">A を入れる</button><button class="btn" type="button" data-pick="1">B を入れる</button></div>
+        </div>
+        <div class="recBadge" id="recBadge" hidden><i></i><span id="recTime">00:00</span></div>
+      </div>
+      <div class="transport">
+        <button class="btn" type="button" id="play" aria-pressed="true">一時停止</button>
+        <button class="btn" type="button" id="shake" title="今の設定から少しずらす">揺さぶる</button>
+        <span class="grow"></span>
+        <button class="btn" type="button" id="still">静止画</button>
+        <button class="btn rec" type="button" id="rec" aria-pressed="false"><span class="dot"></span><span id="recLabel">録画</span></button>
+      </div>
+      <p class="readout" id="readout"></p>
+      <p class="msg" id="msg" role="status"></p>
+    </section>
+
+    <aside class="side">
+      <section class="card" aria-labelledby="h-src">
+        <div class="cardHead"><h2 id="h-src">素材</h2><span class="hint">枠を押すか、ファイルをドロップ</span></div>
+        <div class="slots" id="slots"></div>
+      </section>
+      <section class="card stagecard" id="st0" aria-label="一段目"></section>
+      <section class="card stagecard" id="st1" aria-label="二段目"></section>
+      <section class="card" id="post" aria-label="残像"></section>
+      <section class="card" id="out" aria-label="出力"></section>
+    </aside>
+  </main>
+
+  <footer>
+    <span>スライダーはダブルクリックで初期値に戻ります。</span>
+    <span>録画は MP4（使えないブラウザでは WebM）、毎秒 30 こま。動画の音は入りません。</span>
+  </footer>
+  <input type="file" id="file0" accept="image/*,video/*" hidden>
+  <input type="file" id="file1" accept="image/*,video/*" hidden>
+  <input type="file" id="file2" accept="image/*,video/*" hidden>
+</div>
