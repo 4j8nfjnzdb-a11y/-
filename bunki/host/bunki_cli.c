@@ -12,6 +12,9 @@
  *   path map|fbt|both|fb1 | lift lin|sqrt | ratio 1..3
  *   the gesture layer: npart 0..8 | rate HZ | cents 0..2400 | glide 0..1 | chop off|gate|arp | hold 0|1
  *                      topo local|global|ring | timbre 0|1 | freeze 0|1 | mutate
+ *   the FM-1's panel:  perf (its defaults; keys then go through it, and into the loop) |
+ *                      turn r|time|net|space|fine|n|seed DETENTS | btn hold|arp|evolve|topo|freeze|loop|timbre|micro|
+ *                      mutate|oct [long]
  *   ramp u|D|eps|C FROM TO MS          a straight line, set at every block
  *   screen NAME                        the screen after this block, as NAME.ppm (with --screens)
  *   end                                the last block */
@@ -26,7 +29,7 @@
 
 typedef struct {
     uint32_t block;
-    char cmd[16], a[32];
+    char cmd[16], a[32], tail[32];
     double v[3];
     int nv;
 } ev_t;
@@ -93,9 +96,17 @@ static int load(const char *path)
         memset(e, 0, sizeof *e);
         n = sscanf(line, "%ld %15s %31s %lf %lf %lf", &ms, e->cmd, e->a, &e->v[0], &e->v[1], &e->v[2]);
         if (n < 2) continue;
+        {   /* the words after the first argument ("btn arp long") */
+            char c1[16], a1[32];
+            long t1;
+            int off = 0;
+            if (sscanf(line, "%ld %15s %31s %n", &t1, c1, a1, &off) >= 3 && off > 0)
+                snprintf(e->tail, sizeof e->tail, "%s", line + off);
+        }
         e->nv = n - 3;
         if (n >= 3 && strcmp(e->cmd, "ramp") && strcmp(e->cmd, "path") && strcmp(e->cmd, "lift")
-            && strcmp(e->cmd, "screen") && strcmp(e->cmd, "chop") && strcmp(e->cmd, "topo")) {
+            && strcmp(e->cmd, "screen") && strcmp(e->cmd, "chop") && strcmp(e->cmd, "topo")
+            && strcmp(e->cmd, "turn") && strcmp(e->cmd, "btn")) {
             if (n >= 4) e->v[1] = e->v[0];         /* "on 60 100": 60 in a, 100 in v[0] */
             e->v[0] = atof(e->a);
         }
@@ -149,9 +160,23 @@ static void apply(run_t *r, const ev_t *ev, uint32_t b)
 {
     bk_engine_t *e = &r->e;
     int p;
+    static const char *const KN[BK_NKNOBS] = {"r", "time", "net", "space", "fine", "n", "seed"};
+    static const char *const BN[BK_NBTNS] = {"hold", "arp", "evolve", "topo", "freeze", "loop", "timbre", "micro", "mutate", "oct"};
     if (!strcmp(ev->cmd, "seed")) bk_set(e, BK_P_SEED, (int32_t)ev->v[0]);
+    else if (!strcmp(ev->cmd, "perf")) bk_perf_init(e);
+    else if (!strcmp(ev->cmd, "on") && e->perf) bk_input(e, BK_IN_KEY, (uint32_t)ev->v[0], ev->nv >= 1 ? (int32_t)ev->v[1] : 100);
+    else if (!strcmp(ev->cmd, "off") && e->perf) bk_input(e, BK_IN_KEY, (uint32_t)ev->v[0], 0);
     else if (!strcmp(ev->cmd, "on")) bk_note(e, (uint32_t)ev->v[0], ev->nv >= 1 ? (uint32_t)ev->v[1] : 100u);
     else if (!strcmp(ev->cmd, "off")) bk_note(e, (uint32_t)ev->v[0], 0);
+    else if (!strcmp(ev->cmd, "turn")) {
+        for (p = 0; p < (int)BK_NKNOBS; p++)
+            if (!strcmp(ev->a, KN[p])) bk_input(e, BK_IN_KNOB, (uint32_t)p, (int32_t)ev->v[0]);
+    } else if (!strcmp(ev->cmd, "btn")) {
+        char w[16] = "";
+        sscanf(ev->tail, "%15s", w);
+        for (p = 0; p < (int)BK_NBTNS; p++)
+            if (!strcmp(ev->a, BN[p])) bk_input(e, BK_IN_BTN, (uint32_t)p, strcmp(w, "long") ? 1 : 0);
+    }
     else if (!strcmp(ev->cmd, "alloff")) bk_all_off(e);
     else if (!strcmp(ev->cmd, "path")) bk_set(e, BK_P_PATH, path_of(ev->a));
     else if (!strcmp(ev->cmd, "lift")) bk_set(e, BK_P_LIFT, !strcmp(ev->a, "sqrt"));

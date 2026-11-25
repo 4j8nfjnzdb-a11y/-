@@ -45,4 +45,11 @@ for i in range(0, len(rv), 8):
     print("    " + ", ".join("%d" % v for v in rv[i:i + 8]) + ",")
 print("};")
 print()
+print("/* (2 / pi) asin(sqrt(i / 256)), Q16, i = 0..256: a logistic orbit's values, evened out (at R = 4 exactly uniform) */")
+av = [int(round(65536 * 2 / math.pi * math.asin(math.sqrt(i / 256)))) for i in range(257)]
+print("static const int32_t BK_ASINSQ[257] = {")
+for i in range(0, len(av), 10):
+    print("    " + ", ".join("%d" % v for v in av[i:i + 10]) + ",")
+print("};")
+print()
 print("#endif")

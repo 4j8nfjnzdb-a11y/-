@@ -727,6 +727,99 @@ static void t10_network(void)
     }
 }
 
+/* ---- the panel: ARP, MICRO, OCT, endless knobs, buttons that go on changing, the looper ---- */
+
+static double rms_of(const double *y, int n) { double s2 = 0; int i; for (i = 0; i < n; i++) s2 += y[i] * y[i]; return sqrt(s2 / n); }
+
+static void t11_panel(void)
+{
+    static double y[44100 * 2];
+    int i, k, ok;
+    printf("\n== 11. the panel (bk_perf_init: the FM-1's defaults)\n");
+    {   /* ARP: as loud as without it */
+        double r0, r1;
+        bk_init(&E, 1); bk_perf_init(&E); bk_input(&E, BK_IN_KNOB, BK_KNOB_R, 16);
+        bk_input(&E, BK_IN_KEY, 60, 100); render(&E, 3 * 44100, NULL); render(&E, 2 * 44100, y); r0 = rms_of(y, 2 * 44100);
+        bk_init(&E, 1); bk_perf_init(&E); bk_input(&E, BK_IN_KNOB, BK_KNOB_R, 16); bk_input(&E, BK_IN_BTN, BK_BTN_ARP, 1);
+        bk_input(&E, BK_IN_KEY, 60, 100); render(&E, 3 * 44100, NULL); render(&E, 2 * 44100, y); r1 = rms_of(y, 2 * 44100);
+        check(r1 > 0.7 * r0, "ARP: level %.3f against %.3f without it (it was 1/N before)", r1, r0);
+    }
+    {   /* ARP: each press another way */
+        int seen[64] = {0}, n = 0;
+        bk_init(&E, 1); bk_perf_init(&E);
+        for (i = 0; i < 12; i++) { bk_input(&E, BK_IN_BTN, BK_BTN_ARP, 1); if (!seen[E.par[BK_P_ARPV]]++) n++; }
+        bk_input(&E, BK_IN_BTN, BK_BTN_ARP, 0);
+        check(n >= 6 && E.par[BK_P_CHOP] == BK_CHOP_OFF, "ARP: 12 presses, %d different ways; a long press ends it", n);
+    }
+    {   /* MICRO: semitones, then finer grids, then free */
+        int grid_ok[5] = {0};
+        for (k = 0; k <= 4; k++) {
+            bk_init(&E, 1); bk_perf_init(&E);
+            for (i = 0; i < k; i++) bk_input(&E, BK_IN_BTN, BK_BTN_MICRO, 1);
+            bk_input(&E, BK_IN_KNOB, BK_KNOB_R, 200);           /* chaos */
+            bk_input(&E, BK_IN_KEY, 60, 100);
+            render(&E, 3 * 44100, NULL);
+            ok = 1;
+            for (i = 0; i < 4; i++) if (E.v[0].part[i].cb % (k < 4 ? 1600 >> k : 1) != 0) ok = 0;
+            if (k == 4) { ok = 0; for (i = 0; i < 4; i++) if (E.v[0].part[i].cb % 200) ok = 1; }
+            grid_ok[k] = ok;
+        }
+        check(grid_ok[0] && grid_ok[1] && grid_ok[2] && grid_ok[3] && grid_ok[4],
+              "MICRO: pitches on semitones, then quarter, eighth, sixteenth tones, then off any grid");
+    }
+    {   /* OCT: the sines spread over octaves */
+        int lo = 1 << 30, hi = -(1 << 30);
+        bk_init(&E, 1); bk_perf_init(&E);
+        bk_input(&E, BK_IN_BTN, BK_BTN_OCT, 1); bk_input(&E, BK_IN_BTN, BK_BTN_OCT, 1);
+        bk_input(&E, BK_IN_KNOB, BK_KNOB_R, 200); bk_input(&E, BK_IN_KNOB, BK_KNOB_N, 4);
+        bk_input(&E, BK_IN_KEY, 60, 100);
+        for (k = 0; k < 40; k++) {
+            render(&E, 11025, NULL);
+            for (i = 0; i < 8; i++) { int c = E.v[0].part[i].cb; if (c < lo) lo = c; if (c > hi) hi = c; }
+        }
+        check(hi - lo > 2400 * 16, "OCT twice: the sines' pitches span %.0f cents", (hi - lo) / 16.0);
+    }
+    {   /* the knobs never stop: 400 detents of TIME change the rate at every detent */
+        int32_t last = -1, same = 0, gl0 = 0, gl = 0;
+        bk_init(&E, 1); bk_perf_init(&E);
+        gl0 = E.par[BK_P_GLIDE];
+        for (i = 0; i < 400; i++) {
+            bk_input(&E, BK_IN_KNOB, BK_KNOB_TIME, 1);
+            if (E.par[BK_P_RATE] == last) same++;
+            last = E.par[BK_P_RATE];
+            if (E.par[BK_P_GLIDE] != gl0) gl++;
+        }
+        check(same == 0 && gl > 0, "TIME: 400 detents, the rate moved at each (it turns back at its ends), the glide chosen anew at the turns");
+    }
+    {   /* the looper: what was done comes back each pass; a knob's turn adds again; the same twice */
+        uint64_t h[2];
+        int pass;
+        for (pass = 0; pass < 2; pass++) {
+            static int32_t buf[512];
+            uint32_t b;
+            h[pass] = 1469598103934665603ull;
+            bk_init(&E, 1); bk_perf_init(&E);
+            for (b = 0; b < 3000; b++) {
+                if (b == 10) bk_input(&E, BK_IN_KEY, 60, 100);
+                if (b == 100) bk_input(&E, BK_IN_BTN, BK_BTN_LOOP, 1);
+                if (b == 150) bk_input(&E, BK_IN_KNOB, BK_KNOB_R, 6);
+                if (b == 200) bk_input(&E, BK_IN_BTN, BK_BTN_ARP, 1);
+                if (b == 300) bk_input(&E, BK_IN_BTN, BK_BTN_LOOP, 1);       /* a loop of 200 blocks (1.16 s) */
+                if (b == 1000) bk_input(&E, BK_IN_KNOB, BK_KNOB_TIME, 3);    /* added while it plays */
+                memset(buf, 0, sizeof buf);
+                bk_render(&E, buf, 256);
+                for (i = 0; i < 512; i++) h[pass] = (h[pass] ^ (uint32_t)buf[i]) * 1099511628211ull;
+            }
+        }
+        printf("  looper: KNOB1 at %d detents after 3000 blocks (6 recorded, 200-block loop), %u events in the loop, ARP pressed %u times\n",
+               E.knob[BK_KNOB_R], E.loop_n, E.press[BK_BTN_ARP]);
+        /* (a block's loop events are played at the end of the block before: passes reach block 3000) */
+        check(E.knob[BK_KNOB_R] == 6 * (1 + 14) && E.loop_n == 3, "looper: the turn comes back every pass (%d detents: 6 x 15)", E.knob[BK_KNOB_R]);
+        check(E.knob[BK_KNOB_TIME] == 3 * (1 + 10), "looper: what is done while it plays goes into it (TIME %d: 3 x 11)", E.knob[BK_KNOB_TIME]);
+        check(h[0] == h[1], "looper: the same twice (%016llx)", (unsigned long long)h[0]);
+    }
+}
+
 /* ---- time, for reference only (the FM-1's own cycles are measured in fm1-emu) ---- */
 
 static void t8_time(void)
@@ -760,6 +853,7 @@ int main(int argc, char **argv)
     t7_walk();
     t9_gesture();
     t10_network();
+    t11_panel();
     t8_time();
     printf("\n%d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;

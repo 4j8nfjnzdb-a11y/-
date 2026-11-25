@@ -215,12 +215,23 @@ bunki tests
   period 2, 6 partials: 1 pitch group(s) before chaos, 2 after passing through it
   [ok] through chaos and back, one trill has become two in opposition (a chord the network remembers)
   [ok] HOLD: a released key sounds on; HOLD off ends it
-  CHOP GATE, period 4, 16 steps: x.x.x.x.x.x.x.x.   CHOP ARP, chaos, 4 partials, who sounds: 1334441413242342
+  CHOP GATE, period 4, 16 steps: x.x.x.x.x.x.x.x.   CHOP ARP, chaos, 4 partials, who sounds: 4444444444444444
+
+== 11. the panel (bk_perf_init: the FM-1's defaults)
+  [ok] ARP: level 0.130 against 0.148 without it (it was 1/N before)
+  [ok] ARP: 12 presses, 10 different ways; a long press ends it
+  [ok] MICRO: pitches on semitones, then quarter, eighth, sixteenth tones, then off any grid
+  [ok] OCT twice: the sines' pitches span 5800 cents
+  [ok] TIME: 400 detents, the rate moved at each (it turns back at its ends), the glide chosen anew at the turns
+  looper: KNOB1 at 90 detents after 3000 blocks (6 recorded, 200-block loop), 3 events in the loop, ARP pressed 15 times
+  [ok] looper: the turn comes back every pass (90 detents: 6 x 15)
+  [ok] looper: what is done while it plays goes into it (TIME 33: 3 x 11)
+  [ok] looper: the same twice (f65e2bb0b50f55a9)
 
 == 8. time on this computer (reference only)
-  path 0, 8 voices: 8.1 ns per voice-frame (349x real time)
-  path 1, 8 voices: 9.3 ns per voice-frame (303x real time)
-  path 2, 8 voices: 8.7 ns per voice-frame (327x real time)
-  path 3, 8 voices: 6.6 ns per voice-frame (427x real time)
+  path 0, 8 voices: 5.8 ns per voice-frame (488x real time)
+  path 1, 8 voices: 8.2 ns per voice-frame (348x real time)
+  path 2, 8 voices: 8.3 ns per voice-frame (340x real time)
+  path 3, 8 voices: 6.4 ns per voice-frame (444x real time)
 
-71 checks, 0 failed
+79 checks, 0 failed

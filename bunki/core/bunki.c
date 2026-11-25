@@ -427,6 +427,23 @@ static int32_t cents_of(const bk_engine_t *e, int64_t x, int64_t xs)   /* the ma
     return q < -3600 * 16 ? -3600 * 16 : q > 2400 * 16 ? 2400 * 16 : q;
 }
 
+/* a sine's pitch: the map's distance from the fixed point, an octave dealt by a lower digit of the map (OCT),
+ * then drawn to the grid (MICRO: semitones .. sixteenth tones, or none) */
+static int32_t pitch_of(const bk_engine_t *e, const bk_part_t *p, int64_t xs)
+{
+    const int32_t oct = e->par[BK_P_OCT], micro = e->par[BK_P_MICRO];
+    int32_t c = cents_of(e, p->x, xs);
+    if (oct > 0) {
+        const uint32_t d = (uint32_t)(p->x >> (40 - 3 * (e->par[BK_P_OCTV] & 7))) & 0xFFFFu;
+        c += ((int32_t)((d * (uint32_t)(2 * oct + 1)) >> 16) - oct) * 19200;
+    }
+    if (micro < 4) {
+        const int32_t g = 1600 >> micro;                          /* 100, 50, 25, 12.5 cents, Q4 */
+        c = (c >= 0 ? (c + g / 2) / g : -((-c + g / 2) / g)) * g;
+    }
+    return c < -7200 * 16 ? -7200 * 16 : c > 4800 * 16 ? 4800 * 16 : c;
+}
+
 static void part_start(bk_engine_t *e, bk_voice_t *v, int64_t x0)
 {
     const int64_t xs = fixed_point(e->R);
@@ -438,10 +455,10 @@ static void part_start(bk_engine_t *e, bk_voice_t *v, int64_t x0)
         p->x = x0 + (int64_t)j * ((int64_t)1 << 42);
         if (p->x > BK_ONE - XEDGE) p->x = BK_ONE - XEDGE;
         p->F = p->x;
-        p->ca = p->cb = cents_of(e, p->x, xs);
+        p->ca = p->cb = pitch_of(e, p, xs);
         p->inc = p->inc_a = p->inc_b = cents_inc(v->inc, p->cb);
         p->ph = j << 29;                                          /* (not all in phase: no click) */
-        p->amp = p->damp = 0;
+        p->amp = p->damp = p->pl = 0;
         p->gate = 1;
     }
 }
@@ -485,8 +502,10 @@ static void gesture_step(bk_engine_t *e)
         for (a = 0; a < n; a++) {
             bk_part_t *p = all[a];
             int64_t acc = 0, x;
-            if (topo == BK_TOPO_RING) {                           /* the two neighbours, round the ring */
-                const bk_part_t *l = all[(a + n - 1) % n], *r = all[(a + 1) % n];
+            if (topo == BK_TOPO_RING) {                           /* the two `stride' away, round the ring: some
+                                                                   * strides cut it into separate rings */
+                const int32_t sd = e->par[BK_P_STRIDE] % n;
+                const bk_part_t *l = all[(a + n - sd) % n], *r = all[(a + sd) % n];
                 acc = ((l->F - p->F) >> 1) + ((r->F - p->F) >> 1);
             } else {                                              /* the mean of its group (its voice, or all) */
                 const int32_t g = topo == BK_TOPO_GLOBAL ? (int32_t)BK_NV : vof[a];
@@ -504,22 +523,31 @@ static void gesture_step(bk_engine_t *e)
     }
     for (k = 0; k < BK_NV; k++) {
         bk_voice_t *v = &e->v[k];
-        int32_t top = -1;
-        int64_t xm = -1;
         if (!v->active)
             continue;
         for (j = 0; j < (uint32_t)np; j++) {
             bk_part_t *p = &v->part[j];
             p->ca = p->cb;
-            p->cb = cents_of(e, p->x, xs);
+            p->cb = pitch_of(e, p, xs);
             p->inc_a = p->inc_b;
             p->inc_b = cents_inc(v->inc, p->cb);
             p->gate = chop == BK_CHOP_GATE ? p->x > xs : 1;
-            if (p->x > xm) { xm = p->x; top = (int32_t)j; }
         }
-        if (chop == BK_CHOP_ARP)                                  /* one sounds: the highest of the voice */
-            for (j = 0; j < (uint32_t)np; j++)
-                v->part[j].gate = (int32_t)j == top;
+        if (chop == BK_CHOP_ARP) {                                /* the order the plucks go in this step */
+            const int32_t order = e->par[BK_P_ARPV] & 3;
+            uint8_t o[BK_NPART];
+            int32_t i, q;
+            for (i = 0; i < np; i++) {                            /* by the maps, highest first */
+                for (q = i; q > 0 && v->part[o[q - 1]].x < v->part[i].x; q--) o[q] = o[q - 1];
+                o[q] = (uint8_t)i;
+            }
+            for (i = 0; i < np; i++)
+                v->ord[i] = order == 0 ? o[i]                                 /* down */
+                          : order == 1 ? o[np - 1 - i]                        /* up */
+                          : order == 2 ? (uint8_t)((i + v->nstep) % (uint32_t)np)   /* round, a turn each step */
+                          : (i & 1) ? o[np - 1 - i / 2] : o[i / 2];           /* in from both ends */
+            v->arp_sub = -1;
+        }
         v->phist[v->nstep & (BK_HIST - 1u)] = (int32_t)(v->part[0].x >> 32);
         v->nstep++;
     }
@@ -548,6 +576,37 @@ static void gesture_control(bk_engine_t *e)
     }
     if (np <= 0)
         return;
+    if (chop == BK_CHOP_ARP) {
+        /* ARP: the step cut into N x r plucks, the sines in the step's order, r times round; each pluck rings
+         * on for 1.5, 3 or 6 plucks, so they overlap; a pluck at full level, not 1 / N */
+        static const int32_t DX2[3] = {3, 6, 12};
+        const int32_t av = e->par[BK_P_ARPV], r = 1 + ((av >> 2) & 3) % 3, sub_n = np * r;
+        const int32_t sub = (t * sub_n) >> 15;
+        int32_t M = DX2[((av >> 4) & 3) % 3] * 352800 / (sub_n * e->par[BK_P_RATE]), dk;   /* control periods to 1/10 */
+        if (M < 1) M = 1;
+        dk = 32768 - 75366 / M;
+        dk = dk < 8192 ? 8192 : dk > 32760 ? 32760 : dk;
+        for (k = 0; k < (int32_t)BK_NV; k++) {
+            bk_voice_t *v = &e->v[k];
+            if (!v->active)
+                continue;
+            if (sub != v->arp_sub) {
+                v->arp_sub = (int8_t)sub;
+                v->part[v->ord[sub % np]].pl = 32767;
+            }
+            for (j = 0; j < np; j++) {
+                bk_part_t *p = &v->part[j];
+                int32_t target, diff;
+                p->pl = (p->pl * dk) >> 15;
+                target = (30000 * p->pl) >> 15;
+                diff = target - p->amp;
+                if (diff > 3000) diff = 3000;                     /* (a 1.5 ms rise, not a click) */
+                p->inc = p->inc_a + (uint32_t)(int32_t)((((int64_t)p->inc_b - (int64_t)p->inc_a) * e->gs) >> 15);
+                p->damp = diff / 16;
+            }
+        }
+        return;
+    }
     base = np > 1 ? 32767 * 3 / (2 * np) : 32767;                 /* 1.5 / N: they are rarely all in phase */
     for (k = 0; k < (int32_t)BK_NV; k++) {
         bk_voice_t *v = &e->v[k];
@@ -724,6 +783,8 @@ void bk_render(bk_engine_t *e, int32_t *out, uint32_t n)
         out[2u * i + 1u] += (e->dcy + 128) >> 8;
     }
     e->frames += n;
+    if (e->perf)
+        bk_perf_block(e);
 }
 
 /* ---- controls and telemetry ------------------------------------------------------------- */
@@ -749,6 +810,11 @@ void bk_set(bk_engine_t *e, uint32_t p, int32_t val)
     case BK_P_CHOP: if (val < 0 || val >= BK_NCHOPS) return; break;
     case BK_P_TOPO: if (val < 0 || val >= BK_NTOPOS) return; break;
     case BK_P_TIMBRE: case BK_P_FREEZE: val = val ? 1 : 0; break;
+    case BK_P_OCT: val = val < 0 ? 0 : val > 3 ? 3 : val; break;
+    case BK_P_OCTV: val &= 7; break;
+    case BK_P_MICRO: val = val < 0 ? 0 : val > 4 ? 4 : val; break;
+    case BK_P_STRIDE: val = val < 1 ? 1 : val > 63 ? 63 : val; break;
+    case BK_P_ARPV: val &= 63; break;
     case BK_P_HOLD: {
         uint32_t k;
         val = val ? 1 : 0;
@@ -778,6 +844,8 @@ void bk_init(bk_engine_t *e, uint32_t seed)
     e->par[BK_P_CENTS] = 700;
     e->par[BK_P_GLIDE] = 49152;
     e->par[BK_P_TIMBRE] = 1;
+    e->par[BK_P_MICRO] = 4;                                       /* free pitches (bk_perf_init: semitones) */
+    e->par[BK_P_STRIDE] = 1;
     e->evdir = 1;
     e->gs = e->genv = 32767;
 }
@@ -835,4 +903,230 @@ void bk_diagram_column(int64_t R, uint16_t *bins, uint32_t nbins, uint32_t trans
         if (b >= nbins) b = nbins - 1u;
         if (bins[b] < 0xFFFFu) bins[b]++;
     }
+}
+
+/* ---- the performance: keys, endless knobs, buttons that go on changing, and a looper ---------------------- */
+
+/* point n (n != 0) of a fixed orbit of the map at 3.99, `which' choosing its start (n < 0 another one), evened out
+ * by (2 / pi) asin(sqrt x): the variations a button or a knob's turn picks come from the map, not from dice */
+int32_t bk_orbit(uint32_t which, int32_t n)
+{
+    int64_t x = BK_ONE / 8 + (int64_t)((which * 2u + (n < 0 ? 1u : 0u)) % 11u) * (BK_ONE / 23);
+    uint32_t i, m = (uint32_t)(n < 0 ? -n : n), idx, fr;
+    if (m > 20000u) m = 20000u;
+    for (i = 0; i < m; i++)
+        x = bk_logistic(R399, x);
+    idx = (uint32_t)(x >> 54);
+    fr = (uint32_t)(x >> 38) & 0xFFFFu;
+    if (idx >= 256u) return 65535;
+    return BK_ASINSQ[idx] + (int32_t)(((int64_t)(BK_ASINSQ[idx + 1] - BK_ASINSQ[idx]) * fr) >> 16);
+}
+
+/* a knob's position folded into 0 .. span: it goes on, back and forth; *turns: the ends passed so far */
+static int32_t fold(int32_t pos, int32_t span, int32_t *turns)
+{
+    const int32_t per = 2 * span;
+    int32_t m = pos % per;
+    if (m < 0) m += per;
+    *turns = pos >= 0 ? pos / span : -((-pos + span - 1) / span);
+    return m <= span ? m : per - m;
+}
+
+static const uint32_t SEMI12[12] = {65536, 69433, 73562, 77936, 82570, 87480, 92682, 98193, 104032, 110218, 116772, 123715};
+
+/* the knobs: each moves its value the way it is turned, without an end (at an end it turns back), and at each
+ * turn something more changes, chosen by the map, so that no pass is the one before:
+ *   R      the warped axis, one unit 16 detents (SELECT: 512); at R's top or bottom the network is nudged
+ *   TIME   steps a second, a semitone a detent, 0.25 .. 64; at each end the glide is chosen anew
+ *   NET    eps 0 .. 0.75, 0.01 a detent; at each end the network is nudged
+ *   SPACE  cents 0 .. 2400, 25 a detent; at each end the octaves are dealt anew
+ *   N      sines a voice 1 .. 8 (ALGORITHM)       SEED  the seed (PRESETS) */
+static void knob_apply(bk_engine_t *e, uint32_t k)
+{
+    int32_t v, g = 0;
+    switch (k) {
+    case BK_KNOB_R:
+    case BK_KNOB_FINE:
+        v = fold((1 << 15) + e->knob[BK_KNOB_R] * 4096 + e->knob[BK_KNOB_FINE] * 128, BK_U_MAX, &g);
+        if (g != e->kgen[BK_KNOB_R]) { e->kgen[BK_KNOB_R] = g; bk_mutate(e); }
+        bk_set(e, BK_P_U, v);
+        break;
+    case BK_KNOB_TIME:
+        v = fold(48 + e->knob[k], 96, &g);
+        bk_set(e, BK_P_RATE, (int32_t)(((64u << (v / 12)) * SEMI12[v % 12]) >> 16));
+        if (g != e->kgen[k]) { e->kgen[k] = g; bk_set(e, BK_P_GLIDE, g ? bk_orbit(1, g) : 49152); }
+        break;
+    case BK_KNOB_NET:
+        v = fold(e->knob[k], 75, &g);
+        bk_set(e, BK_P_EPS, v * 65536 / 100);
+        if (g != e->kgen[k]) { e->kgen[k] = g; bk_mutate(e); }
+        break;
+    case BK_KNOB_SPACE:
+        v = fold(28 + e->knob[k], 96, &g);
+        bk_set(e, BK_P_CENTS, v * 25);
+        if (g != e->kgen[k]) { e->kgen[k] = g; bk_set(e, BK_P_OCTV, (bk_orbit(2, g ? g : 1) >> 13) & 7); }
+        break;
+    case BK_KNOB_N:
+        bk_set(e, BK_P_NPART, 1 + fold(3 + e->knob[k], 7, &g));
+        break;
+    case BK_KNOB_SEED:
+        bk_set(e, BK_P_SEED, 1 + e->knob[k]);
+        break;
+    default:
+        break;
+    }
+}
+
+/* the buttons: a press (val 1) goes on to the next state, chosen by the map from the presses so far; a long press
+ * (val 0) ends it */
+static void button_apply(bk_engine_t *e, uint32_t b, int32_t val)
+{
+    uint32_t c;
+    int32_t z;
+    if (b >= BK_NBTNS) return;
+    if (val) e->press[b]++;
+    c = e->press[b];
+    switch (b) {
+    case BK_BTN_HOLD:
+        if (val) bk_set(e, BK_P_HOLD, !e->par[BK_P_HOLD]);
+        else bk_set(e, BK_P_HOLD, 0);
+        break;
+    case BK_BTN_FREEZE:
+        if (val) bk_set(e, BK_P_FREEZE, !e->par[BK_P_FREEZE]);
+        else bk_set(e, BK_P_FREEZE, 0);
+        break;
+    case BK_BTN_ARP:                            /* each press another way of plucking: order, plucks a step, tail */
+        if (!val) { bk_set(e, BK_P_CHOP, BK_CHOP_OFF); break; }
+        z = bk_orbit(3, (int32_t)c);
+        bk_set(e, BK_P_CHOP, BK_CHOP_ARP);
+        bk_set(e, BK_P_ARPV, c == 1u ? 0x10 : ((z >> 14) & 3) | (((z >> 9) % 3) << 2) | (((z >> 4) % 3) << 4));
+        break;
+    case BK_BTN_EVOLVE:                         /* on; then each press turns it round (climb <-> collapse) */
+        if (!val) { bk_set(e, BK_P_D, 0); break; }
+        if (!e->par[BK_P_D]) { bk_set(e, BK_P_D, 32768); e->evdir = 1; }
+        else e->evdir = -e->evdir;
+        break;
+    case BK_BTN_TOPO:                           /* who pulls on whom: all; rings of strides the map picks; each alone */
+        if (!val) { bk_set(e, BK_P_TOPO, BK_TOPO_LOCAL); break; }
+        if (c % 4u == 1u) bk_set(e, BK_P_TOPO, BK_TOPO_GLOBAL);
+        else if (c % 4u == 0u) bk_set(e, BK_P_TOPO, BK_TOPO_LOCAL);
+        else {
+            bk_set(e, BK_P_TOPO, BK_TOPO_RING);
+            bk_set(e, BK_P_STRIDE, 1 + ((bk_orbit(4, (int32_t)c) * 7) >> 16));
+        }
+        break;
+    case BK_BTN_MICRO:                          /* the grid finer each press: 1/2, 1/4, 1/8, 1/16 tone, none; then a nudge */
+        if (!val) { bk_set(e, BK_P_MICRO, 0); break; }
+        if (e->par[BK_P_MICRO] < 4) bk_set(e, BK_P_MICRO, e->par[BK_P_MICRO] + 1);
+        else bk_mutate(e);
+        break;
+    case BK_BTN_OCT:                            /* the octaves wider each press, up to 3; then dealt anew */
+        if (!val) { bk_set(e, BK_P_OCT, 0); break; }
+        if (e->par[BK_P_OCT] < 3) bk_set(e, BK_P_OCT, e->par[BK_P_OCT] + 1);
+        else bk_set(e, BK_P_OCTV, (bk_orbit(5, (int32_t)c) >> 13) & 7);
+        break;
+    case BK_BTN_MUTATE:
+        if (val) bk_mutate(e);
+        break;
+    case BK_BTN_TIMBRE:                         /* the FM layer, each press another ratio and lift */
+        if (!val) { bk_set(e, BK_P_TIMBRE, 0); break; }
+        bk_set(e, BK_P_TIMBRE, 1);
+        bk_set(e, BK_P_RATIO, 1 + (int32_t)((c - 1u) % 3u));
+        bk_set(e, BK_P_LIFT, (int32_t)(((c - 1u) / 3u) & 1u));
+        break;
+    default:
+        break;
+    }
+}
+
+static void perf_apply(bk_engine_t *e, uint32_t kind, uint32_t id, int32_t val)
+{
+    if (kind == BK_IN_KEY) bk_note(e, id, (uint32_t)(val < 0 ? 0 : val));
+    else if (kind == BK_IN_KNOB && id < BK_NKNOBS) {
+        int32_t p = e->knob[id] + val;
+        e->knob[id] = p < -400000 ? -400000 : p > 400000 ? 400000 : p;
+        knob_apply(e, id);
+    } else if (kind == BK_IN_BTN) button_apply(e, id, val);
+}
+
+/* the loop's events in time order; one that comes in now goes after those of this block, which have been played
+ * (a block's own are played at the end of the block before, see bk_perf_block): it is heard from the next pass */
+static void loop_record(bk_engine_t *e, uint32_t kind, uint32_t id, int32_t val)
+{
+    uint32_t i = e->loop_n;
+    if (i >= BK_LOOP_N) return;
+    while (i > 0 && e->loop[i - 1].t > e->loop_pos) {
+        e->loop[i] = e->loop[i - 1];
+        i--;
+    }
+    e->loop[i].t = e->loop_pos;
+    e->loop[i].kind = (uint8_t)kind;
+    e->loop[i].id = (uint8_t)id;
+    e->loop[i].val = (int16_t)(val < -32768 ? -32768 : val > 32767 ? 32767 : val);
+    e->loop_n++;
+    if (e->loop_state == BK_LOOP_PLAY && i <= e->loop_rd) e->loop_rd++;
+}
+
+static void loop_play_now(bk_engine_t *e)     /* the events at the loop's position, played */
+{
+    while (e->loop_rd < e->loop_n && e->loop[e->loop_rd].t == e->loop_pos) {
+        const bk_ev_t ev = e->loop[e->loop_rd++];
+        perf_apply(e, ev.kind, ev.id, ev.val);
+    }
+}
+
+void bk_input(bk_engine_t *e, uint32_t kind, uint32_t id, int32_t val)
+{
+    if (kind == BK_IN_BTN && id == BK_BTN_LOOP) {   /* REC: record; then loop it (and go on adding); then stop */
+        if (!val || e->loop_state == BK_LOOP_PLAY) {
+            e->loop_state = BK_LOOP_IDLE;
+            e->loop_n = e->loop_pos = e->loop_rd = 0;
+        } else if (e->loop_state == BK_LOOP_IDLE) {
+            e->loop_state = BK_LOOP_REC;
+            e->loop_n = e->loop_pos = e->loop_rd = 0;
+        } else if (e->loop_pos && e->loop_n) {
+            e->loop_state = BK_LOOP_PLAY;
+            e->loop_len = e->loop_pos;
+            e->loop_pos = e->loop_rd = 0;
+            loop_play_now(e);
+        } else
+            e->loop_state = BK_LOOP_IDLE;
+        return;
+    }
+    if (e->loop_state != BK_LOOP_IDLE)
+        loop_record(e, kind, id, val);
+    perf_apply(e, kind, id, val);
+}
+
+void bk_perf_block(bk_engine_t *e)              /* the end of a block: the loop on by one, and what is due, played */
+{
+    if (e->loop_state == BK_LOOP_REC) {
+        if (++e->loop_pos >= 65536u) {          /* 6 minutes: closed by itself */
+            e->loop_state = BK_LOOP_PLAY;
+            e->loop_len = e->loop_pos;
+            e->loop_pos = e->loop_rd = 0;
+            loop_play_now(e);
+        }
+    } else if (e->loop_state == BK_LOOP_PLAY) {
+        if (++e->loop_pos >= e->loop_len) {
+            e->loop_pos = 0;
+            e->loop_rd = 0;
+        }
+        loop_play_now(e);
+    }
+}
+
+void bk_perf_init(bk_engine_t *e)
+{
+    uint32_t k;
+    e->perf = 1;
+    for (k = 0; k < BK_NKNOBS; k++) e->knob[k] = e->kgen[k] = 0;
+    for (k = 0; k < BK_NBTNS; k++) e->press[k] = 0;
+    e->loop_state = BK_LOOP_IDLE;
+    e->loop_n = e->loop_len = e->loop_pos = e->loop_rd = 0;
+    bk_set(e, BK_P_TIMBRE, 0);
+    bk_set(e, BK_P_MICRO, 0);
+    bk_set(e, BK_P_GLIDE, 49152);
+    for (k = 0; k < BK_NKNOBS; k++)
+        if (k != BK_KNOB_FINE) knob_apply(e, k);
 }

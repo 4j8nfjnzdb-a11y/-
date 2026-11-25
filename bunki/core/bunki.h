@@ -21,6 +21,7 @@
 #define BK_ONE    ((int64_t)1 << 62)     /* the map's state x is Q62: 1.0 = 2^62 */
 #define BK_U_MAX  (22 << 16)             /* the R knob's position u is Q16, 0 .. 22 */
 #define BK_NPART  8u                     /* sine partials a voice can have (the gesture layer) */
+#define BK_LOOP_N 512u                   /* the looper's events */
 
 /* where the sound's complexity comes from */
 enum {
@@ -61,6 +62,11 @@ enum {
     BK_P_TOPO,         /* BK_TOPO_... */
     BK_P_TIMBRE,       /* 1: the timbre layer (the map at the period, as FM) sounds */
     BK_P_FREEZE,       /* 1: the step clock stands still */
+    BK_P_OCT,          /* octaves the sines may leave the key by, 0 .. 3 (their maps choose up or down) */
+    BK_P_OCTV,         /* which digits of a sine's map deal its octave (each a different dealing) */
+    BK_P_MICRO,        /* the pitch grid: 0 semitones, 1 quarter, 2 eighth, 3 sixteenth tones, 4 none (free) */
+    BK_P_STRIDE,       /* RING: a sine is pulled by the ones this far on either side (some strides cut rings) */
+    BK_P_ARPV,         /* ARP's way: order (bits 0-1), plucks a sine each step - 1 (2-3), tail (4-5) */
     BK_NPARAMS
 };
 
@@ -71,8 +77,17 @@ typedef struct {
     int64_t x, F;                        /* the map, Q62 */
     int32_t ca, cb;                      /* the pitch at the start and the target, cents Q4, from the key */
     int32_t amp, damp;                   /* level, Q15, and its change per frame */
+    int32_t pl;                          /* ARP: the pluck's level now, Q15 */
     uint8_t gate;                        /* sounding in this step (CHOP) */
 } bk_part_t;
+
+/* the performance (the FM-1's panel as the engine takes it): keys, endless knobs, buttons, and a looper */
+enum { BK_IN_KEY = 1, BK_IN_KNOB, BK_IN_BTN };
+enum { BK_KNOB_R = 0, BK_KNOB_TIME, BK_KNOB_NET, BK_KNOB_SPACE, BK_KNOB_FINE, BK_KNOB_N, BK_KNOB_SEED, BK_NKNOBS };
+enum { BK_BTN_HOLD = 0, BK_BTN_ARP, BK_BTN_EVOLVE, BK_BTN_TOPO, BK_BTN_FREEZE, BK_BTN_LOOP, BK_BTN_TIMBRE,
+       BK_BTN_MICRO, BK_BTN_MUTATE, BK_BTN_OCT, BK_NBTNS };
+enum { BK_LOOP_IDLE = 0, BK_LOOP_REC, BK_LOOP_PLAY };
+typedef struct { uint32_t t; uint8_t kind, id; int16_t val; } bk_ev_t;
 
 typedef struct {
     uint32_t inc, ph;                    /* carrier phase step and phase (a cycle = 2^32) */
@@ -96,6 +111,8 @@ typedef struct {
     bk_part_t part[BK_NPART];            /* the gesture layer */
     int32_t phist[BK_HIST];              /* partial 0's map, Q30, a ring by step */
     uint32_t nstep;                      /* steps since the note began */
+    uint8_t ord[BK_NPART];               /* ARP: the sines in the order their maps stand, highest first */
+    int8_t arp_sub;                      /* ARP: the pluck of this step played last */
 } bk_voice_t;
 
 typedef struct {
@@ -108,6 +125,13 @@ typedef struct {
     int32_t glyap;                       /* the gesture layer's, Q16, smoothed by step */
     uint32_t step_ph, sub, nsteps, mut;  /* the step clock's phase; frames into the 16-frame control period */
     int32_t gs, genv;                    /* this control period's glide (0 .. 1) and step envelope, Q15 */
+    /* the performance */
+    int32_t knob[BK_NKNOBS];             /* each knob's position, detents, without end */
+    uint32_t press[BK_NBTNS];            /* each button's presses so far (its variations come from them) */
+    int32_t kgen[BK_NKNOBS];             /* each knob's turns at its ends so far (a knob goes on, back and forth) */
+    uint32_t perf;                       /* 1: keys, knobs and buttons go through bk_input */
+    uint32_t loop_state, loop_n, loop_len, loop_pos, loop_rd;
+    bk_ev_t loop[BK_LOOP_N];
     int32_t dcx, dcy;                    /* the output's DC blocker */
     int32_t mixg;                        /* the mix's level, Q15: 1 / sqrt(voices sounding) */
     uint64_t frames;
@@ -135,6 +159,15 @@ void    bk_diagram_column(int64_t R, uint16_t *bins, uint32_t nbins, uint32_t tr
 
 /* tests: start voice v on a given phase step and state */
 void    bk_voice_force(bk_engine_t *e, uint32_t v, uint32_t inc, int64_t x0, uint32_t vel);
+
+/* the performance: bk_perf_init puts the engine in it (the FM-1's defaults); bk_input takes a key (id note, val
+ * velocity), a knob turned (id BK_KNOB_..., val detents) or a button pressed (id BK_BTN_...). Called between
+ * blocks; while the looper records or plays, what comes in is also put in the loop, and the loop's events come
+ * back at the same block of every pass (a knob's turn adds again each pass: the knobs have no end) */
+void    bk_perf_init(bk_engine_t *e);
+void    bk_input(bk_engine_t *e, uint32_t kind, uint32_t id, int32_t val);
+int32_t bk_orbit(uint32_t which, int32_t n);                          /* point n of a fixed orbit at 3.99, evened, Q16 */
+void    bk_perf_block(bk_engine_t *e);                                /* (bk_render's: the loop's events now) */
 
 /* the gesture layer */
 void    bk_mutate(bk_engine_t *e);                                    /* nudge every partial's map a little */

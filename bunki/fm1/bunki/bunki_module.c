@@ -1,42 +1,41 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* BUNKI for fm1-dock: a note is a network of sines, each one a logistic map stepped by one clock; R walks the
- * maps' bifurcation diagram, and the map's numbers are heard: period 2 a two-note figure, 4 a four-note one,
- * chaos a line that never comes back and a sine that splits into many, a window a sudden three-note figure.
- * (The engine: bunki/core.)
+ * maps' bifurcation diagram, and the map's numbers are heard: period 2 a two-note figure, 4 a four-note one, chaos a
+ * line that never comes back and a sine that splits into many, a window a sudden three-note figure.
+ * (The engine, the panel's meaning and the looper: bunki/core. This file hands it the keys, knobs and buttons.)
  *
- *   keys / MIDI   up to 8 voices; one key alone at the start is a pure sine
- *   KNOB1         R, coarse (one unit = one period doubling; fast turns go further)     SELECT  R, fine
- *   KNOB2         RATE: the step clock, 0.25 .. 64 steps a second (12 detents an octave)
- *   KNOB3         eps: how hard the sines pull on each other (one line, groups, each its own way)
- *   KNOB4         CENTS: how far a step can move a pitch
- *   ALGORITHM     N: sines a voice (1 .. 8)                                            PRESETS GLIDE
- *   PLAY  HOLD    keys let go sound on                ARP   CHOP: OFF, GATE (the map opens and shuts each
- *                                                           sine), ARP (one sine a step: the highest)
- *   SEQ   EVOLVE  R climbs by itself (OFF, SLOW, FAST), lingers in windows, collapses back to the knob
- *   GLO   TOPO    who pulls on whom: within a voice, all, a ring                   EDIT  FREEZE the clock
- *   REC   MUTATE  a nudge to every sine                FX    TIMBRE: the map at the period, as FM, as well
- *   SEL   the timbre's lift   ENV / LFO  seed - / +    SAVE  keep these settings
- *   MIDI          CC 16 + 48 R (14 bits); 17 RATE, 18 eps, 19 CENTS, 20 N, 21 GLIDE; 64 HOLD; fm1-dock's
- *                 KNOBS CC (74, 71, 73, 72) as KNOB1 .. 4
+ * Every knob goes on without an end: it moves its value the way it is turned and turns back at the value's end,
+ * and at each turn something more is chosen anew. Every button goes on: each press the next state (chosen by the
+ * map from the presses so far), a long press (0.6 s) ends it.
+ *   KNOB1 / SELECT  R, coarse / fine (at R's top and bottom the network is nudged)
+ *   KNOB2           steps a second, a semitone a detent (at the ends: the glide anew)
+ *   KNOB3           eps, how hard the sines pull on each other (at the ends: a nudge)
+ *   KNOB4           cents a step can move a pitch (at the ends: the octaves dealt anew)
+ *   ALGORITHM       sines a voice, 1 .. 8 and back            PRESETS  the seed
+ *   PLAY   HOLD     EDIT  FREEZE      ARP  ARP (each press another way: order, plucks a step, tail)
+ *   SEQ    EVOLVE   (each press turns it: climb <-> collapse)   GLO  who pulls on whom (all, rings, each alone)
+ *   SEL    MICRO    (the grid finer each press: 1/2 .. 1/16 tone, free)   LFO  OCT (wider each press)
+ *   ENV    MUTATE   FX    TIMBRE (the FM layer, another ratio each press)   SAVE  keep the knobs and states
+ *   REC    LOOP     record what is played, turned and pressed; press again: it loops, and what is done then goes
+ *                   into it too (a turn adds again each pass); press again (or hold): stop
+ *   MIDI   CC 16 .. 22: the knobs, relative (64 = still); fm1-dock's KNOBS CC (74, 71, 73, 72) the same; CC 64 HOLD
  *
- * Threads: note(), cc(), ui() and draw() run in the main loop, render() in the audio interrupt. The main loop
- * never touches the engine. A control's newest value waits in a slot (a value and a count, the count written
- * last); notes wait in a queue. At the start of its block render() takes the controls that changed, then the
- * queue, as the desktop host applies a script: the same events at the same blocks give the same bits
- * (fm1/sim checks it). For the screen, render() copies what draw() needs when asked. */
+ * Threads: ui(), note(), cc() and draw() run in the main loop, render() in the audio interrupt. The main loop never
+ * touches the engine: knob turns are counted (a count each, written by the main loop only), keys and buttons are
+ * queued, and render() hands them to bk_input at the start of its block, knobs first: the same events at the same
+ * blocks give the same bits (fm1/sim checks it against the desktop host). */
 #include "hb_module.h"
 #include "bunki.h"
 
 static const hb_host_t *H;
 static bk_engine_t E;
 
-/* ---- main loop -> render: the controls' newest values, and a queue for the notes ---- */
-static volatile int32_t pv[BK_NPARAMS];
-static volatile uint32_t pcount[BK_NPARAMS];
-static uint32_t ptaken[BK_NPARAMS];             /* render's */
+/* ---- main loop -> render ---- */
+static volatile int32_t turned[BK_NKNOBS];      /* detents turned so far, each knob (the main loop's) */
+static int32_t taken[BK_NKNOBS];                /* render's */
 #define QN 64u
-enum { Q_NOTE = 1, Q_OFF, Q_MUTATE };
-static struct { uint8_t type, a; int32_t v; } q[QN];
+enum { Q_KEY = 1, Q_BTN, Q_OFF };
+static struct { uint8_t type, a; int16_t v; } q[QN];
 static volatile uint32_t q_w, q_r;
 
 static void push(uint32_t type, uint32_t a, int32_t v)
@@ -46,14 +45,16 @@ static void push(uint32_t type, uint32_t a, int32_t v)
         return;                                 /* full: render has not run for a while; drop it */
     q[w % QN].type = (uint8_t)type;
     q[w % QN].a = (uint8_t)a;
-    q[w % QN].v = v;
+    q[w % QN].v = (int16_t)v;
     q_w = w + 1u;                               /* the slot first, then the index */
 }
 
 /* ---- render -> draw: a snapshot on request ---- */
 typedef struct {
     int64_t R, R_hand;
-    int32_t lyap, I1;
+    int32_t lyap, I1, evdir;
+    int32_t par[BK_NPARAMS], knob[BK_NKNOBS];
+    uint32_t loop_state, loop_len, loop_pos, loop_n;
     struct {
         uint8_t active, note, gates;
         uint32_t n;                             /* periods (timbre) or steps (gesture) so far */
@@ -67,17 +68,17 @@ static volatile uint32_t snap_req, snap_ready;
 static void render(int32_t *out, uint32_t n)
 {
     uint32_t r = q_r, k, a;
-    for (k = 0; k < BK_NPARAMS; k++) {          /* the controls first, then the queue */
-        const uint32_t c = pcount[k];
-        if (c != ptaken[k]) {
-            ptaken[k] = c;
-            bk_set(&E, k, pv[k]);
+    for (k = 0; k < BK_NKNOBS; k++) {           /* the knobs first, then the queue */
+        const int32_t d = turned[k] - taken[k];
+        if (d) {
+            taken[k] += d;
+            bk_input(&E, BK_IN_KNOB, k, d);
         }
     }
     while (r != q_w) {
         const uint32_t i = r % QN;
-        if (q[i].type == Q_NOTE) bk_note(&E, q[i].a, (uint32_t)q[i].v);
-        else if (q[i].type == Q_MUTATE) bk_mutate(&E);
+        if (q[i].type == Q_KEY) bk_input(&E, BK_IN_KEY, q[i].a, q[i].v);
+        else if (q[i].type == Q_BTN) bk_input(&E, BK_IN_BTN, q[i].a, q[i].v);
         else if (q[i].type == Q_OFF) {
             bk_all_off(&E);
             for (k = 0; k < BK_NV; k++) E.v[k].active = 0, E.v[k].amp = 0;
@@ -92,6 +93,13 @@ static void render(int32_t *out, uint32_t n)
         S.R_hand = E.R_hand;
         S.lyap = E.lyap;
         S.I1 = E.v[0].I1;
+        S.evdir = E.evdir;
+        for (k = 0; k < BK_NPARAMS; k++) S.par[k] = E.par[k];
+        for (k = 0; k < BK_NKNOBS; k++) S.knob[k] = E.knob[k];
+        S.loop_state = E.loop_state;
+        S.loop_len = E.loop_len;
+        S.loop_pos = E.loop_pos;
+        S.loop_n = E.loop_n;
         for (k = 0; k < BK_NV; k++) {
             const bk_voice_t *v = &E.v[k];
             const uint32_t nn = gest ? v->nstep : v->nper;
@@ -113,143 +121,95 @@ static void render(int32_t *out, uint32_t n)
     }
 }
 
-/* ---- the controls, as the main loop keeps them (and the settings record) ---- */
-static struct {
+/* ---- the panel ---- */
+static const uint8_t BTN_OF[14] = {             /* FM-1 button -> the engine's (255: not one) */
+    255, 255, BK_BTN_TIMBRE, BK_BTN_MICRO, BK_BTN_MUTATE, BK_BTN_OCT, BK_BTN_FREEZE, BK_BTN_TOPO, 255, 255,
+    BK_BTN_ARP, BK_BTN_EVOLVE, BK_BTN_HOLD, BK_BTN_LOOP};
+static uint32_t held_since[14], held, long_sent;
+
+static struct {                                 /* the settings record: the knobs, and the states the buttons left */
     uint32_t magic;
-    int32_t u, evo, eps, lift, gain, seed;
-    int32_t npart, rate, cents, glide, chop, hold, topo, timbre;
-} st;
-#define REC_MAGIC 0x424E4B32u                   /* "BNK2" */
-static int32_t freeze;
-static const int32_t EVO[3] = {0, 16384, 65536};               /* EVOLVE: off, slow (~3 min up), fast (~45 s) */
-static const uint32_t SEMI[12] = {65536, 69433, 73562, 77936, 82570, 87480, 92682, 98193, 104032, 110218, 116772, 123715};
-
-static int32_t rate_q8(int32_t r) { return (int32_t)(((64u << (r / 12)) * SEMI[r % 12]) >> 16); }   /* 0.25 Hz * 2^(r/12) */
-
-static void set(uint32_t p, int32_t v)
-{
-    pv[p] = v;
-    pcount[p] = pcount[p] + 1u;                 /* the value first, then the count */
-}
-
-static void leds(void)
-{
-    H->led(HB_BTN_PLAY, st.hold ? 1u : 0u);
-    H->led(HB_BTN_ARP, st.chop ? 1u : 0u);
-    H->led(HB_BTN_SEQ, st.evo ? 1u : 0u);
-    H->led(HB_BTN_GLO, st.topo ? 1u : 0u);
-    H->led(HB_BTN_EDIT, freeze ? 1u : 0u);
-    H->led(HB_BTN_FX, st.timbre ? 1u : 0u);
-}
-
-static void apply_all(void)
-{
-    set(BK_P_SEED, st.seed);
-    set(BK_P_U, st.u);
-    set(BK_P_D, EVO[st.evo]);
-    set(BK_P_EPS, st.eps);
-    set(BK_P_LIFT, st.lift);
-    set(BK_P_GAIN, st.gain);
-    set(BK_P_NPART, st.npart);
-    set(BK_P_RATE, rate_q8(st.rate));
-    set(BK_P_CENTS, st.cents);
-    set(BK_P_GLIDE, st.glide);
-    set(BK_P_CHOP, st.chop);
-    set(BK_P_HOLD, st.hold);
-    set(BK_P_TOPO, st.topo);
-    set(BK_P_TIMBRE, st.timbre);
-    set(BK_P_FREEZE, freeze);
-}
-
-static int32_t clampi(int32_t v, int32_t lo, int32_t hi) { return v < lo ? lo : v > hi ? hi : v; }
-
-static void note(uint32_t ch, uint32_t key, uint32_t vel)
-{
-    (void)ch;
-    push(Q_NOTE, key, (int32_t)vel);
-}
+    int32_t knob[BK_NKNOBS];
+    int32_t par[10];
+} rec;
+#define REC_MAGIC 0x424E4B33u                   /* "BNK3" */
+static const uint8_t REC_PAR[10] = {BK_P_HOLD, BK_P_CHOP, BK_P_ARPV, BK_P_TOPO, BK_P_STRIDE, BK_P_MICRO, BK_P_OCT,
+                                    BK_P_OCTV, BK_P_TIMBRE, BK_P_RATIO};
 
 #ifdef BK_DEBUG
-static uint32_t dbg_dump, dbg_force, dbg_events;
-static int32_t dbg_clicks;
 #define DBG(s, v) H->log_u32(s, (uint32_t)(v))
+static uint32_t dbg_dump;
 #else
 #define DBG(s, v) ((void)0)
 #endif
 
-static void ui(uint32_t ev, int32_t arg);
-static uint32_t cc_msb16;
-static void cc(uint32_t ch, uint32_t num, uint32_t val)
+#ifndef BK_DEBUG
+static void save_settings(void)
+{
+    uint32_t k;
+    rec.magic = REC_MAGIC;
+    for (k = 0; k < BK_NKNOBS; k++) rec.knob[k] = S.knob[k];
+    for (k = 0; k < 10u; k++) rec.par[k] = S.par[REC_PAR[k]];
+    H->save(&rec, sizeof rec);
+}
+#endif
+
+static void note(uint32_t ch, uint32_t key, uint32_t vel)
 {
     (void)ch;
-    if (num == 16u || num == 48u) {             /* R, 14 bits: the MSB alone sets it with LSB 0 */
-        uint32_t v14;
-        if (num == 16u) cc_msb16 = val;
-        v14 = cc_msb16 << 7 | (num == 48u ? val : 0u);
-        st.u = (int32_t)(v14 * 22u * 4096u / 16383u * 16u);     /* < 2^32 before the division */
-        set(BK_P_U, st.u);
-        return;
-    }
-    if (num == 74u || num == 71u || num == 73u || num == 72u) {   /* fm1-dock's KNOBS CC: the knobs come as CCs */
-        static uint32_t last[4] = {64u, 64u, 64u, 64u};
+    push(Q_KEY, key, (int32_t)vel);
+}
+
+static void turn(uint32_t k, int32_t d) { turned[k] = turned[k] + d; }
+
+static void cc(uint32_t ch, uint32_t num, uint32_t val)
+{
+    static uint32_t last[7] = {64u, 64u, 64u, 64u, 64u, 64u, 64u}, lastk[4] = {64u, 64u, 64u, 64u};
+    (void)ch;
+    if (num >= 16u && num <= 22u) {             /* the knobs, relative: a step of the value a detent */
+        turn(num - 16u, (int32_t)val - (int32_t)last[num - 16u]);
+        last[num - 16u] = val;
+    } else if (num == 74u || num == 71u || num == 73u || num == 72u) {   /* fm1-dock's KNOBS CC: KNOB1 .. 4 */
         const uint32_t k = num == 74u ? 0u : num == 71u ? 1u : num == 73u ? 2u : 3u;
-        const int32_t clicks = (int32_t)val - (int32_t)last[k];
-        last[k] = val;
-        if (clicks)
-            ui(HB_EV_ENC | (HB_ENC_KNOB1 + k), clicks);
-        return;
-    }
-    switch (num) {
-    case 17: st.rate = (int32_t)(val * 96u / 127u); set(BK_P_RATE, rate_q8(st.rate)); break;
-    case 18: st.eps = (int32_t)(val * 516u); set(BK_P_EPS, st.eps); break;            /* 127 -> 65532 */
-    case 19: st.cents = (int32_t)(val * 2400u / 127u); set(BK_P_CENTS, st.cents); break;
-    case 20: st.npart = 1 + (int32_t)(val * 7u / 127u); set(BK_P_NPART, st.npart); break;
-    case 21: st.glide = (int32_t)(val * 516u); set(BK_P_GLIDE, st.glide); break;
-    case 64: st.hold = val >= 64u; set(BK_P_HOLD, st.hold); leds(); break;     /* the sustain pedal */
-    case 120: case 123: push(Q_OFF, 0, 0); break;
-    default: break;
-    }
+        turn(k, (int32_t)val - (int32_t)lastk[k]);
+        lastk[k] = val;
+    } else if (num == 64u) {                    /* the sustain pedal: HOLD as it says */
+        if ((val >= 64u) != (S.par[BK_P_HOLD] != 0)) push(Q_BTN, BK_BTN_HOLD, 1);
+    } else if (num == 120u || num == 123u)
+        push(Q_OFF, 0, 0);
 }
 
 static void ui(uint32_t ev, int32_t arg)
 {
     const uint32_t id = HB_EV_ID(ev);
-#ifdef BK_DEBUG
-    if (HB_EV_KIND(ev) == HB_EV_ENC && id == HB_ENC_KNOB1) { dbg_events++; dbg_clicks += arg; }
-    if (HB_EV_KIND(ev) == HB_EV_BTN_DOWN && id == HB_BTN_EDIT) { dbg_dump = 1; return; }
-    if (HB_EV_KIND(ev) == HB_EV_BTN_DOWN && id == HB_BTN_GLO) { dbg_force ^= 1u; set(BK_P_FORCE, (int32_t)dbg_force); DBG("dbg force", dbg_force); return; }
-#endif
     if (HB_EV_KIND(ev) == HB_EV_ENC) {
-        int32_t a = arg < 0 ? -arg : arg;
+        const int32_t a = arg < 0 ? -arg : arg;
         switch (id) {
-        case HB_ENC_KNOB1:                      /* 1/16 unit a click, more when turned fast */
-            st.u = clampi(st.u + arg * 4096 * (a > 3 ? 4 : a > 1 ? 2 : 1), 0, BK_U_MAX); set(BK_P_U, st.u); break;
-        case HB_ENC_SELECT:                     /* 1/512 unit a click */
-            st.u = clampi(st.u + arg * 128, 0, BK_U_MAX); set(BK_P_U, st.u); break;
-        case HB_ENC_KNOB2: st.rate = clampi(st.rate + arg, 0, 96); set(BK_P_RATE, rate_q8(st.rate)); break;
-        case HB_ENC_KNOB3: st.eps = clampi(st.eps + arg * 656, 0, 65536); set(BK_P_EPS, st.eps); break;
-        case HB_ENC_KNOB4: st.cents = clampi(st.cents + arg * 25, 0, 2400); set(BK_P_CENTS, st.cents); break;
-        case HB_ENC_ALGORITHM: st.npart = clampi(st.npart + arg, 1, (int32_t)BK_NPART); set(BK_P_NPART, st.npart); break;
-        case HB_ENC_PRESETS: st.glide = clampi(st.glide + arg * 4096, 0, 65536); set(BK_P_GLIDE, st.glide); break;
+        case HB_ENC_KNOB1: turn(BK_KNOB_R, arg * (a > 3 ? 4 : a > 1 ? 2 : 1)); break;   /* faster turns go further */
+        case HB_ENC_SELECT: turn(BK_KNOB_FINE, arg); break;
+        case HB_ENC_KNOB2: turn(BK_KNOB_TIME, arg); break;
+        case HB_ENC_KNOB3: turn(BK_KNOB_NET, arg); break;
+        case HB_ENC_KNOB4: turn(BK_KNOB_SPACE, arg); break;
+        case HB_ENC_ALGORITHM: turn(BK_KNOB_N, arg); break;
+        case HB_ENC_PRESETS: turn(BK_KNOB_SEED, arg); break;
         default: break;
         }
-    } else if (HB_EV_KIND(ev) == HB_EV_BTN_DOWN) {
-        switch (id) {
-        case HB_BTN_PLAY: st.hold = !st.hold; set(BK_P_HOLD, st.hold); break;
-        case HB_BTN_ARP: st.chop = (st.chop + 1) % BK_NCHOPS; set(BK_P_CHOP, st.chop); break;
-        case HB_BTN_SEQ: st.evo = (st.evo + 1) % 3; set(BK_P_D, EVO[st.evo]); break;
-        case HB_BTN_GLO: st.topo = (st.topo + 1) % BK_NTOPOS; set(BK_P_TOPO, st.topo); break;
-        case HB_BTN_EDIT: freeze = !freeze; set(BK_P_FREEZE, freeze); break;
-        case HB_BTN_REC: push(Q_MUTATE, 0, 0); break;
-        case HB_BTN_FX: st.timbre = !st.timbre; set(BK_P_TIMBRE, st.timbre); break;
-        case HB_BTN_SEL: st.lift = !st.lift; set(BK_P_LIFT, st.lift); break;
-        case HB_BTN_ENV: st.seed--; set(BK_P_SEED, st.seed); break;
-        case HB_BTN_LFO: st.seed++; set(BK_P_SEED, st.seed); break;
-        case HB_BTN_SAVE: st.magic = REC_MAGIC; H->save(&st, sizeof st); break;
-        default: break;
+    } else if (HB_EV_KIND(ev) == HB_EV_BTN_DOWN && id < 14u) {
+        if (id == HB_BTN_SAVE) {
+#ifdef BK_DEBUG
+            dbg_dump = 1;
+#else
+            save_settings();
+#endif
+            return;
         }
-        leds();
-    }
+        if (BTN_OF[id] == 255u) return;
+        push(Q_BTN, BTN_OF[id], 1);             /* a press: the next state, at once */
+        held |= 1u << id;
+        long_sent &= ~(1u << id);
+        held_since[id] = H->ms();
+    } else if (HB_EV_KIND(ev) == HB_EV_BTN_UP && id < 14u)
+        held &= ~(1u << id);
 }
 
 /* ---- the screen: the sines' pitches as a trace (top), the diagram (middle), the numbers (bottom) ---- */
@@ -302,7 +262,7 @@ static void blit_cols(int32_t c0, int32_t w, int32_t cursor, int32_t hand, int d
                 int32_t r = DH - 1 - (int32_t)(((int64_t)S.v[k].x[a] * (DH - 1)) >> 30);
                 if (r >= 0 && r < DH) colbuf[r * w + xx] = VC[k];
             }
-            for (a = 0; a < st.npart; a++) {   /* (the sines' maps now: the network's spread) */
+            for (a = 0; a < S.par[BK_P_NPART]; a++) {   /* (the sines' maps now: the network's spread) */
                 int32_t r = DH - 1 - (int32_t)(((int64_t)S.v[k].px[a] * (DH - 1)) >> 30);
                 if (r >= 0 && r < DH) colbuf[r * w + xx] = HB_RGB(255, 255, 255);
             }
@@ -314,13 +274,13 @@ static void blit_cols(int32_t c0, int32_t w, int32_t cursor, int32_t hand, int d
 /* the pitch trace: one column a frame, a sweep across the screen (8 s), each sounding sine a dot */
 static void trace_column(void)
 {
-    const int32_t span = (st.cents > 0 ? st.cents : 100) * 24;   /* +-1.5 CENTS, Q4, fills the height */
+    const int32_t span = (S.par[BK_P_CENTS] > 0 ? S.par[BK_P_CENTS] : 100) * 24 * (1 + S.par[BK_P_OCT]);   /* +-1.5 CENTS (and the octaves), Q4 */
     int32_t k, j, r;
     for (r = 0; r < 2 * PH; r++) pcol[r] = 0;
     pcol[PH / 2] = SWAP(HB_RGB(60, 60, 60));                   /* the key's pitch */
     for (k = 0; k < (int32_t)BK_NV; k++) {
         if (!S.v[k].active) continue;
-        for (j = 0; j < st.npart; j++) {
+        for (j = 0; j < S.par[BK_P_NPART]; j++) {
             if (!(S.v[k].gates >> j & 1u)) continue;
             r = PH / 2 - S.v[k].c[j] * (PH / 2) / span;
             if (r >= 0 && r < PH) pcol[r] = SWAP(VC[k]);
@@ -360,7 +320,7 @@ static void network(int32_t *clusters, int32_t *spread)
     uint32_t k;
     for (k = 0; k < BK_NV; k++)
         if (S.v[k].active)
-            for (j = 0; j < st.npart; j++) xs[n++] = S.v[k].px[j];
+            for (j = 0; j < S.par[BK_P_NPART]; j++) xs[n++] = S.v[k].px[j];
     for (i = 1; i < n; i++)
         for (j = i; j > 0 && xs[j] < xs[j - 1]; j--) { int32_t t = xs[j]; xs[j] = xs[j - 1]; xs[j - 1] = t; }
     for (i = 1; i < n; i++) if (xs[i] - xs[i - 1] > 10737418) c++;     /* 0.01, Q30 */
@@ -401,21 +361,40 @@ static void text_if(char *drawn, const char *s, int32_t y, uint16_t c)
     H->text(0, y, 240, 0, drawn, c, 1);
 }
 
+static void leds(void)
+{
+    H->led(HB_BTN_PLAY, S.par[BK_P_HOLD] ? 1u : 0u);
+    H->led(HB_BTN_ARP, S.par[BK_P_CHOP] ? 1u : 0u);
+    H->led(HB_BTN_SEQ, S.par[BK_P_D] ? 1u : 0u);
+    H->led(HB_BTN_GLO, S.par[BK_P_TOPO] ? 1u : 0u);
+    H->led(HB_BTN_EDIT, S.par[BK_P_FREEZE] ? 1u : 0u);
+    H->led(HB_BTN_FX, S.par[BK_P_TIMBRE] ? 1u : 0u);
+    H->led(HB_BTN_SEL, S.par[BK_P_MICRO] ? 1u : 0u);
+    H->led(HB_BTN_LFO, S.par[BK_P_OCT] ? 1u : 0u);
+    H->led(HB_BTN_REC, S.loop_state == BK_LOOP_REC ? 1u : S.loop_state == BK_LOOP_PLAY ? 2u : 0u);
+}
+
 static void draw(uint32_t full)
 {
-    static const char *const CHOP[BK_NCHOPS] = {"", " GATE", " ARP"}, *const TOPO[BK_NTOPOS] = {"", " ALL", " RING"},
-                             *const EV[3] = {"", " EVO", " EVO+"};
+    static const char *const NN[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+    static const char *const GRID[5] = {"", " 1/4", " 1/8", " 1/16", " FREE"};
+    static uint32_t led_state = 0xFFFFFFFFu;
     char s[48], *p;
-    uint32_t now = H->ms(), k;
-    int32_t c, hand, i, per = -1, cl, sp;
+    uint32_t now = H->ms(), k, ls;
+    int32_t c, hand, i, per = -1, cl, sp, low = 999;
+    for (k = 0; k < 14u; k++)                   /* a long press: the end of that state */
+        if ((held >> k & 1u) && !(long_sent >> k & 1u) && now - held_since[k] >= 600u && BTN_OF[k] != 255u) {
+            long_sent |= 1u << k;
+            if (BTN_OF[k] != BK_BTN_MUTATE) push(Q_BTN, BTN_OF[k], 0);
+        }
     if (full) {
         H->fill(0, 0, 240, 240, 0);
         drawn_col = drawn_hand = -1;
         line_a[0] = line_b[0] = line_t[0] = 1;  /* (no string equals it: drawn again) */
         line_a[1] = line_b[1] = line_t[1] = 0;
+        led_state = 0xFFFFFFFFu;
         for (c = 0; c < (int32_t)cols_done; c += 8)
             blit_cols(c, 8, -1, -1, 0);
-        leds();
     }
     if (cols_done < 240u) {                     /* the diagram builds up, two columns a pass */
         uint16_t bins[DH];
@@ -437,14 +416,16 @@ static void draw(uint32_t full)
     last_ms = now;
     if (!snap_ready) { snap_req = 1; return; }
     snap_ready = 0;
+    ls = (uint32_t)S.par[BK_P_HOLD] | (uint32_t)S.par[BK_P_CHOP] << 1 | (S.par[BK_P_D] ? 8u : 0u) | (uint32_t)S.par[BK_P_TOPO] << 4
+       | (uint32_t)S.par[BK_P_FREEZE] << 6 | (uint32_t)S.par[BK_P_TIMBRE] << 7 | (uint32_t)S.par[BK_P_MICRO] << 8
+       | (uint32_t)S.par[BK_P_OCT] << 11 | S.loop_state << 13;
+    if (ls != led_state) { led_state = ls; leds(); }
 #ifdef BK_DEBUG
-    if (dbg_dump) {                             /* the knob so far, u, R, the index, the map's last 20 outputs */
+    if (dbg_dump) {                             /* the knobs, R, the map's last 20 outputs */
         dbg_dump = 0;
-        DBG("dbg dump KNOB1 events", dbg_events);
-        DBG("dbg dump KNOB1 clicks", dbg_clicks);
-        DBG("dbg dump u q16", st.u);
+        DBG("dbg dump KNOB1 detents", S.knob[BK_KNOB_R]);
+        DBG("dbg dump u q16", S.par[BK_P_U]);
         DBG("dbg dump R q16", S.R >> 44);
-        DBG("dbg dump I1 (cycles q15)", S.I1);
         for (i = 19; i >= 0; i--) DBG("dbg x q30", S.v[0].x[i]);
     }
 #endif
@@ -469,13 +450,24 @@ static void draw(uint32_t full)
         }
         H->blit(0, TY, 240, TH, band);
     }
-    /* the top line: what is on */
-    p = put_s(s, st.hold ? "HOLD" : "BUNKI");
-    p = put_s(p, CHOP[st.chop]);
-    p = put_s(p, EV[st.evo]);
-    p = put_s(p, TOPO[st.topo]);
-    if (freeze) p = put_s(p, " FRZ");
-    if (st.timbre) p = put_s(p, " FM");
+    /* the top line: the lowest key, and what is on */
+    for (k = 0; k < BK_NV; k++) if (S.v[k].active && S.v[k].note < 128u && S.v[k].note < low) low = S.v[k].note;
+    if (low < 128) { p = put_s(s, NN[low % 12]); p = put_u(p, (uint32_t)(low / 12 - 1), 1); }
+    else p = put_s(s, "BUNKI");
+    if (S.par[BK_P_HOLD]) p = put_s(p, " HOLD");
+    if (S.par[BK_P_CHOP] == BK_CHOP_ARP) p = put_s(p, " ARP");
+    if (S.par[BK_P_D]) p = put_s(p, S.evdir > 0 ? " EVO+" : " EVO-");
+    if (S.par[BK_P_TOPO] == BK_TOPO_GLOBAL) p = put_s(p, " ALL");
+    if (S.par[BK_P_TOPO] == BK_TOPO_RING) { p = put_s(p, " RING"); p = put_u(p, (uint32_t)S.par[BK_P_STRIDE], 1); }
+    if (S.par[BK_P_FREEZE]) p = put_s(p, " FRZ");
+    p = put_s(p, GRID[S.par[BK_P_MICRO] & 7 ? (S.par[BK_P_MICRO] > 4 ? 4 : S.par[BK_P_MICRO]) : 0]);
+    if (S.par[BK_P_OCT]) { p = put_s(p, " O"); p = put_u(p, (uint32_t)S.par[BK_P_OCT], 1); }
+    if (S.par[BK_P_TIMBRE]) p = put_s(p, " FM");
+    if (S.loop_state == BK_LOOP_REC) p = put_s(p, " REC");
+    if (S.loop_state == BK_LOOP_PLAY) {         /* the loop's length in seconds */
+        p = put_s(p, " L");
+        p = put_fix(p, (int32_t)(((uint64_t)S.loop_len * 97391u) >> 8), 1, 0);   /* blocks * 256 / 44100 s, Q16 */
+    }
     *p = 0;
     text_if(line_t, s, 0, HB_RGB(180, 140, 255));
     /* the numbers: R, the pattern (steps, seconds), clusters; then N, rate, cents, spread, lambda */
@@ -489,18 +481,18 @@ static void draw(uint32_t full)
     else {
         p = put_u(p, (uint32_t)per, 1);
         *p++ = ' ';                             /* the pattern in seconds: per / rate */
-        p = put_fix(p, (int32_t)(((uint32_t)per << 24) / (uint32_t)rate_q8(st.rate)), 2, 0);
+        p = put_fix(p, (int32_t)(((uint32_t)per << 24) / (uint32_t)S.par[BK_P_RATE]), 2, 0);
         *p++ = 's';
     }
     p = put_s(p, " C");
     put_u(p, (uint32_t)cl, 1);
     text_if(line_a, s, 202, HB_RGB(230, 230, 230));
     p = put_s(s, "N");
-    p = put_u(p, (uint32_t)st.npart, 1);
+    p = put_u(p, (uint32_t)S.par[BK_P_NPART], 1);
     *p++ = ' ';
-    p = put_fix(p, rate_q8(st.rate) << 8, 1, 0);
+    p = put_fix(p, S.par[BK_P_RATE] << 8, 1, 0);
     p = put_s(p, "Hz ");
-    p = put_u(p, (uint32_t)st.cents, 1);
+    p = put_u(p, (uint32_t)S.par[BK_P_CENTS], 1);
     p = put_s(p, "c E");
     p = put_u(p, (uint32_t)sp, 2);
     p = put_s(p, " L");
@@ -510,27 +502,16 @@ static void draw(uint32_t full)
 
 static int init(const hb_host_t *h)
 {
+    uint32_t k;
     H = h;
     bk_init(&E, 1);
-    if (H->load(&st, sizeof st) || st.magic != REC_MAGIC) {
-        st.magic = REC_MAGIC;
-        st.u = 1 << 15;                         /* u 0.5: a pure sine */
-        st.evo = 0;
-        st.eps = 0;
-        st.lift = BK_LIFT_LINEAR;
-        st.gain = 4 << 8;
-        st.seed = 1;
-        st.npart = 4;
-        st.rate = 48;                           /* 4 steps a second */
-        st.cents = 700;
-        st.glide = 49152;
-        st.chop = BK_CHOP_OFF;
-        st.hold = 0;
-        st.topo = BK_TOPO_LOCAL;
-        st.timbre = 0;
+    bk_perf_init(&E);
+    if (!H->load(&rec, sizeof rec) && rec.magic == REC_MAGIC) {   /* (the engine is the main loop's until render runs) */
+        for (k = 0; k < BK_NKNOBS; k++)
+            if (rec.knob[k]) bk_input(&E, BK_IN_KNOB, k, rec.knob[k]);
+        for (k = 0; k < 10u; k++) bk_set(&E, REC_PAR[k], rec.par[k]);
     }
-    freeze = 0;
-    apply_all();
+    for (k = 0; k < BK_NPARAMS; k++) S.par[k] = E.par[k];
     H->log("bunki: ready");
     return 0;
 }

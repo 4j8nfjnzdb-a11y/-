@@ -15,12 +15,6 @@ static uint32_t now_ms;
 static uint8_t store[256];
 static int stored = -1;
 static FILE *script;
-static char notes[256];                          /* this block's note lines: after its controls, as render takes them */
-static void note_line(long ms, const char *what, int key, int vel)
-{
-    size_t n = strlen(notes);
-    snprintf(notes + n, sizeof notes - n, "%ld %s %d %d\n", ms, what, key, vel);
-}
 
 static uint32_t h_ms(void) { return now_ms; }
 static uint32_t h_ticks(void) { return now_ms * 24000u; }
@@ -78,36 +72,32 @@ static void shot(const char *path)
     fclose(f);
 }
 
-/* what the module's controls are now, as script lines (Q16 / Q8 values printed exactly) */
-static int32_t last[20];
+/* what reaches the engine at this block, as script lines: the knobs' turns (in the order render takes them), then
+ * the queue (keys, buttons) in its order */
+static int32_t written[BK_NKNOBS];
 static long ms_of(uint32_t b) { return (long)(((uint64_t)b * 256000u + 44099u) / 44100u); }
-static void log_state(uint32_t b)
+static void log_block(uint32_t b)
 {
-    static const char *CH[BK_NCHOPS] = {"off", "gate", "arp"}, *TP[BK_NTOPOS] = {"local", "global", "ring"};
-    const int32_t now[15] = {st.seed, st.u, EVO[st.evo], st.eps, st.lift, st.gain, st.npart, rate_q8(st.rate),
-                             st.cents, st.glide, st.chop, st.hold, st.topo, st.timbre, freeze};
-    long ms = ms_of(b);
-    if (now[0] != last[0]) fprintf(script, "%ld seed %d\n", ms, now[0]);
-    if (now[1] != last[1]) fprintf(script, "%ld u %.16f\n", ms, now[1] / 65536.0);
-    if (now[2] != last[2]) fprintf(script, "%ld D %.16f\n", ms, now[2] / 65536.0);
-    if (now[3] != last[3]) fprintf(script, "%ld eps %.16f\n", ms, now[3] / 65536.0);
-    if (now[4] != last[4]) fprintf(script, "%ld lift %s\n", ms, now[4] ? "sqrt" : "lin");
-    if (now[5] != last[5]) fprintf(script, "%ld gain %.16f\n", ms, now[5] / 256.0);
-    if (now[6] != last[6]) fprintf(script, "%ld npart %d\n", ms, now[6]);
-    if (now[7] != last[7]) fprintf(script, "%ld rate %.16f\n", ms, now[7] / 256.0);
-    if (now[8] != last[8]) fprintf(script, "%ld cents %d\n", ms, now[8]);
-    if (now[9] != last[9]) fprintf(script, "%ld glide %.16f\n", ms, now[9] / 65536.0);
-    if (now[10] != last[10]) fprintf(script, "%ld chop %s\n", ms, CH[now[10]]);
-    if (now[11] != last[11]) fprintf(script, "%ld hold %d\n", ms, now[11]);
-    if (now[12] != last[12]) fprintf(script, "%ld topo %s\n", ms, TP[now[12]]);
-    if (now[13] != last[13]) fprintf(script, "%ld timbre %d\n", ms, now[13]);
-    if (now[14] != last[14]) fprintf(script, "%ld freeze %d\n", ms, now[14]);
-    memcpy(last, now, sizeof now);
+    static const char *KN[BK_NKNOBS] = {"r", "time", "net", "space", "fine", "n", "seed"};
+    static const char *BN[BK_NBTNS] = {"hold", "arp", "evolve", "topo", "freeze", "loop", "timbre", "micro", "mutate", "oct"};
+    const long ms = ms_of(b);
+    uint32_t k, r;
+    for (k = 0; k < BK_NKNOBS; k++)
+        if (turned[k] != written[k]) {
+            fprintf(script, "%ld turn %s %d\n", ms, KN[k], turned[k] - written[k]);
+            written[k] = turned[k];
+        }
+    for (r = q_r; r != q_w; r++) {
+        const uint32_t i = r % QN;
+        if (q[i].type == Q_KEY && q[i].v) fprintf(script, "%ld on %d %d\n", ms, q[i].a, q[i].v);
+        else if (q[i].type == Q_KEY) fprintf(script, "%ld off %d\n", ms, q[i].a);
+        else if (q[i].type == Q_BTN) fprintf(script, "%ld btn %s%s\n", ms, BN[q[i].a], q[i].v ? "" : " long");
+    }
 }
 
 static void press(uint32_t btn) { hb_module.ui(HB_EV_BTN_DOWN | btn, 0); hb_module.ui(HB_EV_BTN_UP | btn, 0); }
 
-static void turn(uint32_t enc, int32_t clicks, int32_t per_event)
+static void turn_enc(uint32_t enc, int32_t clicks, int32_t per_event)
 {
     while (clicks) {
         int32_t a = clicks > 0 ? (clicks < per_event ? clicks : per_event) : (-clicks < per_event ? clicks : -per_event);
@@ -121,36 +111,42 @@ int main(int argc, char **argv)
     const char *dir = argc > 1 ? argv[1] : ".";
     static int32_t buf[512];
     uint64_t h = 1469598103934665603ull;
-    uint32_t b, i, N = 4800;
+    uint32_t b, i, N = 6000;
     char p[512];
     FILE *raw;
     snprintf(p, sizeof p, "%s/sim_script.txt", dir);
     script = fopen(p, "w");
     snprintf(p, sizeof p, "%s/sim.raw", dir);
     raw = fopen(p, "wb");
-    memset(last, 0x55, sizeof last);
     if (hb_module.abi != HB_ABI || hb_module.init(&HOST)) return 1;
+    fprintf(script, "0 perf\n");
     for (b = 0; b < N; b++) {
-        long ms = ms_of(b);
-        notes[0] = 0;
-        if (b == 20) { hb_module.note(0, 60, 100); note_line(ms, "on", 60, 100); }       /* a pure sine */
-        if (b == 400 || b == 800 || b == 1200) turn(HB_ENC_KNOB1, 16, 1);              /* 2, 4, 8 */
-        if (b == 1400) turn(HB_ENC_KNOB2, 12, 1);                                     /* twice the steps */
-        if (b == 1600) turn(HB_ENC_KNOB1, 182, 1);                                    /* the window */
-        if (b == 1900) turn(HB_ENC_SELECT, -40, 1);                                   /* out of it, finely */
-        if (b == 2100) { press(HB_BTN_ARP); turn(HB_ENC_ALGORITHM, 2, 1); }           /* CHOP GATE, 6 sines */
-        if (b == 2400) { hb_module.note(0, 67, 90); note_line(ms, "on", 67, 90); turn(HB_ENC_KNOB3, 30, 5); }
-        if (b == 2600) { press(HB_BTN_PLAY); hb_module.note(0, 60, 0); hb_module.note(0, 67, 0);
-                         note_line(ms, "off", 60, 0); note_line(ms, "off", 67, 0); }  /* HOLD, keys let go */
-        if (b == 2800) { press(HB_BTN_GLO); press(HB_BTN_ARP); turn(HB_ENC_KNOB4, -8, 4); }   /* ALL, ARP */
-        if (b == 3000) { press(HB_BTN_REC); size_t l = strlen(notes);                 /* MUTATE */
-                         snprintf(notes + l, sizeof notes - l, "%ld mutate\n", ms); }
-        if (b == 3200) { press(HB_BTN_SEQ); press(HB_BTN_SEQ); turn(HB_ENC_PRESETS, -6, 2); }   /* EVOLVE fast */
-        if (b == 3700) { press(HB_BTN_EDIT); press(HB_BTN_FX); }                      /* FREEZE, TIMBRE */
-        if (b == 4000) { press(HB_BTN_EDIT); press(HB_BTN_SEQ); press(HB_BTN_GLO); }  /* on, EVOLVE off, RING */
-        if (b == 4400) press(HB_BTN_PLAY);                                            /* HOLD off: they end */
-        log_state(b);                                 /* init's settings at 0, then each block's changes */
-        fputs(notes, script);
+        if (b == 20) hb_module.note(0, 60, 100);                                  /* a pure sine */
+        if (b >= 200 && b < 600 && b % 25 == 0) turn_enc(HB_ENC_KNOB1, 1, 1);      /* R up slowly: 2, 4 */
+        if (b >= 700 && b < 1100 && b % 10 == 0) { turn_enc(HB_ENC_KNOB2, 1, 1); turn_enc(HB_ENC_ALGORITHM, 1, 1); }  /* the wave */
+        if (b == 1200) press(HB_BTN_ARP);                                         /* ARP */
+        if (b == 1300) press(HB_BTN_ARP);                                         /* another way */
+        if (b == 1400) press(HB_BTN_REC);                                         /* record ... */
+        if (b == 1450) hb_module.note(0, 67, 90);
+        if (b >= 1500 && b < 1600 && b % 20 == 0) turn_enc(HB_ENC_KNOB1, 2, 1);
+        if (b == 1650) press(HB_BTN_SEL);                                         /* MICRO 1/4 */
+        if (b == 1700) hb_module.note(0, 67, 0);
+        if (b == 1800) press(HB_BTN_REC);                                         /* ... loop it */
+        if (b == 2200) turn_enc(HB_ENC_KNOB3, 20, 4);                             /* added into the loop */
+        if (b == 2500) { press(HB_BTN_LFO); press(HB_BTN_LFO); }                  /* OCT 2 */
+        if (b == 2800) press(HB_BTN_GLO);                                         /* all pull together */
+        if (b == 3100) press(HB_BTN_EDIT);                                        /* FREEZE */
+        if (b == 3300) press(HB_BTN_EDIT);
+        if (b == 3500) press(HB_BTN_SEQ);                                         /* EVOLVE */
+        if (b == 3900) press(HB_BTN_SEQ);                                         /* turned round */
+        if (b == 4200) { hb_module.ui(HB_EV_BTN_DOWN | HB_BTN_ARP, 0); }          /* a long press: ARP off */
+        if (b == 4400) { hb_module.ui(HB_EV_BTN_UP | HB_BTN_ARP, 0); }
+        if (b == 4600) press(HB_BTN_FX);                                          /* the FM layer too */
+        if (b == 5000) press(HB_BTN_REC);                                         /* the loop stopped */
+        if (b == 5200) press(HB_BTN_PLAY);                                        /* HOLD */
+        if (b == 5300) hb_module.note(0, 60, 0);
+        if (b == 5700) press(HB_BTN_PLAY);                                        /* HOLD off: it ends */
+        log_block(b);
         memset(buf, 0, sizeof buf);
         hb_module.render(buf, 256);
         for (i = 0; i < 512; i++) {
@@ -160,13 +156,12 @@ int main(int argc, char **argv)
         }
         now_ms = (uint32_t)(((uint64_t)(b + 1) * 256000u) / 44100u);
         hb_module.draw(b == 0);
-        if (b == 390 || b == 790 || b == 1590 || b == 2590 || b == 3390 || b == 3890 || b == 4390) {
+        if (b == 1100 || b == 2400 || b == 3000 || b == 4000) {
             snprintf(p, sizeof p, "%s/sim_%04u.ppm", dir, b);
             hb_module.draw(0);
             shot(p);
         }
     }
-    hb_module.ui(HB_EV_BTN_DOWN | HB_BTN_SAVE, 0);
     fprintf(script, "%ld end\n", ms_of(N));
     fclose(script);
     if (raw) fclose(raw);
