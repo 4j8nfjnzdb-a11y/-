@@ -80,7 +80,7 @@ function applyMode(st, mode) {
 }
 
 const S = {
-  aspect: 'a', res: 1080, playing: true,
+  aspect: 'a', res: Math.min(screen.width, screen.height) < 700 ? 720 : 1080, playing: true,
   stages: [mkStage(0, 'flow', 'a', 'b'), mkStage(1, 'thresh', 's1', 'c')],
   post: { amt: 0, blend: 0, zoom: .5, rot: .5 },
   st2Touched: false,
@@ -173,6 +173,11 @@ function place(i, el, kind, w, hh, url, name, info, thumbEl) {
   else msg(`${LETTERS[i]} に「${name}」を入れました。`);
   refreshInputs();
   applySize();
+  if (!S.col.init) {
+    S.col.init = true;
+    CL.roll(S.col, { arr: Math.random() < .5 ? 'scatter' : 'pile', count: true, src: true, cut: true, shape: true, place: true, depth: true, size: true, appear: true, motion: true, content: false, blend: false }, cctx());
+    S.col.depth = .6; buildCol();
+  } else if (!S.col.touched && S.col.frags.length) { CL.roll(S.col, { src: true, cut: true }, cctx()); buildCol(); }
 }
 function clearSlot(i) {
   const old = E.slots[i].el;
@@ -308,8 +313,306 @@ function shake() {
     st.seed = R() * 10;
     buildStage(si);
   });
+  if (S.col.frags.length) {
+    for (const f of S.col.frags) {
+      f.x = clamp(f.x + (R() - .5) * .1, 0, 1); f.y = clamp(f.y + (R() - .5) * .1, 0, 1); f.s = clamp(f.s * (.85 + R() * .3), .03, 2);
+      f.rot += (R() - .5) * .35; f.z = clamp(f.z + (R() - .5) * .3, 0, 1);
+      const [x, y, w, hh] = f.rect; f.rect = [clamp(x + (R() - .5) * .08, 0, 1 - w), clamp(y + (R() - .5) * .08, 0, 1 - hh), w, hh]; f._recap = true;
+    }
+    notes.push('断片の位置と抜き出しを少しずらした'); buildCol();
+  }
   if (S.post.amt > 0 && R() < .5) { S.post.zoom = clamp(S.post.zoom + (R() - .5) * .2, 0, 1); S.post.rot = clamp(S.post.rot + (R() - .5) * .2, 0, 1); buildPost(); }
   msg('揺さぶり：' + (notes.length ? notes.join('、') + '。値も少しずらしました。' : '値を少しずつずらしました。'));
+}
+
+// ---------- fragments (断片) ----------
+const CL = KishimiCollage();
+const PAPER = [.925, .902, .851];
+const SRC_LABEL = { a: 'A', b: 'B', c: 'C', g: '地', fb: '前' };
+const SRC_TIP = { g: '地（混ぜ方の結果）から抜き出す', fb: '直前のこま（出力）から抜き出す' };
+const CATS = [['count', '数'], ['src', '素材'], ['cut', '抜き出し'], ['shape', '形'], ['place', '配置'], ['depth', '奥行き'], ['size', '大きさ'],
+  ['appear', '出現'], ['motion', '動き'], ['content', '映像'], ['blend', '重ね方'], ['ground', '地・影・縁'], ['mix', '混ぜ方']];
+S.col = { frags: [], arr: 'scatter', ground: 'mix', depth: .6, haze: .45, shadow: .4, edge: 0, cam: 0, stop: false, reroll: false, sel: -1, init: false, touched: false };
+S.dice = { cats: Object.fromEntries(CATS.map(([k]) => [k, true])), every: 0, lastRoll: 0, rolls: 0 };
+let cc = 0, lastRecs = null;
+const lab = (list, id) => (list.find((x) => x[0] === id) || [, id])[1];
+function cctx() {
+  const [W, H] = E.size;
+  return { asp: W / H, H, cc, hasMix: true, avail: ['a', 'b', 'c'].filter((k, i) => E.slots[i].el),
+    dim: (k) => { const i = { a: 0, b: 1, c: 2 }[k]; if (i !== undefined) { const s = E.slots[i]; return s.el ? [s.w, s.h] : null; } return [W, H]; } };
+}
+const selFrag = () => S.col.frags.find((f) => f.id === S.col.sel) || null;
+function select(id) { if (S.col.sel === id) return; S.col.sel = id; buildCol(); }
+
+function rollMix(R = Math.random) {
+  const avail = cctx().avail; if (!avail.length) return;
+  const pick = (a) => a[Math.floor(R() * a.length)];
+  const s0 = S.stages[0], m0 = pick(MODES).id;
+  s0.P = pick(avail); s0.Q = avail.length > 1 ? pick(avail.filter((x) => x !== s0.P)) : s0.P;
+  applyMode(s0, m0);
+  s0.p = s0.p.map((v, k) => MODES[MI[m0]].p[k].choice ? Math.floor(R() * MODES[MI[m0]].p[k].choice.length) / Math.max(1, MODES[MI[m0]].p[k].choice.length - 1) : R());
+  if (MODES[MI[m0]].roles.F && R() < .4) s0.F = pick(FIELDS(0));
+  s0.mot = reduce ? 'none' : pick(['pp', 'pp', 'drift', 'saw', 'none']); s0.per = .4 + R() * .5; s0.t = .3 + R() * .4; s0.seed = R() * 10;
+  const s1 = S.stages[1];
+  s1.on = E.slots[2].el ? R() < .8 : R() < .3;
+  if (s1.on) { const m1 = pick(MODES).id; s1.P = 's1'; s1.Q = pick(avail); applyMode(s1, m1); s1.mot = reduce ? 'none' : pick(['pp', 'drift', 'none']); s1.per = .5 + R() * .45; s1.seed = R() * 10; }
+}
+function diceRoll(auto) {
+  const ctx = cctx();
+  if (!ctx.avail.length) { if (!auto) msg('先に素材を入れてください。'); return; }
+  const cats = S.dice.cats, colCats = CATS.map(([k]) => k).filter((k) => k !== 'mix' && cats[k]);
+  const parts = [];
+  if (colCats.length) {
+    const r = CL.roll(S.col, cats, ctx);
+    parts.push(`${lab(CL.ARRS, r.arr)}・${r.N} 片`);
+    if (r.shape) parts.push(`主な形は${lab(CL.SHAPES, r.shape)}`);
+    if (r.appear) parts.push(`${lab(CL.APPEARS, r.appear)}で${lab(CL.LIVES, r.life)}`);
+    if (r.move) parts.push(`動きは${lab(CL.MOVES, r.move)}`);
+    if (r.blend && r.blend !== 'normal') parts.push(`重ね方に${lab(CL.BLENDS, r.blend)}`);
+    if (r.content && r.content !== 'live') parts.push(r.content === 'frozen' ? '映像は凍結' : '映像は生・コマ落とし・凍結の混在');
+  }
+  if (cats.mix) { rollMix(); parts.push(`地は${MODES[MI[S.stages[0].mode]].k}${S.stages[1].on ? '＋' + MODES[MI[S.stages[1].mode]].k : ''}`); }
+  S.dice.lastRoll = performance.now(); S.dice.rolls++; S.col.touched = true;
+  if (!selFrag()) S.col.sel = -1;
+  buildCol(); buildStage(0); buildStage(1);
+  const b = $('roll'); b.classList.remove('rolled'); void b.offsetWidth; b.classList.add('rolled');
+  if (!auto || !S.dice.every) msg('振りました：' + (parts.join('、') || '選んだ項目がありません') + '。');
+}
+
+function buildDice() {
+  const el = $('dice'); el.textContent = '';
+  el.append(h('div', { class: 'cardHead' }, h('h2', {}, 'サイコロ'), h('span', { class: 'hint' }, '選んだものだけを振る'), h('span', { class: 'grow' }),
+    h('button', { class: 'btn primary small', type: 'button', onclick: () => diceRoll(false) }, '振る')));
+  const cats = h('div', { class: 'cats', role: 'group', 'aria-label': '振る項目' });
+  const sync = () => cats.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(!!S.dice.cats[b.dataset.k])));
+  for (const [k, t] of CATS) cats.append(h('button', { type: 'button', 'data-k': k, onclick: () => { S.dice.cats[k] = !S.dice.cats[k]; sync(); } }, t));
+  sync();
+  el.append(cats);
+  el.append(h('div', { class: 'row' },
+    h('button', { class: 'btn small', type: 'button', onclick: () => { for (const [k] of CATS) S.dice.cats[k] = true; sync(); } }, '全部'),
+    h('button', { class: 'btn small', type: 'button', onclick: () => { for (const [k] of CATS) S.dice.cats[k] = false; sync(); } }, '外す'),
+    h('span', { class: 'grow' })));
+  el.append(h('div', { class: 'role' }, h('span', {}, '振り続ける'),
+    seg([['0', '切'], ['3', '3 秒'], ['6', '6 秒'], ['12', '12 秒'], ['24', '24 秒']], () => String(S.dice.every), (v) => { S.dice.every = +v; S.dice.lastRoll = performance.now(); })));
+  el.append(h('p', { class: 'note' }, '一回ごとに、まず配置・形・現れ方などの決まりを一つ振り、断片の四分の一ほどにだけその決まりを破らせます。全部を別々に振るより、回ごとの違いがはっきり出ます。'));
+}
+
+function arrangeAll(arr) {
+  const ctx = cctx(); if (!S.col.frags.length) return;
+  CL.roll(S.col, { arr, place: true, size: true, depth: true, cut: arr === 'grid' || arr === 'joiner' || arr === 'strips' }, ctx);
+  S.col.touched = true; buildCol();
+}
+function addFrag() {
+  if (S.col.frags.length >= CL.MAX) { msg(`断片は ${CL.MAX} 枚までです。`); return; }
+  const ctx = cctx(), f = CL.freshFrag(S.col);
+  const tmp = { frags: [f], arr: 'scatter' };
+  CL.roll(tmp, { arr: 'scatter', src: true, cut: true, shape: true, place: true, depth: true, size: true, appear: true, motion: true, content: false, blend: false }, ctx);
+  f.born = cc; f.life = 'once'; S.col.frags.push(f); S.col.sel = f.id; S.col.touched = true; buildCol();
+}
+function removeFrag(id) { S.col.frags = S.col.frags.filter((f) => f.id !== id); if (S.col.sel === id) S.col.sel = -1; S.col.touched = true; buildCol(); }
+function setCount(n) {
+  n = clamp(n, 0, CL.MAX);
+  while (S.col.frags.length > n) S.col.frags.pop();
+  while (S.col.frags.length < n) addFragQuiet();
+  if (!selFrag()) S.col.sel = -1; S.col.touched = true; buildCol();
+}
+function addFragQuiet() { const sel = S.col.sel; addFrag(); S.col.sel = sel; }
+function rollOne(f) {
+  const tmp = { frags: [f], arr: 'scatter' };
+  const keepId = f.id, keepLayer = f.layer;
+  CL.roll(tmp, Object.assign({}, S.dice.cats, { arr: 'scatter', count: false, ground: false, mix: false, place: false }), cctx());
+  // a lone fragment has no arrangement to follow: give it its own spot when placement is rolled
+  if (S.dice.cats.place) { f.x = .12 + Math.random() * .76; f.y = .12 + Math.random() * .76; f.rot = (Math.random() - .5) * .6; }
+  f.id = keepId; f.layer = keepLayer; f.born = cc; f.phase = 0; f._hasCap = false;
+}
+
+function fragSliders(f) {
+  const P = (id, label, get, set, def, fmt, lo, hi) => slider({ id: `f${id}`, label, get, set: (v) => { set(v); S.col.touched = true; }, def, fmt, lo, hi });
+  return h('div', { class: 'params' },
+    P('x', '横の位置', () => f.x, (v) => { f.x = v; }, .5, (v) => v.toFixed(2), '左', '右'),
+    P('y', '縦の位置', () => f.y, (v) => { f.y = v; }, .5, (v) => v.toFixed(2), '上', '下'),
+    P('s', '大きさ', () => clamp((f.s - .04) / 1.4, 0, 1), (v) => { f.s = .04 + v * 1.4; }, .25, () => `${Math.round(f.s * 100)}%`),
+    P('r', '回転', () => (f.rot / Math.PI + 1) / 2, (v) => { f.rot = (v * 2 - 1) * Math.PI; }, .5, () => `${Math.round(f.rot * 180 / Math.PI)}°`),
+    P('z', '奥行き', () => f.z, (v) => { f.z = v; }, .5, (v) => v.toFixed(2), '手前', '奥'));
+}
+const pvRefresh = { fn: null, t: 0 };
+function cutEditor(f) {
+  const pv = h('canvas', { width: 300, height: 200 });
+  const hdl = h('i', { class: 'hdl' });
+  const box = h('div', { class: 'cutbox' }, hdl);
+  const wrap = h('div', { class: 'cut', title: '枠を動かす・角で大きさを変える・外を押して引くと新しい枠' }, pv, box);
+  const srcEl = () => { const i = { a: 0, b: 1, c: 2 }[f.src]; return i !== undefined ? E.slots[i].el : cv; };
+  const place = () => { const [x, y, w, hh] = f.rect; Object.assign(box.style, { left: x * 100 + '%', top: y * 100 + '%', width: w * 100 + '%', height: hh * 100 + '%' }); };
+  const draw = () => {
+    const el = srcEl(); if (!el) return;
+    const d = cctx().dim(f.src) || [4, 3], w = 300, hh = Math.max(40, Math.round(w * d[1] / d[0]));
+    if (pv.width !== w || pv.height !== hh) { pv.width = w; pv.height = hh; }
+    try { pv.getContext('2d').drawImage(el, 0, 0, w, hh); } catch (e) {}
+  };
+  draw(); place();
+  pvRefresh.fn = () => { if (!wrap.isConnected) { pvRefresh.fn = null; return; } const el = srcEl(); if (el && (el.tagName === 'VIDEO' || el === cv)) draw(); };
+  let op = null;
+  wrap.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); wrap.setPointerCapture(e.pointerId);
+    const r = wrap.getBoundingClientRect(), px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height, [x, y, w, hh] = f.rect;
+    if (e.target === hdl) op = { k: 'size', px, py, r0: f.rect.slice() };
+    else if (px >= x && px <= x + w && py >= y && py <= y + hh) op = { k: 'move', px, py, r0: f.rect.slice() };
+    else op = { k: 'new', px, py };
+  });
+  wrap.addEventListener('pointermove', (e) => {
+    if (!op) return;
+    const r = wrap.getBoundingClientRect(), px = clamp((e.clientX - r.left) / r.width, 0, 1), py = clamp((e.clientY - r.top) / r.height, 0, 1);
+    if (op.k === 'move') { const [x, y, w, hh] = op.r0; f.rect = [clamp(x + px - op.px, 0, 1 - w), clamp(y + py - op.py, 0, 1 - hh), w, hh]; }
+    else if (op.k === 'size') { const [x, y] = op.r0; f.rect = [x, y, clamp(px - x, .02, 1 - x), clamp(py - y, .02, 1 - y)]; }
+    else { const x0 = Math.min(op.px, px), y0 = Math.min(op.py, py); f.rect = [x0, y0, Math.max(.02, Math.abs(px - op.px)), Math.max(.02, Math.abs(py - op.py))]; }
+    f._recap = true; S.col.touched = true; place();
+  });
+  const end = () => { op = null; };
+  wrap.addEventListener('pointerup', end); wrap.addEventListener('pointercancel', end);
+  return wrap;
+}
+
+function buildCol() {
+  const el = $('col'), C = S.col; el.textContent = '';
+  const n = C.frags.length;
+  el.append(h('div', { class: 'cardHead' }, h('h2', {}, '断片'), h('span', { class: 'hint' }, '素材から抜き出して貼る'), h('span', { class: 'grow' }),
+    h('span', { class: 'count' }, h('button', { type: 'button', 'aria-label': '一枚減らす', onclick: () => setCount(n - 1) }, '−'), h('output', {}, String(n)), h('button', { type: 'button', 'aria-label': '一枚足す', onclick: () => setCount(n + 1) }, '＋'))));
+  el.append(h('div', { class: 'role' }, h('span', {}, '並べ方'), seg(CL.ARRS.map(([v, t]) => [v, t]), () => C.arr, (v) => { C.arr = v; arrangeAll(v); })));
+  el.append(h('div', { class: 'role' }, h('span', {}, '地'), seg([['mix', '混ぜ方'], ['black', '黒'], ['paper', '紙']], () => C.ground, (v) => { C.ground = v; C.touched = true; })));
+  el.append(h('div', { class: 'params' },
+    slider({ id: 'cdep', label: '奥行きの強さ', get: () => C.depth, set: (v) => { C.depth = v; }, def: .6 }),
+    slider({ id: 'chaze', label: '奥の霞', get: () => C.haze, set: (v) => { C.haze = v; }, def: .45 }),
+    slider({ id: 'cshadow', label: '影', get: () => C.shadow, set: (v) => { C.shadow = v; }, def: .4 }),
+    slider({ id: 'cedge', label: '紙の縁', get: () => C.edge, set: (v) => { C.edge = v; }, def: 0 }),
+    slider({ id: 'ccam', label: '視点の揺れ', get: () => C.cam, set: (v) => { C.cam = v; }, def: 0, lo: '止まる', hi: '視差が出る' })));
+  el.append(h('div', { class: 'toggles' },
+    h('button', { class: 'switch', type: 'button', 'aria-pressed': String(C.stop), onclick: () => { C.stop = !C.stop; buildCol(); } }, h('i'), '動きを止める'),
+    h('button', { class: 'switch', type: 'button', 'aria-pressed': String(C.reroll), title: '巡る断片が消えるたびに、サイコロの設定で振り直す', onclick: () => { C.reroll = !C.reroll; buildCol(); } }, h('i'), '消えるたびに振り直す')));
+  el.append(h('div', { class: 'role' }, h('span', {}, '映像を全部'), seg(CL.CONTENTS.map(([v, t]) => [v, t]), () => '', (v) => {
+    for (const f of C.frags) { f.content = v; f._hasCap = false; f._capAt = null; } C.touched = true; buildCol();
+  })));
+  const list = h('div', { class: 'frags', role: 'group', 'aria-label': '断片の一覧' });
+  C.frags.forEach((f, k) => list.append(h('button', { type: 'button', class: `k-${f.src}${missing(f) ? ' off' : ''}`, 'aria-pressed': String(f.id === C.sel), title: `${k + 1}：${SRC_LABEL[f.src]}・${lab(CL.SHAPES, f.shape)}・${lab(CL.APPEARS, f.appear)}`, onclick: () => select(f.id === C.sel ? -1 : f.id) }, String(k + 1), h('i', {}, SRC_LABEL[f.src]))));
+  list.append(h('button', { type: 'button', onclick: addFrag, title: '断片を一枚足す' }, '＋ 足す'));
+  el.append(list);
+  const f = selFrag();
+  if (!f) { el.append(h('p', { class: 'note' }, n ? '画面の断片か、上の番号を押すと、その断片の抜き出し・置き場所・現れ方を変えられます。' : '＋で足すか、サイコロを振ると断片が貼られます。')); return; }
+  const k = C.frags.indexOf(f) + 1, ed = h('div', { class: 'fed' });
+  ed.append(h('div', { class: 'cardHead' }, h('h3', {}, `断片 ${k}`), h('span', { class: 'grow' }),
+    h('button', { class: 'btn small', type: 'button', onclick: () => { rollOne(f); C.touched = true; buildCol(); } }, 'これだけ振る'),
+    h('button', { class: 'btn small', type: 'button', onclick: () => { if (C.frags.length >= CL.MAX) return; const nf = CL.freshFrag(C), g = Object.assign(JSON.parse(JSON.stringify(f)), { id: nf.id, layer: nf.layer, x: clamp(f.x + .04, 0, 1), y: clamp(f.y + .04, 0, 1), _hasCap: false, _recap: false }); C.frags.push(g); C.sel = g.id; C.touched = true; buildCol(); } }, '複製'),
+    h('button', { class: 'btn small', type: 'button', onclick: () => removeFrag(f.id) }, '消す')));
+  const row = (label, node) => h('div', { class: 'role' }, h('span', {}, label), node);
+  const re = () => buildCol();
+  ed.append(row('素材', seg(['a', 'b', 'c', 'g', 'fb'].map((c) => [c, SRC_LABEL[c], SRC_TIP[c] || null, { a: 'k-a', b: 'k-b', c: 'k-c' }[c] || null]), () => f.src, (v) => { f.src = v; f._recap = true; C.touched = true; re(); }, { codes: true })));
+  ed.append(h('div', { class: 'sub' }, h('b', {}, '抜き出し'), cutEditor(f),
+    row('形', seg(CL.SHAPES.map(([v, t]) => [v, t]), () => f.shape, (v) => { f.shape = v; re(); })),
+    h('div', { class: 'params' },
+      slider({ id: 'ffe', label: '縁のぼかし', get: () => clamp(f.feather / .15, 0, 1), set: (v) => { f.feather = v * .15; }, def: .07 }),
+      f.shape === 'bright' || f.shape === 'dark' ? slider({ id: 'fkey', label: '明暗の境', get: () => f.key, set: (v) => { f.key = v; }, def: .5 }) : null)));
+  ed.append(h('div', { class: 'sub' }, h('b', {}, '置き場所'), fragSliders(f)));
+  ed.append(h('div', { class: 'sub' }, h('b', {}, '出現'),
+    seg(CL.APPEARS.map(([v, t]) => [v, t]), () => f.appear, (v) => { f.appear = v; f.born = cc; f.phase = 0; }),
+    row('巡り方', seg(CL.LIVES.map(([v, t]) => [v, t]), () => f.life, (v) => { f.life = v; f.born = cc; f.phase = 0; re(); })),
+    f.life === 'still' ? null : h('div', { class: 'params' }, slider({ id: 'fper', label: f.life === 'once' ? '現れる長さ' : '一巡の長さ', get: () => Math.log(f.period) / Math.log(30), set: (v) => { f.period = Math.max(1, Math.pow(30, v)); }, def: Math.log(8) / Math.log(30), fmt: () => (f.life === 'once' ? f.period * .25 : f.period).toFixed(1) + ' 秒' }))));
+  ed.append(h('div', { class: 'sub' }, h('b', {}, '動き'),
+    seg(CL.MOVES.map(([v, t]) => [v, t]), () => f.move, (v) => { f.move = v; re(); }),
+    f.move === 'none' ? null : h('div', { class: 'params' }, slider({ id: 'fspd', label: '速さ', get: () => f.speed, set: (v) => { f.speed = v; }, def: .5 }))));
+  ed.append(h('div', { class: 'sub' }, h('b', {}, '映像'),
+    seg(CL.CONTENTS.map(([v, t]) => [v, t]), () => f.content, (v) => { f.content = v; f._hasCap = false; f._capAt = null; re(); }),
+    f.content === 'step' ? h('div', { class: 'params' }, slider({ id: 'fstep', label: 'コマの間', get: () => clamp((f.step - .05) / 2, 0, 1), set: (v) => { f.step = .05 + v * 2; }, def: .2, fmt: () => f.step.toFixed(2) + ' 秒' })) : null,
+    f.content === 'frozen' ? h('button', { class: 'btn small', type: 'button', style: 'align-self:flex-start', onclick: () => { f._recap = true; f._capAt = null; msg('今のこまで凍らせ直しました。'); } }, '今のこまで凍らせ直す') : null));
+  ed.append(h('div', { class: 'sub' }, h('b', {}, '重ね方'), seg(CL.BLENDS.map(([v, t]) => [v, t]), () => f.blend, (v) => { f.blend = v; }),
+    h('p', { class: 'note' }, { window: '窓：抜き出さずに、その場所の素材をそのまま覗かせます。', lens: 'レンズ：下の地を拡大して見せます。', displace: '変位：断片は見えず、明暗で下の地を歪めます。', dots: '網：明るい所だけ網点で重ねます。' }[f.blend] || '')));
+  el.append(ed);
+  refreshInputs();
+}
+function missing(f) { const i = { a: 0, b: 1, c: 2 }[f.src]; return i !== undefined && !E.slots[i].el; }
+
+// grab fragments on the screen: drag to move, wheel or two fingers to size and turn
+const ptrs = new Map();
+let drag = null, pinch = null;
+function toUv(e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height, r }; }
+cv.addEventListener('pointerdown', (e) => {
+  if (!lastRecs || !E.slots.some((s) => s.el)) return;
+  cv.setPointerCapture(e.pointerId);
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  const p = toUv(e), [W, H] = E.size;
+  if (ptrs.size === 1) {
+    const f = CL.hit(lastRecs, p.x, p.y, W / H);
+    if (f) { drag = { f, x0: f.x, y0: f.y, px: e.clientX, py: e.clientY, moved: false }; if (S.col.sel !== f.id) { S.col.sel = f.id; buildCol(); } }
+    else { drag = null; if (S.col.sel !== -1) { S.col.sel = -1; buildCol(); } }
+  } else if (ptrs.size === 2 && selFrag()) {
+    const [a, b] = [...ptrs.values()], f = selFrag();
+    pinch = { f, d0: Math.hypot(b.x - a.x, b.y - a.y), a0: Math.atan2(b.y - a.y, b.x - a.x), s0: f.s, r0: f.rot }; drag = null;
+  }
+});
+cv.addEventListener('pointermove', (e) => {
+  if (!ptrs.has(e.pointerId)) return;
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinch && ptrs.size >= 2) {
+    const [a, b] = [...ptrs.values()];
+    pinch.f.s = clamp(pinch.s0 * Math.hypot(b.x - a.x, b.y - a.y) / Math.max(1, pinch.d0), .03, 2);
+    pinch.f.rot = pinch.r0 + Math.atan2(b.y - a.y, b.x - a.x) - pinch.a0; S.col.touched = true;
+  } else if (drag) {
+    const r = cv.getBoundingClientRect();
+    drag.f.x = clamp(drag.x0 + (e.clientX - drag.px) / r.width, -.2, 1.2); drag.f.y = clamp(drag.y0 + (e.clientY - drag.py) / r.height, -.2, 1.2);
+    drag.moved = true; S.col.touched = true;
+  }
+});
+const ptrEnd = (e) => {
+  ptrs.delete(e.pointerId);
+  if (ptrs.size < 2 && pinch) { pinch = null; buildCol(); }
+  if (!ptrs.size && drag) { if (drag.moved) buildCol(); drag = null; }
+};
+cv.addEventListener('pointerup', ptrEnd); cv.addEventListener('pointercancel', ptrEnd);
+cv.addEventListener('wheel', (e) => {
+  const f = selFrag(); if (!f) return;
+  e.preventDefault();
+  if (e.shiftKey) f.rot += e.deltaY * .003; else f.s = clamp(f.s * Math.exp(-e.deltaY * .0015), .03, 2);
+  S.col.touched = true;
+  clearTimeout(cv._wt); cv._wt = setTimeout(buildCol, 250);
+}, { passive: false });
+function updateSelBox() {
+  const box = $('selbox'), f = selFrag();
+  const r = f && lastRecs ? lastRecs.find((x) => x.f === f) : null;
+  if (!r) { box.hidden = true; return; }
+  const cr = cv.getBoundingClientRect(), sr = $('stage').getBoundingClientRect();
+  box.hidden = false;
+  box.style.left = (cr.left - sr.left + r.q.x * cr.width) + 'px';
+  box.style.top = (cr.top - sr.top + r.q.y * cr.height) + 'px';
+  box.style.width = Math.max(2, r.q.s * r.fa * cr.height) + 'px';
+  box.style.height = Math.max(2, r.q.s * cr.height) + 'px';
+  box.style.transform = `translate(-50%,-50%) rotate(${r.q.rot}rad)`;
+}
+
+// one collage frame: poses, rerolls, frozen captures, and the packet for the engine
+function collageFrame() {
+  const ctx = cctx(), C = S.col;
+  let recs = CL.frame(C, cc, ctx);
+  if (C.reroll) {
+    let any = false;
+    for (const r of recs) {
+      const f = r.f;
+      if (f.life === 'cycle' && f._cyc !== undefined && r.q.cycle > f._cyc) { rollOne(f); f.life = 'cycle'; any = true; }
+      f._cyc = f.life === 'cycle' ? CL.life(f, cc).cycle : undefined;
+    }
+    if (any) { recs = CL.frame(C, cc, ctx); if (selFrag()) buildCol(); }
+  }
+  const caps = [];
+  for (const r of recs) {
+    const f = r.f;
+    if (f.content === 'live' || missing(f)) continue;
+    if (f.content === 'frozen' && f._hasCap && !f._recap) continue;
+    if (!f._hasCap && f._capAt != null && cc < f._capAt) continue;
+    if (f.content === 'step' && f._hasCap && !f._recap && clock - (f._lastCap || 0) < f.step) continue;
+    const [rx, ry, rw, rh] = r.q.rect;
+    caps.push({ layer: f.layer, src: f.src, rect: [rx, 1 - ry - rh, rw, rh], f });
+  }
+  const pk = CL.pack(recs, ctx);
+  lastRecs = recs;
+  const g = { mix: 0, black: 1, paper: 2 }[C.ground];
+  return { n: pk.n, F: pk.F, caps, ground: g, paper: PAPER, hazeCol: g === 2 ? PAPER : g === 1 ? [0, 0, 0] : [.05, .05, .055], depth: C.depth, shadow: C.shadow, edge: C.edge, haze: C.haze };
 }
 
 // ---------- transport ----------
@@ -320,6 +623,7 @@ function setPlaying(p) {
 }
 $('play').addEventListener('click', () => setPlaying(!S.playing));
 $('shake').addEventListener('click', shake);
+$('roll').addEventListener('click', () => diceRoll(false));
 
 // saving: inside the claude.ai viewer files go through the downloads capability
 const inViewer = !!(window.claude && typeof window.claude.use === 'function');
@@ -383,18 +687,31 @@ function wave(st, time) {
   return clamp(st.t + w * st.amp * .5, 0, 1);
 }
 let last = performance.now(), clock = 0, fpsN = 0, fpsT = 0, fps = 0, roT = 0;
+function renderNow() {
+  try {
+    const C = E.slots.some((s) => s.el) ? collageFrame() : null;
+    const got = E.render(S, clock, C) || [];
+    if (C) for (const c of C.caps) if (got.includes(c.layer)) { c.f._hasCap = true; c.f._recap = false; c.f._lastCap = clock; }
+  } catch (e) { console.error(e); }
+  updateSelBox();
+}
 function loop(now) {
   const dt = Math.min(.1, (now - last) / 1000); last = now;
   if (S.playing) clock += dt;
+  if (S.playing && !S.col.stop) cc += dt;
+  // real seconds: the app clock is capped per frame and runs slow on a slow device
+  if (S.dice.every && S.playing && E.slots.some((s) => s.el) && now - S.dice.lastRoll >= S.dice.every * 1000) diceRoll(true);
   for (let i = 0; i < 3; i++) { const s = E.slots[i]; if (s.el && s.el._poll && !s.el.paused) E.markFresh(i); }
   S.stages.forEach((st, si) => { st.tv = wave(st, clock); stageEls[si].style.setProperty('--tv', st.tv.toFixed(4)); });
-  try { E.render(S, clock); } catch (e) { console.error(e); }
+  renderNow();
+  if (pvRefresh.fn && now - pvRefresh.t > 300) { pvRefresh.t = now; pvRefresh.fn(); }
   fpsN++; fpsT += dt;
   if (fpsT > .5) { fps = fpsN / fpsT; fpsN = 0; fpsT = 0; }
   if (now - roT > 250) {
     roT = now;
     const [W, H] = E.size, parts = [`${W}×${H}`];
     S.stages.forEach((st, si) => { if (si === 0 || st.on) parts.push(`${si ? '二段' : '一段'} ${MODES[MI[st.mode]].k} ${st.tv.toFixed(2)}`); });
+    if (S.col.frags.length) parts.push(`断片 ${S.col.frags.length}${S.col.stop ? '（静止）' : ''}`);
     parts.push(`${fps.toFixed(0)} fps`);
     $('readout').textContent = parts.join(' · ');
     if (rec) { const s = Math.floor((now - recStart) / 1000); $('recTime').textContent = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; }
@@ -404,11 +721,11 @@ function loop(now) {
 
 cv.addEventListener('webglcontextlost', (e) => { e.preventDefault(); msg('描画が止まりました（GPU の都合）。ページを読み込み直してください。', true); });
 
-buildSlots(); buildStage(0); buildStage(1); buildPost(); buildOut();
+buildSlots(); buildDice(); buildCol(); buildStage(0); buildStage(1); buildPost(); buildOut();
 applySize(); refreshInputs();
 if (mime === null) $('rec').title = 'このブラウザは録画に対応していません';
 requestAnimationFrame(loop);
 
-// handle for the offline tests (tools/test.mjs)
-window.__kishimi = { S, E, MODES, buildStage, applyMode, setPlaying, get clock() { return clock; }, set clock(v) { clock = v; } };
+// handle for the offline tests (tools/test.js)
+window.__kishimi = { S, E, MODES, CL, buildStage, buildCol, applyMode, setPlaying, diceRoll, collageFrame, renderNow, get clock() { return clock; }, set clock(v) { clock = v; }, get cc() { return cc; }, set cc(v) { cc = v; }, get recs() { return lastRecs; } };
 })();

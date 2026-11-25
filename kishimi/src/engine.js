@@ -241,6 +241,109 @@ uniform vec2 uRes; uniform sampler2D uP; uniform vec4 uXP; uniform int uKP;
 ${COMMON}
 void main(){ o = vec4(uKP==1 ? vec3(0.) : sampT(uP,uXP,vUv,0.), 1.); }`;
 
+  // Collage: every fragment in one pass, far ones first. Per pixel, each
+  // fragment is skipped outside its bounding box; inside, the pixel is mapped
+  // into the fragment's rectangle, cut by its shape and by how far it has
+  // appeared, and laid over what is already there in its own way.
+  const FS_COLLAGE = `#version 300 es
+precision highp float; precision highp sampler2DArray;
+in vec2 vUv; out vec4 o;
+uniform vec2 uRes; uniform float uAsp, uTime;
+uniform sampler2D uSA, uSB, uSC, uG, uFB;
+uniform sampler2DArray uFrz;
+uniform vec4 uXA, uXB, uXC; uniform vec3 uLB;
+uniform int uN, uGround; uniform vec3 uPaper, uHazeCol;
+uniform float uDepth, uShadow, uEdge, uHaze;
+uniform vec4 uF0[16], uF1[16], uF2[16], uF3[16], uF4[16], uF5[16], uF6[16];
+${COMMON}
+vec3 raw(int k, vec2 u, float l){
+  if (k==0) return textureLod(uSA,u,l).rgb;
+  if (k==1) return textureLod(uSB,u,l).rgb;
+  if (k==2) return textureLod(uSC,u,l).rgb;
+  if (k==3) return textureLod(uG,u,l).rgb;
+  return textureLod(uFB,u,l).rgb;
+}
+vec3 inPlace(int k, vec2 uv){
+  if (k==0) return textureLod(uSA,uv*uXA.xy+uXA.zw,uLB.x).rgb;
+  if (k==1) return textureLod(uSB,uv*uXB.xy+uXB.zw,uLB.y).rgb;
+  if (k==2) return textureLod(uSC,uv*uXC.xy+uXC.zw,uLB.z).rgb;
+  if (k==3) return textureLod(uG,uv,0.).rgb;
+  return textureLod(uFB,uv,0.).rgb;
+}
+float sdBox(vec2 p, vec2 b){ vec2 q = abs(p)-b; return length(max(q,0.))+min(max(q.x,q.y),0.); }
+// signed distance to the cut, in units of the fragment's height
+float cutD(vec2 lc, int shape, float fa, float seed){
+  vec2 p = (lc-.5)*vec2(fa,1.), b = vec2(fa,1.)*.5;
+  if (shape==1) return (length(p/b)-1.)*min(b.x,b.y);
+  if (shape==3) { p.x += p.y*.45; b.x = max(b.x-.225,.04); return sdBox(p,b); }
+  float d = sdBox(p,b);
+  if (shape==2) d += (fbm(lc*vec2(fa,1.)*6.+seed*13.)-.5)*.16;
+  return d;
+}
+float reveal(int ty, float p, vec2 lc, float fa, float seed, vec2 px){
+  if (p>=1.) return 1.;
+  if (p<=0.) return 0.;
+  if (ty==2) { int dir = int(mod(floor(seed*4.),4.)); float w = dir==0 ? lc.x : dir==1 ? 1.-lc.x : dir==2 ? lc.y : 1.-lc.y;
+    float q = p*1.06-.03; return 1.-smoothstep(q-.03,q+.03,w); }
+  if (ty==3) { float r = length((lc-.5)*vec2(fa,1.))/(length(vec2(fa,1.))*.5); return 1.-smoothstep(p-.03,p,r); }
+  if (ty==4) return step(hash12(floor(px/2.5)+seed*31.), p);
+  if (ty==6) { float rows = 36., r = floor((1.-lc.y)*rows), cur = p*rows; return r<floor(cur) ? 1. : (r==floor(cur) ? step(lc.x,fract(cur)) : 0.); }
+  if (ty==8) return step(hash12(vec2(floor(lc.y*14.),seed*5.)), p*1.5);
+  if (ty==10) { vec2 g = fract(px/12.)-.5; return step(length(g)*1.42, p*1.04); }
+  if (ty==12) return step(hash12(vec2(floor(lc.y*11.),seed*7.)), p);
+  return 1.;
+}
+void main(){
+  vec2 uv = vUv;
+  vec3 col = uGround==0 ? textureLod(uG,uv,0.).rgb : (uGround==1 ? vec3(0.) : uPaper);
+  for (int i=0;i<16;i++) {
+    if (i>=uN) break;
+    vec4 bb = uF5[i];
+    if (uv.x<bb.x || uv.y<bb.y || uv.x>bb.z || uv.y>bb.w) continue;
+    vec4 a0 = uF0[i], a1 = uF1[i], a2 = uF2[i], a3 = uF3[i], a4 = uF4[i];
+    int src = int(a2.x+.5), shape = int(a2.y+.5), blend = int(a2.w+.5), ty = int(a3.x+.5), layer = int(uF6[i].x+.5);
+    bool frozen = uF6[i].x > -.5;
+    float fa = a4.x, seed = a4.w, p = a3.y, alpha = a3.z, z = a3.w, feather = max(a2.z,.0015);
+    float cs = cos(a0.w), sn = sin(a0.w);
+    vec2 sz = a0.z*vec2(fa,1.);
+    // paper shadow, offset more for nearer pieces
+    if (uShadow>.001 && blend<5 && shape<4 && alpha>0. && p>0.) {
+      vec2 so = vec2(.011,-.015)*(1.+(1.-z)*1.8)*uShadow;
+      vec2 ds = (uv-so*vec2(1./uAsp,1.)-a0.xy)*vec2(uAsp,1.);
+      vec2 ls = vec2(cs*ds.x+sn*ds.y, -sn*ds.x+cs*ds.y)/sz+.5;
+      float sm = clamp(-cutD(ls,shape,fa,seed)/(feather+.035),0.,1.);
+      col *= 1.-sm*uShadow*.55*alpha*min(p*2.,1.);
+    }
+    vec2 d = (uv-a0.xy)*vec2(uAsp,1.);
+    vec2 lc = vec2(cs*d.x+sn*d.y, -sn*d.x+cs*d.y)/sz+.5;
+    if (ty==8 && p<1.) lc.x += (hash12(vec2(floor(lc.y*14.),seed*9.))-.5)*(1.-p)*(1.-p)*1.4;
+    if (lc.x<-.1 || lc.y<-.1 || lc.x>1.1 || lc.y>1.1) continue;
+    float sd = cutD(lc, shape>=4 ? 0 : shape, fa, seed);
+    float m = clamp(-sd/feather,0.,1.);
+    if (m<=0.) continue;
+    m *= reveal(ty,p,lc,fa,seed,uv*uRes);
+    if (m<=0.) continue;
+    float lod = a4.y + uDepth*max(z-.15,0.)*1.6 + (ty==9 ? (1.-p)*6. : 0.);
+    vec2 cl = clamp(lc,0.,1.);
+    vec3 fc = frozen ? textureLod(uFrz, vec3(cl,float(layer)), lod).rgb : raw(src, a1.xy+cl*a1.zw, lod);
+    if (shape==4) m *= smoothstep(a4.z-.08,a4.z+.08,lum(fc));
+    if (shape==5) m *= 1.-smoothstep(a4.z-.08,a4.z+.08,lum(fc));
+    if (uEdge>.001 && shape<4) fc = mix(uPaper*.97, fc, clamp(-(sd+uEdge*.06)/feather,0.,1.));
+    fc = mix(fc, uHazeCol, uDepth*z*uHaze*.8);
+    m *= alpha;
+    if (blend==0) col = mix(col, fc, m);
+    else if (blend==1) col = mix(col, max(col,fc), m);
+    else if (blend==2) col = mix(col, min(col,fc), m);
+    else if (blend==3) col = mix(col, abs(col-fc), m);
+    else if (blend==4) col = mix(col, col*fc*1.2, m);
+    else if (blend==5) col = mix(col, inPlace(src,uv), m);
+    else if (blend==6) { vec2 lu = a0.xy+(uv-a0.xy)/1.9; col = mix(col, uGround==0 ? textureLod(uG,lu,0.).rgb : col, m); }
+    else if (blend==7) { vec2 du = uv+(vec2(lum(fc),lum(fc.gbr))-.5)*.09; col = mix(col, uGround==0 ? textureLod(uG,du,0.).rgb : col*.7, m); }
+    else { vec2 g = fract(uv*uRes/7.)-.5; col = mix(col, fc, m*step(length(g)*1.42, lum(fc)*1.1)); }
+  }
+  o = vec4(col,1.);
+}`;
+
   const FS_POST = `#version 300 es
 precision highp float;
 in vec2 vUv; out vec4 o;
@@ -287,7 +390,7 @@ void main(){ o = vec4(texture(uTex,vUv).rgb,1.); }`;
     for (let i = 0; i < n; i++) { const a = gl.getActiveUniform(p, i), nm = a.name.replace(/\[0\]$/, ''); u[nm] = gl.getUniformLocation(p, a.name); }
     return { p, u };
   }
-  const PR = { stage: program(FS_STAGE), flow: program(FS_FLOW), smooth: program(FS_SMOOTH), copy: program(FS_COPY), post: program(FS_POST), show: program(FS_SHOW) };
+  const PR = { stage: program(FS_STAGE), flow: program(FS_FLOW), smooth: program(FS_SMOOTH), copy: program(FS_COPY), collage: program(FS_COLLAGE), post: program(FS_POST), show: program(FS_SHOW) };
   let cur = null;
   const use = (pr) => { gl.useProgram(pr.p); cur = pr; };
   const f1 = (n, v) => { const l = cur.u[n]; if (l) gl.uniform1f(l, v); };
@@ -348,14 +451,16 @@ void main(){ o = vec4(texture(uTex,vUv).rgb,1.); }`;
   }
 
   // ---------- frame buffers ----------
-  let W = 0, H = 0, ST = [null, null], FIN = [null, null], cf = 0, frame = 0, seedFb = true;
+  let W = 0, H = 0, ST = [null, null], FIN = [null, null], COL = null, FRZ = null, cf = 0, frame = 0, seedFb = true;
+  const FRZ_SIZE = 512, FRZ_LAYERS = 16;
   const FLOW = [null, null], HIST = [null, null];
   const HN = 60;
   function resize(w, h) {
     if (w === W && h === H) return;
     W = w; H = h; cv.width = w; cv.height = h;
-    for (const r of [...ST, ...FIN]) free(r);
+    for (const r of [...ST, ...FIN, COL]) free(r);
     ST = [target(W, H, { half: true, mip: true }), target(W, H, { half: true, mip: true })];
+    COL = target(W, H, { half: true });
     FIN = [target(W, H, { half: true, mip: true }), target(W, H, { half: true, mip: true })];
     for (let i = 0; i < 2; i++) { freeFlow(i); freeHist(i); }
     seedFb = true;
@@ -443,7 +548,52 @@ void main(){ o = vec4(texture(uTex,vUv).rgb,1.); }`;
 
   const MODE_INDEX = { flow: 0, thresh: 1, disp: 2, freq: 3, cells: 4, bands: 5, screen: 6, chan: 7, time: 8, diff: 9 };
 
-  function render(S, time) {
+  // stop-motion and frozen pieces keep their own copy of a source rectangle
+  function capture(c, last) {
+    let tex = null;
+    const si = { a: 0, b: 1, c: 2 }[c.src];
+    if (si !== undefined) { if (slots[si].ready && slots[si].el) tex = slots[si].tex; }
+    else tex = c.src === 'g' ? last.t : FIN[1 - cf].t;
+    if (!tex) return false;
+    if (!FRZ) {
+      const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D_ARRAY, t);
+      gl.texStorage3D(gl.TEXTURE_2D_ARRAY, Math.log2(FRZ_SIZE) + 1, gl.RGBA8, FRZ_SIZE, FRZ_SIZE, FRZ_LAYERS);
+      gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      FRZ = { t, fb: gl.createFramebuffer() };
+    }
+    const [rx, ry, rw, rh] = c.rect;
+    use(PR.copy);
+    f2('uRes', FRZ_SIZE, FRZ_SIZE); bind(0, 'uP', tex); f4('uXP', [rw, rh, rx, ry]); i1('uKP', 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, FRZ.fb);
+    gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, FRZ.t, 0, c.layer);
+    gl.viewport(0, 0, FRZ_SIZE, FRZ_SIZE); gl.drawArrays(gl.TRIANGLES, 0, 3);
+    return true;
+  }
+
+  function collage(C, ground) {
+    use(PR.collage);
+    f2('uRes', W, H); f1('uAsp', W / H); i1('uN', C.n); i1('uGround', C.ground);
+    gl.uniform3fv(cur.u.uPaper, C.paper); gl.uniform3fv(cur.u.uHazeCol, C.hazeCol);
+    f1('uDepth', C.depth); f1('uShadow', C.shadow); f1('uEdge', C.edge); f1('uHaze', C.haze);
+    const lb = [0, 0, 0], names = ['uSA', 'uSB', 'uSC'], xn = ['uXA', 'uXB', 'uXC'];
+    for (let i = 0; i < 3; i++) {
+      const s = slots[i], ok = s.tex && s.ready && s.el;
+      bind(i, names[i], ok ? s.tex : dummy);
+      const xf = ok ? cover(s.w, s.h) : IDENT; f4(xn[i], xf);
+      lb[i] = ok ? Math.max(0, Math.log2(s.h * xf[1] / H)) : 0;
+    }
+    gl.uniform3fv(cur.u.uLB, lb);
+    bind(3, 'uG', ground.t); bind(4, 'uFB', FIN[1 - cf].t);
+    bind(5, 'uFrz', FRZ ? FRZ.t : dummyArr, gl.TEXTURE_2D_ARRAY);
+    for (let a = 0; a < 7; a++) { const l = cur.u['uF' + a]; if (l) gl.uniform4fv(l, C.F.subarray(a * 64, a * 64 + 64)); }
+    draw(COL.fb, W, H);
+    return COL;
+  }
+
+  function render(S, time, C) {
     frame++;
     for (const s of slots) if (s.el && s.fresh) upload(s);
     const any = slots.some((s) => s.ready && s.el);
@@ -480,18 +630,25 @@ void main(){ o = vec4(texture(uTex,vUv).rgb,1.); }`;
       mipmap(ST[si]);
       last = ST[si];
     });
+    const captured = [];
+    if (C && C.caps.length) {
+      for (const c of C.caps) if (capture(c, last)) captured.push(c.layer);
+      if (captured.length) { gl.bindTexture(gl.TEXTURE_2D_ARRAY, FRZ.t); gl.generateMipmap(gl.TEXTURE_2D_ARRAY); }
+    }
+    const top = C && (C.n > 0 || C.ground !== 0) ? collage(C, last) : last;
     const out = FIN[cf], prev = FIN[1 - cf], P = S.post;
     use(PR.post);
     f2('uRes', W, H); f1('uAsp', W / H); f1('uTime', time);
     f1('uAmt', P.amt * .985); i1('uBlend', P.blend);
     f1('uZoom', (P.zoom - .5) * 2 * .05); f1('uRot', (P.rot - .5) * 2 * .04);
-    bind(0, 'uCur', last.t); bind(1, 'uPrev', prev.t);
+    bind(0, 'uCur', top.t); bind(1, 'uPrev', prev.t);
     draw(out.fb, W, H);
     mipmap(out);
     use(PR.show);
     bind(0, 'uTex', out.t);
     draw(null, W, H);
     cf = 1 - cf;
+    return captured;
   }
 
 

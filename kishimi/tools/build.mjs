@@ -14,6 +14,7 @@ ${rd('src/style.css')}
 ${rd('src/body.html')}
 <script>
 ${rd('src/engine.js')}
+${rd('src/collage.js')}
 ${rd('src/ui.js')}
 </script>
 `;

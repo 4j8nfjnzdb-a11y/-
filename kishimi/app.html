@@ -154,11 +154,44 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 footer{display:flex;flex-wrap:wrap;gap:6px 20px;font-size:12px;color:var(--faint)}
 @media (max-width:520px){.modes{grid-template-columns:repeat(5,minmax(0,1fr));gap:4px}.mode b{font-size:15px}.mode i{font-size:8.5px}.role{grid-template-columns:6em minmax(0,1fr)}}
 
+/* dice and fragments */
+.btn.dice{border-color:rgba(240,180,92,.55);color:var(--amber)}
+.die{display:inline-grid;grid-template-columns:repeat(3,3px);grid-template-rows:repeat(3,3px);gap:1.5px;padding:2px;border:1.5px solid currentColor;border-radius:3px}
+.die i{width:3px;height:3px;border-radius:50%;background:currentColor}
+.die i:nth-child(1){grid-area:1/1} .die i:nth-child(2){grid-area:1/3} .die i:nth-child(3){grid-area:2/2} .die i:nth-child(4){grid-area:3/1} .die i:nth-child(5){grid-area:3/3}
+.btn.dice.rolled .die{animation:tumble .35s ease-out}
+@keyframes tumble{from{transform:rotate(-120deg) scale(.7)}to{transform:none}}
+@media (prefers-reduced-motion:reduce){.btn.dice.rolled .die{animation:none}}
+.cats{display:flex;flex-wrap:wrap;gap:4px}
+.cats button{padding:3px 8px;border-radius:3px;border:1px solid var(--line);background:var(--well);font-size:12.5px;line-height:1.4;color:var(--faint);text-decoration:line-through;text-decoration-color:rgba(236,230,218,.25)}
+.cats button[aria-pressed="true"]{color:var(--ink);border-color:var(--amber);background:var(--amber-soft);text-decoration:none}
+.sub{display:flex;flex-direction:column;gap:8px;padding-top:10px;border-top:1px solid var(--line)}
+.sub > b{font-size:12px;font-weight:500;color:var(--faint);letter-spacing:.08em}
+.frags{display:flex;flex-wrap:wrap;gap:4px}
+.frags button{display:inline-flex;align-items:center;gap:4px;padding:3px 7px;border-radius:3px;border:1px solid var(--line);background:var(--well);font-family:var(--f-mono);font-size:12px;--k:var(--dim)}
+.frags button i{font-style:normal;color:var(--k)}
+.frags button.k-a{--k:var(--a)} .frags button.k-b{--k:var(--b)} .frags button.k-c{--k:var(--c)} .frags button.k-g,.frags button.k-fb{--k:var(--amber)}
+.frags button[aria-pressed="true"]{border-color:var(--k);background:color-mix(in srgb,var(--k) 20%,transparent)}
+.frags button.off{opacity:.45}
+.fed{display:flex;flex-direction:column;gap:12px;padding:12px;border:1px solid var(--line2);border-radius:5px;background:var(--well)}
+.fed .cardHead h3{margin:0;font-family:var(--f-disp);font-weight:800;font-size:15px;letter-spacing:.06em}
+.cut{position:relative;width:100%;max-width:300px;align-self:flex-start;touch-action:none;user-select:none;-webkit-user-select:none;cursor:crosshair;background:#000;border-radius:3px;overflow:hidden}
+.cut canvas{display:block;width:100%;height:auto}
+.cutbox{position:absolute;border:1.5px solid var(--amber);box-shadow:0 0 0 9999px rgba(0,0,0,.55);cursor:move}
+.cutbox .hdl{position:absolute;right:-1px;bottom:-1px;width:16px;height:16px;border-radius:2px;background:var(--amber);cursor:nwse-resize}
+.selbox{position:absolute;pointer-events:none;border:1.5px dashed var(--amber);box-shadow:0 0 0 1px rgba(0,0,0,.5);z-index:2}
+#cv{touch-action:none}
+.stage.loaded #cv{cursor:pointer}
+.count{display:inline-flex;align-items:center;gap:2px;font-family:var(--f-mono);font-size:12.5px}
+.count button{width:26px;height:26px;border-radius:3px;border:1px solid var(--line2);background:var(--well);line-height:1}
+.count output{min-width:2.2em;text-align:center;color:var(--ink)}
+.toggles{display:flex;flex-wrap:wrap;gap:6px}
+
 </style>
 <div class="app">
   <header class="top">
     <h1><span class="glyph" aria-hidden="true">軋</span><span class="nm">Kishimi<small>軋み</small></span></h1>
-    <p>写真や動画を二つか三つ入れて、混ぜ方を選びます。片方がもう片方を押し、切り、遅らせ、網目から覗かせます。混ぜ方は十通り。二段まで重ねられ、一段目の結果や直前のこまも次の素材になります。</p>
+    <p>写真や動画を二つか三つ入れると、地では十通りの混ぜ方で混ざり、その上に素材から抜き出した断片が奥行きをもって貼られます。断片は現れ方、動き方、止まり方がそれぞれ違い、サイコロで選んだ項目だけを振り直せます。</p>
   </header>
 
   <main class="main">
@@ -170,10 +203,12 @@ footer{display:flex;flex-wrap:wrap;gap:6px 20px;font-size:12px;color:var(--faint
           <p>写真か動画を二つ入れると、ここで混ざりはじめます。三つ目は C へ。ここへ直接ドロップしても、空いている枠に入ります。</p>
           <div class="row"><button class="btn primary" type="button" data-pick="0">A を入れる</button><button class="btn" type="button" data-pick="1">B を入れる</button></div>
         </div>
+        <div class="selbox" id="selbox" hidden></div>
         <div class="recBadge" id="recBadge" hidden><i></i><span id="recTime">00:00</span></div>
       </div>
       <div class="transport">
         <button class="btn" type="button" id="play" aria-pressed="true">一時停止</button>
+        <button class="btn dice" type="button" id="roll" title="サイコロの欄で選んだものを振る"><span class="die" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>振る</button>
         <button class="btn" type="button" id="shake" title="今の設定から少しずらす">揺さぶる</button>
         <span class="grow"></span>
         <button class="btn" type="button" id="still">静止画</button>
@@ -188,6 +223,8 @@ footer{display:flex;flex-wrap:wrap;gap:6px 20px;font-size:12px;color:var(--faint
         <div class="cardHead"><h2 id="h-src">素材</h2><span class="hint">枠を押すか、ファイルをドロップ</span></div>
         <div class="slots" id="slots"></div>
       </section>
+      <section class="card" id="dice" aria-label="サイコロ"></section>
+      <section class="card" id="col" aria-label="断片"></section>
       <section class="card stagecard" id="st0" aria-label="一段目"></section>
       <section class="card stagecard" id="st1" aria-label="二段目"></section>
       <section class="card" id="post" aria-label="残像"></section>
@@ -196,6 +233,7 @@ footer{display:flex;flex-wrap:wrap;gap:6px 20px;font-size:12px;color:var(--faint
   </main>
 
   <footer>
+    <span>画面の断片は押して選び、ドラッグで動かします。大きさはホイールか二本指、回転は Shift＋ホイールか二本指のひねりです。</span>
     <span>スライダーはダブルクリックで初期値に戻ります。</span>
     <span>録画は MP4（使えないブラウザでは WebM）、毎秒 30 こま。動画の音は入りません。</span>
   </footer>
@@ -448,6 +486,109 @@ uniform vec2 uRes; uniform sampler2D uP; uniform vec4 uXP; uniform int uKP;
 ${COMMON}
 void main(){ o = vec4(uKP==1 ? vec3(0.) : sampT(uP,uXP,vUv,0.), 1.); }`;
 
+  // Collage: every fragment in one pass, far ones first. Per pixel, each
+  // fragment is skipped outside its bounding box; inside, the pixel is mapped
+  // into the fragment's rectangle, cut by its shape and by how far it has
+  // appeared, and laid over what is already there in its own way.
+  const FS_COLLAGE = `#version 300 es
+precision highp float; precision highp sampler2DArray;
+in vec2 vUv; out vec4 o;
+uniform vec2 uRes; uniform float uAsp, uTime;
+uniform sampler2D uSA, uSB, uSC, uG, uFB;
+uniform sampler2DArray uFrz;
+uniform vec4 uXA, uXB, uXC; uniform vec3 uLB;
+uniform int uN, uGround; uniform vec3 uPaper, uHazeCol;
+uniform float uDepth, uShadow, uEdge, uHaze;
+uniform vec4 uF0[16], uF1[16], uF2[16], uF3[16], uF4[16], uF5[16], uF6[16];
+${COMMON}
+vec3 raw(int k, vec2 u, float l){
+  if (k==0) return textureLod(uSA,u,l).rgb;
+  if (k==1) return textureLod(uSB,u,l).rgb;
+  if (k==2) return textureLod(uSC,u,l).rgb;
+  if (k==3) return textureLod(uG,u,l).rgb;
+  return textureLod(uFB,u,l).rgb;
+}
+vec3 inPlace(int k, vec2 uv){
+  if (k==0) return textureLod(uSA,uv*uXA.xy+uXA.zw,uLB.x).rgb;
+  if (k==1) return textureLod(uSB,uv*uXB.xy+uXB.zw,uLB.y).rgb;
+  if (k==2) return textureLod(uSC,uv*uXC.xy+uXC.zw,uLB.z).rgb;
+  if (k==3) return textureLod(uG,uv,0.).rgb;
+  return textureLod(uFB,uv,0.).rgb;
+}
+float sdBox(vec2 p, vec2 b){ vec2 q = abs(p)-b; return length(max(q,0.))+min(max(q.x,q.y),0.); }
+// signed distance to the cut, in units of the fragment's height
+float cutD(vec2 lc, int shape, float fa, float seed){
+  vec2 p = (lc-.5)*vec2(fa,1.), b = vec2(fa,1.)*.5;
+  if (shape==1) return (length(p/b)-1.)*min(b.x,b.y);
+  if (shape==3) { p.x += p.y*.45; b.x = max(b.x-.225,.04); return sdBox(p,b); }
+  float d = sdBox(p,b);
+  if (shape==2) d += (fbm(lc*vec2(fa,1.)*6.+seed*13.)-.5)*.16;
+  return d;
+}
+float reveal(int ty, float p, vec2 lc, float fa, float seed, vec2 px){
+  if (p>=1.) return 1.;
+  if (p<=0.) return 0.;
+  if (ty==2) { int dir = int(mod(floor(seed*4.),4.)); float w = dir==0 ? lc.x : dir==1 ? 1.-lc.x : dir==2 ? lc.y : 1.-lc.y;
+    float q = p*1.06-.03; return 1.-smoothstep(q-.03,q+.03,w); }
+  if (ty==3) { float r = length((lc-.5)*vec2(fa,1.))/(length(vec2(fa,1.))*.5); return 1.-smoothstep(p-.03,p,r); }
+  if (ty==4) return step(hash12(floor(px/2.5)+seed*31.), p);
+  if (ty==6) { float rows = 36., r = floor((1.-lc.y)*rows), cur = p*rows; return r<floor(cur) ? 1. : (r==floor(cur) ? step(lc.x,fract(cur)) : 0.); }
+  if (ty==8) return step(hash12(vec2(floor(lc.y*14.),seed*5.)), p*1.5);
+  if (ty==10) { vec2 g = fract(px/12.)-.5; return step(length(g)*1.42, p*1.04); }
+  if (ty==12) return step(hash12(vec2(floor(lc.y*11.),seed*7.)), p);
+  return 1.;
+}
+void main(){
+  vec2 uv = vUv;
+  vec3 col = uGround==0 ? textureLod(uG,uv,0.).rgb : (uGround==1 ? vec3(0.) : uPaper);
+  for (int i=0;i<16;i++) {
+    if (i>=uN) break;
+    vec4 bb = uF5[i];
+    if (uv.x<bb.x || uv.y<bb.y || uv.x>bb.z || uv.y>bb.w) continue;
+    vec4 a0 = uF0[i], a1 = uF1[i], a2 = uF2[i], a3 = uF3[i], a4 = uF4[i];
+    int src = int(a2.x+.5), shape = int(a2.y+.5), blend = int(a2.w+.5), ty = int(a3.x+.5), layer = int(uF6[i].x+.5);
+    bool frozen = uF6[i].x > -.5;
+    float fa = a4.x, seed = a4.w, p = a3.y, alpha = a3.z, z = a3.w, feather = max(a2.z,.0015);
+    float cs = cos(a0.w), sn = sin(a0.w);
+    vec2 sz = a0.z*vec2(fa,1.);
+    // paper shadow, offset more for nearer pieces
+    if (uShadow>.001 && blend<5 && shape<4 && alpha>0. && p>0.) {
+      vec2 so = vec2(.011,-.015)*(1.+(1.-z)*1.8)*uShadow;
+      vec2 ds = (uv-so*vec2(1./uAsp,1.)-a0.xy)*vec2(uAsp,1.);
+      vec2 ls = vec2(cs*ds.x+sn*ds.y, -sn*ds.x+cs*ds.y)/sz+.5;
+      float sm = clamp(-cutD(ls,shape,fa,seed)/(feather+.035),0.,1.);
+      col *= 1.-sm*uShadow*.55*alpha*min(p*2.,1.);
+    }
+    vec2 d = (uv-a0.xy)*vec2(uAsp,1.);
+    vec2 lc = vec2(cs*d.x+sn*d.y, -sn*d.x+cs*d.y)/sz+.5;
+    if (ty==8 && p<1.) lc.x += (hash12(vec2(floor(lc.y*14.),seed*9.))-.5)*(1.-p)*(1.-p)*1.4;
+    if (lc.x<-.1 || lc.y<-.1 || lc.x>1.1 || lc.y>1.1) continue;
+    float sd = cutD(lc, shape>=4 ? 0 : shape, fa, seed);
+    float m = clamp(-sd/feather,0.,1.);
+    if (m<=0.) continue;
+    m *= reveal(ty,p,lc,fa,seed,uv*uRes);
+    if (m<=0.) continue;
+    float lod = a4.y + uDepth*max(z-.15,0.)*1.6 + (ty==9 ? (1.-p)*6. : 0.);
+    vec2 cl = clamp(lc,0.,1.);
+    vec3 fc = frozen ? textureLod(uFrz, vec3(cl,float(layer)), lod).rgb : raw(src, a1.xy+cl*a1.zw, lod);
+    if (shape==4) m *= smoothstep(a4.z-.08,a4.z+.08,lum(fc));
+    if (shape==5) m *= 1.-smoothstep(a4.z-.08,a4.z+.08,lum(fc));
+    if (uEdge>.001 && shape<4) fc = mix(uPaper*.97, fc, clamp(-(sd+uEdge*.06)/feather,0.,1.));
+    fc = mix(fc, uHazeCol, uDepth*z*uHaze*.8);
+    m *= alpha;
+    if (blend==0) col = mix(col, fc, m);
+    else if (blend==1) col = mix(col, max(col,fc), m);
+    else if (blend==2) col = mix(col, min(col,fc), m);
+    else if (blend==3) col = mix(col, abs(col-fc), m);
+    else if (blend==4) col = mix(col, col*fc*1.2, m);
+    else if (blend==5) col = mix(col, inPlace(src,uv), m);
+    else if (blend==6) { vec2 lu = a0.xy+(uv-a0.xy)/1.9; col = mix(col, uGround==0 ? textureLod(uG,lu,0.).rgb : col, m); }
+    else if (blend==7) { vec2 du = uv+(vec2(lum(fc),lum(fc.gbr))-.5)*.09; col = mix(col, uGround==0 ? textureLod(uG,du,0.).rgb : col*.7, m); }
+    else { vec2 g = fract(uv*uRes/7.)-.5; col = mix(col, fc, m*step(length(g)*1.42, lum(fc)*1.1)); }
+  }
+  o = vec4(col,1.);
+}`;
+
   const FS_POST = `#version 300 es
 precision highp float;
 in vec2 vUv; out vec4 o;
@@ -494,7 +635,7 @@ void main(){ o = vec4(texture(uTex,vUv).rgb,1.); }`;
     for (let i = 0; i < n; i++) { const a = gl.getActiveUniform(p, i), nm = a.name.replace(/\[0\]$/, ''); u[nm] = gl.getUniformLocation(p, a.name); }
     return { p, u };
   }
-  const PR = { stage: program(FS_STAGE), flow: program(FS_FLOW), smooth: program(FS_SMOOTH), copy: program(FS_COPY), post: program(FS_POST), show: program(FS_SHOW) };
+  const PR = { stage: program(FS_STAGE), flow: program(FS_FLOW), smooth: program(FS_SMOOTH), copy: program(FS_COPY), collage: program(FS_COLLAGE), post: program(FS_POST), show: program(FS_SHOW) };
   let cur = null;
   const use = (pr) => { gl.useProgram(pr.p); cur = pr; };
   const f1 = (n, v) => { const l = cur.u[n]; if (l) gl.uniform1f(l, v); };
@@ -555,14 +696,16 @@ void main(){ o = vec4(texture(uTex,vUv).rgb,1.); }`;
   }
 
   // ---------- frame buffers ----------
-  let W = 0, H = 0, ST = [null, null], FIN = [null, null], cf = 0, frame = 0, seedFb = true;
+  let W = 0, H = 0, ST = [null, null], FIN = [null, null], COL = null, FRZ = null, cf = 0, frame = 0, seedFb = true;
+  const FRZ_SIZE = 512, FRZ_LAYERS = 16;
   const FLOW = [null, null], HIST = [null, null];
   const HN = 60;
   function resize(w, h) {
     if (w === W && h === H) return;
     W = w; H = h; cv.width = w; cv.height = h;
-    for (const r of [...ST, ...FIN]) free(r);
+    for (const r of [...ST, ...FIN, COL]) free(r);
     ST = [target(W, H, { half: true, mip: true }), target(W, H, { half: true, mip: true })];
+    COL = target(W, H, { half: true });
     FIN = [target(W, H, { half: true, mip: true }), target(W, H, { half: true, mip: true })];
     for (let i = 0; i < 2; i++) { freeFlow(i); freeHist(i); }
     seedFb = true;
@@ -650,7 +793,52 @@ void main(){ o = vec4(texture(uTex,vUv).rgb,1.); }`;
 
   const MODE_INDEX = { flow: 0, thresh: 1, disp: 2, freq: 3, cells: 4, bands: 5, screen: 6, chan: 7, time: 8, diff: 9 };
 
-  function render(S, time) {
+  // stop-motion and frozen pieces keep their own copy of a source rectangle
+  function capture(c, last) {
+    let tex = null;
+    const si = { a: 0, b: 1, c: 2 }[c.src];
+    if (si !== undefined) { if (slots[si].ready && slots[si].el) tex = slots[si].tex; }
+    else tex = c.src === 'g' ? last.t : FIN[1 - cf].t;
+    if (!tex) return false;
+    if (!FRZ) {
+      const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D_ARRAY, t);
+      gl.texStorage3D(gl.TEXTURE_2D_ARRAY, Math.log2(FRZ_SIZE) + 1, gl.RGBA8, FRZ_SIZE, FRZ_SIZE, FRZ_LAYERS);
+      gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      FRZ = { t, fb: gl.createFramebuffer() };
+    }
+    const [rx, ry, rw, rh] = c.rect;
+    use(PR.copy);
+    f2('uRes', FRZ_SIZE, FRZ_SIZE); bind(0, 'uP', tex); f4('uXP', [rw, rh, rx, ry]); i1('uKP', 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, FRZ.fb);
+    gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, FRZ.t, 0, c.layer);
+    gl.viewport(0, 0, FRZ_SIZE, FRZ_SIZE); gl.drawArrays(gl.TRIANGLES, 0, 3);
+    return true;
+  }
+
+  function collage(C, ground) {
+    use(PR.collage);
+    f2('uRes', W, H); f1('uAsp', W / H); i1('uN', C.n); i1('uGround', C.ground);
+    gl.uniform3fv(cur.u.uPaper, C.paper); gl.uniform3fv(cur.u.uHazeCol, C.hazeCol);
+    f1('uDepth', C.depth); f1('uShadow', C.shadow); f1('uEdge', C.edge); f1('uHaze', C.haze);
+    const lb = [0, 0, 0], names = ['uSA', 'uSB', 'uSC'], xn = ['uXA', 'uXB', 'uXC'];
+    for (let i = 0; i < 3; i++) {
+      const s = slots[i], ok = s.tex && s.ready && s.el;
+      bind(i, names[i], ok ? s.tex : dummy);
+      const xf = ok ? cover(s.w, s.h) : IDENT; f4(xn[i], xf);
+      lb[i] = ok ? Math.max(0, Math.log2(s.h * xf[1] / H)) : 0;
+    }
+    gl.uniform3fv(cur.u.uLB, lb);
+    bind(3, 'uG', ground.t); bind(4, 'uFB', FIN[1 - cf].t);
+    bind(5, 'uFrz', FRZ ? FRZ.t : dummyArr, gl.TEXTURE_2D_ARRAY);
+    for (let a = 0; a < 7; a++) { const l = cur.u['uF' + a]; if (l) gl.uniform4fv(l, C.F.subarray(a * 64, a * 64 + 64)); }
+    draw(COL.fb, W, H);
+    return COL;
+  }
+
+  function render(S, time, C) {
     frame++;
     for (const s of slots) if (s.el && s.fresh) upload(s);
     const any = slots.some((s) => s.ready && s.el);
@@ -687,18 +875,25 @@ void main(){ o = vec4(texture(uTex,vUv).rgb,1.); }`;
       mipmap(ST[si]);
       last = ST[si];
     });
+    const captured = [];
+    if (C && C.caps.length) {
+      for (const c of C.caps) if (capture(c, last)) captured.push(c.layer);
+      if (captured.length) { gl.bindTexture(gl.TEXTURE_2D_ARRAY, FRZ.t); gl.generateMipmap(gl.TEXTURE_2D_ARRAY); }
+    }
+    const top = C && (C.n > 0 || C.ground !== 0) ? collage(C, last) : last;
     const out = FIN[cf], prev = FIN[1 - cf], P = S.post;
     use(PR.post);
     f2('uRes', W, H); f1('uAsp', W / H); f1('uTime', time);
     f1('uAmt', P.amt * .985); i1('uBlend', P.blend);
     f1('uZoom', (P.zoom - .5) * 2 * .05); f1('uRot', (P.rot - .5) * 2 * .04);
-    bind(0, 'uCur', last.t); bind(1, 'uPrev', prev.t);
+    bind(0, 'uCur', top.t); bind(1, 'uPrev', prev.t);
     draw(out.fb, W, H);
     mipmap(out);
     use(PR.show);
     bind(0, 'uTex', out.t);
     draw(null, W, H);
     cf = 1 - cf;
+    return captured;
   }
 
 
@@ -709,6 +904,301 @@ void main(){ o = vec4(texture(uTex,vUv).rgb,1.); }`;
     get half() { return HALF; },
   };
 }
+
+// Kishimi collage: fragments cut from the sources and placed in depth.
+//
+// A fragment takes a rectangle out of one source (A, B, C, 地 = the mix, or
+// 前 = the previous frame), cuts it to a shape, and places it on the screen
+// at a position, size, angle and depth. Over its life it appears and
+// disappears in one of thirteen ways, moves in one of eight, and its picture
+// can play live, step in stop-motion, or be frozen at one moment.
+//
+// The dice never roll every property independently: that converges on the
+// same uniform chaos every time. A roll first picks a rule (an arrangement, a
+// main shape, a main way of appearing, ...) and then lets about a quarter of
+// the fragments break it.
+//
+// Pure logic, no DOM or GL: tools/test.js runs parts of it in Node too.
+
+function KishimiCollage() {
+  const SHAPES = [['rect', '四角'], ['ellipse', '楕円'], ['torn', '破れ'], ['skew', '斜め'], ['bright', '明部'], ['dark', '暗部']];
+  const APPEARS = [['none', 'そのまま'], ['fade', '溶ける'], ['wipe', '拭う'], ['iris', '開く'], ['grain', '粒'], ['grow', '伸びる'], ['scan', '走査'],
+    ['drop', '落ちる'], ['glitch', 'ずれ'], ['focus', '焦点'], ['dots', '網'], ['flicker', '明滅'], ['blinds', '帯']];
+  const LIVES = [['still', '常に'], ['once', '一度'], ['cycle', '巡る']];
+  const MOVES = [['none', '静止'], ['drift', '漂う'], ['flow', '流れる'], ['spin', '回る'], ['sway', '揺れる'], ['pulse', '脈打つ'], ['pan', '中が動く'], ['push', '寄る']];
+  const CONTENTS = [['live', '生'], ['step', 'コマ落とし'], ['frozen', '凍結']];
+  const BLENDS = [['normal', '普通'], ['lighten', '明るい方'], ['darken', '暗い方'], ['diff', '差'], ['multiply', '乗算'], ['window', '窓'], ['lens', 'レンズ'], ['displace', '変位'], ['dots', '網']];
+  const ARRS = [['scatter', '散らす'], ['grid', '格子'], ['joiner', '継ぎ'], ['strips', '帯'], ['ring', '環'], ['tunnel', '奥へ'], ['trail', '連なり'], ['pile', '山'], ['edges', '縁']];
+  const SRC_INDEX = { a: 0, b: 1, c: 2, g: 3, fb: 4 };
+  const code = (list, id) => Math.max(0, list.findIndex((x) => x[0] === id));
+  const MAX = 16;
+
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const hash = (n) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+  const noise1 = (x) => { const i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f); return hash(i) * (1 - u) + hash(i + 1) * u; };
+  const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+  const easeIn = (t) => t * t * t;
+  const bounce = (t) => { const n = 7.5625, d = 2.75; if (t < 1 / d) return n * t * t; if (t < 2 / d) return n * (t -= 1.5 / d) * t + .75; if (t < 2.5 / d) return n * (t -= 2.25 / d) * t + .9375; return n * (t -= 2.625 / d) * t + .984375; };
+  const wrap = (v, m) => { const r = 1 + 2 * m; return ((((v + m) % r) + r) % r) - m; };
+
+  function newFrag(id) {
+    return { id, layer: id, src: 'a', rect: [.25, .25, .5, .5], shape: 'rect', feather: .01, key: .5,
+      x: .5, y: .5, s: .4, rot: 0, z: .5, appear: 'iris', life: 'cycle', period: 8, phase: 0,
+      move: 'none', speed: .5, content: 'live', step: .5, blend: 'normal', seed: (id * 7.31) % 10, born: 0 };
+  }
+
+  // the picture's own aspect for a fragment (width/height on screen)
+  function aspectOf(f, ctx) {
+    const d = ctx.dim(f.src) || [1, 1];
+    return clamp((f.rect[2] * d[0]) / Math.max(1e-6, f.rect[3] * d[1]), .05, 20);
+  }
+
+  // a rectangle in the source with the wanted on-screen aspect
+  function rectFor(fa, src, ctx, rng, big) {
+    const d = ctx.dim(src) || [1, 1];
+    let rh = big ? .5 + rng() * .45 : .22 + rng() * .5;
+    let rw = rh * fa * d[1] / d[0];
+    if (rw > .98) { rh *= .98 / rw; rw = .98; }
+    if (rh > .98) { rw *= .98 / rh; rh = .98; }
+    return [rng() * (1 - rw), rng() * (1 - rh), rw, rh];
+  }
+  // the source rectangle that a screen cell covers (cover fit), for 継ぎ
+  function rectFromCell(cell, src, ctx) {
+    const [x0, y0, x1, y1] = cell;
+    if (src === 'g' || src === 'fb') return [x0, y0, x1 - x0, y1 - y0];
+    const d = ctx.dim(src) || [ctx.asp, 1], sa = d[0] / d[1], ca = ctx.asp;
+    let sx = 1, sy = 1; if (sa > ca) sx = ca / sa; else sy = sa / ca;
+    return [(1 - sx) / 2 + x0 * sx, (1 - sy) / 2 + y0 * sy, (x1 - x0) * sx, (y1 - y0) * sy];
+  }
+
+  // where N fragments go under each arrangement: x, y (0..1, y down), s (height
+  // as a share of the screen), rot, z (0 near .. 1 far), fa (aspect) and, for
+  // 継ぎ, the screen cell each fragment re-tiles
+  function slots(arr, N, asp, rng) {
+    const out = [], ph = rng() * 6.283;
+    const g = () => { let u = 0; for (let i = 0; i < 4; i++) u += rng(); return (u - 2) / 1.15; };
+    const pickFa = () => [.66, .75, 1, 1, 1.33, 1.5, 1.78][Math.floor(rng() * 7)];
+    if (arr === 'grid' || arr === 'joiner') {
+      const cols = Math.max(1, Math.round(Math.sqrt(N * asp))), rows = Math.ceil(N / cols), cw = 1 / cols, ch = 1 / rows;
+      for (let k = 0; k < N; k++) {
+        const c = k % cols, r = Math.floor(k / cols), cell = [c * cw, r * ch, (c + 1) * cw, (r + 1) * ch];
+        const j = arr === 'joiner';
+        out.push({ x: (c + .5) * cw + (j ? (rng() - .5) * cw * .12 : 0), y: (r + .5) * ch + (j ? (rng() - .5) * ch * .12 : 0),
+          s: ch * (j ? 1.02 + rng() * .12 : .96), rot: (rng() - .5) * (j ? .16 : .04), z: rng() * (j ? .5 : .25), fa: (cw * asp) / ch, cell });
+      }
+    } else if (arr === 'strips') {
+      for (let k = 0; k < N; k++) out.push({ x: (k + .5) / N, y: .5 + (rng() - .5) * .05, s: 1 + rng() * .06, rot: (rng() - .5) * .02, z: rng() * .3, fa: asp / N });
+    } else if (arr === 'ring') {
+      const R = .3 + rng() * .08;
+      for (let k = 0; k < N; k++) { const a = ph + k / N * 6.283; out.push({ x: .5 + Math.cos(a) * R / asp, y: .5 + Math.sin(a) * R, s: .2 + rng() * .1, rot: a + 1.5708, z: rng() * .6, fa: pickFa() }); }
+    } else if (arr === 'tunnel') {
+      for (let k = 0; k < N; k++) { const t = N > 1 ? k / (N - 1) : 0, a = ph + k * .95, rad = (1 - t) * .38; out.push({ x: .5 + Math.cos(a) * rad / asp, y: .5 + Math.sin(a) * rad, s: .34, rot: k * .18, z: t, fa: pickFa() }); }
+    } else if (arr === 'trail') {
+      const flip = rng() < .5;
+      for (let k = 0; k < N; k++) { const t = N > 1 ? k / (N - 1) : .5; out.push({ x: flip ? .88 - t * .76 : .12 + t * .76, y: .78 - t * .56 + Math.sin(t * 3.14159) * .12 * (flip ? -1 : 1), s: .3 + rng() * .06, rot: (t - .5) * .5 + (rng() - .5) * .1, z: t * .9, fa: pickFa() }); }
+    } else if (arr === 'pile') {
+      for (let k = 0; k < N; k++) out.push({ x: clamp(.5 + g() * .13 / asp * 1.4, .1, .9), y: clamp(.5 + g() * .12, .1, .9), s: .28 + rng() * .16, rot: (rng() - .5) * 1.1, z: rng(), fa: pickFa() });
+    } else if (arr === 'edges') {
+      for (let k = 0; k < N; k++) {
+        const u = (k + rng() * .7) / N * 4, side = Math.floor(u) % 4, f = u - Math.floor(u), m = .1;
+        const p = side === 0 ? [m + f * (1 - 2 * m), m] : side === 1 ? [1 - m, m + f * (1 - 2 * m)] : side === 2 ? [1 - m - f * (1 - 2 * m), 1 - m] : [m, 1 - m - f * (1 - 2 * m)];
+        out.push({ x: p[0], y: p[1], s: .18 + rng() * .14, rot: (rng() - .5) * .35, z: rng(), fa: pickFa() });
+      }
+    } else { // scatter: best-candidate, so pieces spread without a grid
+      for (let k = 0; k < N; k++) {
+        let best = null, bd = -1;
+        for (let c = 0; c < 14; c++) {
+          const p = [.1 + rng() * .8, .1 + rng() * .8];
+          let d = 9; for (const q of out) d = Math.min(d, Math.hypot((p[0] - q.x) * asp, p[1] - q.y));
+          if (d > bd) { bd = d; best = p; }
+        }
+        out.push({ x: best[0], y: best[1], s: .2 + rng() * .32, rot: (rng() - .5) * .5, z: rng(), fa: pickFa() });
+      }
+    }
+    return out;
+  }
+  const COUNT = { scatter: [4, 11], grid: [6, 16], joiner: [6, 16], strips: [4, 10], ring: [5, 10], tunnel: [6, 12], trail: [4, 9], pile: [5, 12], edges: [5, 12] };
+
+  function weighted(rng, table) {
+    let s = 0; for (const k in table) s += table[k];
+    let r = rng() * s; for (const k in table) { r -= table[k]; if (r <= 0) return k; }
+    return Object.keys(table)[0];
+  }
+  const W_SHAPE = { rect: 3, ellipse: 1, torn: 2, skew: 1, bright: 1.2, dark: 1 };
+  const W_APPEAR = { fade: .6, wipe: 1.2, iris: 1.2, grain: 1, grow: 1, scan: 1, drop: 1, glitch: 1, focus: 1, dots: 1, flicker: .7, blinds: 1, none: .5 };
+  const W_MOVE = { none: 2, drift: 2, flow: 1, spin: .6, sway: 1.2, pulse: .8, pan: 1.2, push: 1 };
+  const W_BLEND = { lighten: 1, darken: 1, diff: 1, multiply: .8, window: 1.4, lens: .8, displace: .8, dots: .8 };
+  const W_ARR = { scatter: 1.2, grid: 1, joiner: 1.3, strips: 1, ring: .8, tunnel: 1, trail: .9, pile: 1.1, edges: .8 };
+
+  // roll the checked categories. state = { frags, arr, ground, depth, shadow, edge, cam },
+  // ctx = { asp, dim(src) -> [w,h] | null, avail: ['a','b',...], cc }
+  function roll(state, cats, ctx, rng = Math.random) {
+    const R = rng, pick = (a) => a[Math.floor(R() * a.length)];
+    const odd = (p = .25) => R() < p;
+    if (cats.arr) state.arr = cats.arr;
+    else if (cats.place || !state.arr) state.arr = weighted(R, W_ARR);
+    const arr = state.arr;
+    if (cats.count || !state.frags.length) {
+      const [lo, hi] = COUNT[arr] || [4, 10];
+      const N = Math.min(MAX, lo + Math.floor(R() * (hi - lo + 1)));
+      while (state.frags.length > N) state.frags.pop();
+      while (state.frags.length < N) state.frags.push(freshFrag(state));
+    }
+    const N = state.frags.length, sl = slots(arr, N, ctx.asp, R);
+    const avail = ctx.avail.length ? ctx.avail : ['a'];
+    // one rule per category, then outliers
+    const mainSrc = pick(avail), second = pick(avail);
+    const mainShape = arr === 'grid' || arr === 'joiner' ? 'rect' : weighted(R, W_SHAPE), mainAppear = weighted(R, W_APPEAR), mainMove = weighted(R, W_MOVE);
+    const mainLife = weighted(R, { cycle: 5, once: 3, still: 2 });
+    const blendRule = R() < .55 ? 'normal' : weighted(R, W_BLEND);
+    const contentRule = weighted(R, { live: 5, mixed: 3, frozen: 2 });
+    const period = 4 + R() * 12, speed = .2 + R() * .6, feather = R() < .5 ? .004 : .01 + R() * .06;
+    state.frags.forEach((f, k) => {
+      const s = sl[k];
+      if (cats.src) f.src = arr === 'joiner' ? mainSrc : odd(.1) && ctx.hasMix ? pick(['g', 'fb']) : odd(.3) ? (odd(.5) ? second : pick(avail)) : mainSrc;
+      if (cats.place) { f.x = s.x; f.y = s.y; f.rot = s.rot; }
+      if (cats.size) f.s = s.s * (arr === 'grid' || arr === 'joiner' || arr === 'strips' ? 1 : .8 + R() * .4);
+      if (cats.depth) f.z = s.z;
+      if (cats.cut) {
+        if (arr === 'joiner' && s.cell) f.rect = rectFromCell(s.cell, f.src, ctx);
+        else f.rect = rectFor(cats.place ? s.fa : aspectOf(f, ctx), f.src, ctx, R, f.shape === 'bright' || f.shape === 'dark');
+        f.key = .35 + R() * .3;
+      }
+      if (cats.shape) { f.shape = odd(arr === 'joiner' || arr === 'grid' ? .2 : .25) ? weighted(R, W_SHAPE) : mainShape; f.feather = odd() ? R() * .08 : feather; }
+      if (cats.appear) {
+        f.appear = odd() ? weighted(R, W_APPEAR) : mainAppear;
+        f.life = odd(.15) ? weighted(R, { cycle: 1, once: 1, still: 1 }) : mainLife;
+        f.period = period * (.7 + R() * .6); f.phase = R(); f.born = ctx.cc;
+      }
+      if (cats.motion) { f.move = odd() ? weighted(R, W_MOVE) : mainMove; f.speed = speed * (.6 + R() * .8); }
+      if (cats.content) {
+        f.content = contentRule === 'mixed' ? pick(['live', 'step', 'frozen']) : odd(.15) ? pick(['live', 'step', 'frozen']) : contentRule;
+        f.step = .15 + R() * 1.2;
+        f._hasCap = false; f._capAt = f.content === 'frozen' ? ctx.cc + R() * 2.5 : null;
+      }
+      if (cats.blend) f.blend = blendRule === 'normal' ? (odd(.12) ? weighted(R, W_BLEND) : 'normal') : (R() < .55 ? blendRule : 'normal');
+      f.seed = R() * 10;
+    });
+    if (cats.ground) {
+      state.ground = weighted(R, { mix: 5, black: 2, paper: 2 });
+      state.shadow = R() < .6 ? .3 + R() * .6 : 0;
+      state.edge = R() < .3 ? .2 + R() * .6 : 0;
+      state.cam = R() < .5 ? R() * .8 : 0;
+    }
+    if (cats.depth && !cats.arr) { state.depth = .3 + R() * .65; state.haze = R() * .8; }
+    return { arr, N: state.frags.length, shape: cats.shape && mainShape, appear: cats.appear && mainAppear, move: cats.motion && mainMove,
+      blend: cats.blend && blendRule, content: cats.content && contentRule, life: cats.appear && mainLife };
+  }
+  function freshFrag(state) {
+    const used = new Set(state.frags.map((f) => f.layer));
+    let layer = 0; while (used.has(layer)) layer++;
+    const ids = state.frags.map((f) => f.id);
+    const f = newFrag(ids.length ? Math.max(...ids) + 1 : 0);
+    f.layer = layer;
+    return f;
+  }
+
+  // life: how far a fragment has appeared (p 0..1) at collage time cc
+  function life(f, cc) {
+    if (f.life === 'still' || f.appear === 'none') return { p: 1, cycle: 0 };
+    const age = Math.max(0, cc - f.born);
+    if (f.life === 'once') return { p: clamp(age / Math.max(.4, f.period * .25), 0, 1), cycle: 0 };
+    const x = age / f.period + f.phase, cycle = Math.floor(x), ph = x - cycle;
+    let p;
+    if (ph < .2) p = easeOut(ph / .2);
+    else if (ph < .68) p = 1;
+    else if (ph < .86) p = 1 - easeIn((ph - .68) / .18);
+    else p = 0;
+    return { p, cycle };
+  }
+
+  // where a fragment is right now: motion, appearance geometry and depth
+  function pose(f, cc, ctx, g) {
+    let x = f.x, y = f.y, s = f.s, rot = f.rot;
+    const rect = f.rect.slice(), v = f.speed, t = cc, sd = f.seed;
+    switch (f.move) {
+      case 'drift': x += (noise1(t * v * .25 + sd * 3) - .5) * .14; y += (noise1(t * v * .25 + sd * 3 + 40) - .5) * .14; rot += (noise1(t * v * .2 + sd + 80) - .5) * .25; break;
+      case 'flow': { const a = sd * 6.283; x = wrap(x + Math.cos(a) * t * v * .05, .35); y = wrap(y + Math.sin(a) * t * v * .05, .35); break; }
+      case 'spin': rot += t * v * .5 * (sd % 2 < 1 ? 1 : -1); break;
+      case 'sway': rot += Math.sin(t * v * 1.6 + sd) * .14; x += Math.sin(t * v * .9 + sd) * .012; y += Math.sin(t * v * 1.3 + sd * 2) * .01; break;
+      case 'pulse': s *= 1 + .16 * Math.sin(t * v * 2.2 + sd); break;
+      case 'pan': {
+        const [rx, ry, rw, rh] = rect;
+        rect[0] = clamp(rx + Math.sin(t * v * .35 + sd) * Math.max(rw * .5, .05), 0, Math.max(0, 1 - rw));
+        rect[1] = clamp(ry + Math.sin(t * v * .27 + sd * 2) * Math.max(rh * .5, .05), 0, Math.max(0, 1 - rh));
+        break;
+      }
+      case 'push': { const k = .5 - .5 * Math.cos(t * v * .3 + sd), sc = 1 - .42 * k, [rx, ry, rw, rh] = rect; rect[0] = rx + rw * (1 - sc) / 2; rect[1] = ry + rh * (1 - sc) / 2; rect[2] = rw * sc; rect[3] = rh * sc; break; }
+    }
+    const L = life(f, cc), p = L.p;
+    let alpha = p > 0 ? 1 : 0;
+    if (p < 1) {
+      if (f.appear === 'grow') s *= easeOut(p);
+      else if (f.appear === 'drop') y -= (1 - bounce(p)) * 1.25;
+      else if (f.appear === 'fade') alpha = p;
+      else if (f.appear === 'focus') alpha = clamp(p / .35, 0, 1);
+      else if (f.appear === 'flicker') {
+        // like a tube starting: on-time grows with p; at most 2.5 flashes a second
+        const dur = f.life === 'once' ? Math.max(.4, f.period * .25) : f.period * .2, k = clamp(Math.floor(dur * 2.5), 1, 6), u = p * k;
+        alpha = p > 0 && u - Math.floor(u) < .25 + .75 * p ? 1 : 0;
+      }
+    }
+    // depth: deeper is smaller, moves less with the camera, and is hazier (shader)
+    const D = g.depth, z = f.z;
+    s = s / (1 + 1.6 * D * z);
+    if (g.cam > 0) { x += Math.sin(cc * .11) * .06 * g.cam * (1.25 - z) * D; y += Math.sin(cc * .083 + 1) * .04 * g.cam * (1.25 - z) * D; }
+    return { x, y, s, rot, rect, p, alpha, cycle: L.cycle };
+  }
+
+  // everything the engine needs, far fragments first
+  function frame(state, cc, ctx) {
+    const recs = [];
+    for (const f of state.frags) {
+      const q = pose(f, cc, ctx, state);
+      const fa = (q.rect[2] * (ctx.dim(f.src) || [1, 1])[0]) / Math.max(1e-6, q.rect[3] * (ctx.dim(f.src) || [1, 1])[1]);
+      recs.push({ f, q, fa: clamp(fa, .05, 20) });
+    }
+    recs.sort((a, b) => b.f.z - a.f.z || a.f.id - b.f.id);
+    return recs;
+  }
+  function pack(recs, ctx) {
+    const n = Math.min(MAX, recs.length), F = new Float32Array(7 * MAX * 4);
+    const put = (arr, i, a, b, c, d) => { const o = (arr * MAX + i) * 4; F[o] = a; F[o + 1] = b; F[o + 2] = c; F[o + 3] = d; };
+    for (let i = 0; i < n; i++) {
+      const { f, q, fa } = recs[i];
+      const cx = q.x, cy = 1 - q.y, th = -q.rot, [rx, ry, rw, rh] = q.rect;
+      const frozen = (f.content === 'frozen' || f.content === 'step') && f._hasCap;
+      const d = ctx.dim(f.src) || [1, 1], texH = frozen ? 512 : (f.src === 'g' || f.src === 'fb' ? ctx.H : d[1]);
+      const lod = Math.max(0, Math.log2(((frozen ? 1 : rh) * texH) / Math.max(1, q.s * ctx.H)));
+      const hx = q.s * fa / 2, hy = q.s / 2, c = Math.abs(Math.cos(th)), sn = Math.abs(Math.sin(th));
+      const ex = c * hx + sn * hy + .06, ey = sn * hx + c * hy + .06;
+      const wide = f.appear === 'glitch' && q.p < 1;
+      put(0, i, cx, cy, q.s, th);
+      put(1, i, rx, 1 - ry - rh, rw, rh);
+      put(2, i, SRC_INDEX[f.src] ?? 0, code(SHAPES, f.shape), f.feather, code(BLENDS, f.blend));
+      put(3, i, code(APPEARS, f.appear), q.p, q.alpha, f.z);
+      put(4, i, fa, lod, f.key, f.seed);
+      put(5, i, wide ? -1 : cx - ex / ctx.asp, cy - ey, wide ? 2 : cx + ex / ctx.asp, cy + ey);
+      put(6, i, frozen ? f.layer : -1, 0, 0, 0);
+    }
+    return { n, F };
+  }
+
+  // the nearest fragment under a point (x, y in 0..1, y down)
+  function hit(recs, x, y, asp) {
+    const u = x, v = 1 - y;
+    for (let i = recs.length - 1; i >= 0; i--) {
+      const { q, fa } = recs[i]; if (q.alpha <= 0 && q.p <= 0) continue;
+      const th = -q.rot, dx = (u - q.x) * asp, dy = v - (1 - q.y);
+      const lx = (Math.cos(th) * dx + Math.sin(th) * dy) / (q.s * fa) + .5, ly = (-Math.sin(th) * dx + Math.cos(th) * dy) / q.s + .5;
+      if (lx >= 0 && lx <= 1 && ly >= 0 && ly <= 1) return recs[i].f;
+    }
+    return null;
+  }
+
+  return { SHAPES, APPEARS, LIVES, MOVES, CONTENTS, BLENDS, ARRS, MAX, newFrag, freshFrag, slots, roll, life, pose, frame, pack, hit, aspectOf, rectFor, rectFromCell, clamp };
+}
+if (typeof module !== 'undefined') module.exports = KishimiCollage;
 
 (() => {
 const $ = (id) => document.getElementById(id);
@@ -792,7 +1282,7 @@ function applyMode(st, mode) {
 }
 
 const S = {
-  aspect: 'a', res: 1080, playing: true,
+  aspect: 'a', res: Math.min(screen.width, screen.height) < 700 ? 720 : 1080, playing: true,
   stages: [mkStage(0, 'flow', 'a', 'b'), mkStage(1, 'thresh', 's1', 'c')],
   post: { amt: 0, blend: 0, zoom: .5, rot: .5 },
   st2Touched: false,
@@ -885,6 +1375,11 @@ function place(i, el, kind, w, hh, url, name, info, thumbEl) {
   else msg(`${LETTERS[i]} に「${name}」を入れました。`);
   refreshInputs();
   applySize();
+  if (!S.col.init) {
+    S.col.init = true;
+    CL.roll(S.col, { arr: Math.random() < .5 ? 'scatter' : 'pile', count: true, src: true, cut: true, shape: true, place: true, depth: true, size: true, appear: true, motion: true, content: false, blend: false }, cctx());
+    S.col.depth = .6; buildCol();
+  } else if (!S.col.touched && S.col.frags.length) { CL.roll(S.col, { src: true, cut: true }, cctx()); buildCol(); }
 }
 function clearSlot(i) {
   const old = E.slots[i].el;
@@ -1020,8 +1515,306 @@ function shake() {
     st.seed = R() * 10;
     buildStage(si);
   });
+  if (S.col.frags.length) {
+    for (const f of S.col.frags) {
+      f.x = clamp(f.x + (R() - .5) * .1, 0, 1); f.y = clamp(f.y + (R() - .5) * .1, 0, 1); f.s = clamp(f.s * (.85 + R() * .3), .03, 2);
+      f.rot += (R() - .5) * .35; f.z = clamp(f.z + (R() - .5) * .3, 0, 1);
+      const [x, y, w, hh] = f.rect; f.rect = [clamp(x + (R() - .5) * .08, 0, 1 - w), clamp(y + (R() - .5) * .08, 0, 1 - hh), w, hh]; f._recap = true;
+    }
+    notes.push('断片の位置と抜き出しを少しずらした'); buildCol();
+  }
   if (S.post.amt > 0 && R() < .5) { S.post.zoom = clamp(S.post.zoom + (R() - .5) * .2, 0, 1); S.post.rot = clamp(S.post.rot + (R() - .5) * .2, 0, 1); buildPost(); }
   msg('揺さぶり：' + (notes.length ? notes.join('、') + '。値も少しずらしました。' : '値を少しずつずらしました。'));
+}
+
+// ---------- fragments (断片) ----------
+const CL = KishimiCollage();
+const PAPER = [.925, .902, .851];
+const SRC_LABEL = { a: 'A', b: 'B', c: 'C', g: '地', fb: '前' };
+const SRC_TIP = { g: '地（混ぜ方の結果）から抜き出す', fb: '直前のこま（出力）から抜き出す' };
+const CATS = [['count', '数'], ['src', '素材'], ['cut', '抜き出し'], ['shape', '形'], ['place', '配置'], ['depth', '奥行き'], ['size', '大きさ'],
+  ['appear', '出現'], ['motion', '動き'], ['content', '映像'], ['blend', '重ね方'], ['ground', '地・影・縁'], ['mix', '混ぜ方']];
+S.col = { frags: [], arr: 'scatter', ground: 'mix', depth: .6, haze: .45, shadow: .4, edge: 0, cam: 0, stop: false, reroll: false, sel: -1, init: false, touched: false };
+S.dice = { cats: Object.fromEntries(CATS.map(([k]) => [k, true])), every: 0, lastRoll: 0, rolls: 0 };
+let cc = 0, lastRecs = null;
+const lab = (list, id) => (list.find((x) => x[0] === id) || [, id])[1];
+function cctx() {
+  const [W, H] = E.size;
+  return { asp: W / H, H, cc, hasMix: true, avail: ['a', 'b', 'c'].filter((k, i) => E.slots[i].el),
+    dim: (k) => { const i = { a: 0, b: 1, c: 2 }[k]; if (i !== undefined) { const s = E.slots[i]; return s.el ? [s.w, s.h] : null; } return [W, H]; } };
+}
+const selFrag = () => S.col.frags.find((f) => f.id === S.col.sel) || null;
+function select(id) { if (S.col.sel === id) return; S.col.sel = id; buildCol(); }
+
+function rollMix(R = Math.random) {
+  const avail = cctx().avail; if (!avail.length) return;
+  const pick = (a) => a[Math.floor(R() * a.length)];
+  const s0 = S.stages[0], m0 = pick(MODES).id;
+  s0.P = pick(avail); s0.Q = avail.length > 1 ? pick(avail.filter((x) => x !== s0.P)) : s0.P;
+  applyMode(s0, m0);
+  s0.p = s0.p.map((v, k) => MODES[MI[m0]].p[k].choice ? Math.floor(R() * MODES[MI[m0]].p[k].choice.length) / Math.max(1, MODES[MI[m0]].p[k].choice.length - 1) : R());
+  if (MODES[MI[m0]].roles.F && R() < .4) s0.F = pick(FIELDS(0));
+  s0.mot = reduce ? 'none' : pick(['pp', 'pp', 'drift', 'saw', 'none']); s0.per = .4 + R() * .5; s0.t = .3 + R() * .4; s0.seed = R() * 10;
+  const s1 = S.stages[1];
+  s1.on = E.slots[2].el ? R() < .8 : R() < .3;
+  if (s1.on) { const m1 = pick(MODES).id; s1.P = 's1'; s1.Q = pick(avail); applyMode(s1, m1); s1.mot = reduce ? 'none' : pick(['pp', 'drift', 'none']); s1.per = .5 + R() * .45; s1.seed = R() * 10; }
+}
+function diceRoll(auto) {
+  const ctx = cctx();
+  if (!ctx.avail.length) { if (!auto) msg('先に素材を入れてください。'); return; }
+  const cats = S.dice.cats, colCats = CATS.map(([k]) => k).filter((k) => k !== 'mix' && cats[k]);
+  const parts = [];
+  if (colCats.length) {
+    const r = CL.roll(S.col, cats, ctx);
+    parts.push(`${lab(CL.ARRS, r.arr)}・${r.N} 片`);
+    if (r.shape) parts.push(`主な形は${lab(CL.SHAPES, r.shape)}`);
+    if (r.appear) parts.push(`${lab(CL.APPEARS, r.appear)}で${lab(CL.LIVES, r.life)}`);
+    if (r.move) parts.push(`動きは${lab(CL.MOVES, r.move)}`);
+    if (r.blend && r.blend !== 'normal') parts.push(`重ね方に${lab(CL.BLENDS, r.blend)}`);
+    if (r.content && r.content !== 'live') parts.push(r.content === 'frozen' ? '映像は凍結' : '映像は生・コマ落とし・凍結の混在');
+  }
+  if (cats.mix) { rollMix(); parts.push(`地は${MODES[MI[S.stages[0].mode]].k}${S.stages[1].on ? '＋' + MODES[MI[S.stages[1].mode]].k : ''}`); }
+  S.dice.lastRoll = performance.now(); S.dice.rolls++; S.col.touched = true;
+  if (!selFrag()) S.col.sel = -1;
+  buildCol(); buildStage(0); buildStage(1);
+  const b = $('roll'); b.classList.remove('rolled'); void b.offsetWidth; b.classList.add('rolled');
+  if (!auto || !S.dice.every) msg('振りました：' + (parts.join('、') || '選んだ項目がありません') + '。');
+}
+
+function buildDice() {
+  const el = $('dice'); el.textContent = '';
+  el.append(h('div', { class: 'cardHead' }, h('h2', {}, 'サイコロ'), h('span', { class: 'hint' }, '選んだものだけを振る'), h('span', { class: 'grow' }),
+    h('button', { class: 'btn primary small', type: 'button', onclick: () => diceRoll(false) }, '振る')));
+  const cats = h('div', { class: 'cats', role: 'group', 'aria-label': '振る項目' });
+  const sync = () => cats.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(!!S.dice.cats[b.dataset.k])));
+  for (const [k, t] of CATS) cats.append(h('button', { type: 'button', 'data-k': k, onclick: () => { S.dice.cats[k] = !S.dice.cats[k]; sync(); } }, t));
+  sync();
+  el.append(cats);
+  el.append(h('div', { class: 'row' },
+    h('button', { class: 'btn small', type: 'button', onclick: () => { for (const [k] of CATS) S.dice.cats[k] = true; sync(); } }, '全部'),
+    h('button', { class: 'btn small', type: 'button', onclick: () => { for (const [k] of CATS) S.dice.cats[k] = false; sync(); } }, '外す'),
+    h('span', { class: 'grow' })));
+  el.append(h('div', { class: 'role' }, h('span', {}, '振り続ける'),
+    seg([['0', '切'], ['3', '3 秒'], ['6', '6 秒'], ['12', '12 秒'], ['24', '24 秒']], () => String(S.dice.every), (v) => { S.dice.every = +v; S.dice.lastRoll = performance.now(); })));
+  el.append(h('p', { class: 'note' }, '一回ごとに、まず配置・形・現れ方などの決まりを一つ振り、断片の四分の一ほどにだけその決まりを破らせます。全部を別々に振るより、回ごとの違いがはっきり出ます。'));
+}
+
+function arrangeAll(arr) {
+  const ctx = cctx(); if (!S.col.frags.length) return;
+  CL.roll(S.col, { arr, place: true, size: true, depth: true, cut: arr === 'grid' || arr === 'joiner' || arr === 'strips' }, ctx);
+  S.col.touched = true; buildCol();
+}
+function addFrag() {
+  if (S.col.frags.length >= CL.MAX) { msg(`断片は ${CL.MAX} 枚までです。`); return; }
+  const ctx = cctx(), f = CL.freshFrag(S.col);
+  const tmp = { frags: [f], arr: 'scatter' };
+  CL.roll(tmp, { arr: 'scatter', src: true, cut: true, shape: true, place: true, depth: true, size: true, appear: true, motion: true, content: false, blend: false }, ctx);
+  f.born = cc; f.life = 'once'; S.col.frags.push(f); S.col.sel = f.id; S.col.touched = true; buildCol();
+}
+function removeFrag(id) { S.col.frags = S.col.frags.filter((f) => f.id !== id); if (S.col.sel === id) S.col.sel = -1; S.col.touched = true; buildCol(); }
+function setCount(n) {
+  n = clamp(n, 0, CL.MAX);
+  while (S.col.frags.length > n) S.col.frags.pop();
+  while (S.col.frags.length < n) addFragQuiet();
+  if (!selFrag()) S.col.sel = -1; S.col.touched = true; buildCol();
+}
+function addFragQuiet() { const sel = S.col.sel; addFrag(); S.col.sel = sel; }
+function rollOne(f) {
+  const tmp = { frags: [f], arr: 'scatter' };
+  const keepId = f.id, keepLayer = f.layer;
+  CL.roll(tmp, Object.assign({}, S.dice.cats, { arr: 'scatter', count: false, ground: false, mix: false, place: false }), cctx());
+  // a lone fragment has no arrangement to follow: give it its own spot when placement is rolled
+  if (S.dice.cats.place) { f.x = .12 + Math.random() * .76; f.y = .12 + Math.random() * .76; f.rot = (Math.random() - .5) * .6; }
+  f.id = keepId; f.layer = keepLayer; f.born = cc; f.phase = 0; f._hasCap = false;
+}
+
+function fragSliders(f) {
+  const P = (id, label, get, set, def, fmt, lo, hi) => slider({ id: `f${id}`, label, get, set: (v) => { set(v); S.col.touched = true; }, def, fmt, lo, hi });
+  return h('div', { class: 'params' },
+    P('x', '横の位置', () => f.x, (v) => { f.x = v; }, .5, (v) => v.toFixed(2), '左', '右'),
+    P('y', '縦の位置', () => f.y, (v) => { f.y = v; }, .5, (v) => v.toFixed(2), '上', '下'),
+    P('s', '大きさ', () => clamp((f.s - .04) / 1.4, 0, 1), (v) => { f.s = .04 + v * 1.4; }, .25, () => `${Math.round(f.s * 100)}%`),
+    P('r', '回転', () => (f.rot / Math.PI + 1) / 2, (v) => { f.rot = (v * 2 - 1) * Math.PI; }, .5, () => `${Math.round(f.rot * 180 / Math.PI)}°`),
+    P('z', '奥行き', () => f.z, (v) => { f.z = v; }, .5, (v) => v.toFixed(2), '手前', '奥'));
+}
+const pvRefresh = { fn: null, t: 0 };
+function cutEditor(f) {
+  const pv = h('canvas', { width: 300, height: 200 });
+  const hdl = h('i', { class: 'hdl' });
+  const box = h('div', { class: 'cutbox' }, hdl);
+  const wrap = h('div', { class: 'cut', title: '枠を動かす・角で大きさを変える・外を押して引くと新しい枠' }, pv, box);
+  const srcEl = () => { const i = { a: 0, b: 1, c: 2 }[f.src]; return i !== undefined ? E.slots[i].el : cv; };
+  const place = () => { const [x, y, w, hh] = f.rect; Object.assign(box.style, { left: x * 100 + '%', top: y * 100 + '%', width: w * 100 + '%', height: hh * 100 + '%' }); };
+  const draw = () => {
+    const el = srcEl(); if (!el) return;
+    const d = cctx().dim(f.src) || [4, 3], w = 300, hh = Math.max(40, Math.round(w * d[1] / d[0]));
+    if (pv.width !== w || pv.height !== hh) { pv.width = w; pv.height = hh; }
+    try { pv.getContext('2d').drawImage(el, 0, 0, w, hh); } catch (e) {}
+  };
+  draw(); place();
+  pvRefresh.fn = () => { if (!wrap.isConnected) { pvRefresh.fn = null; return; } const el = srcEl(); if (el && (el.tagName === 'VIDEO' || el === cv)) draw(); };
+  let op = null;
+  wrap.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); wrap.setPointerCapture(e.pointerId);
+    const r = wrap.getBoundingClientRect(), px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height, [x, y, w, hh] = f.rect;
+    if (e.target === hdl) op = { k: 'size', px, py, r0: f.rect.slice() };
+    else if (px >= x && px <= x + w && py >= y && py <= y + hh) op = { k: 'move', px, py, r0: f.rect.slice() };
+    else op = { k: 'new', px, py };
+  });
+  wrap.addEventListener('pointermove', (e) => {
+    if (!op) return;
+    const r = wrap.getBoundingClientRect(), px = clamp((e.clientX - r.left) / r.width, 0, 1), py = clamp((e.clientY - r.top) / r.height, 0, 1);
+    if (op.k === 'move') { const [x, y, w, hh] = op.r0; f.rect = [clamp(x + px - op.px, 0, 1 - w), clamp(y + py - op.py, 0, 1 - hh), w, hh]; }
+    else if (op.k === 'size') { const [x, y] = op.r0; f.rect = [x, y, clamp(px - x, .02, 1 - x), clamp(py - y, .02, 1 - y)]; }
+    else { const x0 = Math.min(op.px, px), y0 = Math.min(op.py, py); f.rect = [x0, y0, Math.max(.02, Math.abs(px - op.px)), Math.max(.02, Math.abs(py - op.py))]; }
+    f._recap = true; S.col.touched = true; place();
+  });
+  const end = () => { op = null; };
+  wrap.addEventListener('pointerup', end); wrap.addEventListener('pointercancel', end);
+  return wrap;
+}
+
+function buildCol() {
+  const el = $('col'), C = S.col; el.textContent = '';
+  const n = C.frags.length;
+  el.append(h('div', { class: 'cardHead' }, h('h2', {}, '断片'), h('span', { class: 'hint' }, '素材から抜き出して貼る'), h('span', { class: 'grow' }),
+    h('span', { class: 'count' }, h('button', { type: 'button', 'aria-label': '一枚減らす', onclick: () => setCount(n - 1) }, '−'), h('output', {}, String(n)), h('button', { type: 'button', 'aria-label': '一枚足す', onclick: () => setCount(n + 1) }, '＋'))));
+  el.append(h('div', { class: 'role' }, h('span', {}, '並べ方'), seg(CL.ARRS.map(([v, t]) => [v, t]), () => C.arr, (v) => { C.arr = v; arrangeAll(v); })));
+  el.append(h('div', { class: 'role' }, h('span', {}, '地'), seg([['mix', '混ぜ方'], ['black', '黒'], ['paper', '紙']], () => C.ground, (v) => { C.ground = v; C.touched = true; })));
+  el.append(h('div', { class: 'params' },
+    slider({ id: 'cdep', label: '奥行きの強さ', get: () => C.depth, set: (v) => { C.depth = v; }, def: .6 }),
+    slider({ id: 'chaze', label: '奥の霞', get: () => C.haze, set: (v) => { C.haze = v; }, def: .45 }),
+    slider({ id: 'cshadow', label: '影', get: () => C.shadow, set: (v) => { C.shadow = v; }, def: .4 }),
+    slider({ id: 'cedge', label: '紙の縁', get: () => C.edge, set: (v) => { C.edge = v; }, def: 0 }),
+    slider({ id: 'ccam', label: '視点の揺れ', get: () => C.cam, set: (v) => { C.cam = v; }, def: 0, lo: '止まる', hi: '視差が出る' })));
+  el.append(h('div', { class: 'toggles' },
+    h('button', { class: 'switch', type: 'button', 'aria-pressed': String(C.stop), onclick: () => { C.stop = !C.stop; buildCol(); } }, h('i'), '動きを止める'),
+    h('button', { class: 'switch', type: 'button', 'aria-pressed': String(C.reroll), title: '巡る断片が消えるたびに、サイコロの設定で振り直す', onclick: () => { C.reroll = !C.reroll; buildCol(); } }, h('i'), '消えるたびに振り直す')));
+  el.append(h('div', { class: 'role' }, h('span', {}, '映像を全部'), seg(CL.CONTENTS.map(([v, t]) => [v, t]), () => '', (v) => {
+    for (const f of C.frags) { f.content = v; f._hasCap = false; f._capAt = null; } C.touched = true; buildCol();
+  })));
+  const list = h('div', { class: 'frags', role: 'group', 'aria-label': '断片の一覧' });
+  C.frags.forEach((f, k) => list.append(h('button', { type: 'button', class: `k-${f.src}${missing(f) ? ' off' : ''}`, 'aria-pressed': String(f.id === C.sel), title: `${k + 1}：${SRC_LABEL[f.src]}・${lab(CL.SHAPES, f.shape)}・${lab(CL.APPEARS, f.appear)}`, onclick: () => select(f.id === C.sel ? -1 : f.id) }, String(k + 1), h('i', {}, SRC_LABEL[f.src]))));
+  list.append(h('button', { type: 'button', onclick: addFrag, title: '断片を一枚足す' }, '＋ 足す'));
+  el.append(list);
+  const f = selFrag();
+  if (!f) { el.append(h('p', { class: 'note' }, n ? '画面の断片か、上の番号を押すと、その断片の抜き出し・置き場所・現れ方を変えられます。' : '＋で足すか、サイコロを振ると断片が貼られます。')); return; }
+  const k = C.frags.indexOf(f) + 1, ed = h('div', { class: 'fed' });
+  ed.append(h('div', { class: 'cardHead' }, h('h3', {}, `断片 ${k}`), h('span', { class: 'grow' }),
+    h('button', { class: 'btn small', type: 'button', onclick: () => { rollOne(f); C.touched = true; buildCol(); } }, 'これだけ振る'),
+    h('button', { class: 'btn small', type: 'button', onclick: () => { if (C.frags.length >= CL.MAX) return; const nf = CL.freshFrag(C), g = Object.assign(JSON.parse(JSON.stringify(f)), { id: nf.id, layer: nf.layer, x: clamp(f.x + .04, 0, 1), y: clamp(f.y + .04, 0, 1), _hasCap: false, _recap: false }); C.frags.push(g); C.sel = g.id; C.touched = true; buildCol(); } }, '複製'),
+    h('button', { class: 'btn small', type: 'button', onclick: () => removeFrag(f.id) }, '消す')));
+  const row = (label, node) => h('div', { class: 'role' }, h('span', {}, label), node);
+  const re = () => buildCol();
+  ed.append(row('素材', seg(['a', 'b', 'c', 'g', 'fb'].map((c) => [c, SRC_LABEL[c], SRC_TIP[c] || null, { a: 'k-a', b: 'k-b', c: 'k-c' }[c] || null]), () => f.src, (v) => { f.src = v; f._recap = true; C.touched = true; re(); }, { codes: true })));
+  ed.append(h('div', { class: 'sub' }, h('b', {}, '抜き出し'), cutEditor(f),
+    row('形', seg(CL.SHAPES.map(([v, t]) => [v, t]), () => f.shape, (v) => { f.shape = v; re(); })),
+    h('div', { class: 'params' },
+      slider({ id: 'ffe', label: '縁のぼかし', get: () => clamp(f.feather / .15, 0, 1), set: (v) => { f.feather = v * .15; }, def: .07 }),
+      f.shape === 'bright' || f.shape === 'dark' ? slider({ id: 'fkey', label: '明暗の境', get: () => f.key, set: (v) => { f.key = v; }, def: .5 }) : null)));
+  ed.append(h('div', { class: 'sub' }, h('b', {}, '置き場所'), fragSliders(f)));
+  ed.append(h('div', { class: 'sub' }, h('b', {}, '出現'),
+    seg(CL.APPEARS.map(([v, t]) => [v, t]), () => f.appear, (v) => { f.appear = v; f.born = cc; f.phase = 0; }),
+    row('巡り方', seg(CL.LIVES.map(([v, t]) => [v, t]), () => f.life, (v) => { f.life = v; f.born = cc; f.phase = 0; re(); })),
+    f.life === 'still' ? null : h('div', { class: 'params' }, slider({ id: 'fper', label: f.life === 'once' ? '現れる長さ' : '一巡の長さ', get: () => Math.log(f.period) / Math.log(30), set: (v) => { f.period = Math.max(1, Math.pow(30, v)); }, def: Math.log(8) / Math.log(30), fmt: () => (f.life === 'once' ? f.period * .25 : f.period).toFixed(1) + ' 秒' }))));
+  ed.append(h('div', { class: 'sub' }, h('b', {}, '動き'),
+    seg(CL.MOVES.map(([v, t]) => [v, t]), () => f.move, (v) => { f.move = v; re(); }),
+    f.move === 'none' ? null : h('div', { class: 'params' }, slider({ id: 'fspd', label: '速さ', get: () => f.speed, set: (v) => { f.speed = v; }, def: .5 }))));
+  ed.append(h('div', { class: 'sub' }, h('b', {}, '映像'),
+    seg(CL.CONTENTS.map(([v, t]) => [v, t]), () => f.content, (v) => { f.content = v; f._hasCap = false; f._capAt = null; re(); }),
+    f.content === 'step' ? h('div', { class: 'params' }, slider({ id: 'fstep', label: 'コマの間', get: () => clamp((f.step - .05) / 2, 0, 1), set: (v) => { f.step = .05 + v * 2; }, def: .2, fmt: () => f.step.toFixed(2) + ' 秒' })) : null,
+    f.content === 'frozen' ? h('button', { class: 'btn small', type: 'button', style: 'align-self:flex-start', onclick: () => { f._recap = true; f._capAt = null; msg('今のこまで凍らせ直しました。'); } }, '今のこまで凍らせ直す') : null));
+  ed.append(h('div', { class: 'sub' }, h('b', {}, '重ね方'), seg(CL.BLENDS.map(([v, t]) => [v, t]), () => f.blend, (v) => { f.blend = v; }),
+    h('p', { class: 'note' }, { window: '窓：抜き出さずに、その場所の素材をそのまま覗かせます。', lens: 'レンズ：下の地を拡大して見せます。', displace: '変位：断片は見えず、明暗で下の地を歪めます。', dots: '網：明るい所だけ網点で重ねます。' }[f.blend] || '')));
+  el.append(ed);
+  refreshInputs();
+}
+function missing(f) { const i = { a: 0, b: 1, c: 2 }[f.src]; return i !== undefined && !E.slots[i].el; }
+
+// grab fragments on the screen: drag to move, wheel or two fingers to size and turn
+const ptrs = new Map();
+let drag = null, pinch = null;
+function toUv(e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height, r }; }
+cv.addEventListener('pointerdown', (e) => {
+  if (!lastRecs || !E.slots.some((s) => s.el)) return;
+  cv.setPointerCapture(e.pointerId);
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  const p = toUv(e), [W, H] = E.size;
+  if (ptrs.size === 1) {
+    const f = CL.hit(lastRecs, p.x, p.y, W / H);
+    if (f) { drag = { f, x0: f.x, y0: f.y, px: e.clientX, py: e.clientY, moved: false }; if (S.col.sel !== f.id) { S.col.sel = f.id; buildCol(); } }
+    else { drag = null; if (S.col.sel !== -1) { S.col.sel = -1; buildCol(); } }
+  } else if (ptrs.size === 2 && selFrag()) {
+    const [a, b] = [...ptrs.values()], f = selFrag();
+    pinch = { f, d0: Math.hypot(b.x - a.x, b.y - a.y), a0: Math.atan2(b.y - a.y, b.x - a.x), s0: f.s, r0: f.rot }; drag = null;
+  }
+});
+cv.addEventListener('pointermove', (e) => {
+  if (!ptrs.has(e.pointerId)) return;
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinch && ptrs.size >= 2) {
+    const [a, b] = [...ptrs.values()];
+    pinch.f.s = clamp(pinch.s0 * Math.hypot(b.x - a.x, b.y - a.y) / Math.max(1, pinch.d0), .03, 2);
+    pinch.f.rot = pinch.r0 + Math.atan2(b.y - a.y, b.x - a.x) - pinch.a0; S.col.touched = true;
+  } else if (drag) {
+    const r = cv.getBoundingClientRect();
+    drag.f.x = clamp(drag.x0 + (e.clientX - drag.px) / r.width, -.2, 1.2); drag.f.y = clamp(drag.y0 + (e.clientY - drag.py) / r.height, -.2, 1.2);
+    drag.moved = true; S.col.touched = true;
+  }
+});
+const ptrEnd = (e) => {
+  ptrs.delete(e.pointerId);
+  if (ptrs.size < 2 && pinch) { pinch = null; buildCol(); }
+  if (!ptrs.size && drag) { if (drag.moved) buildCol(); drag = null; }
+};
+cv.addEventListener('pointerup', ptrEnd); cv.addEventListener('pointercancel', ptrEnd);
+cv.addEventListener('wheel', (e) => {
+  const f = selFrag(); if (!f) return;
+  e.preventDefault();
+  if (e.shiftKey) f.rot += e.deltaY * .003; else f.s = clamp(f.s * Math.exp(-e.deltaY * .0015), .03, 2);
+  S.col.touched = true;
+  clearTimeout(cv._wt); cv._wt = setTimeout(buildCol, 250);
+}, { passive: false });
+function updateSelBox() {
+  const box = $('selbox'), f = selFrag();
+  const r = f && lastRecs ? lastRecs.find((x) => x.f === f) : null;
+  if (!r) { box.hidden = true; return; }
+  const cr = cv.getBoundingClientRect(), sr = $('stage').getBoundingClientRect();
+  box.hidden = false;
+  box.style.left = (cr.left - sr.left + r.q.x * cr.width) + 'px';
+  box.style.top = (cr.top - sr.top + r.q.y * cr.height) + 'px';
+  box.style.width = Math.max(2, r.q.s * r.fa * cr.height) + 'px';
+  box.style.height = Math.max(2, r.q.s * cr.height) + 'px';
+  box.style.transform = `translate(-50%,-50%) rotate(${r.q.rot}rad)`;
+}
+
+// one collage frame: poses, rerolls, frozen captures, and the packet for the engine
+function collageFrame() {
+  const ctx = cctx(), C = S.col;
+  let recs = CL.frame(C, cc, ctx);
+  if (C.reroll) {
+    let any = false;
+    for (const r of recs) {
+      const f = r.f;
+      if (f.life === 'cycle' && f._cyc !== undefined && r.q.cycle > f._cyc) { rollOne(f); f.life = 'cycle'; any = true; }
+      f._cyc = f.life === 'cycle' ? CL.life(f, cc).cycle : undefined;
+    }
+    if (any) { recs = CL.frame(C, cc, ctx); if (selFrag()) buildCol(); }
+  }
+  const caps = [];
+  for (const r of recs) {
+    const f = r.f;
+    if (f.content === 'live' || missing(f)) continue;
+    if (f.content === 'frozen' && f._hasCap && !f._recap) continue;
+    if (!f._hasCap && f._capAt != null && cc < f._capAt) continue;
+    if (f.content === 'step' && f._hasCap && !f._recap && clock - (f._lastCap || 0) < f.step) continue;
+    const [rx, ry, rw, rh] = r.q.rect;
+    caps.push({ layer: f.layer, src: f.src, rect: [rx, 1 - ry - rh, rw, rh], f });
+  }
+  const pk = CL.pack(recs, ctx);
+  lastRecs = recs;
+  const g = { mix: 0, black: 1, paper: 2 }[C.ground];
+  return { n: pk.n, F: pk.F, caps, ground: g, paper: PAPER, hazeCol: g === 2 ? PAPER : g === 1 ? [0, 0, 0] : [.05, .05, .055], depth: C.depth, shadow: C.shadow, edge: C.edge, haze: C.haze };
 }
 
 // ---------- transport ----------
@@ -1032,6 +1825,7 @@ function setPlaying(p) {
 }
 $('play').addEventListener('click', () => setPlaying(!S.playing));
 $('shake').addEventListener('click', shake);
+$('roll').addEventListener('click', () => diceRoll(false));
 
 // saving: inside the claude.ai viewer files go through the downloads capability
 const inViewer = !!(window.claude && typeof window.claude.use === 'function');
@@ -1095,18 +1889,31 @@ function wave(st, time) {
   return clamp(st.t + w * st.amp * .5, 0, 1);
 }
 let last = performance.now(), clock = 0, fpsN = 0, fpsT = 0, fps = 0, roT = 0;
+function renderNow() {
+  try {
+    const C = E.slots.some((s) => s.el) ? collageFrame() : null;
+    const got = E.render(S, clock, C) || [];
+    if (C) for (const c of C.caps) if (got.includes(c.layer)) { c.f._hasCap = true; c.f._recap = false; c.f._lastCap = clock; }
+  } catch (e) { console.error(e); }
+  updateSelBox();
+}
 function loop(now) {
   const dt = Math.min(.1, (now - last) / 1000); last = now;
   if (S.playing) clock += dt;
+  if (S.playing && !S.col.stop) cc += dt;
+  // real seconds: the app clock is capped per frame and runs slow on a slow device
+  if (S.dice.every && S.playing && E.slots.some((s) => s.el) && now - S.dice.lastRoll >= S.dice.every * 1000) diceRoll(true);
   for (let i = 0; i < 3; i++) { const s = E.slots[i]; if (s.el && s.el._poll && !s.el.paused) E.markFresh(i); }
   S.stages.forEach((st, si) => { st.tv = wave(st, clock); stageEls[si].style.setProperty('--tv', st.tv.toFixed(4)); });
-  try { E.render(S, clock); } catch (e) { console.error(e); }
+  renderNow();
+  if (pvRefresh.fn && now - pvRefresh.t > 300) { pvRefresh.t = now; pvRefresh.fn(); }
   fpsN++; fpsT += dt;
   if (fpsT > .5) { fps = fpsN / fpsT; fpsN = 0; fpsT = 0; }
   if (now - roT > 250) {
     roT = now;
     const [W, H] = E.size, parts = [`${W}×${H}`];
     S.stages.forEach((st, si) => { if (si === 0 || st.on) parts.push(`${si ? '二段' : '一段'} ${MODES[MI[st.mode]].k} ${st.tv.toFixed(2)}`); });
+    if (S.col.frags.length) parts.push(`断片 ${S.col.frags.length}${S.col.stop ? '（静止）' : ''}`);
     parts.push(`${fps.toFixed(0)} fps`);
     $('readout').textContent = parts.join(' · ');
     if (rec) { const s = Math.floor((now - recStart) / 1000); $('recTime').textContent = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; }
@@ -1116,13 +1923,13 @@ function loop(now) {
 
 cv.addEventListener('webglcontextlost', (e) => { e.preventDefault(); msg('描画が止まりました（GPU の都合）。ページを読み込み直してください。', true); });
 
-buildSlots(); buildStage(0); buildStage(1); buildPost(); buildOut();
+buildSlots(); buildDice(); buildCol(); buildStage(0); buildStage(1); buildPost(); buildOut();
 applySize(); refreshInputs();
 if (mime === null) $('rec').title = 'このブラウザは録画に対応していません';
 requestAnimationFrame(loop);
 
-// handle for the offline tests (tools/test.mjs)
-window.__kishimi = { S, E, MODES, buildStage, applyMode, setPlaying, get clock() { return clock; }, set clock(v) { clock = v; } };
+// handle for the offline tests (tools/test.js)
+window.__kishimi = { S, E, MODES, CL, buildStage, buildCol, applyMode, setPlaying, diceRoll, collageFrame, renderNow, get clock() { return clock; }, set clock(v) { clock = v; }, get cc() { return cc; }, set cc(v) { cc = v; }, get recs() { return lastRecs; } };
 })();
 
 </script>

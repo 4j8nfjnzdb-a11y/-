@@ -1,7 +1,7 @@
 <div class="app">
   <header class="top">
     <h1><span class="glyph" aria-hidden="true">軋</span><span class="nm">Kishimi<small>軋み</small></span></h1>
-    <p>写真や動画を二つか三つ入れて、混ぜ方を選びます。片方がもう片方を押し、切り、遅らせ、網目から覗かせます。混ぜ方は十通り。二段まで重ねられ、一段目の結果や直前のこまも次の素材になります。</p>
+    <p>写真や動画を二つか三つ入れると、地では十通りの混ぜ方で混ざり、その上に素材から抜き出した断片が奥行きをもって貼られます。断片は現れ方、動き方、止まり方がそれぞれ違い、サイコロで選んだ項目だけを振り直せます。</p>
   </header>
 
   <main class="main">
@@ -13,10 +13,12 @@
           <p>写真か動画を二つ入れると、ここで混ざりはじめます。三つ目は C へ。ここへ直接ドロップしても、空いている枠に入ります。</p>
           <div class="row"><button class="btn primary" type="button" data-pick="0">A を入れる</button><button class="btn" type="button" data-pick="1">B を入れる</button></div>
         </div>
+        <div class="selbox" id="selbox" hidden></div>
         <div class="recBadge" id="recBadge" hidden><i></i><span id="recTime">00:00</span></div>
       </div>
       <div class="transport">
         <button class="btn" type="button" id="play" aria-pressed="true">一時停止</button>
+        <button class="btn dice" type="button" id="roll" title="サイコロの欄で選んだものを振る"><span class="die" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>振る</button>
         <button class="btn" type="button" id="shake" title="今の設定から少しずらす">揺さぶる</button>
         <span class="grow"></span>
         <button class="btn" type="button" id="still">静止画</button>
@@ -31,6 +33,8 @@
         <div class="cardHead"><h2 id="h-src">素材</h2><span class="hint">枠を押すか、ファイルをドロップ</span></div>
         <div class="slots" id="slots"></div>
       </section>
+      <section class="card" id="dice" aria-label="サイコロ"></section>
+      <section class="card" id="col" aria-label="断片"></section>
       <section class="card stagecard" id="st0" aria-label="一段目"></section>
       <section class="card stagecard" id="st1" aria-label="二段目"></section>
       <section class="card" id="post" aria-label="残像"></section>
@@ -39,6 +43,7 @@
   </main>
 
   <footer>
+    <span>画面の断片は押して選び、ドラッグで動かします。大きさはホイールか二本指、回転は Shift＋ホイールか二本指のひねりです。</span>
     <span>スライダーはダブルクリックで初期値に戻ります。</span>
     <span>録画は MP4（使えないブラウザでは WebM）、毎秒 30 こま。動画の音は入りません。</span>
   </footer>
